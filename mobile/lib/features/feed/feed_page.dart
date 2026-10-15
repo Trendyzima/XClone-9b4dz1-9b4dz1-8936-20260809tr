@@ -31,7 +31,8 @@ class _FeedPageState extends State<FeedPage> {
   bool _hasMore = true;
   String _feedTab = 'For you';
   String? _error;
-  int _page = 0;
+  String? _cursorCreatedAt;
+  String? _cursorId;
   int _loadGeneration = 0;
   int _refreshGeneration = 0;
   SponsoredAd? _sponsoredAd;
@@ -76,8 +77,11 @@ class _FeedPageState extends State<FeedPage> {
     final generation = _loadGeneration;
     if (reset) _refreshGeneration++;
     final refreshGeneration = _refreshGeneration;
+    final pageCursorCreatedAt = reset ? null : _cursorCreatedAt;
+    final pageCursorId = reset ? null : _cursorId;
     if (reset) {
-      _page = 0;
+      _cursorCreatedAt = null;
+      _cursorId = null;
       _hasMore = true;
       _liked.clear();
       _bookmarked.clear();
@@ -105,13 +109,16 @@ class _FeedPageState extends State<FeedPage> {
           _posts
             ..clear()
             ..addAll(cached);
-          _page = (_posts.length / _pageSize).ceil();
-          _hasMore = true;
+          final lastCached = _posts.isEmpty ? null : _posts.last;
+          _cursorCreatedAt = lastCached == null
+              ? null
+              : '${lastCached['created_at'] ?? ''}';
+          _cursorId = lastCached == null ? null : '${lastCached['id'] ?? ''}';
+          _hasMore = _posts.length >= FeedOfflineCache.maxPosts;
         });
       }
     }
     try {
-      final start = reset ? 0 : _page * _pageSize;
       List<String> followingIds = [];
       final viewerId = _client.auth.currentUser?.id;
       if (_feedTab == 'Following' && viewerId != null) {
@@ -132,14 +139,27 @@ class _FeedPageState extends State<FeedPage> {
             .toList();
       }
       final postQuery = _client.from('posts').select('*');
+      var pagedQuery = _feedTab == 'Following'
+          ? postQuery.inFilter('author_id', followingIds)
+          : postQuery;
+      // Keyset pagination is stable when new posts arrive while the reader
+      // scrolls; offset pagination can skip or repeat rows between requests.
+      if (pageCursorCreatedAt != null &&
+          pageCursorCreatedAt.isNotEmpty &&
+          pageCursorId != null &&
+          pageCursorId.isNotEmpty) {
+        pagedQuery = pagedQuery.or(
+          'created_at.lt.$pageCursorCreatedAt,'
+          'and(created_at.eq.$pageCursorCreatedAt,id.lt.$pageCursorId)',
+        );
+      }
       final response =
           _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
               ? <dynamic>[]
-              : await (_feedTab == 'Following'
-                      ? postQuery.inFilter('author_id', followingIds)
-                      : postQuery)
+              : await pagedQuery
                   .order('created_at', ascending: false)
-                  .range(start, start + _pageSize - 1)
+                  .order('id', ascending: false)
+                  .limit(_pageSize)
                   .timeout(const Duration(seconds: 15));
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
@@ -247,7 +267,11 @@ class _FeedPageState extends State<FeedPage> {
           _bookmarked.addAll(loadedBookmarks);
           _reposted.addAll(loadedReposts);
         }
-        _page = start ~/ _pageSize + 1;
+        final lastLoaded = rows.isEmpty ? null : rows.last;
+        if (lastLoaded != null) {
+          _cursorCreatedAt = '${lastLoaded['created_at'] ?? ''}';
+          _cursorId = '${lastLoaded['id'] ?? ''}';
+        }
         _hasMore = rows.length == _pageSize;
       });
       unawaited(
