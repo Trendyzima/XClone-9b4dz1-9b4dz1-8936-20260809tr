@@ -688,8 +688,9 @@ async function handle(request: Request) {
     const rawItems = rawEntries.slice(0, limit);
     const summaries = await Promise.all(rawItems.map(async (entry: any) => {
       const embedded = entry && typeof entry === "object" ? entry : null;
-      const entryObject = embedded?.object && typeof embedded.object === "object" ? embedded.object : embedded;
-      const entryUri = idOf(entryObject);
+      const rawObject = embedded?.object;
+      const entryObject = rawObject && typeof rawObject === "object" ? rawObject : embedded;
+      const entryUri = (kind === "featured" || kind === "likes") && rawObject ? idOf(rawObject) : idOf(entryObject);
       if (!entryUri) return null;
       try {
         let remote = entryObject && entryObject.type && entryObject.id ? entryObject : null;
