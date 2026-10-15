@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'fediverse_feed_policy.dart';
@@ -1224,6 +1225,21 @@ class _FediversePageState extends State<FediversePage> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _open(String? raw) async {
+    final uri = Uri.tryParse(raw ?? '');
+    if (uri == null ||
+        !{'http', 'https'}.contains(uri.scheme) ||
+        uri.host.isEmpty) {
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this remote link.')),
+      );
     }
   }
 
