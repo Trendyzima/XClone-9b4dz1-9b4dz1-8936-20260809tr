@@ -91,9 +91,14 @@ export async function resolveRemoteActor(actorUri: string): Promise<any> {
   if (!/^https?:\/\//i.test(actorUri)) throw new Error('Remote actor must be an ActivityPub URL');
   return api('/federated-actor', 'GET', undefined, { actor_uri: actorUri });
 }
-export async function getRemoteProfile(actorUri: string, limit = 60): Promise<any> {
+export async function getRemoteProfile(actorUri: string, limit = 60, cursor?: string | null): Promise<any> {
   if (!/^https?:\/\//i.test(actorUri)) throw new Error('Remote actor must be an ActivityPub URL');
-  return api('/federated-profile', 'GET', undefined, { actor_uri: actorUri, limit: Math.min(Math.max(limit, 1), 100) });
+  return api('/federated-profile', 'GET', undefined, { actor_uri: actorUri, limit: Math.min(Math.max(limit, 1), 100), cursor: cursor || undefined });
+}
+export async function getRemoteCollection(actorUri: string, kind: 'followers' | 'following' | 'featured' | 'likes', limit = 30, cursor?: string | null): Promise<{items:any[];totalItems:number|null;next_cursor:string|null;unavailable?:boolean}> {
+  if (!/^https?:\/\//i.test(actorUri)) throw new Error('Remote actor must be an ActivityPub URL');
+  const result = await api<{items?:any[];totalItems?:number|null;next_cursor?:string|null;unavailable?:boolean}>('/federated-collection', 'GET', undefined, { actor_uri: actorUri, kind, limit: Math.min(Math.max(limit, 1), 40), cursor: cursor || undefined });
+  return { items: Array.isArray(result?.items) ? result.items : [], totalItems: typeof result?.totalItems === 'number' ? result.totalItems : null, next_cursor: result?.next_cursor ?? null, unavailable: result?.unavailable === true };
 }
 
 export async function getFederatedObject(objectUri: string): Promise<any> {

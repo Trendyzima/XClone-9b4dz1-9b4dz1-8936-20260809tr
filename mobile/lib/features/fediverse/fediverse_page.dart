@@ -32,6 +32,7 @@ class FediversePage extends StatefulWidget {
       'identity' => 'Federated identity',
       'profile' => 'Federated profile',
       'posts' => 'Federated posts',
+      'featured' => 'Featured federated posts',
       'threads' => 'Federated threads',
       'replies' => 'Federated replies',
       'media' => 'Federated media',
@@ -64,6 +65,11 @@ class _FediversePageState extends State<FediversePage> {
   final String _mastodonInstance = 'https://mastodon.social';
   bool _searchingMastodon = false;
   List<Map<String, dynamic>> _surfaceRows = [];
+  Map<String, dynamic> _remoteProfile = {};
+  String? _remoteTimelineCursor;
+  bool _loadingMoreRemoteTimeline = false;
+  String? _relationshipCursor;
+  bool _loadingMoreRelationships = false;
   Map<String, int> _surfaceMetrics = {};
   String? _surfaceMessage;
   final Set<String> _liked = {}, _boosted = {};
@@ -213,6 +219,10 @@ class _FediversePageState extends State<FediversePage> {
   List<Map<String, dynamic>> get _visiblePosts {
     final source = _posts;
     switch (widget.section) {
+      case 'tips':
+      case 'gifts':
+      case 'profile-analytics':
+        return const [];
       case 'replies':
         return source
             .where((p) => '${p['in_reply_to_uri'] ?? ''}'.isNotEmpty)
@@ -259,6 +269,7 @@ class _FediversePageState extends State<FediversePage> {
   bool get _isProfileSection => const {
         'profile',
         'posts',
+        'featured',
         'threads',
         'replies',
         'media',
@@ -266,6 +277,9 @@ class _FediversePageState extends State<FediversePage> {
         'podcasts',
         'series',
         'likes',
+        'tips',
+        'gifts',
+        'profile-analytics',
         'followers',
         'following',
       }.contains(widget.section);
@@ -279,6 +293,7 @@ class _FediversePageState extends State<FediversePage> {
         'identity',
         'profile',
         'posts',
+        'featured',
         'threads',
         'replies',
         'media',
@@ -295,6 +310,49 @@ class _FediversePageState extends State<FediversePage> {
       }.contains(widget.section);
 
   String _plainRemoteContent(String value) => normalizeFederatedContent(value);
+
+  num? _remoteCount(dynamic value) {
+    if (value is num && value >= 0) return value;
+    if (value is String) {
+      final parsed = num.tryParse(value.trim());
+      if (parsed != null && parsed >= 0) return parsed;
+    }
+    return null;
+  }
+
+  String? _remoteUrl(dynamic value) {
+    if (value is String && value.startsWith('http')) return value;
+    if (value is List) {
+      for (final item in value) {
+        final resolved = _remoteUrl(item);
+        if (resolved != null) return resolved;
+      }
+    }
+    if (value is Map)
+      return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
+    return null;
+  }
+
+  Widget _profileMetric(String label, dynamic value, String route) {
+    final display = value is num ? value.toInt().toString() : '—';
+    return InkWell(
+      onTap: const {'followers', 'following'}.contains(route) &&
+              widget.actorUri != null
+          ? () => context.push(
+                '/fediverse/profile/$route?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
+              )
+          : null,
+      child: Text(
+        '$display $label',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: const {'followers', 'following'}.contains(route)
+              ? Theme.of(context).colorScheme.primary
+              : null,
+        ),
+      ),
+    );
+  }
 
   Map<String, dynamic> _normalizeMastodonStatus(dynamic value) {
     final status = Map<String, dynamic>.from(value as Map);
@@ -441,7 +499,17 @@ class _FediversePageState extends State<FediversePage> {
       body: {
         'path': '/federated-profile',
         'method': 'GET',
-        'params': {'actor_uri': actorUri, 'limit': 80},
+        'params': {
+          'actor_uri': actorUri,
+          'limit': const {
+            'followers',
+            'following',
+            'featured',
+            'likes',
+          }.contains(widget.section)
+              ? 1
+              : 80,
+        },
       },
     ).timeout(const Duration(seconds: 20));
     final data = response.data;
@@ -457,6 +525,126 @@ class _FediversePageState extends State<FediversePage> {
             .replaceFirst(RegExp(r'^@'), '')
             .split('@')
             .first;
+    final profileFollowers = actor['followers'] is Map
+        ? (actor['followers'] as Map)['totalItems']
+        : actor['followers_count'] ?? actor['followersCount'];
+    final profileFollowing = actor['following'] is Map
+        ? (actor['following'] as Map)['totalItems']
+        : actor['following_count'] ?? actor['followingCount'];
+    if (mounted) {
+      setState(() {
+        _remoteProfile = {
+          ...actor,
+          'actor_uri': actorUri,
+          'username': username,
+          'domain': domain,
+          'display_name': actor['name'] ?? username,
+          'bio': actor['summary'] ?? '',
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
+          'header_url': _remoteUrl(
+            actor['image'] is Map ? actor['image']['url'] : actor['image'],
+          ),
+          'followers_count': _remoteCount(profileFollowers),
+          'following_count': _remoteCount(profileFollowing),
+          'posts_count': _remoteCount(
+            actor['outbox'] is Map
+                ? actor['outbox']['totalItems']
+                : actor['statuses_count'] ?? actor['statusesCount'],
+          ),
+          'created_at': actor['published'],
+          'profile_url': _remoteUrl(actor['url']),
+          'actor_type': actor['type'] ?? 'Person',
+          'locked': actor['manuallyApprovesFollowers'] == true,
+          'bot': actor['type'] == 'Service',
+          'discoverable': actor['discoverable'] != false,
+          'indexable': actor['indexable'] != false,
+          'limited': actor['limited'] == true,
+          'suspended': actor['suspended'] == true,
+          'last_status_at': actor['lastStatusAt'] ?? actor['last_status_at'],
+          'fields':
+              actor['attachment'] is List ? actor['attachment'] : const [],
+          'emojis': actor['emoji'] is List ? actor['emoji'] : const [],
+          'moved_to':
+              actor['moved'] is Map ? actor['moved']['id'] : actor['moved'],
+          'also_known_as':
+              actor['alsoKnownAs'] is List ? actor['alsoKnownAs'] : const [],
+        };
+      });
+    }
+    if (const {'tips', 'gifts'}.contains(widget.section)) {
+      if (mounted) {
+        setState(() {
+          _posts = [];
+          _surfaceRows = [];
+          _surfaceMetrics = {};
+          _surfaceMessage =
+              'Tips and gifts are Testagram-native features and are not exposed as public ActivityPub profile data.';
+        });
+      }
+      return;
+    }
+    if (const {
+      'followers',
+      'following',
+      'featured',
+      'likes',
+    }.contains(widget.section)) {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {
+            'actor_uri': actorUri,
+            'kind': widget.section,
+            'limit': 30,
+          },
+        },
+      ).timeout(const Duration(seconds: 25));
+      final result = response.data;
+      if (result is! Map || result['ok'] != true) {
+        throw StateError('Remote ${widget.section} collection is unavailable.');
+      }
+      final rows = result['items'] is List
+          ? (result['items'] as List)
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() {
+        _surfaceRows = rows;
+        _relationshipCursor = result['next_cursor'] is String
+            ? result['next_cursor'] as String
+            : null;
+        final total = result['totalItems'];
+        if (total is num &&
+            const {'followers', 'following'}.contains(widget.section)) {
+          _remoteProfile[widget.section == 'followers'
+              ? 'followers_count'
+              : 'following_count'] = total;
+        }
+        final metricLabel = switch (widget.section) {
+          'followers' => 'Followers reported',
+          'following' => 'Following reported',
+          'featured' => 'Featured posts reported',
+          'likes' => 'Public likes reported',
+          _ => 'Items reported',
+        };
+        _surfaceMetrics = total is num ? {metricLabel: total.toInt()} : {};
+        _surfaceMessage = result['unavailable'] == true
+            ? 'This remote instance does not publish a public ${widget.section} collection.'
+            : rows.isEmpty
+                ? 'No public ${widget.section} were returned. The remote instance may hide this collection.'
+                : null;
+        _posts = [];
+      });
+      return;
+    }
+    _remoteTimelineCursor =
+        data['next_cursor'] is String ? data['next_cursor'] as String : null;
     final items = data['items'] is List ? data['items'] as List : const [];
     final posts = <Map<String, dynamic>>[];
     for (final item in items.whereType<Map>()) {
@@ -494,22 +682,193 @@ class _FediversePageState extends State<FediversePage> {
           'username': username,
           'domain': domain,
           'display_name': actor['name'] ?? username,
-          'avatar_url': actor['icon'] is Map ? actor['icon']['url'] : null,
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
           'actor_uri': actorUri,
         },
-        'like_count': 0,
-        'announce_count': 0,
-        'reply_count': 0,
+        'like_count': object['likes'] is Map
+            ? object['likes']['totalItems']
+            : object['like_count'] ?? object['likeCount'],
+        'announce_count': object['shares'] is Map
+            ? object['shares']['totalItems']
+            : object['announce_count'] ?? object['shareCount'],
+        'reply_count': object['replies'] is Map
+            ? object['replies']['totalItems']
+            : object['reply_count'] ?? object['replyCount'],
       });
     }
     if (!mounted) return;
     setState(() {
       _posts = posts;
       _pendingPosts = [];
-      _surfaceMessage = posts.isEmpty
-          ? 'No public posts were returned for this federated profile.'
-          : null;
+      if (widget.section == 'profile-analytics') {
+        _surfaceMetrics = {
+          'Public posts loaded': posts.length,
+          'Media posts loaded': posts
+              .where(
+                (post) =>
+                    post['attachments'] is List &&
+                    (post['attachments'] as List).isNotEmpty,
+              )
+              .length,
+          if (_remoteProfile['posts_count'] is num)
+            'Posts reported by server':
+                (_remoteProfile['posts_count'] as num).toInt(),
+          if (_remoteProfile['followers_count'] is num)
+            'Followers reported':
+                (_remoteProfile['followers_count'] as num).toInt(),
+          if (_remoteProfile['following_count'] is num)
+            'Following reported':
+                (_remoteProfile['following_count'] as num).toInt(),
+        };
+        _surfaceMessage =
+            'Counts marked reported come from the remote server; loaded totals only describe the public items fetched here.';
+      } else {
+        _surfaceMessage = posts.isEmpty
+            ? 'No public posts were returned for this federated profile.'
+            : null;
+      }
     });
+  }
+
+  Future<void> _loadMoreRemoteRelationships() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    final cursor = _relationshipCursor;
+    if (!actorUri.startsWith('https://') ||
+        cursor == null ||
+        _loadingMoreRelationships) return;
+    setState(() => _loadingMoreRelationships = true);
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {
+            'actor_uri': actorUri,
+            'kind': widget.section,
+            'limit': 30,
+            'cursor': cursor,
+          },
+        },
+      ).timeout(const Duration(seconds: 25));
+      final result = response.data;
+      if (result is! Map || result['ok'] != true)
+        throw StateError('Could not load more remote relationships.');
+      final rows = result['items'] is List
+          ? (result['items'] as List)
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+      final seen = _surfaceRows
+          .map((row) => '${row['actor_uri'] ?? row['id'] ?? row['url']}')
+          .toSet();
+      if (mounted) {
+        setState(() {
+          _surfaceRows.addAll(
+            rows.where((row) {
+              final key = '${row['actor_uri'] ?? row['id'] ?? row['url']}';
+              return key.isNotEmpty && seen.add(key);
+            }),
+          );
+          _relationshipCursor = result['next_cursor'] is String
+              ? result['next_cursor'] as String
+              : null;
+        });
+      }
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load more ${widget.section}: $error'),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _loadingMoreRelationships = false);
+    }
+  }
+
+  Future<void> _loadMoreRemoteTimeline() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    final cursor = _remoteTimelineCursor;
+    if (!actorUri.startsWith('https://') ||
+        cursor == null ||
+        _loadingMoreRemoteTimeline) return;
+    setState(() => _loadingMoreRemoteTimeline = true);
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-profile',
+          'method': 'GET',
+          'params': {'actor_uri': actorUri, 'limit': 60, 'cursor': cursor},
+        },
+      ).timeout(const Duration(seconds: 25));
+      final data = response.data;
+      if (data is! Map || data['ok'] != true)
+        throw StateError('Remote timeline pagination failed.');
+      final items = data['items'] is List ? data['items'] as List : const [];
+      final rows = <Map<String, dynamic>>[];
+      for (final item in items.whereType<Map>()) {
+        final object = item['object'] is Map
+            ? Map<String, dynamic>.from(item['object'] as Map)
+            : Map<String, dynamic>.from(item);
+        final uri = '${object['id'] ?? object['url'] ?? ''}';
+        if (!uri.startsWith('https://') ||
+            const {'Delete', 'Tombstone'}.contains(object['type'])) continue;
+        final attachments = object['attachment'] is List
+            ? object['attachment'] as List
+            : object['attachment'] == null
+                ? const []
+                : [object['attachment']];
+        rows.add({
+          'id': uri,
+          'uri': uri,
+          'url': object['url'] is String ? object['url'] : uri,
+          'object_type': object['type'] ?? 'Note',
+          'content': _plainRemoteContent(
+            '${object['content'] ?? object['summary'] ?? ''}',
+          ),
+          'summary': object['summary'] ?? '',
+          'sensitive': object['sensitive'] == true,
+          'content_warning': object['summary'] ?? '',
+          'published_at': object['published'] ?? object['updated'],
+          'in_reply_to_uri': object['inReplyTo'],
+          'attachments': attachments,
+          'tags': object['tag'] is List ? object['tag'] : const [],
+          'actor_uri': actorUri,
+          'actor': _remoteProfile,
+          'like_count': object['likes'] is Map
+              ? object['likes']['totalItems']
+              : object['like_count'] ?? object['likeCount'],
+          'announce_count': object['shares'] is Map
+              ? object['shares']['totalItems']
+              : object['announce_count'] ?? object['shareCount'],
+          'reply_count': object['replies'] is Map
+              ? object['replies']['totalItems']
+              : object['reply_count'] ?? object['replyCount'],
+        });
+      }
+      final seen = _posts.map((post) => '${post['uri'] ?? post['id']}').toSet();
+      if (mounted)
+        setState(() {
+          _posts.addAll(
+            rows.where((row) => seen.add('${row['uri'] ?? row['id']}')),
+          );
+          _remoteTimelineCursor = data['next_cursor'] is String
+              ? data['next_cursor'] as String
+              : null;
+        });
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load more public posts: $error')),
+        );
+    } finally {
+      if (mounted) setState(() => _loadingMoreRemoteTimeline = false);
+    }
   }
 
   Future<void> _loadDedicatedSection() async {
@@ -976,6 +1335,263 @@ class _FediversePageState extends State<FediversePage> {
             ],
           ),
           const SizedBox(height: 4),
+          if (widget.actorUri != null && _remoteProfile.isNotEmpty) ...[
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 104,
+                    width: double.infinity,
+                    child: _remoteProfile['header_url'] is String
+                        ? Image.network(
+                            '${_remoteProfile['header_url']}',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const ColoredBox(color: Color(0x22336699)),
+                          )
+                        : const ColoredBox(color: Color(0x22336699)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundImage:
+                                  _remoteProfile['avatar_url'] is String
+                                      ? NetworkImage(
+                                          '${_remoteProfile['avatar_url']}',
+                                        )
+                                      : null,
+                              child: _remoteProfile['avatar_url'] is String
+                                  ? null
+                                  : const Icon(Icons.person_rounded),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_remoteProfile['display_name'] ?? _remoteProfile['username']}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
+                                  Text(
+                                    '@${_remoteProfile['username']}@${_remoteProfile['domain']}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_remoteProfile['bot'] == true)
+                              const Tooltip(
+                                message: 'Bot or service account',
+                                child: Icon(Icons.smart_toy_outlined),
+                              ),
+                            if (_remoteProfile['locked'] == true)
+                              const Tooltip(
+                                message: 'Follow requests require approval',
+                                child: Icon(Icons.lock_outline_rounded),
+                              ),
+                          ],
+                        ),
+                        if ('${_remoteProfile['bio'] ?? ''}'.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(
+                              _plainRemoteContent('${_remoteProfile['bio']}'),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 18,
+                          runSpacing: 8,
+                          children: [
+                            _profileMetric(
+                              'Followers',
+                              _remoteProfile['followers_count'],
+                              'followers',
+                            ),
+                            _profileMetric(
+                              'Following',
+                              _remoteProfile['following_count'],
+                              'following',
+                            ),
+                            _profileMetric(
+                              'Posts',
+                              _remoteProfile['posts_count'],
+                              'posts',
+                            ),
+                            if (_remoteProfile['created_at'] is String)
+                              Text(
+                                'Joined ${'${_remoteProfile['created_at']}'.split('T').first}',
+                              ),
+                            if (_remoteProfile['discoverable'] == false)
+                              const Text('Not listed in discovery'),
+                            if (_remoteProfile['actor_type'] is String)
+                              Text('Type: ${_remoteProfile['actor_type']}'),
+                            if (_remoteProfile['indexable'] == false)
+                              const Text('Not indexable'),
+                            if (_remoteProfile['limited'] == true)
+                              const Text('Limited'),
+                            if (_remoteProfile['suspended'] == true)
+                              const Text('Suspended'),
+                            if (_remoteProfile['last_status_at'] is String)
+                              Text(
+                                'Last public status: ${'${_remoteProfile['last_status_at']}'.split('T').first}',
+                              ),
+                          ],
+                        ),
+                        if (_remoteProfile['fields'] is List &&
+                            (_remoteProfile['fields'] as List).isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          ...(_remoteProfile['fields'] as List)
+                              .whereType<Map>()
+                              .map(
+                                (field) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 100,
+                                        child: Text(
+                                          '${field['name'] ?? 'Field'}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          _plainRemoteContent(
+                                            '${field['value'] ?? field['content'] ?? ''}',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                        ],
+                        if (_remoteProfile['profile_url'] is String)
+                          TextButton.icon(
+                            onPressed: () => _open('${_remoteProfile['profile_url']}'),
+                            icon: const Icon(Icons.open_in_new_rounded),
+                            label: const Text('Open original profile'),
+                          ),
+                        if (_remoteProfile['moved_to'] is String)
+                          TextButton.icon(
+                            onPressed: () =>
+                                _open('${_remoteProfile['moved_to']}'),
+                            icon: const Icon(Icons.open_in_new_rounded),
+                            label: const Text('Moved account'),
+                          ),
+                        if (_remoteProfile['also_known_as'] is List &&
+                            (_remoteProfile['also_known_as'] as List)
+                                .isNotEmpty)
+                          Text(
+                            'Also known as: ${(_remoteProfile['also_known_as'] as List).map((item) => item is Map ? item['id'] : item).join(' · ')}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        if (_remoteProfile['tag'] is List &&
+                            (_remoteProfile['tag'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: (_remoteProfile['tag'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (tag) => Chip(
+                                      label: Text(
+                                        '${tag['name'] ?? tag['href'] ?? 'Tag'}',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        if (_remoteProfile['emojis'] is List &&
+                            (_remoteProfile['emojis'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              children: (_remoteProfile['emojis'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (emoji) => Chip(
+                                      label: Text(
+                                        ':${emoji['shortcode'] ?? emoji['name'] ?? 'emoji'}:',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final entry in const [
+                    ('Posts', 'posts'),
+                    ('Featured', 'featured'),
+                    ('Threads', 'threads'),
+                    ('Replies', 'replies'),
+                    ('Media', 'media'),
+                    ('Videos', 'videos'),
+                    ('Podcasts', 'podcasts'),
+                    ('Series', 'series'),
+                    ('Likes', 'likes'),
+                    ('Tips', 'tips'),
+                    ('Gifts', 'gifts'),
+                    ('Analytics', 'profile-analytics'),
+                    ('Followers', 'followers'),
+                    ('Following', 'following'),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(entry.$1),
+                        selected: widget.section == entry.$2 ||
+                            (widget.section == 'profile' &&
+                                entry.$2 == 'posts'),
+                        onSelected: (_) => context.push(
+                          '/fediverse/profile/${entry.$2}?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           if (widget.section == 'mastodon')
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -1034,7 +1650,14 @@ class _FediversePageState extends State<FediversePage> {
                 ),
               ),
             ),
-          if (_sectionNeedsDedicatedBackend &&
+          if ((_sectionNeedsDedicatedBackend ||
+                  (_isProfileSection &&
+                      const {
+                        'followers',
+                        'following',
+                        'featured',
+                        'likes',
+                      }.contains(widget.section))) &&
               !_loading &&
               _error == null &&
               _surfaceMessage == null &&
@@ -1044,7 +1667,17 @@ class _FediversePageState extends State<FediversePage> {
               padding: EdgeInsets.all(24),
               child: Center(child: Text('Nothing to show here yet.')),
             ),
-          if (_sectionNeedsDedicatedBackend) ...[
+          if (_sectionNeedsDedicatedBackend ||
+              (_isProfileSection &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
+                  }.contains(widget.section))) ...[
             ..._surfaceRows.map((row) {
               final title =
                   '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
@@ -1052,24 +1685,50 @@ class _FediversePageState extends State<FediversePage> {
                   '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
               final detail =
                   '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
+              final isRelationship =
+                  const {'followers', 'following'}.contains(widget.section) &&
+                      widget.actorUri != null;
+              final isRemotePostCollection =
+                  const {'featured', 'likes'}.contains(widget.section) &&
+                      widget.actorUri != null;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  leading: Icon(
-                    widget.section == 'inbox'
-                        ? Icons.inbox_rounded
-                        : widget.section == 'relay'
-                            ? Icons.outbox_rounded
-                            : widget.section == 'controls'
-                                ? Icons.shield_rounded
-                                : Icons.public_rounded,
-                  ),
+                  onTap: isRelationship && row['actor_uri'] is String
+                      ? () => context.push(
+                            '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
+                          )
+                      : isRemotePostCollection
+                          ? () => _open('${row['url'] ?? row['uri']}')
+                          : null,
+                  leading: isRelationship && row['avatar_url'] is String
+                      ? CircleAvatar(
+                          backgroundImage: NetworkImage('${row['avatar_url']}'),
+                        )
+                      : Icon(
+                          widget.section == 'inbox'
+                              ? Icons.inbox_rounded
+                              : widget.section == 'relay'
+                                  ? Icons.outbox_rounded
+                                  : widget.section == 'controls'
+                                      ? Icons.shield_rounded
+                                      : Icons.public_rounded,
+                        ),
                   title: Text(
                     title,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                   subtitle: Text(
-                    [subtitle, detail]
+                    [
+                      subtitle,
+                      if (isRelationship && row['followers_count'] is num)
+                        '${row['followers_count']} followers',
+                      if (isRelationship && row['following_count'] is num)
+                        '${row['following_count']} following',
+                      if (isRelationship && row['bio'] is String)
+                        _plainRemoteContent('${row['bio']}'),
+                      detail,
+                    ]
                         .where((value) => value.isNotEmpty && value != '{}')
                         .join('\n'),
                     maxLines: 4,
@@ -1099,6 +1758,35 @@ class _FediversePageState extends State<FediversePage> {
                 ),
               );
             }),
+            if (const {
+                  'followers',
+                  'following',
+                  'featured',
+                  'likes',
+                }.contains(widget.section) &&
+                _relationshipCursor != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: OutlinedButton.icon(
+                    onPressed: _loadingMoreRelationships
+                        ? null
+                        : _loadMoreRemoteRelationships,
+                    icon: _loadingMoreRelationships
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.expand_more_rounded),
+                    label: Text(
+                      _loadingMoreRelationships
+                          ? 'Loading…'
+                          : 'Load more ${widget.section}',
+                    ),
+                  ),
+                ),
+              ),
           ],
           if (widget.section == 'discover' ||
               widget.section == 'organic-discovery')
@@ -1126,7 +1814,16 @@ class _FediversePageState extends State<FediversePage> {
                 ],
               ),
             ),
-          if (!_loading && _posts.isEmpty && _error == null)
+          if (!_loading &&
+              _posts.isEmpty &&
+              _error == null &&
+              !(widget.actorUri != null &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                  }.contains(widget.section)))
             const Padding(
               padding: EdgeInsets.all(24),
               child: Center(
@@ -1136,6 +1833,16 @@ class _FediversePageState extends State<FediversePage> {
               ),
             ),
           if (!_sectionNeedsDedicatedBackend &&
+              !(widget.actorUri != null &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
+                  }.contains(widget.section)) &&
               _visiblePosts.isEmpty &&
               !_loading &&
               _error == null)
@@ -1281,7 +1988,7 @@ class _FediversePageState extends State<FediversePage> {
                                   : Icons.favorite_border,
                               color: _liked.contains(uri) ? Colors.pink : null,
                             ),
-                            label: Text('${p['like_count'] ?? 0}'),
+                            label: Text('${p['like_count'] ?? '—'}'),
                           ),
                           TextButton.icon(
                             onPressed: () => _react(p, 'boost'),
@@ -1290,11 +1997,11 @@ class _FediversePageState extends State<FediversePage> {
                               color:
                                   _boosted.contains(uri) ? Colors.green : null,
                             ),
-                            label: Text('${p['announce_count'] ?? 0}'),
+                            label: Text('${p['announce_count'] ?? '—'}'),
                           ),
                           const Spacer(),
                           Text(
-                            '${p['reply_count'] ?? 0} replies',
+                            '${p['reply_count'] ?? '—'} replies',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           IconButton(
@@ -1309,6 +2016,37 @@ class _FediversePageState extends State<FediversePage> {
                 ),
               );
             }),
+          if (widget.actorUri != null &&
+              _remoteTimelineCursor != null &&
+              !const {
+                'followers',
+                'following',
+                'featured',
+                'likes',
+                'tips',
+                'gifts',
+                'profile-analytics',
+              }.contains(widget.section))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: OutlinedButton.icon(
+                  onPressed: _loadingMoreRemoteTimeline
+                      ? null
+                      : _loadMoreRemoteTimeline,
+                  icon: _loadingMoreRemoteTimeline
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.expand_more_rounded),
+                  label: Text(
+                    _loadingMoreRemoteTimeline ? 'Loading…' : 'Load more posts',
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

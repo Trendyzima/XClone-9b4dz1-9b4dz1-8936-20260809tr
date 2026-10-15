@@ -18,7 +18,8 @@
     "validate:ads": "node scripts/validate-ad-slot-contract.mjs",
     "validate:native": "node scripts/validate-native-capabilities.mjs",
     "validate:flutter-parity": "node scripts/validate-flutter-parity-inventory.mjs",
-    "update:flutter-parity": "node scripts/update-flutter-parity-inventory.mjs"
+    "update:flutter-parity": "node scripts/update-flutter-parity-inventory.mjs",
+    "validate:fediverse-profile": "node scripts/validate-fediverse-profile-contract.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",

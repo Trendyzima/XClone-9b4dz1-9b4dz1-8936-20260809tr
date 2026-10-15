@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Globe, UserPlus, UserMinus, Loader2, Users, Rss } from 'lucide-react';
+import { ArrowLeft, Globe, UserPlus, UserMinus, Loader2, Users, Rss, LockKeyhole, Bot, ExternalLink, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import * as federation from '@/api/federation';
@@ -9,6 +9,14 @@ import { supabase } from '@/lib/supabase';
 import { federatedMediaUrl } from '@/features/federation/federatedMedia';
 
 type FediverseProfilePageProps = { initialTab?: string; standalone?: boolean };
+
+function numericCount(value: any): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+function displayCount(value: any): string { return typeof value === 'number' ? new Intl.NumberFormat().format(value) : '—'; }
+function linkUrl(value: any): string | null { if (typeof value === 'string') return value; if (Array.isArray(value)) { for (const item of value) { const resolved = linkUrl(item); if (resolved) return resolved; } } if (value && typeof value === 'object') return linkUrl(value.href ?? value.url ?? value.id); return null; }
 
 export default function FediverseProfilePage({ initialTab = 'Posts', standalone = false }: FediverseProfilePageProps) {
   const navigate = useNavigate();
@@ -24,8 +32,16 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
   const [followState, setFollowState] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [relationshipRows, setRelationshipRows] = useState<any[]>([]);
+  const [relationshipCursor, setRelationshipCursor] = useState<string | null>(null);
+  const [relationshipTotal, setRelationshipTotal] = useState<number | null>(null);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
+  const [relationshipError, setRelationshipError] = useState<string | null>(null);
+  const [relationshipUnavailable, setRelationshipUnavailable] = useState(false);
+  const [timelineCursor, setTimelineCursor] = useState<string | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
 
-  const profileTabs = ['Posts', 'Threads', 'Replies', 'Media', 'Videos', 'Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following', 'Analytics'];
+  const profileTabs = ['Posts', 'Featured', 'Threads', 'Replies', 'Media', 'Videos', 'Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following', 'Analytics'];
   const mediaPosts = posts.filter((post: any) => Array.isArray(post.attachments) && post.attachments.length > 0);
   const videoPosts = posts.filter((post: any) => post.type === 'Video' || (Array.isArray(post.attachments) && post.attachments.some((a: any) => String(a?.mediaType || a?.media_type || '').startsWith('video/'))));
 
@@ -88,8 +104,8 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                 icon: account.avatar ? { url: account.avatar } : null,
                 header_url: account.header || null,
                 url: account.url || actorUrl,
-                followers: account.followers_count || 0,
-                following: account.following_count || 0,
+                followers: numericCount(account.followers_count),
+                following: numericCount(account.following_count),
                 fields: Array.isArray(account.fields) ? account.fields : [],
                 cached: true,
               };
@@ -112,14 +128,29 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           display_name: actorDoc.name ?? result?.display_name ?? result?.name,
           summary: actorDoc.summary ?? result?.summary ?? result?.bio ?? '',
           bio: actorDoc.summary ?? result?.bio ?? result?.summary ?? '',
-          avatar_url: actorDoc.icon?.url ?? result?.avatar_url ?? result?.avatar ?? null,
+          avatar_url: linkUrl(actorDoc.icon?.url ?? actorDoc.icon ?? result?.avatar_url ?? result?.avatar),
           icon: actorDoc.icon ?? result?.icon ?? null,
-          header_url: actorDoc.image?.url ?? result?.header_url ?? result?.header ?? null,
-          url: actorDoc.url ?? result?.url ?? actorDoc.id ?? actorUrl,
-          followers: result?.followers ?? actorDoc.followers ?? 0,
-          following: result?.following ?? actorDoc.following ?? 0,
-          fields: result?.fields ?? [],
+          header_url: linkUrl(actorDoc.image?.url ?? actorDoc.image ?? result?.header_url ?? result?.header),
+          url: linkUrl(actorDoc.url) ?? linkUrl(result?.url) ?? actorDoc.id ?? actorUrl,
+          followers: numericCount(result?.followers_count ?? result?.followersCount ?? (typeof result?.followers === 'number' ? result.followers : null) ?? actorDoc.followers?.totalItems),
+          following: numericCount(result?.following_count ?? result?.followingCount ?? (typeof result?.following === 'number' ? result.following : null) ?? actorDoc.following?.totalItems),
+          followers_url: linkUrl(actorDoc.followers) ?? result?.followers_url ?? null,
+          following_url: linkUrl(actorDoc.following) ?? result?.following_url ?? null,
+          fields: result?.fields ?? actorDoc.attachment ?? [],
           tags: actorDoc.tag ?? result?.tags ?? [],
+          emojis: actorDoc.emoji ?? result?.emojis ?? [],
+          created_at: actorDoc.published ?? result?.created_at ?? result?.createdAt ?? null,
+          posts_count: numericCount(result?.posts_count ?? result?.statuses_count ?? result?.statusesCount ?? actorDoc.outbox?.totalItems),
+          actor_type: actorDoc.type ?? result?.actor_type ?? result?.type ?? 'Person',
+          locked: actorDoc.manuallyApprovesFollowers === true || result?.locked === true,
+          bot: actorDoc.type === 'Service' || result?.bot === true,
+          discoverable: actorDoc.discoverable !== false,
+          indexable: actorDoc.indexable !== false && result?.indexable !== false,
+          limited: actorDoc.limited === true || result?.limited === true,
+          suspended: actorDoc.suspended === true || result?.suspended === true,
+          last_status_at: result?.last_status_at ?? actorDoc.lastStatusAt ?? null,
+          moved_to: linkUrl(actorDoc.moved) ?? result?.moved_to ?? null,
+          also_known_as: actorDoc.alsoKnownAs ?? result?.also_known_as ?? [],
           raw_actor: actorDoc,
         } : null;
         setProfile(normalizedProfile);
@@ -156,6 +187,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           try {
             const remote = await federation.getRemoteProfile(resolvedActorUri, 80);
             const remoteActor = remote?.actor ?? {};
+            if (!cancelled) setTimelineCursor(typeof remote?.next_cursor === 'string' ? remote.next_cursor : null);
             const items = Array.isArray(remote?.items) ? remote.items : [];
             remotePosts = items
               .filter((post: any) => post && typeof post === 'object' && post.type !== 'Delete')
@@ -169,7 +201,12 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                 content: post.content ?? post.name ?? '',
                 published_at: post.published ?? post.updated ?? null,
                 in_reply_to_uri: post.inReplyTo ?? null,
-                attachments: Array.isArray(post.attachment) ? post.attachment : [],
+                attachments: Array.isArray(post.attachment) ? post.attachment : post.attachment ? [post.attachment] : [],
+                content_warning: post.summary ?? '',
+                language_code: post.language ?? null,
+                like_count: numericCount(post.likes?.totalItems),
+                announce_count: numericCount(post.shares?.totalItems),
+                reply_count: numericCount(post.replies?.totalItems),
                 raw_object: post,
               }));
             if (remoteActor && !cancelled) {
@@ -185,9 +222,15 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                 icon: remoteActor.icon ?? current.icon,
                 header_url: remoteActor.image?.url ?? current.header_url,
                 url: remoteActor.url ?? current.url,
-                followers: remoteActor.followers?.totalItems ?? current.followers ?? 0,
-                following: remoteActor.following?.totalItems ?? current.following ?? 0,
+                followers: numericCount(remoteActor.followers?.totalItems) ?? current.followers ?? null,
+                following: numericCount(remoteActor.following?.totalItems) ?? current.following ?? null,
                 tags: remoteActor.tag ?? current.tags ?? [],
+                posts_count: numericCount(remoteActor.outbox?.totalItems) ?? current.posts_count ?? null,
+                actor_type: remoteActor.type ?? current.actor_type ?? 'Person',
+                indexable: remoteActor.indexable !== false && current.indexable !== false,
+                limited: remoteActor.limited === true || current.limited === true,
+                suspended: remoteActor.suspended === true || current.suspended === true,
+                last_status_at: remoteActor.lastStatusAt ?? current.last_status_at ?? null,
                 raw_actor: remoteActor,
               } : current);
             }
@@ -226,6 +269,67 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
     void load();
     return () => { cancelled = true; };
   }, [actorUrl, handle, user]);
+
+  useEffect(() => {
+    if (!resolvedActorUri || !['Followers', 'Following', 'Featured', 'Likes'].includes(activeTab)) return;
+    let cancelled = false;
+    setRelationshipLoading(true);
+    setRelationshipError(null);
+    setRelationshipRows([]);
+    setRelationshipCursor(null);
+    setRelationshipTotal(null);
+    setRelationshipUnavailable(false);
+    federation.getRemoteCollection(resolvedActorUri, activeTab.toLowerCase() as 'followers' | 'following', 30)
+      .then(result => {
+        if (cancelled) return;
+        setRelationshipRows(result.items);
+        setRelationshipCursor(result.next_cursor);
+        setRelationshipTotal(result.totalItems);
+        setRelationshipUnavailable(result.unavailable === true);
+        if (result.totalItems !== null) setProfile((current: any) => current ? { ...current, [activeTab === 'Followers' ? 'followers' : 'following']: result.totalItems } : current);
+      })
+      .catch((error: any) => { if (!cancelled) setRelationshipError(error?.message || `Could not load ${activeTab.toLowerCase()}.`); })
+      .finally(() => { if (!cancelled) setRelationshipLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, resolvedActorUri]);
+
+  const loadMoreRelationships = async () => {
+    if (!resolvedActorUri || !relationshipCursor || relationshipLoading || !['Followers', 'Following', 'Featured', 'Likes'].includes(activeTab)) return;
+    setRelationshipLoading(true);
+    setRelationshipError(null);
+    try {
+      const result = await federation.getRemoteCollection(resolvedActorUri, activeTab.toLowerCase() as 'followers' | 'following', 30, relationshipCursor);
+      setRelationshipRows(current => {
+        const seen = new Set(current.map((row: any) => String(row.actor_uri || row.id || row.url).toLowerCase()));
+        return [...current, ...result.items.filter((row: any) => { const key = String(row.actor_uri || row.id || row.url).toLowerCase(); if (!key || seen.has(key)) return false; seen.add(key); return true; })];
+      });
+      setRelationshipCursor(result.next_cursor);
+      setRelationshipTotal(result.totalItems ?? relationshipTotal);
+      setRelationshipUnavailable(result.unavailable === true);
+      if (result.totalItems !== null) setProfile((current: any) => current ? { ...current, [activeTab === 'Followers' ? 'followers' : 'following']: result.totalItems } : current);
+    } catch (error: any) { setRelationshipError(error?.message || `Could not load more ${activeTab.toLowerCase()}.`); }
+    finally { setRelationshipLoading(false); }
+  };
+
+  const loadMoreTimeline = async () => {
+    if (!resolvedActorUri || !timelineCursor || timelineLoading) return;
+    setTimelineLoading(true);
+    try {
+      const remote = await federation.getRemoteProfile(resolvedActorUri, 60, timelineCursor);
+      const rows = (Array.isArray(remote?.items) ? remote.items : []).filter((post: any) => post && typeof post === 'object' && !['Delete', 'Tombstone'].includes(String(post.type))).map((post: any) => ({
+        ...post, id: post.id ?? post.url, uri: post.id ?? post.url, url: post.url ?? post.id,
+        actor_uri: resolvedActorUri, type: post.type ?? 'Note', content: post.content ?? post.name ?? '',
+        published_at: post.published ?? post.updated ?? null, in_reply_to_uri: post.inReplyTo ?? null,
+        attachments: Array.isArray(post.attachment) ? post.attachment : post.attachment ? [post.attachment] : [], content_warning: post.summary ?? '', language_code: post.language ?? null, like_count: numericCount(post.likes?.totalItems), announce_count: numericCount(post.shares?.totalItems), reply_count: numericCount(post.replies?.totalItems), raw_object: post,
+      }));
+      setPosts(current => {
+        const seen = new Set(current.map((post: any) => String(post.uri ?? post.id ?? post.url)));
+        return [...current, ...rows.filter((post: any) => { const key = String(post.uri ?? post.id ?? post.url); if (!key || seen.has(key)) return false; seen.add(key); return true; })];
+      });
+      setTimelineCursor(typeof remote?.next_cursor === 'string' ? remote.next_cursor : null);
+    } catch (error: any) { toast.error(error?.message || 'Could not load more public posts.'); }
+    finally { setTimelineLoading(false); }
+  };
 
   const doFollow = async () => {
     if (!user) { navigate('/auth'); return; }
@@ -323,7 +427,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                 {profile.summary && <FediverseRichText html={profile.summary} tags={profile.raw_actor?.tag ?? profile.tags ?? []} className="mt-3 text-sm leading-6" />}
                 {Array.isArray(profile.fields) && profile.fields.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    {profile.fields.slice(0, 8).map((field: any, i: number) => (
+                    {profile.fields.map((field: any, i: number) => (
                       <div key={i} className="grid grid-cols-[auto_1fr] gap-3 rounded-xl bg-muted/50 px-3 py-2 text-xs">
                         <span className="font-semibold">{field.name}</span>
                         <FediverseRichText html={field.value} className="text-muted-foreground break-words" />
@@ -331,11 +435,26 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                     ))}
                   </div>
                 )}
-                <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1"><Users className="w-4 h-4" />{profile.followers ?? 0} followers</span>
-                  <span className="flex items-center gap-1"><Globe className="w-4 h-4" />Remote account</span>
+                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                  <button onClick={() => setActiveTab('Followers')} className="flex items-center gap-1 hover:text-foreground"><Users className="w-4 h-4" /><strong className="text-foreground">{displayCount(profile.followers)}</strong> followers</button>
+                  <button onClick={() => setActiveTab('Following')} className="flex items-center gap-1 hover:text-foreground"><Users className="w-4 h-4" /><strong className="text-foreground">{displayCount(profile.following)}</strong> following</button>
+                  <span className="flex items-center gap-1"><Globe className="w-4 h-4" />{(() => { try { return new URL(profile.actor_uri || profile.actor_url).hostname; } catch { return 'Remote account'; } })()}</span>
+                  <span>{profile.actor_type || 'Person'}</span>
+                  <span><strong className="text-foreground">{displayCount(profile.posts_count)}</strong> posts reported</span>
                   {profile.created_at && <span>Joined {new Date(profile.created_at).toLocaleDateString()}</span>}
+                  {profile.last_status_at && <span>Last public status {new Date(profile.last_status_at).toLocaleDateString()}</span>}
+                  {profile.indexable === false && <span>Not indexable</span>}
+                  {profile.limited && <span>Limited</span>}
+                  {profile.suspended && <span>Suspended</span>}
+                  {profile.locked && <span className="inline-flex items-center gap-1"><LockKeyhole className="w-3.5 h-3.5"/>Approval required</span>}
+                  {profile.bot && <span className="inline-flex items-center gap-1"><Bot className="w-3.5 h-3.5"/>Bot / service</span>}
+                  {profile.discoverable === false && <span>Not listed in discovery</span>}
+                  {profile.moved_to && <a className="inline-flex items-center gap-1 text-primary hover:underline" href={profile.moved_to} target="_blank" rel="noreferrer">Moved account <ExternalLink className="w-3 h-3"/></a>}
                 </div>
+                {Array.isArray(profile.also_known_as) && profile.also_known_as.length > 0 && <div className="mt-3 text-xs text-muted-foreground">Also known as: {profile.also_known_as.map((uri: any) => String(uri?.id ?? uri)).join(' · ')}</div>}
+                {profile.url && <a href={profile.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">Open original profile <ExternalLink className="w-3 h-3"/></a>}
+                {Array.isArray(profile.emojis) && profile.emojis.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.emojis.map((emoji: any, i: number) => <span key={`${emoji.shortcode ?? emoji.name ?? i}`} className="text-xs rounded-full border border-border px-2 py-1">:{emoji.shortcode ?? emoji.name ?? 'emoji'}:</span>)}</div>}
+                {Array.isArray(profile.tags) && profile.tags.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.tags.filter((tag: any) => tag && typeof tag === 'object').map((tag: any, i: number) => <span key={`${tag.name ?? tag.href ?? i}`} className="text-xs rounded-full bg-muted px-2 py-1">{tag.name ?? tag.href ?? 'Tag'}</span>)}</div>}
                 {following && (
                   <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
                     This account is followed in Testagram. Its posts are prioritized in your personalized Fediverse feed.
@@ -381,6 +500,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                     <div className="divide-y divide-border">
                       {visible.length > 0 ? visible.map((post: any) => (
                         <article key={post.id ?? post.uri} className="p-4">
+                          {post.content_warning && <div className="mb-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs font-semibold">Content warning: {String(post.content_warning).replace(/<[^>]*>/g, ' ').slice(0, 240)}</div>}
                           <FediverseRichText html={post.content ?? ''} tags={post.raw_object?.tag ?? post.tags ?? []} className="text-sm leading-6" />
                           {post.attachments?.length > 0 && (
                             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -395,8 +515,12 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                               })}
                             </div>
                           )}
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {post.published_at ? new Date(post.published_at).toLocaleString() : ''}
+                          <p className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            <span>{post.published_at ? new Date(post.published_at).toLocaleString() : ''}</span>
+                            {typeof post.like_count === 'number' && <span>{displayCount(post.like_count)} likes</span>}
+                            {typeof post.announce_count === 'number' && <span>{displayCount(post.announce_count)} boosts</span>}
+                            {typeof post.reply_count === 'number' && <span>{displayCount(post.reply_count)} replies</span>}
+                            {post.url && <a href={post.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Original post <ExternalLink className="w-3 h-3"/></a>}
                           </p>
                         </article>
                       )) : (
@@ -404,44 +528,63 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                           No {activeTab.toLowerCase()} found in this remote account's public ActivityPub timeline.
                         </div>
                       )}
+                      {timelineCursor && <div className="p-4 text-center"><button disabled={timelineLoading} onClick={loadMoreTimeline} className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50">{timelineLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}Load more posts</button></div>}
                     </div>
                   );
                 }
                 if (activeTab === 'Media') {
-                  return media.length === 0 ? (
-                    <div className="py-14 text-center text-sm text-muted-foreground">No media found in the public remote timeline.</div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-1 p-1">
-                      {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
-                        const remoteUrl = attachment?.url || attachment?.href;
-                        const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri) || remoteUrl;
-                        const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
-                        return url && type.startsWith('video/') ? (
-                          <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
-                        ) : url ? (
-                          <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />
-                        ) : null;
-                      }))}
-                    </div>
+                  return (
+                    <>
+                      {media.length === 0 ? (
+                        <div className="py-14 text-center text-sm text-muted-foreground">No media found in the public remote timeline.</div>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-1 p-1">
+                          {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
+                            const remoteUrl = attachment?.url || attachment?.href;
+                            const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri) || remoteUrl;
+                            const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
+                            return url && type.startsWith('video/') ? (
+                              <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
+                            ) : url ? (
+                              <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />
+                            ) : null;
+                          }))}
+                        </div>
+                      )}
+                      {timelineCursor && <div className="p-4 text-center"><button disabled={timelineLoading} onClick={loadMoreTimeline} className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50">{timelineLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}Load more media</button></div>}
+                    </>
                   );
                 }
                 if (['Tips', 'Gifts'].includes(activeTab)) {
                   return <div className="py-14 px-5 text-center text-sm text-muted-foreground">Tips and gifts are Testagram-native features and are not exposed as public Mastodon ActivityPub profile data.</div>;
                 }
-                if (['Likes'].includes(activeTab)) {
-                  return <div className="py-14 px-5 text-center text-sm text-muted-foreground">Mastodon does not expose another account's likes consistently through the public ActivityPub actor contract, so Testagram will not invent or mirror private likes.</div>;
-                }
-                if (['Followers', 'Following'].includes(activeTab)) {
-                  const count = activeTab === 'Followers' ? profile.followers : profile.following;
+                if (['Followers', 'Following', 'Featured', 'Likes'].includes(activeTab)) {
                   return (
-                    <div className="py-14 px-5 text-center">
-                      <div className="text-3xl font-black">{count ?? 0}</div>
-                      <p className="mt-1 text-sm text-muted-foreground">{activeTab.toLowerCase()} reported by the remote actor</p>
-                      {(activeTab === 'Followers' ? profile.actor_url || profile.url : profile.actor_url || profile.url) && (
-                        <a href={activeTab === 'Followers' ? `${profile.actor_url || profile.url}/followers` : `${profile.actor_url || profile.url}/following`} target="_blank" rel="noreferrer" className="inline-block mt-4 text-sm font-semibold text-primary hover:underline">
-                          Open the remote {activeTab.toLowerCase()} list
-                        </a>
-                      )}
+                    <div className="divide-y divide-border">
+                      <div className="px-4 py-3 flex items-center justify-between text-sm text-muted-foreground">
+                        <span>{relationshipTotal === null ? 'Public relationship collection' : `${displayCount(relationshipTotal)} ${activeTab.toLowerCase()}`}</span>
+                        {['Followers', 'Following'].includes(activeTab) && <button onClick={() => setActiveTab(activeTab === 'Followers' ? 'Following' : 'Followers')} className="font-semibold text-primary">View {activeTab === 'Followers' ? 'following' : 'followers'}</button>}
+                      </div>
+                      {relationshipLoading && relationshipRows.length === 0 && <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin"/></div>}
+                      {relationshipError && <div className="p-4 text-sm text-destructive"><p>{relationshipError}</p><button onClick={() => { const tab=activeTab; setActiveTab('Posts'); setTimeout(() => setActiveTab(tab), 0); }} className="mt-2 underline">Retry</button></div>}
+                      {relationshipUnavailable && <div className="p-5 text-sm text-muted-foreground">This server does not publish a public {activeTab === 'Likes' ? 'liked-items' : activeTab === 'Featured' ? 'featured-items' : activeTab.toLowerCase()} collection.</div>}
+                      {!relationshipLoading && !relationshipError && !relationshipUnavailable && relationshipRows.length === 0 && <div className="p-6 text-sm text-muted-foreground">No public {activeTab.toLowerCase()} were returned. The server may hide or not implement this collection.</div>}
+                      {relationshipRows.map((person: any, index: number) => {
+                        if (['Featured', 'Likes'].includes(activeTab)) return <article key={person.uri ?? person.id ?? index} className="p-4">
+                          <FediverseRichText html={person.content ?? person.summary ?? ''} tags={person.raw_object?.tag ?? person.tags ?? []} className="text-sm leading-6"/>
+                          {Array.isArray(person.attachments) && person.attachments.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2">{person.attachments.map((attachment: any, mediaIndex: number) => { const raw=attachment?.url || attachment?.href; const url=federatedMediaUrl(raw, person.actor_uri || resolvedActorUri) || raw; const type=String(attachment?.type || attachment?.mediaType || attachment?.media_type || '').toLowerCase(); if (!url) return null; return type.startsWith('video/') ? <video key={mediaIndex} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted"/> : type.startsWith('audio/') ? <audio key={mediaIndex} src={url} controls preload="metadata" className="w-full"/> : <img key={mediaIndex} src={url} alt={attachment?.name || ''} loading="lazy" className="w-full rounded-xl object-cover bg-muted"/>; })}</div>}
+                          <p className="mt-2 text-xs text-muted-foreground">{person.published_at ? new Date(person.published_at).toLocaleString() : ''}{person.actor_uri ? ` · ${new URL(person.actor_uri).hostname}` : ''}</p>
+                        </article>;
+                        const actor = String(person.actor_uri ?? person.actor_url ?? person.id ?? person.url ?? '');
+                        const domain = String(person.domain ?? (() => { try { return new URL(actor).hostname; } catch { return ''; } })());
+                        const username = String(person.username ?? person.preferredUsername ?? 'remote');
+                        return <button key={actor || index} onClick={() => actor && navigate(`/fediverse/profile?actor=${encodeURIComponent(actor)}&handle=${encodeURIComponent(`${username}@${domain}`)}`)} className="w-full text-left p-4 flex items-center gap-3 hover:bg-muted/40">
+                          <img src={federatedMediaUrl(person.avatar_url, actor) || person.avatar_url || undefined} alt="" className="w-11 h-11 rounded-full object-cover bg-muted"/>
+                          <span className="min-w-0 flex-1"><span className="block font-bold truncate">{person.display_name ?? person.name ?? username}</span><span className="block text-sm text-muted-foreground truncate">@{username}@{domain}</span>{person.bio && <span className="block text-xs text-muted-foreground line-clamp-2 mt-1">{String(person.bio).replace(/<[^>]*>/g, ' ').slice(0, 180)}</span>}</span>
+                          {person.bot && <Bot className="w-4 h-4 text-muted-foreground"/>}{person.locked && <LockKeyhole className="w-4 h-4 text-muted-foreground"/>}
+                        </button>;
+                      })}
+                      {relationshipCursor && <div className="p-4 text-center"><button disabled={relationshipLoading} onClick={loadMoreRelationships} className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50">{relationshipLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}Load more {activeTab.toLowerCase()}</button></div>}
                     </div>
                   );
                 }
@@ -450,8 +593,8 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                     <div className="grid grid-cols-2 gap-3 p-4">
                       <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{posts.length}</div><div className="text-xs text-muted-foreground">Public posts loaded</div></div>
                       <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{media.length}</div><div className="text-xs text-muted-foreground">Media posts</div></div>
-                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{profile.followers ?? 0}</div><div className="text-xs text-muted-foreground">Followers reported</div></div>
-                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{profile.following ?? 0}</div><div className="text-xs text-muted-foreground">Following reported</div></div>
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{displayCount(profile.followers)}</div><div className="text-xs text-muted-foreground">Followers reported</div></div>
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{displayCount(profile.following)}</div><div className="text-xs text-muted-foreground">Following reported</div></div>
                     </div>
                   );
                 }

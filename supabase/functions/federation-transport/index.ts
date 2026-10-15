@@ -607,16 +607,22 @@ async function handle(request: Request) {
     if (!body.target) return json({ error: "target required" }, 400);
     const actor = await resolve(local, String(body.target));
     const outboxUrl = idOf(actor.actor?.outbox);
-    if (!outboxUrl) return json({ ok: true, actor: actor.actor, items: [] }, 200);
+    if (!outboxUrl) return json({ ok: true, actor: actor.actor, items: [], next_cursor: null }, 200);
     const maxItems = Math.min(Math.max(Number(body.limit || 60), 1), 100);
+    const cursor = typeof body.cursor === "string" ? body.cursor.trim() : "";
+    let nextUrl: string | null = cursor || outboxUrl;
+    if (cursor) {
+      assertSafeRemoteUrl(cursor);
+      if (new URL(cursor).origin !== new URL(outboxUrl).origin) throw Error("Outbox cursor must remain on the actor's instance");
+    }
     const items: any[] = [];
     const seen = new Set<string>();
-    let nextUrl: string | null = outboxUrl;
-    let first = true;
+    let first = !cursor;
     while (nextUrl && items.length < maxItems && seen.size < 4) {
       if (seen.has(nextUrl)) break;
       seen.add(nextUrl);
-      const response = await signedFetch(local, nextUrl, "GET");
+      const currentUrl = nextUrl;
+      const response = await signedFetch(local, currentUrl, "GET");
       const text = await response.text();
       if (!response.ok) remoteHttpFailure("Remote outbox", response, text);
       let page: any;
@@ -624,19 +630,118 @@ async function handle(request: Request) {
       const entries = asArray(page?.orderedItems ?? page?.items);
       for (const entry of entries) {
         const object = entry?.object && typeof entry.object === "object" ? entry.object : entry;
-        if (!object || typeof object !== "object" || object.type === "Delete") continue;
+        if (!object || typeof object !== "object" || ["Delete", "Tombstone"].includes(String(object.type))) continue;
         const id = idOf(object);
         if (!id || items.some((x) => x.id === id)) continue;
         items.push(object);
         if (items.length >= maxItems) break;
       }
       const next = idOf(page?.next);
-      if (next) nextUrl = next;
-      else if (first && idOf(page?.first) && idOf(page?.first) !== nextUrl) nextUrl = idOf(page?.first);
-      else nextUrl = null;
+      if (next) {
+        assertSafeRemoteUrl(next);
+        if (new URL(next).origin !== new URL(outboxUrl).origin) throw Error("Outbox pagination must remain on the actor's instance");
+        nextUrl = next;
+      } else if (first && idOf(page?.first) && idOf(page?.first) !== currentUrl) {
+        const firstUrl = idOf(page.first)!;
+        assertSafeRemoteUrl(firstUrl);
+        if (new URL(firstUrl).origin !== new URL(outboxUrl).origin) throw Error("Outbox collection must remain on the actor's instance");
+        nextUrl = firstUrl;
+      } else nextUrl = null;
       first = false;
     }
-    return json({ ok: true, actor: actor.actor, items: items.slice(0, maxItems) }, 200);
+    return json({ ok: true, actor: actor.actor, items: items.slice(0, maxItems), next_cursor: nextUrl }, 200);
+  }
+  if (body.operation === "collection") {
+    if (!body.target) return json({ error: "target required" }, 400);
+    const kind = String(body.kind || "");
+    if (!["followers", "following", "featured", "likes"].includes(kind)) return json({ error: "kind must be followers, following, featured, or likes" }, 400);
+    const actor = await resolve(local, String(body.target));
+    const collectionProperty = kind === "likes" ? "liked" : kind;
+    const collectionUrl = idOf(actor.actor?.[collectionProperty]);
+    if (!collectionUrl) return json({ ok: true, items: [], totalItems: null, next_cursor: null, unavailable: true }, 200);
+    const limit = Math.min(Math.max(Number(body.limit || 30), 1), 40);
+    const cursor = typeof body.cursor === "string" ? body.cursor.trim() : "";
+    const pageUrl = cursor || collectionUrl;
+    assertSafeRemoteUrl(pageUrl);
+    if (new URL(pageUrl).origin !== new URL(collectionUrl).origin) throw Error("Relationship pagination must remain on the collection's instance");
+    const response = await signedFetch(local, pageUrl, "GET");
+    const text = await response.text();
+    if ([401, 403, 404, 405, 410].includes(response.status)) {
+      return json({ ok: true, items: [], totalItems: null, next_cursor: null, unavailable: true }, 200);
+    }
+    if (!response.ok) remoteHttpFailure(`Remote ${kind} collection`, response, text);
+    let page: any;
+    try { page = JSON.parse(text); } catch { throw Error(`Remote ${kind} collection is not valid ActivityPub JSON`); }
+    const collectionTotal = page?.totalItems;
+    let rawEntries = asArray(page?.orderedItems ?? page?.items);
+    const firstPageUrl = idOf(page?.first);
+    if (!cursor && rawEntries.length === 0 && firstPageUrl && firstPageUrl !== pageUrl) {
+      assertSafeRemoteUrl(firstPageUrl);
+      if (new URL(firstPageUrl).origin !== new URL(collectionUrl).origin) throw Error("Relationship collection page must remain on the actor's instance");
+      const firstResponse = await signedFetch(local, firstPageUrl, "GET");
+      const firstText = await firstResponse.text();
+      if ([401, 403, 404, 405, 410].includes(firstResponse.status)) return json({ ok: true, items: [], totalItems: null, next_cursor: null, unavailable: true }, 200);
+      if (!firstResponse.ok) remoteHttpFailure(`Remote ${kind} collection page`, firstResponse, firstText);
+      try { page = JSON.parse(firstText); } catch { throw Error(`Remote ${kind} collection page is not valid ActivityPub JSON`); }
+      rawEntries = asArray(page?.orderedItems ?? page?.items);
+    }
+    const rawItems = rawEntries.slice(0, limit);
+    const summaries = await Promise.all(rawItems.map(async (entry: any) => {
+      const embedded = entry && typeof entry === "object" ? entry : null;
+      const rawObject = embedded?.object;
+      const entryObject = rawObject && typeof rawObject === "object" ? rawObject : embedded;
+      const entryUri = (kind === "featured" || kind === "likes") && rawObject ? idOf(rawObject) : idOf(entryObject);
+      if (!entryUri) return null;
+      try {
+        let remote = entryObject && entryObject.type && entryObject.id ? entryObject : null;
+        if (!remote || (kind === "featured" || kind === "likes") && !remote.content && !remote.attachment && !remote.name) {
+          assertSafeRemoteUrl(entryUri);
+          const objectResponse = await signedFetch(local, entryUri, "GET");
+          const objectText = await objectResponse.text();
+          if (!objectResponse.ok) return null;
+          remote = JSON.parse(objectText);
+        }
+        if (!remote?.id || String(remote.id) !== entryUri) return null;
+        assertSafeRemoteUrl(String(remote.id));
+        const numeric = (value: any) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
+        if (kind === "featured" || kind === "likes") {
+          const actorUri = idOf(remote.attributedTo) || idOf(remote.actor) || "";
+          return {
+            id: entryUri, uri: entryUri, url: idOf(remote.url) || entryUri,
+            object_type: String(remote.type || "Note"), type: String(remote.type || "Note"),
+            actor_uri: actorUri, content: typeof remote.content === "string" ? remote.content : String(remote.name || remote.summary || ""),
+            summary: typeof remote.summary === "string" ? remote.summary : "", content_warning: typeof remote.summary === "string" ? remote.summary : "",
+            published_at: remote.published || remote.updated || null, updated_at: remote.updated || null,
+            in_reply_to_uri: idOf(remote.inReplyTo), quote_uri: idOf(remote.quoteUri) || idOf(remote.quoteUrl),
+            attachments: asArray(remote.attachment).map(normalizeAttachment), tags: asArray(remote.tag),
+            sensitive: remote.sensitive === true, language_code: remote.language || null,
+            like_count: numeric(remote.likes?.totalItems), announce_count: numeric(remote.shares?.totalItems),
+            reply_count: numeric(remote.replies?.totalItems), view_count: numeric(remote.views?.totalItems), raw_object: remote,
+          };
+        }
+        const host = new URL(entryUri).hostname.toLowerCase();
+        const username = String(remote.preferredUsername || remote.name || new URL(entryUri).pathname.split("/").filter(Boolean).pop() || "remote");
+        return {
+          actor_uri: entryUri, actor_url: entryUri, id: entryUri, url: idOf(remote.url) || entryUri,
+          username, preferredUsername: username, display_name: String(remote.name || username),
+          bio: typeof remote.summary === "string" ? remote.summary : "",
+          avatar_url: idOf(remote.icon), header_url: idOf(remote.image), domain: host,
+          followers_count: numeric(remote.followers?.totalItems ?? remote.followers_count ?? remote.followersCount),
+          following_count: numeric(remote.following?.totalItems ?? remote.following_count ?? remote.followingCount),
+          posts_count: numeric(remote.outbox?.totalItems ?? remote.statuses_count ?? remote.statusesCount),
+          created_at: remote.published || null, locked: remote.manuallyApprovesFollowers === true,
+          discoverable: remote.discoverable !== false, bot: remote.type === "Service",
+          fields: asArray(remote.attachment), tags: asArray(remote.tag), emojis: asArray(remote.emoji),
+          moved_to: idOf(remote.moved), also_known_as: asArray(remote.alsoKnownAs).map(idOf).filter(Boolean),
+        };
+      } catch { return null; }
+    }));
+    const next = idOf(page?.next);
+    if (next) {
+      assertSafeRemoteUrl(next);
+      if (new URL(next).origin !== new URL(collectionUrl).origin) throw Error("Relationship pagination must remain on the collection's instance");
+    }
+    return json({ ok: true, items: summaries.filter(Boolean), totalItems: collectionTotal !== null && collectionTotal !== undefined && Number.isFinite(Number(collectionTotal)) ? Number(collectionTotal) : Number.isFinite(Number(page?.totalItems)) && page?.totalItems !== null && page?.totalItems !== undefined ? Number(page.totalItems) : null, next_cursor: next, unavailable: false }, 200);
   }
   if (body.operation === "fetch") {
     if (!body.target) return json({ error: "target required" }, 400);
