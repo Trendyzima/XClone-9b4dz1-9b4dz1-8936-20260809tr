@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const app = read('mobile/lib/app/testagram_app.dart');
+const authPolicy = read('mobile/lib/core/auth/auth_redirect_policy.dart');
 const page = read('mobile/lib/features/discovery/sports_hub_page.dart');
 const policy = read('mobile/lib/features/discovery/sports_hub_policy.dart');
 const tests = read('mobile/test/features/discovery/sports_hub_policy_test.dart');
@@ -17,7 +18,8 @@ const requireText = (source, pattern, label) => {
 };
 
 requireText(app, /path:\s*'\/sports'[\s\S]{0,120}SportsHubPage\(\)/, 'The /sports GoRoute must render SportsHubPage directly.');
-requireText(app, /path == '\/sports'/, 'The /sports route must remain public and must not redirect signed-out visitors to authentication.');
+requireText(app, /AuthRedirectPolicy\.isPublicRoute\(path\)/, 'The router must use the centralized public-route policy.');
+requireText(authPolicy, /static bool isPublicRoute\(String path\)[\s\S]*?path == '\/sports'/, 'The /sports route must remain public and must not redirect signed-out visitors to authentication.');
 requireText(page, /invoke\([\s\S]{0,100}'testagram-sports'[\s\S]{0,400}'kind':\s*'matches'[\s\S]{0,100}'sport':\s*_sport/, 'Flutter scores request must call testagram-sports with kind and selected sport.');
 requireText(page, /invoke\([\s\S]{0,100}'testagram-rss-feed'[\s\S]{0,300}'category':\s*'sports'/, 'Flutter headlines request must call testagram-rss-feed with the sports category.');
 requireText(sportsEdge, /req\.method\s*!==\s*"GET"/, 'Sports Edge Function must accept GET requests.');
