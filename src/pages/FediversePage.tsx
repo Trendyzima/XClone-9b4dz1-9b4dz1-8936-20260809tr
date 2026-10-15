@@ -1824,7 +1824,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold">{searchResult.display_name ?? searchResult.username}</p>
                     <p className="text-sm text-muted-foreground">@{searchResult.username}@{searchResult.domain}</p>
-                    {searchResult.bio && <div className="mt-1 text-xs text-muted-foreground line-clamp-3" dangerouslySetInnerHTML={{ __html: searchResult.bio }} />}
+                    {searchResult.bio && <FediverseRichText html={searchResult.bio} className="mt-1 text-xs text-muted-foreground line-clamp-3" />}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -1966,13 +1966,13 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
               <div className="mt-3">
                 <h2 className="text-lg font-bold">{activeRemoteProfile.display_name ?? activeRemoteProfile.username}</h2>
                 <p className="text-sm text-[#6364FF]">@{activeRemoteProfile.username}@{activeRemoteProfile.domain}</p>
-                {activeRemoteProfile.bio && <div className="mt-3 text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{__html: activeRemoteProfile.bio}} />}
+                {activeRemoteProfile.bio && <FediverseRichText html={activeRemoteProfile.bio} className="mt-3 text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none" />}
                 {Array.isArray(activeRemoteProfile.fields) && activeRemoteProfile.fields.length > 0 && (
                   <div className="mt-3 space-y-1.5">
                     {activeRemoteProfile.fields.slice(0, 8).map((field: any, i: number) => (
                       <div key={i} className="flex gap-2 text-xs rounded-lg bg-muted/50 px-3 py-2">
                         <span className="font-semibold shrink-0">{field.name}</span>
-                        <span className="text-muted-foreground break-words" dangerouslySetInnerHTML={{__html: field.value}} />
+                        <FediverseRichText html={field.value} className="text-muted-foreground break-words" />
                       </div>
                     ))}
                   </div>
