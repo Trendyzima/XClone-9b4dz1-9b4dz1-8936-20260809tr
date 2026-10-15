@@ -958,8 +958,9 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         {media.slice(0, 4).map((attachment: any, index: number) => {
           const previewRaw = attachment.preview_url || attachment.preview_remote_url || attachment.url || attachment.remote_url;
           const originalRaw = attachment.remote_url || attachment.url || previewRaw;
-          const preview = proxy(previewRaw);
-          const original = proxy(originalRaw);
+          const preview = proxy(previewRaw) || proxy(originalRaw);
+          const original = proxy(originalRaw) || proxy(previewRaw);
+          if (!preview && !original) return null;
           const type = String(attachment.type || '').toLowerCase();
           const isVideo = type === 'video' || type === 'gifv' || /\.(?:mp4|webm|mov)(?:[?#]|$)/i.test(originalRaw);
           const isAudio = type === 'audio' || /\.(?:mp3|ogg|wav|m4a|opus)(?:[?#]|$)/i.test(originalRaw);
@@ -968,7 +969,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
           if (isAudio) return <audio key={attachment.id ?? index} src={original} controls preload="none" className="w-full" />;
 
           return (
-            <a key={attachment.id ?? index} href={original || previewRaw} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-muted">
+            <a key={attachment.id ?? index} href={original} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-muted">
               <img src={preview} alt={attachment.description || ''} loading="lazy" decoding="async" fetchPriority="low"
                 className={`w-full ${media.length === 1 ? 'max-h-[520px]' : 'aspect-square'} object-cover`}
                 onError={(event) => {
