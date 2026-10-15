@@ -1,16 +1,11 @@
-name: Publish Testagram APK
+name: Legacy WebView APK Artifact Verification (Not Published)
 
 on:
-  workflow_run:
-    workflows:
-      - Testagram Android Release
-    types:
-      - completed
   workflow_dispatch:
 
 permissions:
   actions: read
-  contents: write
+  contents: read
 
 jobs:
   publish:
@@ -71,4 +66,4 @@ jobs:
           test -s "$APK"
           sha256sum "$APK"
           echo "Verified APK artifact from Android run ${BUILD_RUN_ID} (${BUILD_COMMIT})."
-          echo "The GitHub Release produced by Testagram Android Release is the canonical download surface; this workflow intentionally does not mutate main."
+          echo "Legacy WebView artifact verified for diagnostics only; it is not published as a public release."
