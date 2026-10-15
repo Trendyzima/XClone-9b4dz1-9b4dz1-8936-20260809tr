@@ -20,7 +20,7 @@ void main() {
       expect(result['hashtags'], isEmpty);
       expect(result['threads'], isEmpty);
       expect(result['instances'], isEmpty);
-      expect(result['next_cursor'], isNull);
+      expect(result['next_cursor'], '42');
     });
 
     test('preserves server pagination cursors returned as numbers or strings',
