@@ -183,7 +183,7 @@ async function processActivity(activity:any,actor:string){
     if(type==="Delete"&&objectId)await db.from("federated_objects").update({deleted_at:new Date().toISOString(),tombstone:true}).eq("uri",objectId).eq("actor_uri",actor);
   }
 }
-async function persistPrivateObjectRecipients(activity:any, actor:string, directLocalUserId:string|null) {
+async function persistPrivateObjectRecipients(activity:any, actor:string) {
   const activityType=str(activity.type);
   const object=activity.object&&typeof activity.object==="object"?activity.object:null;
   const objectUri=uri(object)||str(activity.object);
@@ -205,9 +205,10 @@ async function persistPrivateObjectRecipients(activity:any, actor:string, direct
   const authorizedUsers=new Set<string>();
 
   if(visibility==="followers"||visibility==="direct"){
-    if(directLocalUserId)authorizedUsers.add(directLocalUserId);
-
-    // Explicit local actor recipients authorize only the corresponding local user.
+    // Never authorize a user merely because this activity reached that user's
+    // inbox endpoint. Only an actor explicitly named in the signed object's
+    // audience, or an active local follower of the sender's own followers
+    // collection, is eligible for a recipient grant.
     const actorRecipients=recipientUris.filter((value)=>value.startsWith("https://")&&!value.endsWith("/followers")&&value!=="https://www.w3.org/ns/activitystreams#Public");
     if(actorRecipients.length){
       const actors=await db.from("activitypub_actors").select("user_id,actor_id").in("actor_id",actorRecipients.slice(0,100));
@@ -275,7 +276,7 @@ Deno.serve(async req=>{
       await db.from("activitypub_inbox").upsert({local_user_id:local.data.user_id,activity_type:str(activity.type),activity_key:id,actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false,payload_bytes:raw.length,expires_at:new Date(Date.now()+INBOX_RETENTION_DAYS*86400000).toISOString()},{onConflict:"activity_key",ignoreDuplicates:true});
     }
     await processActivity(activity,actor);
-    await persistPrivateObjectRecipients(activity,actor,local?.data?.user_id?String(local.data.user_id):null);
+    await persistPrivateObjectRecipients(activity,actor);
     if(local?.data?.user_id && str(activity.type)==="EmojiReact"){
       const objectUri=uri(activity.object), emoji=str(activity.content||activity.name||"👍").slice(0,32);
       if(objectUri) await db.from("federated_emoji_reactions").upsert({user_id:local.data.user_id,object_uri:objectUri,emoji,activity_uri:id,delivered:true,delivery_state:"delivered",updated_at:new Date().toISOString()},{onConflict:"user_id,object_uri,emoji"});
