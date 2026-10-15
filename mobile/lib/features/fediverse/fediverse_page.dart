@@ -89,16 +89,19 @@ class _FediversePageState extends State<FediversePage> {
     _load();
   }
 
+  bool get _supportsGenericFeedPagination =>
+      !widget.instancesOnly &&
+      widget.section != 'discover' &&
+      widget.section != 'organic-discovery' &&
+      widget.section != 'mastodon' &&
+      !_sectionNeedsDedicatedBackend &&
+      widget.actorUri == null;
+
   void _onFeedScroll() {
     if (!_feedScrollController.hasClients ||
         _loadingMoreFeed ||
         !_hasMoreFeed ||
-        widget.instancesOnly ||
-        widget.section == 'discover' ||
-        widget.section == 'organic-discovery' ||
-        widget.section == 'mastodon' ||
-        _sectionNeedsDedicatedBackend ||
-        widget.actorUri != null) {
+        !_supportsGenericFeedPagination) {
       return;
     }
     if (_feedScrollController.position.extentAfter < 900) {
@@ -2234,9 +2237,7 @@ class _FediversePageState extends State<FediversePage> {
                 ),
               ),
             ),
-          if (widget.actorUri == null &&
-              !_sectionNeedsDedicatedBackend &&
-              _hasMoreFeed)
+          if (_supportsGenericFeedPagination && _hasMoreFeed)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
