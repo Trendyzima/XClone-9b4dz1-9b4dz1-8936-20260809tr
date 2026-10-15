@@ -969,7 +969,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
           if (isAudio) return <audio key={attachment.id ?? index} src={original} controls preload="none" className="w-full" />;
 
           return (
-            <a key={attachment.id ?? index} href={original} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-muted">
+            <div key={attachment.id ?? index} className="overflow-hidden rounded-xl bg-muted">
               <img src={preview} alt={attachment.description || ''} loading="lazy" decoding="async" fetchPriority="low"
                 className={`w-full ${media.length === 1 ? 'max-h-[520px]' : 'aspect-square'} object-cover`}
                 onError={(event) => {
@@ -978,7 +978,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                   if (fallback && img.src !== fallback) img.src = fallback;
                   else img.style.display = 'none';
                 }} />
-            </a>
+            </div>
           );
         })}
       </div>
