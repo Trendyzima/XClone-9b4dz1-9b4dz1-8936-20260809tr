@@ -52,15 +52,15 @@ jobs:
         run: |
           set -euo pipefail
           KEYSTORE_PATH="$RUNNER_TEMP/testagram-temporary-ci.jks"
-          keytool -genkeypair -v \\
-            -keystore "$KEYSTORE_PATH" \\
-            -storetype JKS \\
-            -storepass testagram-temporary-ci-store \\
-            -alias testagram-temporary-ci \\
-            -keypass testagram-temporary-ci-store \\
-            -keyalg RSA \\
-            -keysize 3072 \\
-            -validity 30 \\
+          keytool -genkeypair -v \
+            -keystore "$KEYSTORE_PATH" \
+            -storetype JKS \
+            -storepass testagram-temporary-ci-store \
+            -alias testagram-temporary-ci \
+            -keypass testagram-temporary-ci-store \
+            -keyalg RSA \
+            -keysize 3072 \
+            -validity 30 \
             -dname "CN=Testagram Temporary CI, OU=Android, O=Testagram, L=CI, ST=CI, C=KE"
           {
             echo "TESTAGRAM_ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH"
