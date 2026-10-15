@@ -5425,6 +5425,11 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Database trigger maintains exact accepted follow counts and backfills existing profile counters; Flutter profile reads these canonical values."
+    },
+    "supabase/migrations/20261015182000_federation_worker_timeout_recovery.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Increase the scheduled federation delivery timeout to cover bounded remote inbox batches and recover attempt counters inflated by abandoned in-flight claims."
     }
   }
 }
