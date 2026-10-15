@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'fediverse_feed_policy.dart';
@@ -328,8 +327,9 @@ class _FediversePageState extends State<FediversePage> {
         if (resolved != null) return resolved;
       }
     }
-    if (value is Map)
+    if (value is Map) {
       return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
+    }
     return null;
   }
 
@@ -525,12 +525,35 @@ class _FediversePageState extends State<FediversePage> {
             .replaceFirst(RegExp(r'^@'), '')
             .split('@')
             .first;
-    final profileFollowers = actor['followers'] is Map
-        ? (actor['followers'] as Map)['totalItems']
-        : actor['followers_count'] ?? actor['followersCount'];
-    final profileFollowing = actor['following'] is Map
-        ? (actor['following'] as Map)['totalItems']
-        : actor['following_count'] ?? actor['followingCount'];
+    final responseCounts = data['counts'] is Map
+        ? Map<String, dynamic>.from(data['counts'] as Map)
+        : <String, dynamic>{};
+    final profileFollowers = _remoteCount(
+          actor['followers'] is Map
+              ? (actor['followers'] as Map)['totalItems']
+              : actor['followers'] ??
+                  actor['followers_count'] ??
+                  actor['followersCount'],
+        ) ??
+        _remoteCount(
+          data['followers_count'] ??
+              data['followersCount'] ??
+              responseCounts['followers'] ??
+              responseCounts['followers_count'],
+        );
+    final profileFollowing = _remoteCount(
+          actor['following'] is Map
+              ? (actor['following'] as Map)['totalItems']
+              : actor['following'] ??
+                  actor['following_count'] ??
+                  actor['followingCount'],
+        ) ??
+        _remoteCount(
+          data['following_count'] ??
+              data['followingCount'] ??
+              responseCounts['following'] ??
+              responseCounts['following_count'],
+        );
     if (mounted) {
       setState(() {
         _remoteProfile = {
@@ -619,8 +642,10 @@ class _FediversePageState extends State<FediversePage> {
         _relationshipCursor = result['next_cursor'] is String
             ? result['next_cursor'] as String
             : null;
-        final total = result['totalItems'];
-        if (total is num &&
+        final total = _remoteCount(
+          result['totalItems'] ?? result['total_items'] ?? result['total'],
+        );
+        if (total != null &&
             const {'followers', 'following'}.contains(widget.section)) {
           _remoteProfile[widget.section == 'followers'
               ? 'followers_count'
@@ -633,7 +658,7 @@ class _FediversePageState extends State<FediversePage> {
           'likes' => 'Public likes reported',
           _ => 'Items reported',
         };
-        _surfaceMetrics = total is num ? {metricLabel: total.toInt()} : {};
+        _surfaceMetrics = total != null ? {metricLabel: total.toInt()} : {};
         _surfaceMessage = result['unavailable'] == true
             ? 'This remote instance does not publish a public ${widget.section} collection.'
             : rows.isEmpty
@@ -737,7 +762,9 @@ class _FediversePageState extends State<FediversePage> {
     final cursor = _relationshipCursor;
     if (!actorUri.startsWith('https://') ||
         cursor == null ||
-        _loadingMoreRelationships) return;
+        _loadingMoreRelationships) {
+      return;
+    }
     setState(() => _loadingMoreRelationships = true);
     try {
       final response = await _db.functions.invoke(
@@ -754,8 +781,9 @@ class _FediversePageState extends State<FediversePage> {
         },
       ).timeout(const Duration(seconds: 25));
       final result = response.data;
-      if (result is! Map || result['ok'] != true)
+      if (result is! Map || result['ok'] != true) {
         throw StateError('Could not load more remote relationships.');
+      }
       final rows = result['items'] is List
           ? (result['items'] as List)
               .whereType<Map>()
@@ -779,12 +807,13 @@ class _FediversePageState extends State<FediversePage> {
         });
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not load more ${widget.section}: $error'),
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => _loadingMoreRelationships = false);
     }
@@ -795,7 +824,9 @@ class _FediversePageState extends State<FediversePage> {
     final cursor = _remoteTimelineCursor;
     if (!actorUri.startsWith('https://') ||
         cursor == null ||
-        _loadingMoreRemoteTimeline) return;
+        _loadingMoreRemoteTimeline) {
+      return;
+    }
     setState(() => _loadingMoreRemoteTimeline = true);
     try {
       final response = await _db.functions.invoke(
@@ -807,8 +838,9 @@ class _FediversePageState extends State<FediversePage> {
         },
       ).timeout(const Duration(seconds: 25));
       final data = response.data;
-      if (data is! Map || data['ok'] != true)
+      if (data is! Map || data['ok'] != true) {
         throw StateError('Remote timeline pagination failed.');
+      }
       final items = data['items'] is List ? data['items'] as List : const [];
       final rows = <Map<String, dynamic>>[];
       for (final item in items.whereType<Map>()) {
@@ -817,7 +849,9 @@ class _FediversePageState extends State<FediversePage> {
             : Map<String, dynamic>.from(item);
         final uri = '${object['id'] ?? object['url'] ?? ''}';
         if (!uri.startsWith('https://') ||
-            const {'Delete', 'Tombstone'}.contains(object['type'])) continue;
+            const {'Delete', 'Tombstone'}.contains(object['type'])) {
+          continue;
+        }
         final attachments = object['attachment'] is List
             ? object['attachment'] as List
             : object['attachment'] == null
@@ -852,7 +886,7 @@ class _FediversePageState extends State<FediversePage> {
         });
       }
       final seen = _posts.map((post) => '${post['uri'] ?? post['id']}').toSet();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _posts.addAll(
             rows.where((row) => seen.add('${row['uri'] ?? row['id']}')),
@@ -861,11 +895,13 @@ class _FediversePageState extends State<FediversePage> {
               ? data['next_cursor'] as String
               : null;
         });
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not load more public posts: $error')),
         );
+      }
     } finally {
       if (mounted) setState(() => _loadingMoreRemoteTimeline = false);
     }
@@ -1216,21 +1252,6 @@ class _FediversePageState extends State<FediversePage> {
     }
   }
 
-  Future<void> _open(String? raw) async {
-    final uri = Uri.tryParse(raw ?? '');
-    if (uri == null ||
-        !{'http', 'https'}.contains(uri.scheme) ||
-        uri.host.isEmpty) {
-      return;
-    }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open this remote link.')),
-      );
-    }
-  }
-
   @override
   void dispose() {
     _feedScrollController.dispose();
@@ -1238,6 +1259,7 @@ class _FediversePageState extends State<FediversePage> {
     super.dispose();
   }
 
+  // Keep the profile surface rendered in-app; external navigation is intentionally restricted.
   @override
   Widget build(BuildContext context) {
     if (widget.instancesOnly ||
@@ -1294,10 +1316,7 @@ class _FediversePageState extends State<FediversePage> {
                   subtitle: Text(
                     '${i['software'] ?? i['provider'] ?? 'ActivityPub'} · Last synced ${i['last_fetched_at'] ?? 'not yet'}',
                   ),
-                  trailing: IconButton(
-                    onPressed: () => _open('${i['base_url']}'),
-                    icon: const Icon(Icons.open_in_new_rounded),
-                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
                 ),
               ),
             ),
@@ -1490,19 +1509,6 @@ class _FediversePageState extends State<FediversePage> {
                                 ),
                               ),
                         ],
-                        if (_remoteProfile['profile_url'] is String)
-                          TextButton.icon(
-                            onPressed: () => _open('${_remoteProfile['profile_url']}'),
-                            icon: const Icon(Icons.open_in_new_rounded),
-                            label: const Text('Open original profile'),
-                          ),
-                        if (_remoteProfile['moved_to'] is String)
-                          TextButton.icon(
-                            onPressed: () =>
-                                _open('${_remoteProfile['moved_to']}'),
-                            icon: const Icon(Icons.open_in_new_rounded),
-                            label: const Text('Moved account'),
-                          ),
                         if (_remoteProfile['also_known_as'] is List &&
                             (_remoteProfile['also_known_as'] as List)
                                 .isNotEmpty)
@@ -1555,7 +1561,7 @@ class _FediversePageState extends State<FediversePage> {
                 ],
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -1688,9 +1694,6 @@ class _FediversePageState extends State<FediversePage> {
               final isRelationship =
                   const {'followers', 'following'}.contains(widget.section) &&
                       widget.actorUri != null;
-              final isRemotePostCollection =
-                  const {'featured', 'likes'}.contains(widget.section) &&
-                      widget.actorUri != null;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
@@ -1698,9 +1701,7 @@ class _FediversePageState extends State<FediversePage> {
                       ? () => context.push(
                             '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
                           )
-                      : isRemotePostCollection
-                          ? () => _open('${row['url'] ?? row['uri']}')
-                          : null,
+                      : null,
                   leading: isRelationship && row['avatar_url'] is String
                       ? CircleAvatar(
                           backgroundImage: NetworkImage('${row['avatar_url']}'),
@@ -1931,10 +1932,10 @@ class _FediversePageState extends State<FediversePage> {
                               ],
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Open remote post',
-                            onPressed: () => _open(url),
-                            icon: const Icon(Icons.open_in_new_rounded),
+                          const Icon(
+                            Icons.public_rounded,
+                            semanticLabel:
+                                'Federated post shown inside Testagram',
                           ),
                         ],
                       ),
