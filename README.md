@@ -1,18 +1,18 @@
 # XClone — Social Media App for Android, iOS Web, and Android TV
 
-**XClone** is a social platform for short-form videos, posts and threads, live video and audio, communities, messaging, creator tools, discovery, commerce, and digital payments. The product's current public web experience is hosted at **[testagram.site](https://testagram.site/)**.
+**Testagram** is a social platform for short-form videos, posts and threads, live video and audio, communities, messaging, creator tools, discovery, commerce, and digital payments. The public web experience is hosted at **[testagram.site](https://testagram.site/)**, while the Android phone app is built with Flutter and native Android playback.
 
-Choose the build for your device. Android phone builds are published now; Android TV and Windows/macOS/Linux desktop installers are generated as **preview/testing releases** by dedicated platform workflows. iPhone/iPad currently use the web app—there is no native iOS app or IPA in this repository yet.
+Choose the build for your device. The Android phone download link is reserved for the Flutter-native APK; Android TV and Windows/macOS/Linux installers are separate **preview/testing releases**. iPhone/iPad currently use the web app—there is no native iOS app or IPA in this repository yet.
 
 [**Open XClone on the web**](https://testagram.site/) · [**Download Android phone APK**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk) · [**Android TV test APK releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test) · [**Desktop OS releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop) · [**All releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
 
-> **Release status:** Android phone APK/AAB assets are already published. Android TV debug APK and Windows/macOS/Linux installer builds are intended to be published as preview releases by the new workflows. Preview builds are not equivalent to stable signed production releases; TV hardware and OS-specific installation still need validation.
+> **Release status:** The canonical Android phone release link is intended to serve one Flutter-native APK, replacing the retired WebView APK. The release workflow generates a temporary signing identity and does not use long-lived signing secrets. Such APKs are suitable for direct testing but are not a stable upgrade identity or a Play Store upload key. Android TV and desktop packages remain separate preview/testing releases.
 
 ## Get XClone for your device
 
 | Platform | Download / access | Availability |
 |---|---|---|
-| **Android phone or tablet** | **[Download latest APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** · [Release notes](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) · [AAB for store distribution](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.aab) | Published release assets |
+| **Android phone or tablet** | **[Download latest Flutter-native APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** · [Release notes](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) | Published release assets |
 | **Android TV / Google TV** | **[Find the latest TV test APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test)** · [TV setup guide](android-tv/README.md) · [TV release workflow](.github/workflows/xclone-tv-debug-release.yml) | Debug-signed test APK; not the stable signed production TV release |
 | **Windows** | **[Find Windows installers (.msi/.exe)](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop)** | Preview installer when the desktop workflow succeeds |
 | **macOS** | **[Find macOS disk images (.dmg)](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop)** | Preview installer when published; CPU/OS compatibility depends on the asset |
@@ -28,7 +28,7 @@ Choose the build for your device. Android phone builds are published now; Androi
 3. Open XClone and sign in to use account features that require authentication.
 4. For the version number, release notes, and alternative assets, use the [latest release page](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest).
 
-**Before upgrading:** the current Android release workflow uses temporary CI signing material. Builds signed with different certificates may not install as in-place updates over each other. Do not uninstall an existing app unless you understand the impact on locally stored data; check the release notes and confirm your account data is available before replacing an installation. A published APK is not, by itself, evidence of a stable signing identity or Play Store approval.
+**Important signing limitation:** the Flutter APK release workflow creates a fresh temporary signing key for each release. Android will generally refuse to install a differently signed build as an in-place update over an existing install, and this signing approach does not provide a stable upgrade path or Play Store upload identity. Back up any local-only data before replacing an installed app. Signing alone does not guarantee that Google Play Protect will show no warning.
 
 ### Android TV and Google TV: testing build
 
@@ -104,12 +104,12 @@ Payment features can require provider configuration, verification, eligibility, 
 
 ## Platform details
 
-### Android app
-The existing Android project lives in `android/`. The production WebView shell uses the mobile application ID `com.xclone.app`.
+### Android phone app
+The native Android phone app is the Flutter client in `mobile/`, using the package ID `com.xclone.app`. Video playback uses native Android media plugins rather than an embedded WebView player. The legacy WebView APK workflow is retired from publishing.
 
-- [Android release workflow](.github/workflows/android-release.yml)
+- [Flutter-native Android release workflow](.github/workflows/flutter-android-native-release.yml)
 - [All GitHub releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
-- [Latest APK download](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest)
+- [Latest APK download](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)
 
 ### Android TV app
 The TV project lives in `android-tv/` and uses `com.xclone.app.tv`, separate from the mobile package. It reuses the existing web experience rather than duplicating IPTV catalogue, stream-selection, buffering, or playback services.
@@ -126,13 +126,14 @@ Open [testagram.site](https://testagram.site/) in Safari. The site includes web-
 ## Product architecture
 
 ```text
-Web browser / Android WebView / Android TV WebView
-                    |
-             React + TypeScript
-                    |
-      Routes, social UI, media and feature surfaces
-                    |
-       Supabase Auth / PostgreSQL / Storage
+Web browser                         Native Flutter Android app
+       |                                         |
+ React + TypeScript                       Flutter + native media
+       |                                         |
+ Routes and web surfaces                GoRouter + feature screens
+       \____________________   __________________/
+                            \ /
+                  Supabase Auth / PostgreSQL / Storage
              / Realtime / Edge Functions
                     |
      Media and IPTV delivery / live experiences
@@ -140,7 +141,7 @@ Web browser / Android WebView / Android TV WebView
           / payment and monetization services
 ```
 
-The repository contains a React + TypeScript application using Vite, Tailwind CSS, route-level lazy loading and Supabase. It also contains a separate Android TV project, the existing Android project, a Flutter mobile foundation, a Tauri desktop client, and first-party media/backend services.
+The repository contains a React + TypeScript web application using Vite, Tailwind CSS, route-level lazy loading and Supabase; a Flutter-native Android phone app; a separate Android TV project; a Tauri desktop client; and first-party media/backend services.
 
 The checked-in repository and deployed configuration are authoritative for the exact production service topology. Some feature screens integrate with external providers and may require separate service configuration.
 
@@ -158,7 +159,7 @@ The checked-in repository and deployed configuration are authoritative for the e
 | Edge/serverless | Supabase Edge Functions and API handlers |
 | Video | HLS.js and application media-player surfaces |
 | Live media | WebRTC / Testagram Media Engine integrations |
-| Android | Existing Android/Capacitor project |
+| Android phone | Flutter native app with Android media plugins |
 | Android TV | Separate Android application project |
 | Mobile migration foundation | Flutter under `mobile/` |
 | Desktop | Tauri |
