@@ -119,43 +119,7 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
-            path == '/explore' ||
-            path == '/search' ||
-            path == '/discover' ||
-            path.startsWith('/discover/') ||
-            path == '/tv' ||
-            path == '/iptv' ||
-            path == '/tv/channels' ||
-            path == '/tv/reels' ||
-            path == '/shop' ||
-            path == '/fediverse/feed' ||
-            path == '/fediverse/discover' ||
-            path == '/fediverse/organic-discovery' ||
-            path == '/videos' ||
-            path == '/shorts' ||
-            path == '/videos/watchlater' ||
-            path == '/hashtags' ||
-            path.startsWith('/hashtag/') ||
-            path == '/leaderboard' ||
-            path == '/leaderboard/creators' ||
-            path == '/news' ||
-            path == '/sports' ||
-            path.startsWith('/post/') ||
-            path.startsWith('/news/') ||
-            path == '/fediverse' ||
-            path == '/fediverse/instances' ||
-            path == '/spaces' ||
-            path.startsWith('/spaces/') ||
-            path.startsWith('/space-recording/') ||
-            path == '/products' ||
-            path == '/marketplace' ||
-            path.startsWith('/p/') ||
-            path == '/threads' ||
-            path == '/communities' ||
-            path.startsWith('/thread/') ||
-            path.startsWith('/c/') ||
-            path.startsWith('/profile/');
+        final publicRoute = AuthRedirectPolicy.isPublicRoute(path)
         if (!signedIn && !onAuth && !onSetup && !publicRoute) {
           return '/auth?returnTo=${Uri.encodeComponent(state.uri.toString())}';
         }
