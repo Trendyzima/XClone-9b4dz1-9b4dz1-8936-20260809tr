@@ -2,6 +2,11 @@ name: Flutter Native Android Release
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'README.md'
+      - '.github/workflows/flutter-android-native-release.yml'
   push:
     branches: [main]
     paths:
@@ -10,10 +15,10 @@ on:
       - '.github/workflows/flutter-android-native-release.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: testagram-flutter-native-android-release
+  group: testagram-flutter-native-android-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -135,25 +140,40 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Replace the canonical APK on the latest release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -rf "${RUNNER_TEMP}/testagram-ephemeral-signing"
+
+  publish:
+    name: Replace the canonical release download with the Flutter APK
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the verified Flutter APK
+        uses: actions/download-artifact@v4
+        with:
+          name: testagram-flutter-native-android-${{ github.sha }}
+          path: release-assets
+
+      - name: Replace the single canonical APK on the latest release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          APK=release-assets/app-release.apk
+          test -s "$APK"
           tag="$(gh release view --json tagName --jq '.tagName')"
           test -n "$tag"
-          echo "Replacing the single canonical Android APK on release $tag."
-          gh release upload "$tag" app-release.apk --clobber
-          # The prior AAB belongs to the legacy WebView app and must not be
-          # presented beside the Flutter-native APK as if it were the same build.
+          echo "Replacing the canonical Android APK on release $tag."
+          gh release upload "$tag" "$APK" --clobber
+          # The previous AAB belongs to the retired WebView app; do not leave
+          # a mismatched artifact beside the new Flutter-native APK.
           if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq 'app-release.aab'; then
             gh release delete-asset "$tag" app-release.aab --yes
           fi
           gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'app-release.apk'
-          echo "Published native Flutter APK to the existing canonical download URL."
-
-      - name: Remove temporary signing material
-        if: always()
-        run: rm -rf "${RUNNER_TEMP}/testagram-ephemeral-signing"
+          echo "Canonical download now points to the verified Flutter-native APK."
