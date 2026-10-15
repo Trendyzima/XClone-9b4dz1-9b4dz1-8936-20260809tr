@@ -77,6 +77,16 @@ jobs:
           for collection in outbox followers following; do
             curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat/$collection" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('type') in ('OrderedCollection','OrderedCollectionPage'), 'invalid collection type: '+str(d.get('type')); assert d.get('id'), 'collection id missing'; print('ActivityPub collection contract passed.')"
           done
+          # These active local profiles previously had no canonical ActivityPub
+          # actor/key. WebFinger must provision them instead of returning a
+          # profile-shaped actor without a signing key.
+          for username in fricana testagramreels; do
+            get "/.well-known/webfinger?resource=acct:${username}@testagram.site" 200 "application/jrd+json"
+            get "/users/${username}" 200 "application/activity+json"
+            get "/users/${username}/outbox" 200 "application/activity+json"
+            curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/${username}" | python3 -c "import json,sys; a=json.load(sys.stdin); assert a.get('id')=='https://testagram.site/users/'+sys.argv[1]; assert a.get('publicKey',{}).get('publicKeyPem'), 'local actor has no signing key'; print('Local actor signing-key contract passed for '+sys.argv[1]+'.')" "${username}"
+          done
+          curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/fricana/outbox?page=true&limit=5" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('type')=='OrderedCollectionPage', 'local outbox page is not an OrderedCollectionPage'; items=d.get('orderedItems',[]); assert items and items[0].get('type')=='Create' and items[0].get('object',{}).get('type')=='Note', 'local public posts are missing from the ActivityPub outbox'; print('Local public post discovery contract passed.')"
           unsigned_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -X POST -H "Content-Type: application/activity+json" --data '{"@context":"https://www.w3.org/ns/activitystreams","id":"https://remote.example/activities/probe","type":"Create","actor":"https://remote.example/users/probe","object":{"id":"https://remote.example/objects/probe","type":"Note","attributedTo":"https://remote.example/users/probe","content":"contract probe","to":["https://www.w3.org/ns/activitystreams#Public"]}}' -o /dev/null -w '%{http_code}' "$base/users/crissbeat/inbox")"
           echo "Unsigned inbox POST -> HTTP $unsigned_status"
           [[ "$unsigned_status" == "401" ]] || { echo "Inbox accepted or misclassified an unsigned activity." >&2; exit 1; }
