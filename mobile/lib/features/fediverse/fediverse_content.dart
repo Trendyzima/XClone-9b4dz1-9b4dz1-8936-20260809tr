@@ -54,7 +54,7 @@ String? normalizeFederatedMediaUrl(dynamic value) {
     }
     final scheme = parsed.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') return null;
-    return parsed.replace(scheme: 'https', fragment: '').toString();
+    return parsed.replace(scheme: 'https').removeFragment().toString();
   }
   if (value is List) {
     for (final item in value) {
