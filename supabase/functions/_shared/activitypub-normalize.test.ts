@@ -1,8 +1,8 @@
-import { normalizeAttachment, normalizeVisibility } from "./activitypub-normalize.ts";
+import { followersOwnerUri, normalizeAttachment, normalizeVisibility } from "./activitypub-normalize.ts";
 
 const PUBLIC = "https://www.w3.org/ns/activitystreams#Public";
 
-Deno.test("visibility: Public string in to is public", () => {
+Deno.test("followers collection URI resolves to its actor URI", () => {\n  if (followersOwnerUri("https://example.test/users/alice/followers") !== "https://example.test/users/alice") throw new Error("followers owner was not resolved");\n  if (followersOwnerUri("https://example.test/users/alice/followers?page=2") !== null) throw new Error("query-bearing collection URI should not be trusted");\n});\n\nDeno.test("visibility: Public string in to is public", () => {
   if (normalizeVisibility(null, [PUBLIC], []) !== "public") throw new Error("expected public");
 });
 
