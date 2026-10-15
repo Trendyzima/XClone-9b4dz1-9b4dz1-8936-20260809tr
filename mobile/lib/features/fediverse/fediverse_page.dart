@@ -1227,8 +1227,6 @@ class _FediversePageState extends State<FediversePage> {
     }
   }
 
-
-
   @override
   void dispose() {
     _feedScrollController.dispose();
