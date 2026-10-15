@@ -1,4 +1,5 @@
-name: Testagram Android Release
+name: Testagram Legacy WebView Android Archive
+# Legacy WebView builds are retained for reference only; the native Flutter workflow owns the latest public phone APK.
 # CI uses temporary signing while production signing is intentionally disabled.
 # APK publication is finalized by publish-testagram-apk after this verified build completes.
 # Publisher commit ordering is now verified against concurrent main updates.
@@ -36,7 +37,7 @@ permissions:
 
 jobs:
   android-release:
-    name: Build and publish the production WebView Android app
+    name: Build and archive the legacy WebView Android app
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -140,9 +141,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
-          name: Testagram Android ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
+          name: Testagram Legacy WebView Android ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
           target_commitish: ${{ github.sha }}
-          make_latest: true
+          make_latest: false
+          prerelease: true
           generate_release_notes: true
           fail_on_unmatched_files: true
           overwrite_files: true
