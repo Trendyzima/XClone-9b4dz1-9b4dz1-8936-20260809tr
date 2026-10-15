@@ -1452,7 +1452,9 @@ class _FediversePageState extends State<FediversePage> {
                             if (_remoteProfile['suspended'] == true)
                               const Text('Suspended'),
                             if (_remoteProfile['last_status_at'] is String)
-                              Text('Last public status: ${'${_remoteProfile['last_status_at']}'.split('T').first}'),
+                              Text(
+                                'Last public status: ${'${_remoteProfile['last_status_at']}'.split('T').first}',
+                              ),
                           ],
                         ),
                         if (_remoteProfile['fields'] is List &&
