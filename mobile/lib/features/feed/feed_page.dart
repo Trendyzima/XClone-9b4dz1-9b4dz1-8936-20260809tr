@@ -111,9 +111,8 @@ class _FeedPageState extends State<FeedPage> {
             ..clear()
             ..addAll(cached);
           final lastCached = _posts.isEmpty ? null : _posts.last;
-          _cursorCreatedAt = lastCached == null
-              ? null
-              : '${lastCached['created_at'] ?? ''}';
+          _cursorCreatedAt =
+              lastCached == null ? null : '${lastCached['created_at'] ?? ''}';
           _cursorId = lastCached == null ? null : '${lastCached['id'] ?? ''}';
           _hasMore = _posts.length >= FeedOfflineCache.maxPosts;
         });
