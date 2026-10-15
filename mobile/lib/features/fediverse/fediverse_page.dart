@@ -1259,6 +1259,7 @@ class _FediversePageState extends State<FediversePage> {
     super.dispose();
   }
 
+  // Keep the profile surface rendered in-app; external navigation is intentionally restricted.
   @override
   Widget build(BuildContext context) {
     if (widget.instancesOnly ||
