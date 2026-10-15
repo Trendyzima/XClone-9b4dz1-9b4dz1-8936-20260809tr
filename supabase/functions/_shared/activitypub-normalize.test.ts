@@ -10,6 +10,10 @@ Deno.test("visibility: Public Link object in to is public", () => {
   if (normalizeVisibility(null, [{ id: PUBLIC, type: "Collection" }], []) !== "public") throw new Error("object-form Public recipient was not recognized");
 });
 
+Deno.test("visibility: JSON-LD @id recipient references are recognized", () => {
+  if (normalizeVisibility(null, [{ "@id": PUBLIC }], []) !== "public") throw new Error("JSON-LD @id recipient was not recognized");
+});
+
 Deno.test("visibility: Public in cc is unlisted", () => {
   if (normalizeVisibility(null, ["https://example.test/users/alice/followers"], [PUBLIC]) !== "unlisted") throw new Error("expected unlisted");
 });
