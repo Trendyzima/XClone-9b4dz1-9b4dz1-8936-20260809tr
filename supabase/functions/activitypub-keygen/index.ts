@@ -58,20 +58,26 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !publishableKey || !secretKey) return json({ error: "Server key configuration is incomplete" }, 500);
 
   const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
-
-  const userClient = createClient(supabaseUrl, publishableKey, {
-    global: { headers: { Authorization: authorization } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: authData, error: authError } = await userClient.auth.getUser();
-  if (authError || !authData.user) return json({ error: "Authentication required" }, 401);
-  const user = authData.user;
+  const internalToken = req.headers.get("x-testagram-internal") || "";
+  const internal = Boolean(secretKey && internalToken === secretKey && authorization?.startsWith("Bearer "));
+  let user: any = null;
+  if (!internal) {
+    if (!authorization?.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
+    const userClient = createClient(supabaseUrl, publishableKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: authData, error: authError } = await userClient.auth.getUser();
+    if (authError || !authData.user) return json({ error: "Authentication required" }, 401);
+    user = authData.user;
+  }
 
   let body: any = {};
   try { body = await req.json(); } catch {}
 
-  const admin = isAdmin(user);
+  // Internal provisioning is only accepted from a server holding the
+  // project's secret key. The gateway still validates the bearer token.
+  const admin = internal || isAdmin(user);
   const generateAll = body?.generate_all_missing === true;
   if (generateAll && !admin) return json({ error: "Admin access required for backfill" }, 403);
 
@@ -140,8 +146,11 @@ Deno.serve(async (req) => {
       return json({ status: "backfill_complete", generated, existing, failed, failures: failures.slice(0, 25) });
     }
 
-    const requestedUserId = typeof body?.user_id === "string" ? body.user_id : user.id;
-    if (requestedUserId !== user.id && !admin) return json({ error: "Forbidden" }, 403);
+    const requestedUserId = typeof body?.user_id === "string"
+      ? body.user_id
+      : user?.id;
+    if (!requestedUserId) return json({ error: "user_id is required for internal provisioning" }, 400);
+    if (!internal && requestedUserId !== user?.id && !admin) return json({ error: "Forbidden" }, 403);
     const result = await generateForUser(requestedUserId);
     return json(result);
   } catch (e) {
