@@ -5400,6 +5400,26 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Provision the public federated-media cache bucket with strict MIME and object-size limits; upload access remains service-role-only."
+    },
+    "supabase/functions/_shared/activitypub-normalize.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Shared ActivityStreams actor, recipient, visibility, attachment and identity normalization used by federation inbox and feed authorization; keep parity checks tied to this server contract."
+    },
+    "supabase/migrations/20261015140000_federated_visibility_normalization.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Database visibility normalization for existing federated objects; preserve private/followers-only semantics and validate migration state before release."
+    },
+    "supabase/migrations/20261015150000_federated_object_recipients.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Private/followers-only object recipient ledger; database reads must remain service-role-only and personalized feed access must enforce recipient grants."
+    },
+    "supabase/migrations/20261015151000_federated_private_object_rls.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Restrict direct federated-object reads to public/unlisted visibility; private delivery must use authorization-aware server paths."
     }
   }
 }
