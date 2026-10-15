@@ -751,7 +751,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             '${row['actor_uri'] ?? (remoteAccount is Map ? remoteAccount['actor_uri'] : null) ?? ''}';
         if (actor.startsWith('http://') || actor.startsWith('https://')) {
           context.go(
-              '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}');
+            '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}',
+          );
         }
         break;
       default:
