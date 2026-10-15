@@ -1912,7 +1912,8 @@ class _FediversePageState extends State<FediversePage> {
                           ),
                           const Icon(
                             Icons.public_rounded,
-                            semanticLabel: 'Federated post shown inside Testagram',
+                            semanticLabel:
+                                'Federated post shown inside Testagram',
                           ),
                         ],
                       ),
