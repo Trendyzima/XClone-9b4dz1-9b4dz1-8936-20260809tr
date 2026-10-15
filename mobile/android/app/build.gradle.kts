@@ -9,7 +9,7 @@ val releaseStorePath = System.getenv("TESTAGRAM_ANDROID_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("TESTAGRAM_ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("TESTAGRAM_ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("TESTAGRAM_ANDROID_KEY_PASSWORD")
-val hasProductionSigning = listOf(
+val hasReleaseSigning = listOf(
     releaseStorePath,
     releaseStorePassword,
     releaseKeyAlias,
@@ -42,8 +42,8 @@ android {
     }
 
     signingConfigs {
-        if (hasProductionSigning) {
-            create("production") {
+        if (hasReleaseSigning) {
+            create("releaseSigning") {
                 storeFile = file(releaseStorePath!!)
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
@@ -54,10 +54,12 @@ android {
 
     buildTypes {
         release {
-            // Never silently fall back to the debug key. The dedicated release
-            // workflow fails closed unless the production signing secrets exist.
-            if (hasProductionSigning) {
-                signingConfig = signingConfigs.getByName("production")
+            // Never silently fall back to the debug key. A release build is signed
+            // only when the caller supplies a complete keystore identity; CI may
+            // generate an ephemeral identity for a direct-download test APK. CI masks
+            // the ephemeral passwords in logs and deletes the keystore after building.
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("releaseSigning")
             }
         }
     }
