@@ -1426,9 +1426,9 @@ class _FediversePageState extends State<FediversePage> {
                   SizedBox(
                     height: 104,
                     width: double.infinity,
-                    child: _remoteProfile['header_url'] is String
+                    child: _localizedMediaUrl(_remoteProfile['header_url']).isNotEmpty
                         ? Image.network(
-                            '${_remoteProfile['header_url']}',
+                            _localizedMediaUrl(_remoteProfile['header_url']),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) =>
                                 const ColoredBox(color: Color(0x22336699)),
@@ -1445,12 +1445,12 @@ class _FediversePageState extends State<FediversePage> {
                             CircleAvatar(
                               radius: 28,
                               backgroundImage:
-                                  _remoteProfile['avatar_url'] is String
-                                      ? NetworkImage(
-                                          '${_remoteProfile['avatar_url']}',
+                                  _localizedMediaUrl(_remoteProfile['avatar_url']).isNotEmpty
+                                      ? CachedNetworkImageProvider(
+                                          _localizedMediaUrl(_remoteProfile['avatar_url']),
                                         )
                                       : null,
-                              child: _remoteProfile['avatar_url'] is String
+                              child: _localizedMediaUrl(_remoteProfile['avatar_url']).isNotEmpty
                                   ? null
                                   : const Icon(Icons.person_rounded),
                             ),
