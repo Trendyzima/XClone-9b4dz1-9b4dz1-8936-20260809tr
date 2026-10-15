@@ -98,10 +98,10 @@ async function outbox(a:any,u:URL){
     const id=`${a.actor_id}/statuses/${p.id}`;
     const object:any={'@context':AP,id,type:'Note',attributedTo:a.actor_id,content:str(p.content),published:p.created_at,updated:p.edited_at||p.updated_at||p.created_at,url:id,to:[`${AP}#Public`],cc:[a.followers_url]};
     if(p.quoted_post_id)object.quote=`${a.actor_id}/statuses/${p.quoted_post_id}`;
-    const rawUrls=Array.isArray(p.media_urls)?p.media_urls.map((item:any)=>typeof item==='string'?item:uri(item)).filter((value:string)=>/^https:\/\//i.test(value)):[];
+    const rawUrls:string[]=Array.isArray(p.media_urls)?p.media_urls.map((item:any):string=>typeof item==='string'?item:uri(item)).filter((value:string)=>/^https:\/\//i.test(value)):[];
     if(!rawUrls.length&&/^https:\/\//i.test(str(p.video_url)))rawUrls.push(str(p.video_url));
     if(!rawUrls.length&&/^https:\/\//i.test(str(p.image_url)))rawUrls.push(str(p.image_url));
-    const attachments=[...new Set(rawUrls)].map((url:string)=>({type:p.is_video||url===p.video_url?'Video':'Image',mediaType:p.is_video||url===p.video_url?'video/mp4':'image/*',url}));
+    const attachments=Array.from(new Set<string>(rawUrls)).map((url:string)=>({type:p.is_video||url===p.video_url?'Video':'Image',mediaType:p.is_video||url===p.video_url?'video/mp4':'image/*',url}));
     if(attachments.length)object.attachment=attachments;
     const tags=hashtagTags(p);
     if(tags.length)object.tag=tags;
