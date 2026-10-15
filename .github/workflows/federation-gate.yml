@@ -42,11 +42,14 @@ jobs:
           deno check --node-modules-dir=none supabase/functions/federation-transport/index.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-security.ts
+          deno check --node-modules-dir=none supabase/functions/_shared/activitypub-normalize.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-delivery.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-compat.ts
           deno check --node-modules-dir=none supabase/functions/_shared/federation-security.ts
       - name: Run conformance tests
-        run: deno test --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.test.ts
+        run: |
+          deno test --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/activitypub-normalize.test.ts
       - name: Probe production ActivityPub contracts
         shell: bash
         run: |
@@ -67,6 +70,8 @@ jobs:
           get "/nodeinfo/2.1" 200 "application/json"
           get "/users/crissbeat" 200 "application/activity+json"
           get "/users/crissbeat/outbox" 200 "application/activity+json"
+          get "/users/crissbeat/followers" 200 "application/activity+json"
+          get "/users/crissbeat/following" 200 "application/activity+json"
           for inbox_path in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
             inbox_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base$inbox_path")"
             echo "$inbox_path GET -> HTTP $inbox_status"
