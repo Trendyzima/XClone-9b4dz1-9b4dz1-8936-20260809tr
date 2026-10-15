@@ -5390,6 +5390,16 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/functions/federated-media/index.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Public remote-media localization endpoint; keep server-side URL validation, bounded redirects, MIME restrictions, persistent cache, and range-safe streaming aligned with Flutter and web clients."
+    },
+    "supabase/migrations/20261015130000_federated_media_cache.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Provision the public federated-media cache bucket with strict MIME and object-size limits; upload access remains service-role-only."
     }
   }
 }
