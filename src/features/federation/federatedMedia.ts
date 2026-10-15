@@ -4,7 +4,7 @@ export function federatedMediaUrl(remoteUrl: unknown, _actorUrl?: unknown): stri
   if (typeof remoteUrl !== "string" || !remoteUrl.trim()) return null;
   try {
     const target = new URL(remoteUrl);
-    if (target.protocol !== "https:" || !target.hostname) return null;
+    if (!target.hostname) return null;
     return `${FUNCTION_BASE}?url=${encodeURIComponent(target.toString())}`;
   } catch {
     return null;
