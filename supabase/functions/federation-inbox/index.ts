@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { idOf, normalizeVisibility } from "../_shared/activitypub-normalize.ts";
+import { asArray, followersOwnerUri, idOf, normalizeVisibility } from "../_shared/activitypub-normalize.ts";
 const MAX_RESPONSE_BYTES=1500000,TIMEOUT_MS=12000;
 const INBOX_RETENTION_DAYS=7; // RFC9421 + Mastodon interoperability hardened
 
@@ -122,7 +122,7 @@ async function processActivity(activity:any,actor:string){
   if(['Update','Delete'].includes(type)&&objectUri&&!actorOwnsObject)throw Error('activity actor is not authorized to modify the referenced object');
   if(type==="Follow"&&objectUri){
     const local=await localActorForTarget(objectUri);
-    if(local.data?.user_id){
+    if(local?.data?.user_id){
       const actorDoc=await federationJson(actor);await cacheRemoteActor(actor,actorDoc);
       const existing=await db.from("federated_follow_relationships").select("id,state").eq("local_user_id",local.data.user_id).eq("remote_actor_uri",actor).eq("direction","follower").maybeSingle();
       if(existing.error)throw existing.error;
@@ -144,7 +144,7 @@ async function processActivity(activity:any,actor:string){
   if(type==="Accept"||type==="Reject"){
     const f=activity.object||{};if(str(f.type)==="Follow"){
       const follower=uri(f.actor),target=uri(f.object),followId=str(f.id);const local=await localActorForTarget(follower);
-      if(local.data?.user_id&&target&&followId){
+      if(local?.data?.user_id&&target&&followId){
         // Only activate/fail the relationship when the remote response
         // references the exact Follow activity we sent. This prevents stale
         // or unrelated Accept/Reject activities from changing local state.
@@ -183,6 +183,70 @@ async function processActivity(activity:any,actor:string){
     if(type==="Delete"&&objectId)await db.from("federated_objects").update({deleted_at:new Date().toISOString(),tombstone:true}).eq("uri",objectId).eq("actor_uri",actor);
   }
 }
+async function persistPrivateObjectRecipients(activity:any, actor:string, directLocalUserId:string|null) {
+  const activityType=str(activity.type);
+  const object=activity.object&&typeof activity.object==="object"?activity.object:null;
+  const objectUri=uri(object)||str(activity.object);
+  if(activityType==="Delete"&&objectUri){
+    const removed=await db.from("federated_object_recipients").delete().eq("object_uri",objectUri);
+    if(removed.error)throw removed.error;
+    return;
+  }
+  if(!object||!objectUri||!["Create","Update"].includes(activityType))return;
+
+  const visibility=normalizeVisibility(object.visibility||activity.visibility,object.to??activity.to,object.cc??activity.cc);
+  const recipientValues=[
+    ...asArray(object.to??activity.to),
+    ...asArray(object.cc??activity.cc),
+    ...asArray(activity.to),
+    ...asArray(activity.cc)
+  ];
+  const recipientUris=[...new Set(recipientValues.map(idOf).filter((value):value is string=>!!value))];
+  const authorizedUsers=new Set<string>();
+
+  if(visibility==="followers"||visibility==="direct"){
+    if(directLocalUserId)authorizedUsers.add(directLocalUserId);
+
+    // Explicit local actor recipients authorize only the corresponding local user.
+    const actorRecipients=recipientUris.filter((value)=>value.startsWith("https://")&&!value.endsWith("/followers")&&value!=="https://www.w3.org/ns/activitystreams#Public");
+    if(actorRecipients.length){
+      const actors=await db.from("activitypub_actors").select("user_id,actor_id").in("actor_id",actorRecipients.slice(0,100));
+      if(actors.error)throw actors.error;
+      for(const row of actors.data||[])if(row.user_id)authorizedUsers.add(String(row.user_id));
+    }
+
+    // A remote actor may address its followers collection rather than each
+    // follower actor URI. Only honor that collection when it belongs to the
+    // authenticated activity actor; otherwise a sender could target another
+    // instance's followers to expose private content.
+    const targetsOwnFollowers=recipientUris.some((value)=>followersOwnerUri(value)===actor);
+    if(targetsOwnFollowers){
+      const followers=await db.from("federated_follow_relationships")
+        .select("local_user_id")
+        .eq("remote_actor_uri",actor)
+        .eq("direction","following")
+        .eq("state","active")
+        .limit(5000);
+      if(followers.error)throw followers.error;
+      for(const row of followers.data||[])if(row.local_user_id)authorizedUsers.add(String(row.local_user_id));
+    }
+  }
+
+  const removed=await db.from("federated_object_recipients").delete().eq("object_uri",objectUri);
+  if(removed.error)throw removed.error;
+  if(visibility!=="followers"&&visibility!=="direct")return;
+  const rows=[...authorizedUsers].map((user_id)=>({
+    object_uri:objectUri,
+    user_id,
+    visibility,
+    activity_uri:str(activity.id)||null,
+    created_at:new Date().toISOString()
+  }));
+  if(!rows.length)return;
+  const saved=await db.from("federated_object_recipients").upsert(rows,{onConflict:"object_uri,user_id"});
+  if(saved.error)throw saved.error;
+}
+
 Deno.serve(async req=>{
   if(req.method==="OPTIONS")return new Response(null,{status:204,headers:CORS});
   if(req.method!=="POST")return json({error:"POST required"},405);
@@ -211,6 +275,7 @@ Deno.serve(async req=>{
       await db.from("activitypub_inbox").upsert({local_user_id:local.data.user_id,activity_type:str(activity.type),activity_key:id,actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false,payload_bytes:raw.length,expires_at:new Date(Date.now()+INBOX_RETENTION_DAYS*86400000).toISOString()},{onConflict:"activity_key",ignoreDuplicates:true});
     }
     await processActivity(activity,actor);
+    await persistPrivateObjectRecipients(activity,actor,local?.data?.user_id?String(local.data.user_id):null);
     if(local?.data?.user_id && str(activity.type)==="EmojiReact"){
       const objectUri=uri(activity.object), emoji=str(activity.content||activity.name||"👍").slice(0,32);
       if(objectUri) await db.from("federated_emoji_reactions").upsert({user_id:local.data.user_id,object_uri:objectUri,emoji,activity_uri:id,delivered:true,delivery_state:"delivered",updated_at:new Date().toISOString()},{onConflict:"user_id,object_uri,emoji"});
@@ -226,7 +291,7 @@ Deno.serve(async req=>{
       const objectUri=uri(undone.object);
       if(local?.data?.user_id && interactionType && objectUri) await db.from("federated_interactions").upsert({user_id:local.data.user_id,object_uri:objectUri,interaction_type:interactionType,active:false,activity_uri:uri(undone.id)||id,remote_actor_uri:actor,delivery_state:"delivered",updated_at:new Date().toISOString()},{onConflict:"user_id,object_uri,interaction_type"});
     }
-    if(local.data?.user_id) await db.from("activitypub_inbox").update({processed:true}).eq("payload->>id",id);
+    if(local?.data?.user_id) await db.from("activitypub_inbox").update({processed:true}).eq("payload->>id",id);
     return new Response(null,{status:202,headers:CORS});
   }catch(e){console.error("[federation-inbox]",e);return json({error:e instanceof Error?e.message:"Malformed ActivityPub request"},401);}
 });

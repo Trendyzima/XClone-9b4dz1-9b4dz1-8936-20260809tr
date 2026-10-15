@@ -205,6 +205,46 @@ Deno.serve(async (request) => {
       return query;
     };
 
+    const privateRecipientPromise = userId && !feedId
+      ? (async () => {
+          const { data: recipientRows, error: recipientError } = await admin
+            .from("federated_object_recipients")
+            .select("object_uri,visibility,created_at")
+            .eq("user_id", userId)
+            .in("visibility", ["followers", "direct"])
+            .order("created_at", { ascending: false })
+            .limit(500);
+          if (recipientError) throw recipientError;
+          const objectUris = [...new Set((recipientRows || [])
+            .map((row: any) => String(row.object_uri || "").trim())
+            .filter(Boolean))];
+          if (!objectUris.length) return [];
+          let privateQuery = admin
+            .from("federated_objects")
+            .select(baseSelect)
+            .in("uri", objectUris)
+            .in("visibility", ["followers", "direct"])
+            .is("deleted_at", null)
+            .eq("tombstone", false)
+            .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
+            .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .order("id", { ascending: false })
+            .limit(limit);
+          if (before) privateQuery = privateQuery.lt("published_at", new Date(before).toISOString());
+          const { data, error } = await privateQuery;
+          if (error) throw error;
+          return (data || [])
+            .filter(moderationAllowed)
+            .filter(feedMatches)
+            .map((item: any) => ({
+              ...item,
+              feed_source: "private_delivery",
+              remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
+            }));
+        })()
+      : Promise.resolve([]);
+
     const followedActorPromise = followedActorUris.length
       ? (async () => {
           let followedQuery = admin
@@ -284,12 +324,13 @@ Deno.serve(async (request) => {
         })()
       : Promise.resolve([]);
 
-    const [followedActorItems, followedHashtagItems] = await Promise.all([
+    const [followedActorItems, followedHashtagItems, privateRecipientItems] = await Promise.all([
       followedActorPromise,
       followedHashtagPromise,
+      privateRecipientPromise,
     ]);
 
-    const followedItems = [...followedActorItems, ...followedHashtagItems];
+    const followedItems = [...followedActorItems, ...followedHashtagItems, ...privateRecipientItems];
     const followedObjectIds = new Set(followedItems.map((item: any) => String(item.id || "")).filter(Boolean));
     const suggestedNeeded = Math.max(0, limit * 2);
     let suggestedItems: any[] = [];
