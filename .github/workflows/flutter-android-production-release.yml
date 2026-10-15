@@ -19,6 +19,11 @@ jobs:
       - name: Check out exact release commit
         uses: actions/checkout@v5
 
+      - name: Validate Android App Links against release certificate
+        env:
+          TESTAGRAM_ANDROID_CERT_SHA256: ${{ vars.TESTAGRAM_ANDROID_CERT_SHA256 }}
+        run: node scripts/validate-android-app-links.mjs
+
       - name: Require production signing material and pinned certificate
         shell: bash
         env:
@@ -50,7 +55,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.27.4'
           cache: true
 
       - name: Resolve dependencies
