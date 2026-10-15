@@ -211,7 +211,10 @@ Deno.serve(async (request) => {
       // Persistent caching is an optimization, not a prerequisite for showing
       // public media. A transient Storage outage or bucket-policy mismatch must
       // not turn a successfully fetched image into a broken thumbnail.
-      console.error("federated media cache write failed; streaming source bytes", saved.error.message);
+      console.error(
+        "federated media cache write failed; streaming source bytes",
+        saved.error.message,
+      );
       return streamedMediaResponse(new Response(bytes, {
         status: 200,
         headers: {
