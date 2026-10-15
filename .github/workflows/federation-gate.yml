@@ -72,6 +72,14 @@ jobs:
           get "/users/crissbeat/outbox" 200 "application/activity+json"
           get "/users/crissbeat/followers" 200 "application/activity+json"
           get "/users/crissbeat/following" 200 "application/activity+json"
+          curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat" | python3 -c "import json,sys; a=json.load(sys.stdin); required=['id','inbox','outbox','followers','following','publicKey']; missing=[k for k in required if not a.get(k)]; assert not missing, 'actor contract missing: '+str(missing); assert a['id']=='https://testagram.site/users/crissbeat'; print('Actor identity contract passed.')"
+          curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/jrd+json" "$base/.well-known/webfinger?resource=acct:crissbeat@testagram.site" | python3 -c "import json,sys; f=json.load(sys.stdin); assert f.get('subject')=='acct:crissbeat@testagram.site'; assert any(x.get('rel')=='self' and x.get('href')=='https://testagram.site/users/crissbeat' for x in f.get('links',[])); print('WebFinger resolution contract passed.')"
+          for collection in outbox followers following; do
+            curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat/$collection" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('type') in ('OrderedCollection','OrderedCollectionPage'), 'invalid collection type: '+str(d.get('type')); assert d.get('id'), 'collection id missing'; print('ActivityPub collection contract passed.')"
+          done
+          unsigned_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -X POST -H "Content-Type: application/activity+json" --data "{}" -o /dev/null -w '%{http_code}' "$base/users/crissbeat/inbox")"
+          echo "Unsigned inbox POST -> HTTP $unsigned_status"
+          [[ "$unsigned_status" == "401" ]] || { echo "Inbox accepted or misclassified an unsigned activity." >&2; exit 1; }
           for inbox_path in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
             inbox_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base$inbox_path")"
             echo "$inbox_path GET -> HTTP $inbox_status"
