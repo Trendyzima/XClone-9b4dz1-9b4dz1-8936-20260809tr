@@ -615,7 +615,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       'users' =>
         '@${row['username'] ?? ''}${row['origin'] == 'fediverse' && row['domain'] != null ? '@${row['domain']}' : ''}',
       'hashtags' =>
-        '${row['usage_count'] ?? 0} posts · ${row['follower_count'] ?? 0} followers',
+        '${(row['usage_count'] as num? ?? 0) + (row['post_count'] as num? ?? 0) + (row['federated_post_count'] as num? ?? 0)} posts${(row['follower_count'] as num? ?? 0) > 0 ? ' · ${row['follower_count']} followers' : ''}',
       'posts' =>
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
       'threads' =>

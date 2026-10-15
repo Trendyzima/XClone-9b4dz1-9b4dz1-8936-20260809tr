@@ -47,6 +47,23 @@ class UnifiedSearchPolicy {
     Map<String, dynamic> page,
   ) {
     String identity(String group, Map<String, dynamic> row) {
+      if (group == 'users' &&
+          (row['origin'] == 'fediverse' ||
+              row['actor_uri'] != null ||
+              row['actor_url'] != null)) {
+        final username = firstText(row, [
+          'username',
+          'preferredUsername',
+        ]).replaceFirst(RegExp(r'^@'), '').toLowerCase();
+        final actor = firstText(row, ['actor_uri', 'actor_url', 'url']);
+        final host = Uri.tryParse(actor)?.host.toLowerCase() ??
+            firstText(row, ['domain']).toLowerCase();
+        if (username.isNotEmpty && host.isNotEmpty) {
+          final canonicalHost =
+              host.startsWith('www.') ? host.substring(4) : host;
+          return '$group:remote:$username@$canonicalHost';
+        }
+      }
       final canonical = firstText(row, [
         'uri',
         'remote_status_uri',
@@ -60,8 +77,10 @@ class UnifiedSearchPolicy {
         if (username.isNotEmpty) return '$group:${username.toLowerCase()}';
       }
       if (group == 'hashtags') {
-        final tag =
-            firstText(row, ['tag', 'name']).replaceFirst(RegExp(r'^#'), '');
+        final tag = firstText(row, [
+          'tag',
+          'name',
+        ]).replaceFirst(RegExp(r'^#'), '');
         if (tag.isNotEmpty) return '$group:${tag.toLowerCase()}';
       }
       final id = firstText(row, ['id']);
@@ -100,8 +119,11 @@ class UnifiedSearchPolicy {
   }) {
     final sorted = List<Map<String, dynamic>>.of(rows);
     DateTime dateOf(Map<String, dynamic> row) {
-      final value =
-          firstText(row, ['created_at', 'published_at', 'updated_at']);
+      final value = firstText(row, [
+        'created_at',
+        'published_at',
+        'updated_at',
+      ]);
       return DateTime.tryParse(value)?.toUtc() ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
     }
@@ -121,11 +143,19 @@ class UnifiedSearchPolicy {
     if (forceLatest || sort == 'Latest') {
       sorted.sort((a, b) => dateOf(b).compareTo(dateOf(a)));
     } else if (sort == 'Most liked') {
-      sorted.sort((a, b) => numberOf(b, ['likes_count', 'like_count'])
-          .compareTo(numberOf(a, ['likes_count', 'like_count'])));
+      sorted.sort(
+        (a, b) => numberOf(b, [
+          'likes_count',
+          'like_count',
+        ]).compareTo(numberOf(a, ['likes_count', 'like_count'])),
+      );
     } else if (sort == 'Most viewed') {
-      sorted.sort((a, b) => numberOf(b, ['views_count', 'view_count'])
-          .compareTo(numberOf(a, ['views_count', 'view_count'])));
+      sorted.sort(
+        (a, b) => numberOf(b, [
+          'views_count',
+          'view_count',
+        ]).compareTo(numberOf(a, ['views_count', 'view_count'])),
+      );
     }
     return sorted;
   }

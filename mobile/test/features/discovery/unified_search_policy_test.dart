@@ -23,49 +23,97 @@ void main() {
       expect(result['next_cursor'], '42');
     });
 
-    test('preserves server pagination cursors returned as numbers or strings',
-        () {
-      expect(UnifiedSearchPolicy.normalize({'next_cursor': 40})['next_cursor'],
-          '40');
-      expect(
+    test(
+      'preserves server pagination cursors returned as numbers or strings',
+      () {
+        expect(
+          UnifiedSearchPolicy.normalize({'next_cursor': 40})['next_cursor'],
+          '40',
+        );
+        expect(
           UnifiedSearchPolicy.normalize({'next_cursor': '80'})['next_cursor'],
-          '80');
-      expect(
+          '80',
+        );
+        expect(
           UnifiedSearchPolicy.normalize({
-            'next_cursor': {'bad': true}
+            'next_cursor': {'bad': true},
           })['next_cursor'],
-          isNull);
-    });
+          isNull,
+        );
+      },
+    );
 
-    test('merges search pages without duplicating canonical remote objects',
-        () {
-      final first = UnifiedSearchPolicy.normalize({
-        'posts': [
-          {'id': 'local-1', 'content': 'Local post'},
-          {
-            'id': 'remote-1',
-            'uri': 'https://social.example/@a/1',
-            'content': 'Remote post'
-          },
-        ],
-        'next_cursor': '40',
-      });
-      final second = UnifiedSearchPolicy.normalize({
-        'posts': [
-          {
-            'id': 'remote-duplicate',
-            'uri': 'https://social.example/@a/1',
-            'content': 'Duplicate'
-          },
-          {'id': 'local-2', 'content': 'Second local post'},
-        ],
-        'next_cursor': null,
-      });
+    test(
+      'merges search pages without duplicating canonical remote objects',
+      () {
+        final first = UnifiedSearchPolicy.normalize({
+          'posts': [
+            {'id': 'local-1', 'content': 'Local post'},
+            {
+              'id': 'remote-1',
+              'uri': 'https://social.example/@a/1',
+              'content': 'Remote post',
+            },
+          ],
+          'next_cursor': '40',
+        });
+        final second = UnifiedSearchPolicy.normalize({
+          'posts': [
+            {
+              'id': 'remote-duplicate',
+              'uri': 'https://social.example/@a/1',
+              'content': 'Duplicate',
+            },
+            {'id': 'local-2', 'content': 'Second local post'},
+          ],
+          'next_cursor': null,
+        });
 
-      final merged = UnifiedSearchPolicy.mergePage(first, second);
-      expect(merged['posts'], hasLength(3));
-      expect(merged['next_cursor'], isNull);
-    });
+        final merged = UnifiedSearchPolicy.mergePage(first, second);
+        expect(merged['posts'], hasLength(3));
+        expect(merged['next_cursor'], isNull);
+      },
+    );
+
+    test(
+      'deduplicates the same Fediverse account across actor URL aliases',
+      () {
+        final first = UnifiedSearchPolicy.normalize({
+          'users': [
+            {
+              'id': 'actor-a',
+              'username': 'CNN',
+              'origin': 'fediverse',
+              'actor_uri': 'https://c.im/@CNN',
+              'domain': 'social.coop',
+              'followers_count': 7455,
+            },
+            {
+              'id': 'actor-b',
+              'username': 'CNN',
+              'origin': 'fediverse',
+              'actor_uri': 'https://flipboard.com/users/CNN',
+              'domain': 'flipboard.com',
+            },
+          ],
+        });
+        final second = UnifiedSearchPolicy.normalize({
+          'users': [
+            {
+              'id': 'actor-alias',
+              'username': 'cnn',
+              'origin': 'fediverse',
+              'actor_uri': 'https://c.im/users/CNN',
+              'domain': 'c.im',
+            },
+          ],
+        });
+
+        final merged = UnifiedSearchPolicy.mergePage(first, second);
+        expect(merged['users'], hasLength(2));
+        expect(merged['users'][0]['followers_count'], 7455);
+      },
+    );
 
     test('maps every tab to the server supported kind', () {
       expect(UnifiedSearchPolicy.kinds['Top'], 'all');
@@ -114,39 +162,49 @@ void main() {
       },
     );
 
-    test('sorts mixed local and Fediverse posts by recency, likes and views',
-        () {
-      final rows = <Map<String, dynamic>>[
-        {
-          'id': 'old',
-          'created_at': '2025-01-01T00:00:00Z',
-          'likes_count': 80,
-          'views_count': 100
-        },
-        {
-          'id': 'new',
-          'published_at': '2026-01-01T00:00:00Z',
-          'like_count': 2,
-          'view_count': 5
-        },
-        {
-          'id': 'popular',
-          'created_at': '2025-06-01T00:00:00Z',
-          'likes_count': 100,
-          'views_count': 500
-        },
-      ];
+    test(
+      'sorts mixed local and Fediverse posts by recency, likes and views',
+      () {
+        final rows = <Map<String, dynamic>>[
+          {
+            'id': 'old',
+            'created_at': '2025-01-01T00:00:00Z',
+            'likes_count': 80,
+            'views_count': 100,
+          },
+          {
+            'id': 'new',
+            'published_at': '2026-01-01T00:00:00Z',
+            'like_count': 2,
+            'view_count': 5,
+          },
+          {
+            'id': 'popular',
+            'created_at': '2025-06-01T00:00:00Z',
+            'likes_count': 100,
+            'views_count': 500,
+          },
+        ];
 
-      expect(UnifiedSearchPolicy.sortRows(rows, 'Latest').first['id'], 'new');
-      expect(UnifiedSearchPolicy.sortRows(rows, 'Most liked').first['id'],
-          'popular');
-      expect(UnifiedSearchPolicy.sortRows(rows, 'Most viewed').first['id'],
-          'popular');
-      expect(
-          UnifiedSearchPolicy.sortRows(rows, 'Relevance', forceLatest: true)
-              .first['id'],
-          'new');
-    });
+        expect(UnifiedSearchPolicy.sortRows(rows, 'Latest').first['id'], 'new');
+        expect(
+          UnifiedSearchPolicy.sortRows(rows, 'Most liked').first['id'],
+          'popular',
+        );
+        expect(
+          UnifiedSearchPolicy.sortRows(rows, 'Most viewed').first['id'],
+          'popular',
+        );
+        expect(
+          UnifiedSearchPolicy.sortRows(
+            rows,
+            'Relevance',
+            forceLatest: true,
+          ).first['id'],
+          'new',
+        );
+      },
+    );
 
     test('uses result names without assuming all fields are present', () {
       expect(
