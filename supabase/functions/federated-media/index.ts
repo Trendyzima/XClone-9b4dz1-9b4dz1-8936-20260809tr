@@ -139,6 +139,20 @@ async function readBounded(response: Response): Promise<Uint8Array> {
   return bytes;
 }
 
+function streamedMediaResponse(upstream: Response): Response {
+  const headers = new Headers(CORS);
+  const type = allowedContentType(upstream.headers.get("content-type"));
+  if (type) headers.set("Content-Type", type);
+  for (const name of ["content-length", "content-range", "accept-ranges", "etag", "last-modified"]) {
+    const value = upstream.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  headers.set("Cache-Control", "public, max-age=300, s-maxage=1800");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Content-Disposition", "inline");
+  return new Response(upstream.body, { status: upstream.status, headers });
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (request.method !== "GET" && request.method !== "HEAD") return json({ error: "Method not allowed" }, 405);
@@ -161,7 +175,11 @@ Deno.serve(async (request) => {
         method: "GET",
         redirect: "manual",
         signal: AbortSignal.timeout(12_000),
-        headers: { "Accept": "image/avif,image/webp,image/*,video/*,audio/*;q=0.9,*/*;q=0.1", "User-Agent": "Testagram-Federated-Media/1.0" },
+        headers: {
+          "Accept": "image/avif,image/webp,image/*,video/*,audio/*;q=0.9,*/*;q=0.1",
+          "User-Agent": "Testagram-Federated-Media/1.0",
+          ...(request.headers.get("Range") ? { "Range": request.headers.get("Range")! } : {}),
+        },
       });
       if (![301, 302, 303, 307, 308].includes(upstream.status)) break;
       const location = upstream.headers.get("location");
@@ -173,6 +191,15 @@ Deno.serve(async (request) => {
     }
     const contentType = allowedContentType(upstream.headers.get("content-type"));
     if (!contentType) return json({ error: "Unsupported or unsafe media type" }, 415);
+    const declaredLength = Number(upstream.headers.get("content-length") ?? "0");
+    // Video/audio players commonly issue byte-range requests. Preserve those
+    // semantics through Testagram rather than caching a partial response as a
+    // complete file. Large media is likewise streamed locally instead of
+    // failing because it exceeds the persistent-cache size cap.
+    if (request.headers.has("Range") || declaredLength > MAX_BYTES ||
+        (!upstream.headers.get("content-length") && contentType.startsWith("video/"))) {
+      return streamedMediaResponse(upstream);
+    }
     const bytes = await readBounded(upstream);
     const saved = await storage.from(BUCKET).upload(objectPath, bytes, {
       contentType,
