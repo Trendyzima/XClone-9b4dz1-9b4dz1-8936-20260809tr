@@ -52,7 +52,7 @@ void main() {
         ),
         isTrue,
       );
-    },
+      },
     );
 
     test('recognizes an initialized native player', () {
