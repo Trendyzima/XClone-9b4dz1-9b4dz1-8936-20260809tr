@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -94,6 +95,31 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  void _ensureFederationIdentity(User user) {
+    final role = user.appMetadata['role'];
+    final roles = user.appMetadata['roles'];
+    final shouldBackfillAll = role == 'admin' ||
+        role == 'super_admin' ||
+        role == 'owner' ||
+        (roles is List &&
+            roles.any((value) =>
+                value == 'admin' || value == 'super_admin' || value == 'owner'));
+    // The Edge Function independently verifies the JWT and admin role. This
+    // only requests the full one-time backfill when the signed-in user is an
+    // admin; ordinary users provision their own actor and signing key.
+    unawaited(
+      _client.functions
+          .invoke(
+            'activitypub-keygen',
+            body: {
+              if (shouldBackfillAll) 'generate_all_missing': true,
+            },
+          )
+          .timeout(const Duration(seconds: 20))
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
+  }
+
   Future<void> _checkLegalAndContinue(User user) async {
     try {
       final result = await _client
@@ -126,6 +152,8 @@ class _AuthPageState extends State<AuthPage> {
         });
         return;
       }
+      _ensureFederationIdentity(user);
+      _ensureFederationIdentity(user);
       if (mounted) {
         context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
       }
