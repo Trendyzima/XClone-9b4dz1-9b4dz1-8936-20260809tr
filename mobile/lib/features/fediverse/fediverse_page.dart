@@ -343,7 +343,7 @@ class _FediversePageState extends State<FediversePage> {
     if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
       return '';
     }
-    return Uri.parse(_db.supabaseUrl).replace(
+    return Uri.parse(_db.rest.url.replaceFirst('/rest/v1', '')).replace(
       path: '/functions/v1/federated-media',
       queryParameters: {'url': source},
     ).toString();
