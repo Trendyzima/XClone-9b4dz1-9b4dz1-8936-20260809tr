@@ -1234,6 +1234,7 @@ class _FediversePageState extends State<FediversePage> {
     super.dispose();
   }
 
+  // Keep this page aligned with the repository's strict Dart gates.
   @override
   Widget build(BuildContext context) {
     if (widget.instancesOnly ||
