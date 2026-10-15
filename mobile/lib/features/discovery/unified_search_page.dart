@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/testagram_capability_client.dart';
 import 'unified_search_policy.dart';
@@ -25,23 +26,31 @@ class UnifiedSearchPage extends StatefulWidget {
 class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  final _scrollController = ScrollController();
   SupabaseClient get _db => Supabase.instance.client;
 
   String _tab = 'Top';
+  String _sort = 'Relevance';
   String _query = '';
   Map<String, dynamic> _results = UnifiedSearchPolicy.normalize(null);
   bool _loading = false;
   String? _error;
   String? _notice;
   int _requestGeneration = 0;
+  int _offset = 0;
+  bool _hasMore = false;
+  bool _loadingMore = false;
   Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _controller.text = widget.initialQuery;
     _query = widget.initialQuery;
-    _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab) ? widget.initialTab : 'Top';
+    _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab)
+        ? widget.initialTab
+        : 'Top';
     if (_query.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _search());
     }
@@ -53,10 +62,24 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     _debounce?.cancel();
     _controller.dispose();
     _focusNode.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _search({bool retryAuth = true}) async {
+  void _onScroll() {
+    if (!_scrollController.hasClients ||
+        _loading ||
+        _loadingMore ||
+        !_hasMore) {
+      return;
+    }
+    if (_scrollController.position.extentAfter < 420) {
+      _search(append: true);
+    }
+  }
+
+  Future<void> _search({bool retryAuth = true, bool append = false}) async {
     final query = UnifiedSearchPolicy.normalizeQuery(_controller.text);
     final generation = ++_requestGeneration;
     if (query.isEmpty) {
@@ -66,6 +89,9 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _loading = false;
         _error = null;
         _notice = null;
+        _offset = 0;
+        _hasMore = false;
+        _loadingMore = false;
       });
       return;
     }
@@ -76,15 +102,23 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _error = 'Sign in to search Testagram.';
         _notice = null;
         _results = UnifiedSearchPolicy.normalize(null);
+        _hasMore = false;
+        _loadingMore = false;
       });
       return;
     }
 
     setState(() {
       _query = query;
-      _loading = true;
+      _loading = !append;
+      _loadingMore = append;
       _error = null;
-      _notice = null;
+      if (!append) {
+        _notice = null;
+        _results = UnifiedSearchPolicy.normalize(null);
+        _offset = 0;
+        _hasMore = false;
+      }
     });
     try {
       // Call the same canonical RPC as the web client. Supabase supplies the
@@ -95,11 +129,19 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           'p_q': query,
           'p_kind': UnifiedSearchPolicy.kinds[_tab] ?? 'all',
           'p_limit': 40,
+          'p_offset': append ? _offset : 0,
+          'p_sort': _sort.toLowerCase().replaceAll(' ', '_'),
         },
       ).timeout(const Duration(seconds: 18));
       if (!mounted || generation != _requestGeneration) return;
       final normalized = UnifiedSearchPolicy.normalize(response);
-      setState(() => _results = normalized);
+      setState(() {
+        _results = append
+            ? UnifiedSearchPolicy.mergePage(_results, normalized)
+            : normalized;
+        _offset = int.tryParse('${normalized['next_cursor']}') ?? 0;
+        _hasMore = normalized['next_cursor'] != null;
+      });
     } catch (error) {
       if (!mounted || generation != _requestGeneration) return;
       final message = error.toString().toLowerCase();
@@ -110,8 +152,10 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       if (authFailure && retryAuth) {
         try {
           await _db.auth.refreshSession().timeout(const Duration(seconds: 12));
-          if (_db.auth.currentSession != null && mounted && generation == _requestGeneration) {
-            return await _search(retryAuth: false);
+          if (_db.auth.currentSession != null &&
+              mounted &&
+              generation == _requestGeneration) {
+            return _search(retryAuth: false, append: append);
           }
         } catch (_) {
           // Render the actionable auth error below rather than masking it.
@@ -123,13 +167,22 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         }
         return;
       }
+      if (append) {
+        if (mounted && generation == _requestGeneration) {
+          setState(() => _error = UnifiedSearchPolicy.errorMessage(error));
+        }
+        return;
+      }
       final recovered = await _fallbackSearch(query, generation);
       if (!recovered && mounted && generation == _requestGeneration) {
         setState(() => _error = UnifiedSearchPolicy.errorMessage(error));
       }
     } finally {
       if (mounted && generation == _requestGeneration) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
       }
     }
   }
@@ -190,6 +243,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _notice =
             'Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.';
         _error = null;
+        _offset = 0;
+        _hasMore = false;
       });
       return true;
     } finally {
@@ -206,7 +261,11 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   List<Map<String, dynamic>> _rowsForCurrentTab() {
     if (_tab != 'Top') {
       final group = UnifiedSearchPolicy.groupForTab(_tab);
-      return (_results[group] as List<Map<String, dynamic>>?) ?? const [];
+      return UnifiedSearchPolicy.sortRows(
+        (_results[group] as List<Map<String, dynamic>>?) ?? const [],
+        _sort,
+        forceLatest: _tab == 'Latest' && _sort == 'Relevance',
+      );
     }
     final combined = <Map<String, dynamic>>[];
     final seen = <String>{};
@@ -218,13 +277,24 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       'communities',
       'replies',
       'fediverse',
+      'instances',
     ]) {
-      for (final row in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
-        final identity = '${row['uri'] ?? row['id'] ?? row.hashCode}';
+      for (final row
+          in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
+        final canonical = row['uri'] ??
+            row['remote_status_uri'] ??
+            (_groupForRow(row) == 'users' ? row['actor_uri'] : null);
+        final identity = canonical != null
+            ? 'remote:${'$canonical'.toLowerCase()}'
+            : '$group:${row['id'] ?? row.hashCode}';
         if (seen.add(identity)) combined.add(row);
       }
     }
-    return combined;
+    return UnifiedSearchPolicy.sortRows(
+      combined,
+      _sort,
+      forceLatest: _tab == 'Latest' && _sort == 'Relevance',
+    );
   }
 
   @override
@@ -292,6 +362,34 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             ],
           ),
         ),
+        if (const {'Top', 'Latest', 'Posts', 'Media', 'Fediverse'}
+            .contains(_tab))
+          SizedBox(
+            height: 42,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                for (final sort in const [
+                  'Relevance',
+                  'Latest',
+                  'Most liked',
+                  'Most viewed',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6, top: 3, bottom: 3),
+                    child: ChoiceChip(
+                      label: Text(sort),
+                      selected: _sort == sort,
+                      onSelected: (_) {
+                        setState(() => _sort = sort);
+                        if (_query.isNotEmpty) _search();
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
         if (_loading) const LinearProgressIndicator(minHeight: 2),
         if (_notice != null)
           Padding(
@@ -342,6 +440,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           child: RefreshIndicator(
             onRefresh: _search,
             child: ListView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               children: [
@@ -397,6 +496,19 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                   )
                 else
                   ...rows.map(_resultCard),
+                if (_hasMore && !_loadingMore)
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () => _search(append: true),
+                      icon: const Icon(Icons.expand_more_rounded),
+                      label: const Text('Load more results'),
+                    ),
+                  ),
+                if (_loadingMore)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
               ],
             ),
           ),
@@ -470,14 +582,18 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     final subtitle = switch (group) {
       'users' =>
         '@${row['username'] ?? ''}${row['origin'] == 'fediverse' && row['domain'] != null ? '@${row['domain']}' : ''}',
-      'hashtags' => '${row['usage_count'] ?? 0} posts · ${row['follower_count'] ?? 0} followers',
+      'hashtags' =>
+        '${row['usage_count'] ?? 0} posts · ${row['follower_count'] ?? 0} followers',
       'posts' =>
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
       'threads' =>
         '${row['profiles'] is Map ? (row['profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
-      'communities' => '${row['member_count'] ?? 0} members · ${row['post_count'] ?? 0} posts',
+      'communities' =>
+        '${row['member_count'] ?? 0} members · ${row['post_count'] ?? 0} posts',
       'replies' =>
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
+      'instances' =>
+        '${row['software'] ?? row['provider'] ?? 'Fediverse'} · ${row['account_count'] ?? 0} indexed accounts',
       'fediverse' =>
         '${row['remote_account'] is Map ? (row['remote_account'] as Map)['username'] ?? row['actor_uri'] ?? '' : row['actor_uri'] ?? ''} · Fediverse',
       _ => '${row['created_at'] ?? ''}',
@@ -513,6 +629,9 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
 
   String _groupForRow(Map<String, dynamic> row) {
     if (_tab != 'Top') return UnifiedSearchPolicy.groupForTab(_tab);
+    if (row.containsKey('domain') && row.containsKey('base_url')) {
+      return 'instances';
+    }
     if (row.containsKey('tag') || row.containsKey('usage_count')) {
       return 'hashtags';
     }
@@ -548,8 +667,17 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         'communities' => Icons.groups_2_outlined,
         'replies' => Icons.reply_rounded,
         'fediverse' => Icons.public_rounded,
+        'instances' => Icons.dns_outlined,
         _ => Icons.search_rounded,
       };
+
+  Future<void> _openExternalUrl(String value) async {
+    final uri = Uri.tryParse(value);
+    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   void _openResult(String group, Map<String, dynamic> row) {
     switch (group) {
@@ -578,7 +706,12 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         break;
       case 'posts':
         final id = '${row['id'] ?? ''}';
-        if (id.isNotEmpty && row['is_federated'] != true) {
+        if (row['is_federated'] == true) {
+          final target = '${row['url'] ?? row['uri'] ?? id}';
+          if (target.startsWith('https://') || target.startsWith('http://')) {
+            unawaited(_openExternalUrl(target));
+          }
+        } else if (id.isNotEmpty) {
           context.go('/post/${Uri.encodeComponent(id)}');
         }
         break;
@@ -599,8 +732,22 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           context.go('/thread/${Uri.encodeComponent(threadId)}');
         }
         break;
+      case 'instances':
+        final baseUrl = '${row['base_url'] ?? ''}';
+        if (baseUrl.startsWith('https://') || baseUrl.startsWith('http://')) {
+          unawaited(_openExternalUrl(baseUrl));
+        }
+        break;
       case 'fediverse':
-        final actor = '${row['actor_uri'] ?? ''}';
+        final objectUrl = '${row['url'] ?? row['uri'] ?? ''}';
+        if (objectUrl.startsWith('http://') ||
+            objectUrl.startsWith('https://')) {
+          unawaited(_openExternalUrl(objectUrl));
+          break;
+        }
+        final remoteAccount = row['remote_account'];
+        final actor =
+            '${row['actor_uri'] ?? (remoteAccount is Map ? remoteAccount['actor_uri'] : null) ?? ''}';
         if (actor.startsWith('http://') || actor.startsWith('https://')) {
           context.go(
             '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}',
