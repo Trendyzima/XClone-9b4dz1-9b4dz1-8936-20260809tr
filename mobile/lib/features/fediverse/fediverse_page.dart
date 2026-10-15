@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'fediverse_feed_policy.dart';
@@ -328,8 +327,9 @@ class _FediversePageState extends State<FediversePage> {
         if (resolved != null) return resolved;
       }
     }
-    if (value is Map)
+    if (value is Map) {
       return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
+    }
     return null;
   }
 
@@ -737,7 +737,9 @@ class _FediversePageState extends State<FediversePage> {
     final cursor = _relationshipCursor;
     if (!actorUri.startsWith('https://') ||
         cursor == null ||
-        _loadingMoreRelationships) return;
+        _loadingMoreRelationships) {
+      return;
+    }
     setState(() => _loadingMoreRelationships = true);
     try {
       final response = await _db.functions.invoke(
@@ -754,8 +756,9 @@ class _FediversePageState extends State<FediversePage> {
         },
       ).timeout(const Duration(seconds: 25));
       final result = response.data;
-      if (result is! Map || result['ok'] != true)
+      if (result is! Map || result['ok'] != true) {
         throw StateError('Could not load more remote relationships.');
+      }
       final rows = result['items'] is List
           ? (result['items'] as List)
               .whereType<Map>()
@@ -779,12 +782,13 @@ class _FediversePageState extends State<FediversePage> {
         });
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not load more ${widget.section}: $error'),
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => _loadingMoreRelationships = false);
     }
@@ -795,7 +799,9 @@ class _FediversePageState extends State<FediversePage> {
     final cursor = _remoteTimelineCursor;
     if (!actorUri.startsWith('https://') ||
         cursor == null ||
-        _loadingMoreRemoteTimeline) return;
+        _loadingMoreRemoteTimeline) {
+      return;
+    }
     setState(() => _loadingMoreRemoteTimeline = true);
     try {
       final response = await _db.functions.invoke(
@@ -807,8 +813,9 @@ class _FediversePageState extends State<FediversePage> {
         },
       ).timeout(const Duration(seconds: 25));
       final data = response.data;
-      if (data is! Map || data['ok'] != true)
+      if (data is! Map || data['ok'] != true) {
         throw StateError('Remote timeline pagination failed.');
+      }
       final items = data['items'] is List ? data['items'] as List : const [];
       final rows = <Map<String, dynamic>>[];
       for (final item in items.whereType<Map>()) {
@@ -817,7 +824,9 @@ class _FediversePageState extends State<FediversePage> {
             : Map<String, dynamic>.from(item);
         final uri = '${object['id'] ?? object['url'] ?? ''}';
         if (!uri.startsWith('https://') ||
-            const {'Delete', 'Tombstone'}.contains(object['type'])) continue;
+            const {'Delete', 'Tombstone'}.contains(object['type'])) {
+          continue;
+        }
         final attachments = object['attachment'] is List
             ? object['attachment'] as List
             : object['attachment'] == null
@@ -852,7 +861,7 @@ class _FediversePageState extends State<FediversePage> {
         });
       }
       final seen = _posts.map((post) => '${post['uri'] ?? post['id']}').toSet();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _posts.addAll(
             rows.where((row) => seen.add('${row['uri'] ?? row['id']}')),
@@ -861,11 +870,13 @@ class _FediversePageState extends State<FediversePage> {
               ? data['next_cursor'] as String
               : null;
         });
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not load more public posts: $error')),
         );
+      }
     } finally {
       if (mounted) setState(() => _loadingMoreRemoteTimeline = false);
     }
@@ -1216,20 +1227,7 @@ class _FediversePageState extends State<FediversePage> {
     }
   }
 
-  Future<void> _open(String? raw) async {
-    final uri = Uri.tryParse(raw ?? '');
-    if (uri == null ||
-        !{'http', 'https'}.contains(uri.scheme) ||
-        uri.host.isEmpty) {
-      return;
-    }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open this remote link.')),
-      );
-    }
-  }
+
 
   @override
   void dispose() {
