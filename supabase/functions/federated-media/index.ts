@@ -208,8 +208,17 @@ Deno.serve(async (request) => {
       upsert: true,
     });
     if (saved.error) {
-      console.error("federated media cache write failed", saved.error.message);
-      return json({ error: "Media could not be cached" }, 502);
+      // Persistent caching is an optimization, not a prerequisite for showing
+      // public media. A transient Storage outage or bucket-policy mismatch must
+      // not turn a successfully fetched image into a broken thumbnail.
+      console.error("federated media cache write failed; streaming source bytes", saved.error.message);
+      return streamedMediaResponse(new Response(bytes, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType,
+          "Content-Length": String(bytes.byteLength),
+        },
+      }));
     }
     const localUrl = storage.from(BUCKET).getPublicUrl(objectPath).data.publicUrl;
     return redirectTo(localUrl);
