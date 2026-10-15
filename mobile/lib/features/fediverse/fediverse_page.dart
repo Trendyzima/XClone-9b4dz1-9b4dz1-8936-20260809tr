@@ -343,12 +343,10 @@ class _FediversePageState extends State<FediversePage> {
     if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
       return '';
     }
-    return Uri.parse(_db.supabaseUrl)
-        .replace(
-          path: '/functions/v1/federated-media',
-          queryParameters: {'url': source},
-        )
-        .toString();
+    return Uri.parse(_db.supabaseUrl).replace(
+      path: '/functions/v1/federated-media',
+      queryParameters: {'url': source},
+    ).toString();
   }
 
   String _attachmentMediaType(Map<String, dynamic> attachment) {
@@ -1428,7 +1426,8 @@ class _FediversePageState extends State<FediversePage> {
                   SizedBox(
                     height: 104,
                     width: double.infinity,
-                    child: _localizedMediaUrl(_remoteProfile['header_url']).isNotEmpty
+                    child: _localizedMediaUrl(_remoteProfile['header_url'])
+                            .isNotEmpty
                         ? Image.network(
                             _localizedMediaUrl(_remoteProfile['header_url']),
                             fit: BoxFit.cover,
@@ -1446,13 +1445,17 @@ class _FediversePageState extends State<FediversePage> {
                           children: [
                             CircleAvatar(
                               radius: 28,
-                              backgroundImage:
-                                  _localizedMediaUrl(_remoteProfile['avatar_url']).isNotEmpty
-                                      ? CachedNetworkImageProvider(
-                                          _localizedMediaUrl(_remoteProfile['avatar_url']),
-                                        )
-                                      : null,
-                              child: _localizedMediaUrl(_remoteProfile['avatar_url']).isNotEmpty
+                              backgroundImage: _localizedMediaUrl(
+                                          _remoteProfile['avatar_url'])
+                                      .isNotEmpty
+                                  ? CachedNetworkImageProvider(
+                                      _localizedMediaUrl(
+                                          _remoteProfile['avatar_url']),
+                                    )
+                                  : null,
+                              child: _localizedMediaUrl(
+                                          _remoteProfile['avatar_url'])
+                                      .isNotEmpty
                                   ? null
                                   : const Icon(Icons.person_rounded),
                             ),
@@ -1767,7 +1770,8 @@ class _FediversePageState extends State<FediversePage> {
                             '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
                           )
                       : null,
-                  leading: isRelationship && _localizedMediaUrl(row['avatar_url']).isNotEmpty
+                  leading: isRelationship &&
+                          _localizedMediaUrl(row['avatar_url']).isNotEmpty
                       ? CircleAvatar(
                           backgroundImage: CachedNetworkImageProvider(
                             _localizedMediaUrl(row['avatar_url']),
@@ -1970,12 +1974,14 @@ class _FediversePageState extends State<FediversePage> {
                         children: [
                           CircleAvatar(
                             backgroundImage:
-                                _localizedMediaUrl(actor['avatar_url']).isNotEmpty
+                                _localizedMediaUrl(actor['avatar_url'])
+                                        .isNotEmpty
                                     ? CachedNetworkImageProvider(
                                         _localizedMediaUrl(actor['avatar_url']),
                                       )
                                     : null,
-                            child: _localizedMediaUrl(actor['avatar_url']).isNotEmpty
+                            child: _localizedMediaUrl(actor['avatar_url'])
+                                    .isNotEmpty
                                 ? null
                                 : const Icon(Icons.person_outline_rounded),
                           ),
@@ -2029,7 +2035,8 @@ class _FediversePageState extends State<FediversePage> {
                                   () => _revealedSensitive.add(uri),
                                 ),
                                 icon: const Icon(Icons.visibility_rounded),
-                                label: const Text('Reveal content on Testagram'),
+                                label:
+                                    const Text('Reveal content on Testagram'),
                               ),
                             ],
                           ),
