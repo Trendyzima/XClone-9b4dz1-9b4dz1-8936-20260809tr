@@ -43,15 +43,15 @@ void main() {
     test(
       'recognizes an external YouTube playback action on either platform',
       () {
-      expect(
-        tvHasPlaybackSurface(
-          isWeb: true,
-          webPlaybackUrl: null,
-          hasExternalPlaybackAction: true,
-          hasInitializedNativePlayer: false,
-        ),
-        isTrue,
-      );
+        expect(
+          tvHasPlaybackSurface(
+            isWeb: true,
+            webPlaybackUrl: null,
+            hasExternalPlaybackAction: true,
+            hasInitializedNativePlayer: false,
+          ),
+          isTrue,
+        );
       },
     );
 
