@@ -107,7 +107,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         setState(() {
           _query = query;
           _loading = false;
-          _error = 'Your session has expired. Sign in again to search Testagram.';
+          _error =
+              'Your session has expired. Sign in again to search Testagram.';
           _notice = null;
           _results = UnifiedSearchPolicy.normalize(null);
           _hasMore = false;
@@ -275,9 +276,11 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         final seen = <String>{};
         for (final row in [
           ...((_results['posts'] as List<Map<String, dynamic>>?) ?? const []),
-          ...((_results['fediverse'] as List<Map<String, dynamic>>?) ?? const []),
+          ...((_results['fediverse'] as List<Map<String, dynamic>>?) ??
+              const []),
         ]) {
-          final remote = row['uri'] ?? row['remote_status_uri'] ??
+          final remote = row['uri'] ??
+              row['remote_status_uri'] ??
               (row['is_federated'] == true ? row['id'] : null);
           final identity = remote != null
               ? 'remote:${'$remote'.toLowerCase()}'
