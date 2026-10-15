@@ -75,6 +75,20 @@ if (!matchingStatement) {
   failures.push(`assetlinks.json has no valid Android signing statement for package ${appId ?? '(unknown)'}.`);
 }
 
+const expectedCertificate = process.env.TESTAGRAM_ANDROID_CERT_SHA256
+  ?.replaceAll(':', '')
+  .trim()
+  .toUpperCase();
+if (expectedCertificate) {
+  const fingerprints = matchingStatement?.target?.sha256_cert_fingerprints ?? [];
+  const expectedIsPublished = fingerprints.some((fingerprint) =>
+    fingerprint.replaceAll(':', '').trim().toUpperCase() === expectedCertificate,
+  );
+  if (!expectedIsPublished) {
+    failures.push('Configured production signing certificate is not published in public/.well-known/assetlinks.json.');
+  }
+}
+
 if (failures.length) {
   console.error('Android App Links contract failed:');
   for (const failure of failures) console.error(` - ${failure}`);
