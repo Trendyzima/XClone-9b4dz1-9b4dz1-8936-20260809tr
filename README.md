@@ -6,7 +6,7 @@ Choose the build for your device. The public Android download URL follows the la
 
 [**Open XClone on the web**](https://testagram.site/) · [**Download Android phone APK**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk) · [**Android TV test APK releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test) · [**Desktop OS releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop) · [**All releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
 
- > **Release status:** the current latest release still contains the legacy Android APK until the native Flutter release pipeline has been run with the persistent signing key. The Flutter release workflow publishes one public `app-release.apk` plus an `app-release.aab` for store distribution—not a second APK. Do not treat temporary CI signing as a Play Protect bypass or a safe update identity.
+> **Release status:** the current latest release still contains the legacy Android APK until the native Flutter release pipeline has been run with the persistent signing key. The Flutter release workflow publishes one public `app-release.apk` plus an `app-release.aab` for store distribution—not a second APK. Do not treat temporary CI signing as a Play Protect bypass or a safe update identity.
 
 ## Get XClone for your device
 
