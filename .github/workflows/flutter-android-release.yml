@@ -1,0 +1,166 @@
+name: Testagram Native Flutter Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Unique release tag (for example v0.3.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flutter-android-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, sign and publish the native Flutter Android app
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Validate release tag and required signing secrets
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TESTAGRAM_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || {
+            echo "Use a semantic version tag such as v0.3.0."
+            exit 1
+          }
+          for pair in \
+            "TESTAGRAM_ANDROID_KEYSTORE_BASE64:$KEYSTORE_BASE64" \
+            "TESTAGRAM_ANDROID_KEYSTORE_PASSWORD:$STORE_PASSWORD" \
+            "TESTAGRAM_ANDROID_KEY_ALIAS:$KEY_ALIAS" \
+            "TESTAGRAM_ANDROID_KEY_PASSWORD:$KEY_PASSWORD"; do
+            name="${pair%%:*}"
+            value="${pair#*:}"
+            if [[ -z "$value" ]]; then
+              echo "Missing required GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          echo "Release tag and persistent Android signing configuration are present."
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.4"
+          cache: true
+
+      - name: Configure persistent release signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TESTAGRAM_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/testagram-android-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          {
+            echo "TESTAGRAM_ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH"
+            echo "TESTAGRAM_ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "TESTAGRAM_ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "TESTAGRAM_ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve Flutter dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze Flutter app
+        working-directory: mobile
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run Flutter tests
+        working-directory: mobile
+        run: flutter test
+
+      - name: Build signed native Flutter APK and Android App Bundle
+        working-directory: mobile
+        env:
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: |
+          set -euo pipefail
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+          flutter build appbundle --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+
+      - name: Verify APK package identity, signature and artifacts
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          AAB="build/app/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+          APKANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer | sort -V | tail -n 1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKANALYZER"
+          test -x "$APKSIGNER"
+          PACKAGE_ID="$("$APKANALYZER" manifest application-id "$APK")"
+          test "$PACKAGE_ID" = "com.xclone.app" || {
+            echo "Unexpected APK package identity: $PACKAGE_ID"
+            exit 1
+          }
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          jarsigner -verify "$AAB"
+          echo "SHA-256 checksums:"
+          sha256sum "$APK" "$AAB"
+          ls -lh "$APK" "$AAB"
+
+      - name: Upload signed artifacts for audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-native-flutter-android-${{ inputs.tag }}
+          path: |
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish single public Android APK and store bundle
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: Testagram Native Flutter Android ${{ inputs.tag }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: |
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Remove temporary runner copy of signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/testagram-android-release.jks"
