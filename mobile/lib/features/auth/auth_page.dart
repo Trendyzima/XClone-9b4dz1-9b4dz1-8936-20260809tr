@@ -153,7 +153,6 @@ class _AuthPageState extends State<AuthPage> {
         return;
       }
       _ensureFederationIdentity(user);
-      _ensureFederationIdentity(user);
       if (mounted) {
         context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
       }
@@ -192,6 +191,7 @@ class _AuthPageState extends State<AuthPage> {
       if (response == null || response == false) {
         // Some Postgres functions return void (null) on success.
       }
+      _ensureFederationIdentity(user);
       if (mounted) {
         context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
       }
