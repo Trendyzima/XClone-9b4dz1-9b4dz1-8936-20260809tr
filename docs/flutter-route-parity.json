@@ -429,7 +429,7 @@
       "path": "/challenge/:id",
       "domain": "general",
       "status": "native_partial",
-      "note": "Dedicated Flutter challenge detail page now loads challenge metadata and hashtag-matched posts from Supabase. Flutter analyzer, widget tests, permission review, and web/Android build acceptance remain pending."
+      "note": "Dedicated Flutter challenge detail loads challenge metadata and hashtag-matched posts from Supabase, handles unavailable records and network failures, and links to the hashtag feed and post details. Permission review and Web/Android acceptance remain required."
     },
     {
       "path": "/channel/:handle",
@@ -729,7 +729,7 @@
       "path": "/leaderboard/challenges",
       "domain": "creator",
       "status": "native_partial",
-      "note": "Dedicated Flutter challenge leaderboard now supports Supabase-backed listing, search, sorting, loading/error states, and navigation. Flutter analyzer, widget tests, permission review, and web/Android build acceptance remain pending."
+      "note": "Dedicated Flutter challenge leaderboard supports Supabase-backed listing, search, sorting, refresh, loading/error states, and navigation to challenge details. Permission review and Web/Android acceptance remain required."
     },
     {
       "path": "/leaderboard/creators",
