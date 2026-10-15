@@ -89,7 +89,7 @@ revoke all on function public.sync_profile_follow_counters() from public, anon, 
 
 drop trigger if exists follows_sync_profile_counters on public.follows;
 create trigger follows_sync_profile_counters
-after insert or update of follower_id, following_id, status or delete
+after insert or update or delete
 on public.follows
 for each row
 execute function public.sync_profile_follow_counters();
