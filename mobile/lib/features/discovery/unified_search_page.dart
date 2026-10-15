@@ -30,6 +30,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   SupabaseClient get _db => Supabase.instance.client;
 
   String _tab = 'Top';
+  String _sort = 'Relevance';
   String _query = '';
   Map<String, dynamic> _results = UnifiedSearchPolicy.normalize(null);
   bool _loading = false;
@@ -67,8 +68,12 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients || _loading || _loadingMore || !_hasMore)
+    if (!_scrollController.hasClients ||
+        _loading ||
+        _loadingMore ||
+        !_hasMore) {
       return;
+    }
     if (_scrollController.position.extentAfter < 420) {
       _search(append: true);
     }
@@ -125,6 +130,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           'p_kind': UnifiedSearchPolicy.kinds[_tab] ?? 'all',
           'p_limit': 40,
           'p_offset': append ? _offset : 0,
+          'p_sort': _sort.toLowerCase().replaceAll(' ', '_'),
         },
       ).timeout(const Duration(seconds: 18));
       if (!mounted || generation != _requestGeneration) return;
@@ -255,7 +261,11 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   List<Map<String, dynamic>> _rowsForCurrentTab() {
     if (_tab != 'Top') {
       final group = UnifiedSearchPolicy.groupForTab(_tab);
-      return (_results[group] as List<Map<String, dynamic>>?) ?? const [];
+      return UnifiedSearchPolicy.sortRows(
+        (_results[group] as List<Map<String, dynamic>>?) ?? const [],
+        _sort,
+        forceLatest: _tab == 'Latest' && _sort == 'Relevance',
+      );
     }
     final combined = <Map<String, dynamic>>[];
     final seen = <String>{};
@@ -280,7 +290,11 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         if (seen.add(identity)) combined.add(row);
       }
     }
-    return combined;
+    return UnifiedSearchPolicy.sortRows(
+      combined,
+      _sort,
+      forceLatest: _tab == 'Latest' && _sort == 'Relevance',
+    );
   }
 
   @override
@@ -348,6 +362,34 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             ],
           ),
         ),
+        if (const {'Top', 'Latest', 'Posts', 'Media', 'Fediverse'}
+            .contains(_tab))
+          SizedBox(
+            height: 42,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                for (final sort in const [
+                  'Relevance',
+                  'Latest',
+                  'Most liked',
+                  'Most viewed',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6, top: 3, bottom: 3),
+                    child: ChoiceChip(
+                      label: Text(sort),
+                      selected: _sort == sort,
+                      onSelected: (_) {
+                        setState(() => _sort = sort);
+                        if (_query.isNotEmpty) _search();
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
         if (_loading) const LinearProgressIndicator(minHeight: 2),
         if (_notice != null)
           Padding(
@@ -631,8 +673,9 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
 
   Future<void> _openExternalUrl(String value) async {
     final uri = Uri.tryParse(value);
-    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https')))
+    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
       return;
+    }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
@@ -707,7 +750,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             '${row['actor_uri'] ?? (remoteAccount is Map ? remoteAccount['actor_uri'] : null) ?? ''}';
         if (actor.startsWith('http://') || actor.startsWith('https://')) {
           context.go(
-              '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}');
+            '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}',
+          );
         }
         break;
       default:

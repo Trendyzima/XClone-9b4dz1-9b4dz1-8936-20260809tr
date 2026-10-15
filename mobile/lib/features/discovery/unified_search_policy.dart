@@ -92,6 +92,43 @@ class UnifiedSearchPolicy {
     return merged;
   }
 
+  static List<Map<String, dynamic>> sortRows(
+    List<Map<String, dynamic>> rows,
+    String sort, {
+    bool forceLatest = false,
+  }) {
+    final sorted = List<Map<String, dynamic>>.of(rows);
+    DateTime dateOf(Map<String, dynamic> row) {
+      final value =
+          firstText(row, ['created_at', 'published_at', 'updated_at']);
+      return DateTime.tryParse(value)?.toUtc() ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    }
+
+    num numberOf(Map<String, dynamic> row, List<String> keys) {
+      for (final key in keys) {
+        final value = row[key];
+        if (value is num) return value;
+        if (value is String) {
+          final parsed = num.tryParse(value);
+          if (parsed != null) return parsed;
+        }
+      }
+      return 0;
+    }
+
+    if (forceLatest || sort == 'Latest') {
+      sorted.sort((a, b) => dateOf(b).compareTo(dateOf(a)));
+    } else if (sort == 'Most liked') {
+      sorted.sort((a, b) => numberOf(b, ['likes_count', 'like_count'])
+          .compareTo(numberOf(a, ['likes_count', 'like_count'])));
+    } else if (sort == 'Most viewed') {
+      sorted.sort((a, b) => numberOf(b, ['views_count', 'view_count'])
+          .compareTo(numberOf(a, ['views_count', 'view_count'])));
+    }
+    return sorted;
+  }
+
   static String normalizeQuery(String raw) =>
       raw.trim().replaceAll(RegExp(r'\s+'), ' ');
 
