@@ -72,7 +72,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         params: {
           'p_q': '',
           'p_kind': 'all',
-          'p_limit': 20,
+          'p_limit': 8,
           'p_offset': 0,
           'p_sort': 'latest',
         },
