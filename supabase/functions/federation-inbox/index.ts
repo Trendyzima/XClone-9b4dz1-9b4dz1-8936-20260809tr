@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { idOf, normalizeVisibility } from "../_shared/activitypub-normalize.ts";
 const MAX_RESPONSE_BYTES=1500000,TIMEOUT_MS=12000;
 const INBOX_RETENTION_DAYS=7; // RFC9421 + Mastodon interoperability hardened
 
@@ -21,7 +22,7 @@ const CORS = {
 };
 const json=(v:unknown,s=200)=>new Response(JSON.stringify(v),{status:s,headers:{...CORS,"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
 const str=(v:unknown)=>typeof v==="string"?v:"";
-const uri=(v:unknown)=>typeof v==="string"?v:v&&typeof v==="object"?str((v as any).id):"";
+const uri=(v:unknown)=>idOf(v)||"";
 const b64=(b:ArrayBuffer)=>btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64=(s:string)=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const pem=(s:string)=>ub64(s.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g,""));
@@ -177,7 +178,7 @@ async function processActivity(activity:any,actor:string){
     const object=activity.object&&typeof activity.object==="object"?activity.object:null;
     const objectId=uri(object)||str(activity.object);
     if((type==="Create"||type==="Update")&&objectId&&object){
-      await db.from("federated_objects").upsert({uri:objectId,object_type:str(object.type)||"Object",actor_uri:actor,url:uri(object.url)||objectId,content:str(object.content)||null,summary:str(object.summary)||null,published_at:str(object.published)||null,updated_at:str(object.updated)||null,sensitive:Boolean(object.sensitive),in_reply_to_uri:uri(object.inReplyTo)||null,quote_uri:str(object.quoteUri)||str(object.quoteUrl)||str(object._misskey_quote)||null,language_code:str(object.language)||null,attachments:Array.isArray(object.attachment)?object.attachment:[],tags:Array.isArray(object.tag)?object.tag:[],raw_object:object},{onConflict:"uri"});
+      await db.from("federated_objects").upsert({uri:objectId,object_type:str(object.type)||"Object",actor_uri:actor,url:uri(object.url)||objectId,content:str(object.content)||null,summary:str(object.summary)||null,published_at:str(object.published)||null,updated_at:str(object.updated)||null,sensitive:Boolean(object.sensitive),visibility:normalizeVisibility(object.visibility||activity.visibility,object.to??activity.to,object.cc??activity.cc),in_reply_to_uri:uri(object.inReplyTo)||null,quote_uri:str(object.quoteUri)||str(object.quoteUrl)||str(object._misskey_quote)||null,language_code:str(object.language)||null,attachments:Array.isArray(object.attachment)?object.attachment:object.attachment?[object.attachment]:[],tags:Array.isArray(object.tag)?object.tag:object.tag?[object.tag]:[],raw_object:object},{onConflict:"uri"});
     }
     if(type==="Delete"&&objectId)await db.from("federated_objects").update({deleted_at:new Date().toISOString(),tombstone:true}).eq("uri",objectId).eq("actor_uri",actor);
   }
