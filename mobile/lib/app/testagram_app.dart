@@ -540,11 +540,19 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile/tips',
-              builder: (_, __) => const FediversePage(section: 'tips'),
+              builder: (_, state) => FediversePage(
+                section: 'tips',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/gifts',
-              builder: (_, __) => const FediversePage(section: 'gifts'),
+              builder: (_, state) => FediversePage(
+                section: 'gifts',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/followers',
@@ -564,8 +572,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile/analytics',
-              builder: (_, __) =>
-                  const FediversePage(section: 'profile-analytics'),
+              builder: (_, state) => FediversePage(
+                section: 'profile-analytics',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(path: '/spaces', builder: (_, __) => const SpacesPage()),
             GoRoute(
