@@ -57,11 +57,13 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
     if (uri == null || uri.scheme != 'https') return;
     final controller = VideoPlayerController.networkUrl(uri);
     _controller = controller;
-    _initialization = controller.initialize()
+    _initialization = controller
+        .initialize()
         .timeout(const Duration(seconds: 20))
         .then((_) {
           if (mounted) setState(() {});
-        }).catchError((Object _) {
+        })
+        .catchError((Object _) {
           if (mounted) setState(() {});
         });
   }
@@ -96,16 +98,27 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
               padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
-                  Icon(_isVideo ? Icons.play_circle_outline_rounded : Icons.audio_file_rounded, size: 36),
+                  Icon(
+                    _isVideo
+                        ? Icons.play_circle_outline_rounded
+                        : Icons.audio_file_rounded,
+                    size: 36,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_isVideo ? 'Video attachment' : 'Audio attachment',
-                            style: Theme.of(context).textTheme.titleSmall),
+                        Text(
+                          _isVideo ? 'Video attachment' : 'Audio attachment',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                         if (widget.altText?.trim().isNotEmpty == true)
-                          Text(widget.altText!.trim(), maxLines: 2, overflow: TextOverflow.ellipsis),
+                          Text(
+                            widget.altText!.trim(),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         const SizedBox(height: 4),
                         const Text('Tap to load media'),
                       ],
@@ -210,23 +223,23 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
   }
 
   Widget _unavailable(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 88),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+    constraints: const BoxConstraints(minHeight: 88),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.broken_image_outlined),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'This attachment is unavailable from its source server.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.broken_image_outlined),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'This attachment is unavailable from its source server.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }
