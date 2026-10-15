@@ -33,7 +33,10 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   String _sort = 'Relevance';
   String _query = '';
   Map<String, dynamic> _results = UnifiedSearchPolicy.normalize(null);
+  Map<String, dynamic> _discoveryResults = UnifiedSearchPolicy.normalize(null);
   bool _loading = false;
+  bool _discoveryLoading = false;
+  String? _discoveryError;
   String? _error;
   String? _notice;
   int _requestGeneration = 0;
@@ -51,8 +54,63 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab)
         ? widget.initialTab
         : 'Top';
-    if (_query.trim().isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _search());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDiscovery();
+      if (_query.trim().isNotEmpty) _search();
+    });
+  }
+
+  Future<void> _loadDiscovery() async {
+    if (!mounted) return;
+    setState(() {
+      _discoveryLoading = true;
+      _discoveryError = null;
+    });
+    try {
+      final response = await _db.rpc(
+        'testagram_search_unified',
+        params: {
+          'p_q': '',
+          'p_kind': 'all',
+          'p_limit': 20,
+          'p_offset': 0,
+          'p_sort': 'latest',
+        },
+      ).timeout(const Duration(seconds: 18));
+      if (!mounted) return;
+      setState(() {
+        _discoveryResults = UnifiedSearchPolicy.normalize(response);
+        _discoveryError = null;
+      });
+    } catch (error) {
+      // Search discovery must still have something useful if the unified RPC
+      // is temporarily unavailable. This fallback is intentionally local-only.
+      try {
+        final response = await _db
+            .from('posts')
+            .select(
+              'id,author_id,user_id,content,created_at,updated_at,image_url,video_url,is_video,media_urls,likes_count,reposts_count,replies_count,views_count,user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,verified)',
+            )
+            .isFilter('deleted_at', null)
+            .order('created_at', ascending: false)
+            .limit(20)
+            .timeout(const Duration(seconds: 12));
+        if (!mounted) return;
+        setState(() {
+          _discoveryResults = UnifiedSearchPolicy.normalize({
+            'posts': response,
+          });
+          _discoveryError = null;
+        });
+      } catch (fallbackError) {
+        if (!mounted) return;
+        setState(() {
+          _discoveryResults = UnifiedSearchPolicy.normalize(null);
+          _discoveryError = UnifiedSearchPolicy.errorMessage(fallbackError);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _discoveryLoading = false);
     }
   }
 
@@ -268,15 +326,18 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     if (_query.isNotEmpty) _search();
   }
 
-  List<Map<String, dynamic>> _rowsForCurrentTab() {
+  List<Map<String, dynamic>> _rowsForCurrentTab({
+    Map<String, dynamic>? source,
+  }) {
+    final data = source ?? _results;
     if (_tab != 'Top') {
       final group = UnifiedSearchPolicy.groupForTab(_tab);
       if (const {'Posts', 'Media', 'Latest'}.contains(_tab)) {
         final rows = <Map<String, dynamic>>[];
         final seen = <String>{};
         for (final row in [
-          ...((_results['posts'] as List<Map<String, dynamic>>?) ?? const []),
-          ...((_results['fediverse'] as List<Map<String, dynamic>>?) ??
+          ...((data['posts'] as List<Map<String, dynamic>>?) ?? const []),
+          ...((data['fediverse'] as List<Map<String, dynamic>>?) ??
               const []),
         ]) {
           final remote = row['uri'] ??
@@ -294,7 +355,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         );
       }
       return UnifiedSearchPolicy.sortRows(
-        (_results[group] as List<Map<String, dynamic>>?) ?? const [],
+        (data[group] as List<Map<String, dynamic>>?) ?? const [],
         _sort,
       );
     }
@@ -311,7 +372,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       'instances',
     ]) {
       for (final row
-          in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
+          in (data[group] as List<Map<String, dynamic>>?) ?? const []) {
         final canonical = row['uri'] ??
             row['remote_status_uri'] ??
             (row['is_federated'] == true ? row['id'] : null) ??
@@ -329,9 +390,23 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     );
   }
 
+  String _rowIdentity(Map<String, dynamic> row) {
+    final group = _groupForRow(row);
+    final canonical = row['uri'] ??
+        row['remote_status_uri'] ??
+        (row['is_federated'] == true ? row['id'] : null) ??
+        (group == 'users' ? row['actor_uri'] : null);
+    return '$group:${canonical ?? row['id'] ?? row.hashCode}'.toLowerCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final rows = _rowsForCurrentTab();
+    final discoveryRows = _rowsForCurrentTab(source: _discoveryResults);
+    final searchIdentities = rows.map(_rowIdentity).toSet();
+    final additionalDiscoveryRows = discoveryRows
+        .where((row) => !searchIdentities.contains(_rowIdentity(row)))
+        .toList(growable: false);
     return Column(
       children: [
         Padding(
@@ -476,58 +551,101 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               children: [
-                if (_query.isEmpty && !_loading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 56, horizontal: 18),
-                    child: Column(
-                      children: [
-                        Icon(Icons.travel_explore_rounded, size: 48),
-                        SizedBox(height: 12),
-                        Text(
-                          'Search Testagram',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
+                if (_query.isEmpty) ...[
+                  if (_discoveryLoading && discoveryRows.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(28),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (discoveryRows.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 40,
+                        horizontal: 18,
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.travel_explore_rounded, size: 42),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Discover Testagram',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _discoveryError ??
+                                'New posts and topics will appear here.',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _loadDiscovery,
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Refresh discovery'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(4, 8, 4, 12),
+                      child: Text(
+                        'Discover on Testagram',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
                         ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Find people, posts, hashtags, threads, communities and Fediverse content.',
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                      ),
                     ),
-                  )
-                else if (_loading && rows.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(28),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_error == null && rows.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 48,
-                      horizontal: 18,
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.search_off_rounded, size: 42),
-                        const SizedBox(height: 10),
-                        Text(
-                          'No ${_tab == 'Top' ? 'matching' : _tab.toLowerCase()} results for “$_query”.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                    ...discoveryRows.map(_resultCard),
+                  ],
+                ] else ...[
+                  if (_loading && rows.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(28),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_error == null && rows.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 32,
+                        horizontal: 18,
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.search_off_rounded, size: 42),
+                          const SizedBox(height: 10),
+                          Text(
+                            'No ${_tab == 'Top' ? 'matching' : _tab.toLowerCase()} results for “$_query”.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Try another phrase or switch categories.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  else ...rows.map(_resultCard),
+                  if (additionalDiscoveryRows.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(4, 20, 4, 10),
+                      child: Text(
+                        'Discover more',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
                         ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Try another phrase or switch categories.',
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                      ),
                     ),
-                  )
-                else
-                  ...rows.map(_resultCard),
+                    ...additionalDiscoveryRows.map(_resultCard),
+                  ],
+                ],
                 if (_hasMore && !_loadingMore)
                   Center(
                     child: TextButton.icon(
