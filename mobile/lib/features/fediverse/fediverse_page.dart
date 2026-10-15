@@ -311,6 +311,15 @@ class _FediversePageState extends State<FediversePage> {
 
   String _plainRemoteContent(String value) => normalizeFederatedContent(value);
 
+  num? _remoteCount(dynamic value) {
+    if (value is num && value >= 0) return value;
+    if (value is String) {
+      final parsed = num.tryParse(value.trim());
+      if (parsed != null && parsed >= 0) return parsed;
+    }
+    return null;
+  }
+
   String? _remoteUrl(dynamic value) {
     if (value is String && value.startsWith('http')) return value;
     if (value is List) {
@@ -537,15 +546,23 @@ class _FediversePageState extends State<FediversePage> {
           'header_url': _remoteUrl(
             actor['image'] is Map ? actor['image']['url'] : actor['image'],
           ),
-          'followers_count': profileFollowers is num ? profileFollowers : null,
-          'following_count': profileFollowing is num ? profileFollowing : null,
-          'posts_count': actor['outbox'] is Map
-              ? actor['outbox']['totalItems']
-              : actor['statuses_count'],
+          'followers_count': _remoteCount(profileFollowers),
+          'following_count': _remoteCount(profileFollowing),
+          'posts_count': _remoteCount(
+            actor['outbox'] is Map
+                ? actor['outbox']['totalItems']
+                : actor['statuses_count'] ?? actor['statusesCount'],
+          ),
           'created_at': actor['published'],
+          'profile_url': _remoteUrl(actor['url']),
+          'actor_type': actor['type'] ?? 'Person',
           'locked': actor['manuallyApprovesFollowers'] == true,
           'bot': actor['type'] == 'Service',
           'discoverable': actor['discoverable'] != false,
+          'indexable': actor['indexable'] != false,
+          'limited': actor['limited'] == true,
+          'suspended': actor['suspended'] == true,
+          'last_status_at': actor['lastStatusAt'] ?? actor['last_status_at'],
           'fields':
               actor['attachment'] is List ? actor['attachment'] : const [],
           'emojis': actor['emoji'] is List ? actor['emoji'] : const [],
@@ -1426,6 +1443,16 @@ class _FediversePageState extends State<FediversePage> {
                               ),
                             if (_remoteProfile['discoverable'] == false)
                               const Text('Not listed in discovery'),
+                            if (_remoteProfile['actor_type'] is String)
+                              Text('Type: ${_remoteProfile['actor_type']}'),
+                            if (_remoteProfile['indexable'] == false)
+                              const Text('Not indexable'),
+                            if (_remoteProfile['limited'] == true)
+                              const Text('Limited'),
+                            if (_remoteProfile['suspended'] == true)
+                              const Text('Suspended'),
+                            if (_remoteProfile['last_status_at'] is String)
+                              Text('Last public status: ${'${_remoteProfile['last_status_at']}'.split('T').first}'),
                           ],
                         ),
                         if (_remoteProfile['fields'] is List &&
@@ -1461,6 +1488,12 @@ class _FediversePageState extends State<FediversePage> {
                                 ),
                               ),
                         ],
+                        if (_remoteProfile['profile_url'] is String)
+                          TextButton.icon(
+                            onPressed: () => _open('${_remoteProfile['profile_url']}'),
+                            icon: const Icon(Icons.open_in_new_rounded),
+                            label: const Text('Open original profile'),
+                          ),
                         if (_remoteProfile['moved_to'] is String)
                           TextButton.icon(
                             onPressed: () =>
