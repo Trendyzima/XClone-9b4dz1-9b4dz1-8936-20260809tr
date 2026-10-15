@@ -81,6 +81,10 @@ jobs:
           mkdir -p "$SIGNING_DIR"
           STORE_PASSWORD="$(openssl rand -hex 24)"
           KEY_PASSWORD="$STORE_PASSWORD"
+          # Mask values before writing them to GITHUB_ENV; Actions may print
+          # the step environment in later log sections.
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_PASSWORD"
           KEYSTORE="$SIGNING_DIR/testagram-ephemeral-release.jks"
           keytool -genkeypair -noprompt -v \
             -keystore "$KEYSTORE" \
