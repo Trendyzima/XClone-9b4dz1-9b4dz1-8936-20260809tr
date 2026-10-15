@@ -96,25 +96,16 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       return;
     }
     if (_db.auth.currentUser == null) {
-      // Restore a persisted session before treating a cold start as signed out.
-      try {
-        await _db.auth.refreshSession().timeout(const Duration(seconds: 12));
-      } catch (_) {
-        // Render an actionable auth message below instead of the raw SDK error.
-      }
-      if (!mounted || generation != _requestGeneration) return;
-      if (_db.auth.currentUser == null) {
-        setState(() {
-          _query = query;
-          _loading = false;
-          _error = 'Your session has expired. Sign in again to search Testagram.';
-          _notice = null;
-          _results = UnifiedSearchPolicy.normalize(null);
-          _hasMore = false;
-          _loadingMore = false;
-        });
-        return;
-      }
+      setState(() {
+        _query = query;
+        _loading = false;
+        _error = 'Sign in to search Testagram.';
+        _notice = null;
+        _results = UnifiedSearchPolicy.normalize(null);
+        _hasMore = false;
+        _loadingMore = false;
+      });
+      return;
     }
 
     setState(() {
@@ -270,29 +261,10 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   List<Map<String, dynamic>> _rowsForCurrentTab() {
     if (_tab != 'Top') {
       final group = UnifiedSearchPolicy.groupForTab(_tab);
-      if (const {'Posts', 'Media', 'Latest'}.contains(_tab)) {
-        final rows = <Map<String, dynamic>>[];
-        final seen = <String>{};
-        for (final row in [
-          ...((_results['posts'] as List<Map<String, dynamic>>?) ?? const []),
-          ...((_results['fediverse'] as List<Map<String, dynamic>>?) ?? const []),
-        ]) {
-          final remote = row['uri'] ?? row['remote_status_uri'] ??
-              (row['is_federated'] == true ? row['id'] : null);
-          final identity = remote != null
-              ? 'remote:${'$remote'.toLowerCase()}'
-              : 'local:${row['id'] ?? row.hashCode}';
-          if (seen.add(identity)) rows.add(row);
-        }
-        return UnifiedSearchPolicy.sortRows(
-          rows,
-          _sort,
-          forceLatest: _tab == 'Latest' && _sort == 'Relevance',
-        );
-      }
       return UnifiedSearchPolicy.sortRows(
         (_results[group] as List<Map<String, dynamic>>?) ?? const [],
         _sort,
+        forceLatest: _tab == 'Latest' && _sort == 'Relevance',
       );
     }
     final combined = <Map<String, dynamic>>[];
@@ -311,7 +283,6 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
         final canonical = row['uri'] ??
             row['remote_status_uri'] ??
-            (row['is_federated'] == true ? row['id'] : null) ??
             (_groupForRow(row) == 'users' ? row['actor_uri'] : null);
         final identity = canonical != null
             ? 'remote:${'$canonical'.toLowerCase()}'
