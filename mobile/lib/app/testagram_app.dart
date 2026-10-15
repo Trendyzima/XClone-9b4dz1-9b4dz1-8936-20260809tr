@@ -118,7 +118,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -165,7 +166,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
             returnTo: AuthRedirectPolicy.safeReturnPath(
               state.uri.queryParameters['returnTo'],
@@ -524,7 +526,19 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile/likes',
-              builder: (_, __) => const FediversePage(section: 'likes'),
+              builder: (_, state) => FediversePage(
+                section: 'likes',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/featured',
+              builder: (_, state) => FediversePage(
+                section: 'featured',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/tips',
@@ -536,11 +550,19 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile/followers',
-              builder: (_, __) => const FediversePage(section: 'followers'),
+              builder: (_, state) => FediversePage(
+                section: 'followers',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/following',
-              builder: (_, __) => const FediversePage(section: 'following'),
+              builder: (_, state) => FediversePage(
+                section: 'following',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/analytics',
