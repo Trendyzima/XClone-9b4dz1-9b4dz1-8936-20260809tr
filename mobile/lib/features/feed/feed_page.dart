@@ -1475,6 +1475,7 @@ class _InlineVideoState extends State<_InlineVideo> {
     );
   }
 }
+
 class _CommentsSheet extends StatefulWidget {
   const _CommentsSheet({
     required this.postId,
@@ -1677,3 +1678,4 @@ class _CommentsSheetState extends State<_CommentsSheet> {
         ),
       );
 }
+
