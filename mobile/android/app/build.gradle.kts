@@ -56,7 +56,8 @@ android {
         release {
             // Never silently fall back to the debug key. A release build is signed
             // only when the caller supplies a complete keystore identity; CI may
-            // generate an ephemeral identity for a direct-download test APK.
+            // generate an ephemeral identity for a direct-download test APK. CI masks
+            // the ephemeral passwords in logs and deletes the keystore after building.
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("releaseSigning")
             }
