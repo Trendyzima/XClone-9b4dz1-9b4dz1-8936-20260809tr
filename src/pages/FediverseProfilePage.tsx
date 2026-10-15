@@ -16,6 +16,7 @@ function numericCount(value: any): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 function displayCount(value: any): string { return typeof value === 'number' ? new Intl.NumberFormat().format(value) : '—'; }
+function linkUrl(value: any): string | null { if (typeof value === 'string') return value; if (Array.isArray(value)) { for (const item of value) { const resolved = linkUrl(item); if (resolved) return resolved; } } if (value && typeof value === 'object') return linkUrl(value.href ?? value.url ?? value.id); return null; }
 
 export default function FediverseProfilePage({ initialTab = 'Posts', standalone = false }: FediverseProfilePageProps) {
   const navigate = useNavigate();
@@ -127,14 +128,14 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           display_name: actorDoc.name ?? result?.display_name ?? result?.name,
           summary: actorDoc.summary ?? result?.summary ?? result?.bio ?? '',
           bio: actorDoc.summary ?? result?.bio ?? result?.summary ?? '',
-          avatar_url: actorDoc.icon?.url ?? result?.avatar_url ?? result?.avatar ?? null,
+          avatar_url: linkUrl(actorDoc.icon?.url ?? actorDoc.icon ?? result?.avatar_url ?? result?.avatar),
           icon: actorDoc.icon ?? result?.icon ?? null,
-          header_url: actorDoc.image?.url ?? result?.header_url ?? result?.header ?? null,
-          url: actorDoc.url ?? result?.url ?? actorDoc.id ?? actorUrl,
+          header_url: linkUrl(actorDoc.image?.url ?? actorDoc.image ?? result?.header_url ?? result?.header),
+          url: linkUrl(actorDoc.url) ?? linkUrl(result?.url) ?? actorDoc.id ?? actorUrl,
           followers: numericCount(result?.followers_count ?? result?.followersCount ?? (typeof result?.followers === 'number' ? result.followers : null) ?? actorDoc.followers?.totalItems),
           following: numericCount(result?.following_count ?? result?.followingCount ?? (typeof result?.following === 'number' ? result.following : null) ?? actorDoc.following?.totalItems),
-          followers_url: actorDoc.followers?.id ?? actorDoc.followers ?? result?.followers_url ?? null,
-          following_url: actorDoc.following?.id ?? actorDoc.following ?? result?.following_url ?? null,
+          followers_url: linkUrl(actorDoc.followers) ?? result?.followers_url ?? null,
+          following_url: linkUrl(actorDoc.following) ?? result?.following_url ?? null,
           fields: result?.fields ?? actorDoc.attachment ?? [],
           tags: actorDoc.tag ?? result?.tags ?? [],
           emojis: actorDoc.emoji ?? result?.emojis ?? [],
@@ -142,7 +143,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           locked: actorDoc.manuallyApprovesFollowers === true || result?.locked === true,
           bot: actorDoc.type === 'Service' || result?.bot === true,
           discoverable: actorDoc.discoverable !== false,
-          moved_to: actorDoc.moved?.id ?? actorDoc.moved ?? result?.moved_to ?? null,
+          moved_to: linkUrl(actorDoc.moved) ?? result?.moved_to ?? null,
           also_known_as: actorDoc.alsoKnownAs ?? result?.also_known_as ?? [],
           raw_actor: actorDoc,
         } : null;
@@ -433,7 +434,9 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                   {profile.moved_to && <a className="inline-flex items-center gap-1 text-primary hover:underline" href={profile.moved_to} target="_blank" rel="noreferrer">Moved account <ExternalLink className="w-3 h-3"/></a>}
                 </div>
                 {Array.isArray(profile.also_known_as) && profile.also_known_as.length > 0 && <div className="mt-3 text-xs text-muted-foreground">Also known as: {profile.also_known_as.map((uri: any) => String(uri?.id ?? uri)).join(' · ')}</div>}
+                {profile.url && <a href={profile.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">Open original profile <ExternalLink className="w-3 h-3"/></a>}
                 {Array.isArray(profile.emojis) && profile.emojis.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.emojis.map((emoji: any, i: number) => <span key={`${emoji.shortcode ?? emoji.name ?? i}`} className="text-xs rounded-full border border-border px-2 py-1">:{emoji.shortcode ?? emoji.name ?? 'emoji'}:</span>)}</div>}
+                {Array.isArray(profile.tags) && profile.tags.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.tags.filter((tag: any) => tag && typeof tag === 'object').map((tag: any, i: number) => <span key={`${tag.name ?? tag.href ?? i}`} className="text-xs rounded-full bg-muted px-2 py-1">{tag.name ?? tag.href ?? 'Tag'}</span>)}</div>}
                 {following && (
                   <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
                     This account is followed in Testagram. Its posts are prioritized in your personalized Fediverse feed.
@@ -479,6 +482,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                     <div className="divide-y divide-border">
                       {visible.length > 0 ? visible.map((post: any) => (
                         <article key={post.id ?? post.uri} className="p-4">
+                          {post.content_warning && <div className="mb-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs font-semibold">Content warning: {String(post.content_warning).replace(/<[^>]*>/g, ' ').slice(0, 240)}</div>}
                           <FediverseRichText html={post.content ?? ''} tags={post.raw_object?.tag ?? post.tags ?? []} className="text-sm leading-6" />
                           {post.attachments?.length > 0 && (
                             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -493,8 +497,12 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                               })}
                             </div>
                           )}
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {post.published_at ? new Date(post.published_at).toLocaleString() : ''}
+                          <p className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            <span>{post.published_at ? new Date(post.published_at).toLocaleString() : ''}</span>
+                            {typeof post.like_count === 'number' && <span>{displayCount(post.like_count)} likes</span>}
+                            {typeof post.announce_count === 'number' && <span>{displayCount(post.announce_count)} boosts</span>}
+                            {typeof post.reply_count === 'number' && <span>{displayCount(post.reply_count)} replies</span>}
+                            {post.url && <a href={post.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Original post <ExternalLink className="w-3 h-3"/></a>}
                           </p>
                         </article>
                       )) : (
@@ -507,21 +515,26 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                   );
                 }
                 if (activeTab === 'Media') {
-                  return media.length === 0 ? (
-                    <div className="py-14 text-center text-sm text-muted-foreground">No media found in the public remote timeline.</div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-1 p-1">
-                      {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
-                        const remoteUrl = attachment?.url || attachment?.href;
-                        const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri) || remoteUrl;
-                        const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
-                        return url && type.startsWith('video/') ? (
-                          <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
-                        ) : url ? (
-                          <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />
-                        ) : null;
-                      }))}
-                    </div>
+                  return (
+                    <>
+                      {media.length === 0 ? (
+                        <div className="py-14 text-center text-sm text-muted-foreground">No media found in the public remote timeline.</div>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-1 p-1">
+                          {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
+                            const remoteUrl = attachment?.url || attachment?.href;
+                            const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri) || remoteUrl;
+                            const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
+                            return url && type.startsWith('video/') ? (
+                              <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
+                            ) : url ? (
+                              <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />
+                            ) : null;
+                          }))}
+                        </div>
+                      )}
+                      {timelineCursor && <div className="p-4 text-center"><button disabled={timelineLoading} onClick={loadMoreTimeline} className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50">{timelineLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}Load more media</button></div>}
+                    </>
                   );
                 }
                 if (['Tips', 'Gifts'].includes(activeTab)) {
@@ -532,7 +545,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                     <div className="divide-y divide-border">
                       <div className="px-4 py-3 flex items-center justify-between text-sm text-muted-foreground">
                         <span>{relationshipTotal === null ? 'Public relationship collection' : `${displayCount(relationshipTotal)} ${activeTab.toLowerCase()}`}</span>
-                        <button onClick={() => setActiveTab(activeTab === 'Followers' ? 'Following' : 'Followers')} className="font-semibold text-primary">View {activeTab === 'Followers' ? 'following' : 'followers'}</button>
+                        {['Followers', 'Following'].includes(activeTab) && <button onClick={() => setActiveTab(activeTab === 'Followers' ? 'Following' : 'Followers')} className="font-semibold text-primary">View {activeTab === 'Followers' ? 'following' : 'followers'}</button>}
                       </div>
                       {relationshipLoading && relationshipRows.length === 0 && <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin"/></div>}
                       {relationshipError && <div className="p-4 text-sm text-destructive"><p>{relationshipError}</p><button onClick={() => { const tab=activeTab; setActiveTab('Posts'); setTimeout(() => setActiveTab(tab), 0); }} className="mt-2 underline">Retry</button></div>}
@@ -562,8 +575,8 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                     <div className="grid grid-cols-2 gap-3 p-4">
                       <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{posts.length}</div><div className="text-xs text-muted-foreground">Public posts loaded</div></div>
                       <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{media.length}</div><div className="text-xs text-muted-foreground">Media posts</div></div>
-                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{profile.followers ?? 0}</div><div className="text-xs text-muted-foreground">Followers reported</div></div>
-                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{profile.following ?? 0}</div><div className="text-xs text-muted-foreground">Following reported</div></div>
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{displayCount(profile.followers)}</div><div className="text-xs text-muted-foreground">Followers reported</div></div>
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{displayCount(profile.following)}</div><div className="text-xs text-muted-foreground">Following reported</div></div>
                     </div>
                   );
                 }
