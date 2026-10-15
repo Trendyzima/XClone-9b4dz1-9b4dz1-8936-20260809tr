@@ -19,7 +19,8 @@ permissions:
 
 concurrency:
   group: testagram-flutter-native-android-release-${{ github.ref }}
-  cancel-in-progress: false
+  # Superseded PR builds must not sit ahead of the current commit; never cancel a main release.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
