@@ -356,6 +356,8 @@ class _FediversePageState extends State<FediversePage> {
         '${attachment['mediaType'] ?? attachment['media_type'] ?? attachment['mimeType'] ?? ''}'
             .toLowerCase()
             .trim();
+    if (declared == 'video' || declared == 'gifv') return 'video/mp4';
+    if (declared == 'audio') return 'audio/mpeg';
     if (declared.startsWith('image/') ||
         declared.startsWith('video/') ||
         declared.startsWith('audio/')) {
@@ -365,7 +367,7 @@ class _FediversePageState extends State<FediversePage> {
       attachment['url'] ?? attachment['href'] ?? attachment['id'],
     );
     final path = Uri.tryParse(source ?? '')?.path.toLowerCase() ?? '';
-    if (RegExp(r'\.(mp4|m4v|mov|webm|m3u8)$').hasMatch(path)) {
+    if (RegExp(r'\.(mp4|m4v|mov|webm)$').hasMatch(path)) {
       return 'video/mp4';
     }
     if (RegExp(r'\.(mp3|m4a|aac|ogg|opus|wav|flac)$').hasMatch(path)) {
