@@ -70,7 +70,7 @@ void main() {
       );
     });
 
-    test('tries later ActivityPub link candidates when earlier values are empty', () {
+    test('falls back through ActivityPub URL candidates', () {
       expect(
         normalizeFederatedMediaUrl({
           'href': '',
