@@ -944,7 +944,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
 
   // ─── Render helpers ────────────────────────────────────────────────────────
   function RemotePostMedia({ attachments, compact = false }: { attachments: any[]; compact?: boolean }) {
-    const media = Array.isArray(attachments) ? attachments.filter((a: any) => a && (a.preview_url || a.url || a.remote_url)) : [];
+    const media = Array.isArray(attachments) ? attachments.filter((a: any) => a && (a.preview_url || a.preview_remote_url || a.url || a.remote_url || a.href)) : [];
     if (!media.length) return null;
 
     const proxy = (value: unknown) => {
@@ -956,14 +956,14 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     return (
       <div className={`mt-3 grid gap-1.5 ${media.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {media.slice(0, 4).map((attachment: any, index: number) => {
-          const previewRaw = attachment.preview_url || attachment.preview_remote_url || attachment.url || attachment.remote_url;
-          const originalRaw = attachment.remote_url || attachment.url || previewRaw;
+          const previewRaw = attachment.preview_url || attachment.preview_remote_url || attachment.url || attachment.remote_url || attachment.href;
+          const originalRaw = attachment.remote_url || attachment.url || attachment.href || previewRaw;
           const preview = proxy(previewRaw) || proxy(originalRaw);
           const original = proxy(originalRaw) || proxy(previewRaw);
           if (!preview && !original) return null;
-          const type = String(attachment.type || '').toLowerCase();
-          const isVideo = type === 'video' || type === 'gifv' || /\.(?:mp4|webm|mov)(?:[?#]|$)/i.test(originalRaw);
-          const isAudio = type === 'audio' || /\.(?:mp3|ogg|wav|m4a|opus)(?:[?#]|$)/i.test(originalRaw);
+          const type = String(attachment.mediaType || attachment.media_type || attachment.type || '').toLowerCase();
+          const isVideo = type === 'video' || type === 'gifv' || type.startsWith('video/') || /\.(?:mp4|webm|mov|m4v)(?:[?#]|$)/i.test(originalRaw);
+          const isAudio = type === 'audio' || type.startsWith('audio/') || /\.(?:mp3|ogg|wav|m4a|opus|flac)(?:[?#]|$)/i.test(originalRaw);
 
           if (isVideo) return <video key={attachment.id ?? index} src={original} poster={preview || undefined} controls playsInline preload="metadata" className="w-full max-h-[420px] rounded-xl bg-black object-contain" />;
           if (isAudio) return <audio key={attachment.id ?? index} src={original} controls preload="none" className="w-full" />;
@@ -974,7 +974,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                 className={`w-full ${media.length === 1 ? 'max-h-[520px]' : 'aspect-square'} object-cover`}
                 onError={(event) => {
                   const img = event.currentTarget;
-                  const fallback = proxy(attachment.remote_url || attachment.url);
+                  const fallback = proxy(attachment.remote_url || attachment.url || attachment.href);
                   if (fallback && img.src !== fallback) img.src = fallback;
                   else img.style.display = 'none';
                 }} />
