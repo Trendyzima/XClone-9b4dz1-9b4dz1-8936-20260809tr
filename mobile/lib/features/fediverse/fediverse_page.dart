@@ -448,31 +448,24 @@ class _FediversePageState extends State<FediversePage> {
     return null;
   }
 
-  String? _remoteUrl(dynamic value) {
-    if (value is String && value.startsWith('http')) return value;
-    if (value is List) {
-      for (final item in value) {
-        final resolved = _remoteUrl(item);
-        if (resolved != null) return resolved;
-      }
-    }
-    if (value is Map) {
-      return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
-    }
-    return null;
-  }
+  String? _remoteUrl(dynamic value) => normalizeFederatedMediaUrl(value);
 
   /// Routes public remote media through Testagram's persistent media cache.
   String _localizedMediaUrl(dynamic value) {
     final source = _remoteUrl(value);
     if (source == null) return '';
     final parsed = Uri.tryParse(source);
-    if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
+    if (parsed == null ||
+        parsed.scheme.toLowerCase() != 'https' ||
+        parsed.host.isEmpty ||
+        parsed.userInfo.isNotEmpty) {
       return '';
     }
+    // Fragments are client-side only and should not create duplicate cache keys.
+    final cacheableSource = parsed.replace(fragment: '').toString();
     return Uri.parse(_db.rest.url.replaceFirst('/rest/v1', '')).replace(
       path: '/functions/v1/federated-media',
-      queryParameters: {'url': source},
+      queryParameters: {'url': cacheableSource},
     ).toString();
   }
 
@@ -507,9 +500,7 @@ class _FediversePageState extends State<FediversePage> {
       final attachment = item is Map
           ? Map<String, dynamic>.from(item)
           : <String, dynamic>{'url': item};
-      final source = _localizedMediaUrl(
-        attachment['url'] ?? attachment['href'] ?? attachment['id'],
-      );
+      final source = _localizedMediaUrl(attachment);
       if (source.isEmpty) return const SizedBox.shrink();
       return Padding(
         padding: const EdgeInsets.only(top: 10),
@@ -557,7 +548,10 @@ class _FediversePageState extends State<FediversePage> {
         ? (status['media_attachments'] as List).whereType<Map>().map((item) {
             final attachment = Map<String, dynamic>.from(item);
             return <String, dynamic>{
-              'url': attachment['url'] ?? attachment['preview_url'],
+              'url': _remoteUrl([
+                attachment['url'],
+                attachment['preview_url'],
+              ]),
               'mediaType': switch ('${attachment['type'] ?? ''}') {
                 'video' => 'video/mp4',
                 'audio' => 'audio/mpeg',
@@ -2093,6 +2087,7 @@ class _FediversePageState extends State<FediversePage> {
               final sensitive = p['sensitive'] == true ||
                   '${p['content_warning'] ?? ''}'.isNotEmpty;
               return Card(
+                key: ValueKey('fediverse-post:$uri'),
                 margin: const EdgeInsets.only(bottom: 10),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
