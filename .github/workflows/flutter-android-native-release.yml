@@ -1,0 +1,159 @@
+name: Flutter Native Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - 'README.md'
+      - '.github/workflows/flutter-android-native-release.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: testagram-flutter-native-android-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test and build the native Flutter APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the exact source revision
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Enforce native playback dependencies
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eiq '^  (webview_flutter|webview_flutter_android|webview_flutter_wkwebview|webview_flutter_platform_interface|flutter_inappwebview|youtube_player_iframe|youtube_player_iframe_web):' pubspec.lock; then
+            echo "::error::Embedded WebView/iframe playback dependency remains in the Flutter graph."
+            exit 1
+          fi
+          grep -q '^  video_player_android:' pubspec.lock
+          if grep -R -n -E "package:(webview_flutter|flutter_inappwebview|youtube_player_iframe)/|YoutubePlayerController" lib test; then
+            echo "::error::Embedded WebView/iframe playback API remains in Flutter source."
+            exit 1
+          fi
+
+      - name: Enforce Dart formatting
+        working-directory: mobile
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze Flutter source
+        working-directory: mobile
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run Flutter tests
+        working-directory: mobile
+        run: flutter test --coverage
+
+      - name: Generate temporary APK signing identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIGNING_DIR="${RUNNER_TEMP}/testagram-ephemeral-signing"
+          mkdir -p "$SIGNING_DIR"
+          STORE_PASSWORD="$(openssl rand -hex 24)"
+          KEY_PASSWORD="$STORE_PASSWORD"
+          KEYSTORE="$SIGNING_DIR/testagram-ephemeral-release.jks"
+          keytool -genkeypair -noprompt -v \
+            -keystore "$KEYSTORE" \
+            -storetype JKS \
+            -storepass "$STORE_PASSWORD" \
+            -alias testagram-ephemeral \
+            -keypass "$KEY_PASSWORD" \
+            -keyalg RSA -keysize 2048 -validity 3650 \
+            -dname "CN=Testagram Temporary Release, OU=Android, O=Testagram, L=CI, ST=CI, C=KE"
+          {
+            echo "TESTAGRAM_ANDROID_KEYSTORE_PATH=$KEYSTORE"
+            echo "TESTAGRAM_ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "TESTAGRAM_ANDROID_KEY_ALIAS=testagram-ephemeral"
+            echo "TESTAGRAM_ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Temporary per-run signing identity generated; no repository signing secrets are used."
+
+      - name: Build native Flutter release APK
+        working-directory: mobile
+        env:
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: |
+          set -euo pipefail
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+
+      - name: Verify signature, native package identity and artifact
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          "$AAPT" dump badging "$APK" | tee "$RUNNER_TEMP/testagram-apk-badging.txt"
+          grep -q "package: name='com.xclone.app'" "$RUNNER_TEMP/testagram-apk-badging.txt"
+          if unzip -l "$APK" | grep -Eiq 'assets/flutter_assets/(webview|web_player)|webview_flutter'; then
+            echo "::error::APK contains a forbidden embedded WebView playback asset."
+            exit 1
+          fi
+          cp "$APK" "$GITHUB_WORKSPACE/app-release.apk"
+          sha256sum "$GITHUB_WORKSPACE/app-release.apk"
+          ls -lh "$GITHUB_WORKSPACE/app-release.apk"
+
+      - name: Upload verified native APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-flutter-native-android-${{ github.sha }}
+          path: app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Replace the canonical APK on the latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --json tagName --jq '.tagName')"
+          test -n "$tag"
+          echo "Replacing the single canonical Android APK on release $tag."
+          gh release upload "$tag" app-release.apk --clobber
+          # The prior AAB belongs to the legacy WebView app and must not be
+          # presented beside the Flutter-native APK as if it were the same build.
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq 'app-release.aab'; then
+            gh release delete-asset "$tag" app-release.aab --yes
+          fi
+          gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'app-release.apk'
+          echo "Published native Flutter APK to the existing canonical download URL."
+
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -rf "${RUNNER_TEMP}/testagram-ephemeral-signing"
