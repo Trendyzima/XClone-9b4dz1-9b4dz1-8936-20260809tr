@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'fediverse_feed_policy.dart';
 import 'fediverse_content.dart';
+import 'federated_attachment_view.dart';
 
 class FediversePage extends StatefulWidget {
   const FediversePage({
@@ -71,7 +73,7 @@ class _FediversePageState extends State<FediversePage> {
   bool _loadingMoreRelationships = false;
   Map<String, int> _surfaceMetrics = {};
   String? _surfaceMessage;
-  final Set<String> _liked = {}, _boosted = {};
+  final Set<String> _liked = {}, _boosted = {}, _revealedSensitive = {};
   bool _loading = true;
   String? _error;
   @override
@@ -331,6 +333,3525 @@ class _FediversePageState extends State<FediversePage> {
       return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
     }
     return null;
+  }
+
+  /// Routes public remote media through Testagram's persistent media cache.
+  String _localizedMediaUrl(dynamic value) {
+    final source = _remoteUrl(value);
+    if (source == null) return '';
+    final parsed = Uri.tryParse(source);
+    if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
+      return '';
+    }
+    return Uri.parse(_db.supabaseUrl)
+        .replace(
+          path: '/functions/v1/federated-media',
+          queryParameters: {'url': source},
+        )
+        .toString();
+  }
+
+  String _attachmentMediaType(Map<String, dynamic> attachment) {
+    final declared = '${attachment['mediaType'] ?? attachment['media_type'] ?? attachment['mimeType'] ?? ''}'
+        .toLowerCase()
+        .trim();
+    if (declared.startsWith('image/') ||
+        declared.startsWith('video/') ||
+        declared.startsWith('audio/')) {
+      return declared;
+    }
+    final source = _remoteUrl(
+      attachment['url'] ?? attachment['href'] ?? attachment['id'],
+    );
+    final path = Uri.tryParse(source ?? '')?.path.toLowerCase() ?? '';
+    if (RegExp(r'\\.(mp4|m4v|mov|webm|m3u8)
+  Widget _profileMetric(String label, dynamic value, String route) {
+    final display = value is num ? value.toInt().toString() : '—';
+    return InkWell(
+      onTap: const {'followers', 'following'}.contains(route) &&
+              widget.actorUri != null
+          ? () => context.push(
+                '/fediverse/profile/$route?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
+              )
+          : null,
+      child: Text(
+        '$display $label',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: const {'followers', 'following'}.contains(route)
+              ? Theme.of(context).colorScheme.primary
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic> _normalizeMastodonStatus(dynamic value) {
+    final status = Map<String, dynamic>.from(value as Map);
+    final account = status['account'] is Map
+        ? Map<String, dynamic>.from(status['account'] as Map)
+        : <String, dynamic>{};
+    final acct = '${account['acct'] ?? account['username'] ?? 'remote'}';
+    final parts = acct.split('@');
+    final domain =
+        parts.length > 1 ? parts.last : Uri.parse(_mastodonInstance).host;
+    final media = status['media_attachments'] is List
+        ? (status['media_attachments'] as List).whereType<Map>().map((item) {
+            final attachment = Map<String, dynamic>.from(item);
+            return <String, dynamic>{
+              'url': attachment['url'] ?? attachment['preview_url'],
+              'mediaType': switch ('${attachment['type'] ?? ''}') {
+                'video' => 'video/mp4',
+                'audio' => 'audio/mpeg',
+                _ => 'image/*',
+              },
+              'name': attachment['description'],
+            };
+          }).toList()
+        : <Map<String, dynamic>>[];
+    final uri = '${status['uri'] ?? status['url'] ?? ''}';
+    return <String, dynamic>{
+      'id': status['id'],
+      'uri': uri,
+      'url': status['url'] ?? uri,
+      'object_type': 'Note',
+      'content': _plainRemoteContent('${status['content'] ?? ''}'),
+      'summary': _plainRemoteContent('${status['spoiler_text'] ?? ''}'),
+      'content_warning': status['spoiler_text'] ?? '',
+      'sensitive': status['sensitive'] == true,
+      'published_at': status['created_at'],
+      'attachments': media,
+      'like_count': status['favourites_count'] ?? 0,
+      'announce_count': status['reblogs_count'] ?? 0,
+      'reply_count': status['replies_count'] ?? 0,
+      'actor': <String, dynamic>{
+        'username': parts.first,
+        'domain': domain,
+        'display_name': account['display_name'],
+        'avatar_url': account['avatar'],
+        'actor_uri': account['url'] ?? account['uri'],
+      },
+    };
+  }
+
+  Future<void> _loadMastodonTimeline({String? query}) async {
+    final action =
+        query == null || query.trim().isEmpty ? 'public_timeline' : 'search';
+    final response = await _db.functions.invoke(
+      'megalodon-gateway',
+      body: {
+        'action': action,
+        'instance': _mastodonInstance,
+        'limit': 30,
+        if (action == 'search') 'query': query!.trim(),
+        if (action == 'search') 'type': 'statuses',
+      },
+    ).timeout(const Duration(seconds: 15));
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        'Mastodon timeline service returned an invalid response.',
+      );
+    }
+    final result = data['result'];
+    final statuses = data['statuses'] ??
+        (result is Map ? result['statuses'] : null) ??
+        (result is List ? result : null);
+    if (statuses is! List) {
+      throw StateError('Mastodon timeline response did not contain statuses.');
+    }
+    final normalized = statuses
+        .whereType<Map>()
+        .map(_normalizeMastodonStatus)
+        .where((post) => '${post['uri'] ?? ''}'.startsWith('https://'))
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _posts = normalized;
+      _pendingPosts = [];
+      _liked
+        ..clear()
+        ..addAll(
+          statuses
+              .whereType<Map>()
+              .where((status) => status['favourited'] == true)
+              .map((status) => '${status['uri'] ?? ''}'),
+        );
+      _boosted
+        ..clear()
+        ..addAll(
+          statuses
+              .whereType<Map>()
+              .where((status) => status['reblogged'] == true)
+              .map((status) => '${status['uri'] ?? ''}'),
+        );
+    });
+  }
+
+  Future<void> _searchMastodon() async {
+    final query = _mastodonSearchController.text.trim();
+    if (query.isEmpty) {
+      await _load();
+      return;
+    }
+    setState(() {
+      _searchingMastodon = true;
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await _loadMastodonTimeline(query: query);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error =
+              'Mastodon search failed. Check the instance or try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _searchingMastodon = false;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadRemoteProfile() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    if (!actorUri.startsWith('https://') ||
+        Uri.tryParse(actorUri)?.host.isEmpty != false) {
+      _surfaceMessage =
+          'This profile has no valid HTTPS ActivityPub actor URL.';
+      return;
+    }
+    final response = await _db.functions.invoke(
+      'testagram-api',
+      body: {
+        'path': '/federated-profile',
+        'method': 'GET',
+        'params': {
+          'actor_uri': actorUri,
+          'limit': const {
+            'followers',
+            'following',
+            'featured',
+            'likes',
+          }.contains(widget.section)
+              ? 1
+              : 80,
+        },
+      },
+    ).timeout(const Duration(seconds: 20));
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError('Remote profile service returned an invalid response.');
+    }
+    final actor = data['actor'] is Map
+        ? Map<String, dynamic>.from(data['actor'] as Map)
+        : <String, dynamic>{};
+    final domain = Uri.parse(actorUri).host;
+    final username =
+        '${actor['preferredUsername'] ?? widget.handle ?? 'remote'}'
+            .replaceFirst(RegExp(r'^@'), '')
+            .split('@')
+            .first;
+    final responseCounts = data['counts'] is Map
+        ? Map<String, dynamic>.from(data['counts'] as Map)
+        : <String, dynamic>{};
+    final profileFollowers = _remoteCount(
+          actor['followers'] is Map
+              ? (actor['followers'] as Map)['totalItems']
+              : actor['followers'] ??
+                  actor['followers_count'] ??
+                  actor['followersCount'],
+        ) ??
+        _remoteCount(
+          data['followers_count'] ??
+              data['followersCount'] ??
+              responseCounts['followers'] ??
+              responseCounts['followers_count'],
+        );
+    final profileFollowing = _remoteCount(
+          actor['following'] is Map
+              ? (actor['following'] as Map)['totalItems']
+              : actor['following'] ??
+                  actor['following_count'] ??
+                  actor['followingCount'],
+        ) ??
+        _remoteCount(
+          data['following_count'] ??
+              data['followingCount'] ??
+              responseCounts['following'] ??
+              responseCounts['following_count'],
+        );
+    if (mounted) {
+      setState(() {
+        _remoteProfile = {
+          ...actor,
+          'actor_uri': actorUri,
+          'username': username,
+          'domain': domain,
+          'display_name': actor['name'] ?? username,
+          'bio': actor['summary'] ?? '',
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
+          'header_url': _remoteUrl(
+            actor['image'] is Map ? actor['image']['url'] : actor['image'],
+          ),
+          'followers_count': _remoteCount(profileFollowers),
+          'following_count': _remoteCount(profileFollowing),
+          'posts_count': _remoteCount(
+            actor['outbox'] is Map
+                ? actor['outbox']['totalItems']
+                : actor['statuses_count'] ?? actor['statusesCount'],
+          ),
+          'created_at': actor['published'],
+          'profile_url': _remoteUrl(actor['url']),
+          'actor_type': actor['type'] ?? 'Person',
+          'locked': actor['manuallyApprovesFollowers'] == true,
+          'bot': actor['type'] == 'Service',
+          'discoverable': actor['discoverable'] != false,
+          'indexable': actor['indexable'] != false,
+          'limited': actor['limited'] == true,
+          'suspended': actor['suspended'] == true,
+          'last_status_at': actor['lastStatusAt'] ?? actor['last_status_at'],
+          'fields':
+              actor['attachment'] is List ? actor['attachment'] : const [],
+          'emojis': actor['emoji'] is List ? actor['emoji'] : const [],
+          'moved_to':
+              actor['moved'] is Map ? actor['moved']['id'] : actor['moved'],
+          'also_known_as':
+              actor['alsoKnownAs'] is List ? actor['alsoKnownAs'] : const [],
+        };
+      });
+    }
+    if (const {'tips', 'gifts'}.contains(widget.section)) {
+      if (mounted) {
+        setState(() {
+          _posts = [];
+          _surfaceRows = [];
+          _surfaceMetrics = {};
+          _surfaceMessage =
+              'Tips and gifts are Testagram-native features and are not exposed as public ActivityPub profile data.';
+        });
+      }
+      return;
+    }
+    if (const {
+      'followers',
+      'following',
+      'featured',
+      'likes',
+    }.contains(widget.section)) {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {
+            'actor_uri': actorUri,
+            'kind': widget.section,
+            'limit': 30,
+          },
+        },
+      ).timeout(const Duration(seconds: 25));
+      final result = response.data;
+      if (result is! Map || result['ok'] != true) {
+        throw StateError('Remote ${widget.section} collection is unavailable.');
+      }
+      final rows = result['items'] is List
+          ? (result['items'] as List)
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() {
+        _surfaceRows = rows;
+        _relationshipCursor = result['next_cursor'] is String
+            ? result['next_cursor'] as String
+            : null;
+        final total = _remoteCount(
+          result['totalItems'] ?? result['total_items'] ?? result['total'],
+        );
+        if (total != null &&
+            const {'followers', 'following'}.contains(widget.section)) {
+          _remoteProfile[widget.section == 'followers'
+              ? 'followers_count'
+              : 'following_count'] = total;
+        }
+        final metricLabel = switch (widget.section) {
+          'followers' => 'Followers reported',
+          'following' => 'Following reported',
+          'featured' => 'Featured posts reported',
+          'likes' => 'Public likes reported',
+          _ => 'Items reported',
+        };
+        _surfaceMetrics = total != null ? {metricLabel: total.toInt()} : {};
+        _surfaceMessage = result['unavailable'] == true
+            ? 'This remote instance does not publish a public ${widget.section} collection.'
+            : rows.isEmpty
+                ? 'No public ${widget.section} were returned. The remote instance may hide this collection.'
+                : null;
+        _posts = [];
+      });
+      return;
+    }
+    _remoteTimelineCursor =
+        data['next_cursor'] is String ? data['next_cursor'] as String : null;
+    final items = data['items'] is List ? data['items'] as List : const [];
+    final posts = <Map<String, dynamic>>[];
+    for (final item in items.whereType<Map>()) {
+      final object = item['object'] is Map
+          ? Map<String, dynamic>.from(item['object'] as Map)
+          : Map<String, dynamic>.from(item);
+      final uri = '${object['id'] ?? object['url'] ?? ''}';
+      if (!uri.startsWith('https://') ||
+          object['type'] == 'Tombstone' ||
+          object['type'] == 'Delete') {
+        continue;
+      }
+      final attachments = object['attachment'] is List
+          ? object['attachment'] as List
+          : object['attachment'] == null
+              ? const []
+              : [object['attachment']];
+      posts.add(<String, dynamic>{
+        'id': uri,
+        'uri': uri,
+        'url': object['url'] is String ? object['url'] : uri,
+        'object_type': object['type'] ?? 'Note',
+        'content': _plainRemoteContent(
+          '${object['content'] ?? object['summary'] ?? ''}',
+        ),
+        'summary': object['summary'] ?? '',
+        'content_warning': object['summary'] ?? '',
+        'sensitive': object['sensitive'] == true,
+        'published_at': object['published'] ?? object['updated'],
+        'in_reply_to_uri': object['inReplyTo'],
+        'attachments': attachments,
+        'tags': object['tag'] is List ? object['tag'] : const [],
+        'actor_uri': actorUri,
+        'actor': <String, dynamic>{
+          'username': username,
+          'domain': domain,
+          'display_name': actor['name'] ?? username,
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
+          'actor_uri': actorUri,
+        },
+        'like_count': object['likes'] is Map
+            ? object['likes']['totalItems']
+            : object['like_count'] ?? object['likeCount'],
+        'announce_count': object['shares'] is Map
+            ? object['shares']['totalItems']
+            : object['announce_count'] ?? object['shareCount'],
+        'reply_count': object['replies'] is Map
+            ? object['replies']['totalItems']
+            : object['reply_count'] ?? object['replyCount'],
+      });
+    }
+    if (!mounted) return;
+    setState(() {
+      _posts = posts;
+      _pendingPosts = [];
+      if (widget.section == 'profile-analytics') {
+        _surfaceMetrics = {
+          'Public posts loaded': posts.length,
+          'Media posts loaded': posts
+              .where(
+                (post) =>
+                    post['attachments'] is List &&
+                    (post['attachments'] as List).isNotEmpty,
+              )
+              .length,
+          if (_remoteProfile['posts_count'] is num)
+            'Posts reported by server':
+                (_remoteProfile['posts_count'] as num).toInt(),
+          if (_remoteProfile['followers_count'] is num)
+            'Followers reported':
+                (_remoteProfile['followers_count'] as num).toInt(),
+          if (_remoteProfile['following_count'] is num)
+            'Following reported':
+                (_remoteProfile['following_count'] as num).toInt(),
+        };
+        _surfaceMessage =
+            'Counts marked reported come from the remote server; loaded totals only describe the public items fetched here.';
+      } else {
+        _surfaceMessage = posts.isEmpty
+            ? 'No public posts were returned for this federated profile.'
+            : null;
+      }
+    });
+  }
+
+  Future<void> _loadMoreRemoteRelationships() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    final cursor = _relationshipCursor;
+    if (!actorUri.startsWith('https://') ||
+        cursor == null ||
+        _loadingMoreRelationships) {
+      return;
+    }
+    setState(() => _loadingMoreRelationships = true);
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {
+            'actor_uri': actorUri,
+            'kind': widget.section,
+            'limit': 30,
+            'cursor': cursor,
+          },
+        },
+      ).timeout(const Duration(seconds: 25));
+      final result = response.data;
+      if (result is! Map || result['ok'] != true) {
+        throw StateError('Could not load more remote relationships.');
+      }
+      final rows = result['items'] is List
+          ? (result['items'] as List)
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+      final seen = _surfaceRows
+          .map((row) => '${row['actor_uri'] ?? row['id'] ?? row['url']}')
+          .toSet();
+      if (mounted) {
+        setState(() {
+          _surfaceRows.addAll(
+            rows.where((row) {
+              final key = '${row['actor_uri'] ?? row['id'] ?? row['url']}';
+              return key.isNotEmpty && seen.add(key);
+            }),
+          );
+          _relationshipCursor = result['next_cursor'] is String
+              ? result['next_cursor'] as String
+              : null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load more ${widget.section}: $error'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMoreRelationships = false);
+    }
+  }
+
+  Future<void> _loadMoreRemoteTimeline() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    final cursor = _remoteTimelineCursor;
+    if (!actorUri.startsWith('https://') ||
+        cursor == null ||
+        _loadingMoreRemoteTimeline) {
+      return;
+    }
+    setState(() => _loadingMoreRemoteTimeline = true);
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-profile',
+          'method': 'GET',
+          'params': {'actor_uri': actorUri, 'limit': 60, 'cursor': cursor},
+        },
+      ).timeout(const Duration(seconds: 25));
+      final data = response.data;
+      if (data is! Map || data['ok'] != true) {
+        throw StateError('Remote timeline pagination failed.');
+      }
+      final items = data['items'] is List ? data['items'] as List : const [];
+      final rows = <Map<String, dynamic>>[];
+      for (final item in items.whereType<Map>()) {
+        final object = item['object'] is Map
+            ? Map<String, dynamic>.from(item['object'] as Map)
+            : Map<String, dynamic>.from(item);
+        final uri = '${object['id'] ?? object['url'] ?? ''}';
+        if (!uri.startsWith('https://') ||
+            const {'Delete', 'Tombstone'}.contains(object['type'])) {
+          continue;
+        }
+        final attachments = object['attachment'] is List
+            ? object['attachment'] as List
+            : object['attachment'] == null
+                ? const []
+                : [object['attachment']];
+        rows.add({
+          'id': uri,
+          'uri': uri,
+          'url': object['url'] is String ? object['url'] : uri,
+          'object_type': object['type'] ?? 'Note',
+          'content': _plainRemoteContent(
+            '${object['content'] ?? object['summary'] ?? ''}',
+          ),
+          'summary': object['summary'] ?? '',
+          'sensitive': object['sensitive'] == true,
+          'content_warning': object['summary'] ?? '',
+          'published_at': object['published'] ?? object['updated'],
+          'in_reply_to_uri': object['inReplyTo'],
+          'attachments': attachments,
+          'tags': object['tag'] is List ? object['tag'] : const [],
+          'actor_uri': actorUri,
+          'actor': _remoteProfile,
+          'like_count': object['likes'] is Map
+              ? object['likes']['totalItems']
+              : object['like_count'] ?? object['likeCount'],
+          'announce_count': object['shares'] is Map
+              ? object['shares']['totalItems']
+              : object['announce_count'] ?? object['shareCount'],
+          'reply_count': object['replies'] is Map
+              ? object['replies']['totalItems']
+              : object['reply_count'] ?? object['replyCount'],
+        });
+      }
+      final seen = _posts.map((post) => '${post['uri'] ?? post['id']}').toSet();
+      if (mounted) {
+        setState(() {
+          _posts.addAll(
+            rows.where((row) => seen.add('${row['uri'] ?? row['id']}')),
+          );
+          _remoteTimelineCursor = data['next_cursor'] is String
+              ? data['next_cursor'] as String
+              : null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load more public posts: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMoreRemoteTimeline = false);
+    }
+  }
+
+  Future<void> _loadDedicatedSection() async {
+    final uid = _uid;
+    if (uid == null) {
+      _surfaceMessage = 'Sign in to use this Fediverse feature.';
+      return;
+    }
+
+    switch (widget.section) {
+      case 'inbox':
+        final inboxRows = await _db
+            .from('activitypub_inbox')
+            .select(
+              'id,activity_type,actor_url,object_url,payload,processed,created_at',
+            )
+            .eq('local_user_id', uid)
+            .order('created_at', ascending: false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = inboxRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'identity':
+        final identityRows = await _db
+            .from('activitypub_actors')
+            .select(
+              'id,actor_id,username,domain,inbox_url,outbox_url,followers_url,following_url,public_key_pem,created_at,updated_at',
+            )
+            .eq('user_id', uid)
+            .limit(10)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = identityRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        if (_surfaceRows.isEmpty) {
+          _surfaceMessage =
+              'No local ActivityPub identity is registered for this account yet.';
+        }
+        return;
+      case 'relay':
+        final relayRows = await _db
+            .from('activitypub_outbox')
+            .select('id,activity_type,activity_id,payload,delivered,created_at')
+            .eq('local_user_id', uid)
+            .order('created_at', ascending: false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = relayRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'controls':
+        final results = await Future.wait([
+          _db
+              .from('fediverse_domain_blocks')
+              .select('id,domain,created_at')
+              .eq('user_id', uid)
+              .limit(100),
+          _db
+              .from('fediverse_content_filters')
+              .select('id,name,phrase,action,contexts,expires_at,created_at')
+              .eq('user_id', uid)
+              .limit(100),
+        ]);
+        _surfaceRows = [
+          ...(results[0] as List).map(
+            (row) => {
+              'kind': 'Blocked domain',
+              ...Map<String, dynamic>.from(row as Map),
+            },
+          ),
+          ...(results[1] as List).map(
+            (row) => {
+              'kind': 'Content filter',
+              ...Map<String, dynamic>.from(row as Map),
+            },
+          ),
+        ];
+        if (_surfaceRows.isEmpty) {
+          _surfaceMessage =
+              'No domain blocks or content filters are configured.';
+        }
+        return;
+      case 'analytics':
+      case 'profile-analytics':
+        final results = await Future.wait([
+          _db.from('federated_objects').select('id').limit(1000),
+          _db.from('federated_actors').select('id').limit(1000),
+          _db
+              .from('federated_reactions')
+              .select('id')
+              .eq('user_id', uid)
+              .limit(1000),
+          _db.from('federated_instances').select('id').limit(1000),
+          _db
+              .from('activitypub_outbox')
+              .select('id')
+              .eq('local_user_id', uid)
+              .limit(1000),
+        ]);
+        _surfaceMetrics = {
+          'Cached posts (sample)': (results[0] as List).length,
+          'Known actors (sample)': (results[1] as List).length,
+          'Your reactions': (results[2] as List).length,
+          'Known instances (sample)': (results[3] as List).length,
+          'Your activities': (results[4] as List).length,
+        };
+        return;
+      case 'following':
+        final followingRows = await _db
+            .from('federated_following')
+            .select(
+              'id,remote_actor_url,remote_username,remote_domain,created_at',
+            )
+            .eq('local_user_id', uid)
+            .order('created_at', ascending: false)
+            .limit(200)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = followingRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'followers':
+        final followerRows = await _db
+            .from('activitypub_inbox')
+            .select(
+              'id,activity_type,actor_url,object_url,payload,processed,created_at',
+            )
+            .eq('local_user_id', uid)
+            .ilike('activity_type', '%Follow%')
+            .order('created_at', ascending: false)
+            .limit(200)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = followerRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'likes':
+        final reactions = await _db
+            .from('federated_reactions')
+            .select('object_uri,created_at')
+            .eq('user_id', uid)
+            .eq('reaction_type', 'like')
+            .order('created_at', ascending: false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        final uris = reactions
+            .map((row) => '${row['object_uri'] ?? ''}')
+            .where((uri) => uri.isNotEmpty)
+            .toList();
+        if (uris.isEmpty) return;
+        final likedRows = await _db
+            .from('federated_objects')
+            .select(
+              'id,uri,object_type,actor_uri,url,content,summary,published_at,attachments,tags,like_count,announce_count,reply_count,content_warning',
+            )
+            .inFilter('uri', uris)
+            .isFilter('deleted_at', null)
+            .eq('tombstone', false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = likedRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'tips':
+      case 'gifts':
+        _surfaceMessage =
+            'Tips and gifts do not yet have a native ActivityPub data contract.';
+        return;
+      default:
+        final actors = await _db
+            .from('activitypub_actors')
+            .select('actor_id,username,domain')
+            .eq('user_id', uid)
+            .limit(1)
+            .timeout(const Duration(seconds: 15));
+        if (actors.isEmpty) {
+          _surfaceMessage =
+              'Create a local Fediverse identity before viewing this profile surface.';
+          return;
+        }
+        final actorUri = '${actors.first['actor_id'] ?? ''}';
+        if (actorUri.isEmpty) {
+          _surfaceMessage =
+              'The local Fediverse identity has no canonical actor URI.';
+          return;
+        }
+        final profileRows = await _db
+            .from('federated_objects')
+            .select(
+              'id,uri,object_type,actor_uri,url,content,summary,published_at,in_reply_to_uri,attachments,tags,like_count,announce_count,reply_count,content_warning',
+            )
+            .eq('actor_uri', actorUri)
+            .isFilter('deleted_at', null)
+            .eq('tombstone', false)
+            .order('published_at', ascending: false)
+            .limit(200)
+            .timeout(const Duration(seconds: 15));
+        var items = profileRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        if (widget.section == 'replies') {
+          items = items.where((row) => row['in_reply_to_uri'] != null).toList();
+        } else if (widget.section == 'threads') {
+          items = items.where((row) => row['in_reply_to_uri'] == null).toList();
+        } else if (widget.section == 'media') {
+          items = items
+              .where(
+                (row) =>
+                    row['attachments'] is List &&
+                    (row['attachments'] as List).isNotEmpty,
+              )
+              .toList();
+        } else if (widget.section == 'videos') {
+          items = items
+              .where(
+                (row) =>
+                    '${row['object_type'] ?? ''}'.toLowerCase() == 'video' ||
+                    (row['attachments'] is List &&
+                        (row['attachments'] as List).any(
+                          (item) =>
+                              item is Map &&
+                              '${item['mediaType'] ?? item['media_type'] ?? ''}'
+                                  .startsWith('video/'),
+                        )),
+              )
+              .toList();
+        } else if (widget.section == 'podcasts') {
+          items = items
+              .where(
+                (row) => '${row['object_type'] ?? ''}'.toLowerCase() == 'audio',
+              )
+              .toList();
+        } else if (widget.section == 'series') {
+          items = items
+              .where(
+                (row) =>
+                    '${row['object_type'] ?? ''}'.toLowerCase() == 'series',
+              )
+              .toList();
+        }
+        _surfaceRows = items;
+        return;
+    }
+  }
+
+  Future<void> _removeSafetyControl(Map<String, dynamic> row) async {
+    final uid = _uid;
+    if (uid == null || row['id'] == null) return;
+    try {
+      if (row['kind'] == 'Blocked domain') {
+        await _db
+            .from('fediverse_domain_blocks')
+            .delete()
+            .eq('id', row['id'])
+            .eq('user_id', uid);
+      } else {
+        await _db
+            .from('fediverse_content_filters')
+            .delete()
+            .eq('id', row['id'])
+            .eq('user_id', uid);
+      }
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not remove this Fediverse safety control.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _markInboxProcessed(Map<String, dynamic> row) async {
+    final uid = _uid;
+    if (uid == null || row['id'] == null) return;
+    try {
+      await _db
+          .from('activitypub_inbox')
+          .update({'processed': true})
+          .eq('id', row['id'])
+          .eq('local_user_id', uid);
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not mark this inbox activity as processed.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _react(Map<String, dynamic> post, String kind) async {
+    final uid = _uid;
+    if (uid == null) {
+      context.go('/auth');
+      return;
+    }
+    final uri = '${post['uri'] ?? ''}';
+    if (!uri.startsWith('https://')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This remote post has no valid ActivityPub URI.'),
+        ),
+      );
+      return;
+    }
+    final set = kind == 'like' ? _liked : _boosted;
+    final wasActive = set.contains(uri);
+    setState(() {
+      wasActive ? set.remove(uri) : set.add(uri);
+    });
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': wasActive
+              ? (kind == 'like' ? '/unfavorite' : '/unboost')
+              : (kind == 'like' ? '/favorite' : '/boost'),
+          'method': 'POST',
+          'body': {'post_id': uri},
+        },
+      );
+      if (response.data == null) throw StateError('empty response');
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          wasActive ? set.add(uri) : set.remove(uri);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Federated action failed. Your local state was restored.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _feedScrollController.dispose();
+    _mastodonSearchController.dispose();
+    super.dispose();
+  }
+
+  // Keep the profile surface rendered in-app; external navigation is intentionally restricted.
+  @override
+  Widget build(BuildContext context) {
+    if (widget.instancesOnly ||
+        widget.section == 'discover' ||
+        widget.section == 'organic-discovery') {
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(14),
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => context.go('/fediverse'),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Text(_error!),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ],
+                ),
+              ),
+            ..._instances.map(
+              (i) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.public_rounded),
+                  ),
+                  title: Text(
+                    '${i['domain']}',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    '${i['software'] ?? i['provider'] ?? 'ActivityPub'} · Last synced ${i['last_fetched_at'] ?? 'not yet'}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        controller: _feedScrollController,
+        padding: const EdgeInsets.all(14),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Discover instances',
+                onPressed: () => context.go('/fediverse/instances'),
+                icon: const Icon(Icons.public_rounded),
+              ),
+              IconButton(
+                tooltip: 'Refresh timeline',
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (widget.actorUri != null && _remoteProfile.isNotEmpty) ...[
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 104,
+                    width: double.infinity,
+                    child: _remoteProfile['header_url'] is String
+                        ? Image.network(
+                            '${_remoteProfile['header_url']}',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const ColoredBox(color: Color(0x22336699)),
+                          )
+                        : const ColoredBox(color: Color(0x22336699)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundImage:
+                                  _remoteProfile['avatar_url'] is String
+                                      ? NetworkImage(
+                                          '${_remoteProfile['avatar_url']}',
+                                        )
+                                      : null,
+                              child: _remoteProfile['avatar_url'] is String
+                                  ? null
+                                  : const Icon(Icons.person_rounded),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_remoteProfile['display_name'] ?? _remoteProfile['username']}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
+                                  Text(
+                                    '@${_remoteProfile['username']}@${_remoteProfile['domain']}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_remoteProfile['bot'] == true)
+                              const Tooltip(
+                                message: 'Bot or service account',
+                                child: Icon(Icons.smart_toy_outlined),
+                              ),
+                            if (_remoteProfile['locked'] == true)
+                              const Tooltip(
+                                message: 'Follow requests require approval',
+                                child: Icon(Icons.lock_outline_rounded),
+                              ),
+                          ],
+                        ),
+                        if ('${_remoteProfile['bio'] ?? ''}'.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(
+                              _plainRemoteContent('${_remoteProfile['bio']}'),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 18,
+                          runSpacing: 8,
+                          children: [
+                            _profileMetric(
+                              'Followers',
+                              _remoteProfile['followers_count'],
+                              'followers',
+                            ),
+                            _profileMetric(
+                              'Following',
+                              _remoteProfile['following_count'],
+                              'following',
+                            ),
+                            _profileMetric(
+                              'Posts',
+                              _remoteProfile['posts_count'],
+                              'posts',
+                            ),
+                            if (_remoteProfile['created_at'] is String)
+                              Text(
+                                'Joined ${'${_remoteProfile['created_at']}'.split('T').first}',
+                              ),
+                            if (_remoteProfile['discoverable'] == false)
+                              const Text('Not listed in discovery'),
+                            if (_remoteProfile['actor_type'] is String)
+                              Text('Type: ${_remoteProfile['actor_type']}'),
+                            if (_remoteProfile['indexable'] == false)
+                              const Text('Not indexable'),
+                            if (_remoteProfile['limited'] == true)
+                              const Text('Limited'),
+                            if (_remoteProfile['suspended'] == true)
+                              const Text('Suspended'),
+                            if (_remoteProfile['last_status_at'] is String)
+                              Text(
+                                'Last public status: ${'${_remoteProfile['last_status_at']}'.split('T').first}',
+                              ),
+                          ],
+                        ),
+                        if (_remoteProfile['fields'] is List &&
+                            (_remoteProfile['fields'] as List).isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          ...(_remoteProfile['fields'] as List)
+                              .whereType<Map>()
+                              .map(
+                                (field) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 100,
+                                        child: Text(
+                                          '${field['name'] ?? 'Field'}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          _plainRemoteContent(
+                                            '${field['value'] ?? field['content'] ?? ''}',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                        ],
+                        if (_remoteProfile['also_known_as'] is List &&
+                            (_remoteProfile['also_known_as'] as List)
+                                .isNotEmpty)
+                          Text(
+                            'Also known as: ${(_remoteProfile['also_known_as'] as List).map((item) => item is Map ? item['id'] : item).join(' · ')}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        if (_remoteProfile['tag'] is List &&
+                            (_remoteProfile['tag'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: (_remoteProfile['tag'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (tag) => Chip(
+                                      label: Text(
+                                        '${tag['name'] ?? tag['href'] ?? 'Tag'}',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        if (_remoteProfile['emojis'] is List &&
+                            (_remoteProfile['emojis'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              children: (_remoteProfile['emojis'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (emoji) => Chip(
+                                      label: Text(
+                                        ':${emoji['shortcode'] ?? emoji['name'] ?? 'emoji'}:',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final entry in const [
+                    ('Posts', 'posts'),
+                    ('Featured', 'featured'),
+                    ('Threads', 'threads'),
+                    ('Replies', 'replies'),
+                    ('Media', 'media'),
+                    ('Videos', 'videos'),
+                    ('Podcasts', 'podcasts'),
+                    ('Series', 'series'),
+                    ('Likes', 'likes'),
+                    ('Tips', 'tips'),
+                    ('Gifts', 'gifts'),
+                    ('Analytics', 'profile-analytics'),
+                    ('Followers', 'followers'),
+                    ('Following', 'following'),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(entry.$1),
+                        selected: widget.section == entry.$2 ||
+                            (widget.section == 'profile' &&
+                                entry.$2 == 'posts'),
+                        onSelected: (_) => context.push(
+                          '/fediverse/profile/${entry.$2}?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (widget.section == 'mastodon')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _mastodonSearchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _searchMastodon(),
+                      decoration: const InputDecoration(
+                        hintText: 'Search public Mastodon posts',
+                        prefixIcon: Icon(Icons.search_rounded),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    tooltip: 'Search Mastodon',
+                    onPressed: _searchingMastodon ? null : _searchMastodon,
+                    icon: _searchingMastodon
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.search_rounded),
+                  ),
+                ],
+              ),
+            ),
+          if (_surfaceMessage != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(_surfaceMessage!),
+              ),
+            ),
+          if (_surfaceMetrics.isNotEmpty)
+            ..._surfaceMetrics.entries.map(
+              (entry) => Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.insights_rounded),
+                  ),
+                  title: Text(entry.key),
+                  trailing: Text(
+                    '${entry.value}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ),
+          if ((_sectionNeedsDedicatedBackend ||
+                  (_isProfileSection &&
+                      const {
+                        'followers',
+                        'following',
+                        'featured',
+                        'likes',
+                      }.contains(widget.section))) &&
+              !_loading &&
+              _error == null &&
+              _surfaceMessage == null &&
+              _surfaceMetrics.isEmpty &&
+              _surfaceRows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('Nothing to show here yet.')),
+            ),
+          if (_sectionNeedsDedicatedBackend ||
+              (_isProfileSection &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
+                  }.contains(widget.section))) ...[
+            ..._surfaceRows.map((row) {
+              final title =
+                  '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
+              final subtitle =
+                  '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
+              final detail =
+                  '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
+              final isRelationship =
+                  const {'followers', 'following'}.contains(widget.section) &&
+                      widget.actorUri != null;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: isRelationship && row['actor_uri'] is String
+                      ? () => context.push(
+                            '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
+                          )
+                      : null,
+                  leading: isRelationship && _localizedMediaUrl(row['avatar_url']).isNotEmpty
+                      ? CircleAvatar(
+                          backgroundImage: CachedNetworkImageProvider(
+                            _localizedMediaUrl(row['avatar_url']),
+                          ),
+                        )
+                      : Icon(
+                          widget.section == 'inbox'
+                              ? Icons.inbox_rounded
+                              : widget.section == 'relay'
+                                  ? Icons.outbox_rounded
+                                  : widget.section == 'controls'
+                                      ? Icons.shield_rounded
+                                      : Icons.public_rounded,
+                        ),
+                  title: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    [
+                      subtitle,
+                      if (isRelationship && row['followers_count'] is num)
+                        '${row['followers_count']} followers',
+                      if (isRelationship && row['following_count'] is num)
+                        '${row['following_count']} following',
+                      if (isRelationship && row['bio'] is String)
+                        _plainRemoteContent('${row['bio']}'),
+                      detail,
+                    ]
+                        .where((value) => value.isNotEmpty && value != '{}')
+                        .join('\n'),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: widget.section == 'inbox' &&
+                          row['processed'] != true
+                      ? IconButton(
+                          tooltip: 'Mark processed',
+                          onPressed: () => _markInboxProcessed(row),
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                        )
+                      : widget.section == 'relay'
+                          ? Icon(
+                              row['delivered'] == true
+                                  ? Icons.check_circle_rounded
+                                  : Icons.schedule_rounded,
+                            )
+                          : widget.section == 'controls'
+                              ? IconButton(
+                                  tooltip: 'Remove safety control',
+                                  onPressed: () => _removeSafetyControl(row),
+                                  icon:
+                                      const Icon(Icons.delete_outline_rounded),
+                                )
+                              : null,
+                ),
+              );
+            }),
+            if (const {
+                  'followers',
+                  'following',
+                  'featured',
+                  'likes',
+                }.contains(widget.section) &&
+                _relationshipCursor != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: OutlinedButton.icon(
+                    onPressed: _loadingMoreRelationships
+                        ? null
+                        : _loadMoreRemoteRelationships,
+                    icon: _loadingMoreRelationships
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.expand_more_rounded),
+                    label: Text(
+                      _loadingMoreRelationships
+                          ? 'Loading…'
+                          : 'Load more ${widget.section}',
+                    ),
+                  ),
+                ),
+              ),
+          ],
+          if (widget.section == 'discover' ||
+              widget.section == 'organic-discovery')
+            const Text(
+              'Discover public instances and open social communities.',
+            ),
+          if (!_sectionNeedsDedicatedBackend &&
+              widget.section != 'discover' &&
+              widget.section != 'organic-discovery')
+            const Text(
+              'A cached ActivityPub timeline from the open social web.',
+            ),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Text(_error!),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
+                ],
+              ),
+            ),
+          if (!_loading &&
+              _posts.isEmpty &&
+              _error == null &&
+              !(widget.actorUri != null &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                  }.contains(widget.section)))
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: Text(
+                  'No federated posts are cached yet. Refresh later.',
+                ),
+              ),
+            ),
+          if (!_sectionNeedsDedicatedBackend &&
+              !(widget.actorUri != null &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
+                  }.contains(widget.section)) &&
+              _visiblePosts.isEmpty &&
+              !_loading &&
+              _error == null)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Text(
+                  'No items are available in ${widget.title.toLowerCase()} yet.',
+                ),
+              ),
+            ),
+          if (_pendingPosts.isNotEmpty && !_sectionNeedsDedicatedBackend)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 12),
+              child: Center(
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    setState(() {
+                      _posts = applyPendingFediversePosts(
+                        _posts,
+                        _pendingPosts,
+                      );
+                      _pendingPosts = [];
+                    });
+                    // Scroll to the top only after explicit user intent.
+                    _feedScrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_upward_rounded),
+                  label: Text(
+                    '${_pendingPosts.length} new ${_pendingPosts.length == 1 ? 'post' : 'posts'} · Show',
+                  ),
+                ),
+              ),
+            ),
+          if (!_sectionNeedsDedicatedBackend)
+            ..._visiblePosts.map((p) {
+              final actor = (p['actor'] as Map<String, dynamic>?) ?? {};
+              final handle =
+                  '${actor['username'] ?? 'remote'}@${actor['domain'] ?? 'fediverse'}';
+              final name = '${actor['display_name'] ?? handle}';
+              final uri = '${p['uri'] ?? ''}';
+              final url = '${p['url'] ?? uri}';
+              final sensitive = p['sensitive'] == true ||
+                  '${p['content_warning'] ?? ''}'.isNotEmpty;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundImage:
+                                _localizedMediaUrl(actor['avatar_url']).isNotEmpty
+                                    ? CachedNetworkImageProvider(
+                                        _localizedMediaUrl(actor['avatar_url']),
+                                      )
+                                    : null,
+                            child: _localizedMediaUrl(actor['avatar_url']).isNotEmpty
+                                ? null
+                                : const Icon(Icons.person_outline_rounded),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  '@$handle',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.public_rounded,
+                            semanticLabel:
+                                'Federated post shown inside Testagram',
+                          ),
+                        ],
+                      ),
+                      if (sensitive)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            'Content warning: ${p['content_warning'] ?? 'sensitive media'}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                      if (sensitive && !_revealedSensitive.contains(uri))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'This post is marked sensitive. Its content and media are available here on Testagram.',
+                              ),
+                              TextButton.icon(
+                                onPressed: () => setState(
+                                  () => _revealedSensitive.add(uri),
+                                ),
+                                icon: const Icon(Icons.visibility_rounded),
+                                label: const Text('Reveal content on Testagram'),
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: SelectableText(
+                            '${p['content'] ?? p['summary'] ?? ''}',
+                          ),
+                        ),
+                        ..._renderAttachments(p['attachments']),
+                      ],
+                      if (p['tags'] is List && (p['tags'] as List).isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Wrap(
+                            spacing: 6,
+                            children: (p['tags'] as List)
+                                .take(6)
+                                .map(
+                                  (tag) => Chip(
+                                    label: Text(
+                                      '#${tag is Map ? tag['name'] ?? '' : tag}',
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _react(p, 'like'),
+                            icon: Icon(
+                              _liked.contains(uri)
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color: _liked.contains(uri) ? Colors.pink : null,
+                            ),
+                            label: Text('${p['like_count'] ?? '—'}'),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _react(p, 'boost'),
+                            icon: Icon(
+                              Icons.repeat_rounded,
+                              color:
+                                  _boosted.contains(uri) ? Colors.green : null,
+                            ),
+                            label: Text('${p['announce_count'] ?? '—'}'),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${p['reply_count'] ?? '—'} replies',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          IconButton(
+                            tooltip: 'Share',
+                            onPressed: () => Share.share('$name\n$url'),
+                            icon: const Icon(Icons.share_rounded),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          if (widget.actorUri != null &&
+              _remoteTimelineCursor != null &&
+              !const {
+                'followers',
+                'following',
+                'featured',
+                'likes',
+                'tips',
+                'gifts',
+                'profile-analytics',
+              }.contains(widget.section))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: OutlinedButton.icon(
+                  onPressed: _loadingMoreRemoteTimeline
+                      ? null
+                      : _loadMoreRemoteTimeline,
+                  icon: _loadingMoreRemoteTimeline
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.expand_more_rounded),
+                  label: Text(
+                    _loadingMoreRemoteTimeline ? 'Loading…' : 'Load more posts',
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+).hasMatch(path)) {
+      return 'video/mp4';
+    }
+    if (RegExp(r'\\.(mp3|m4a|aac|ogg|opus|wav|flac)
+  Widget _profileMetric(String label, dynamic value, String route) {
+    final display = value is num ? value.toInt().toString() : '—';
+    return InkWell(
+      onTap: const {'followers', 'following'}.contains(route) &&
+              widget.actorUri != null
+          ? () => context.push(
+                '/fediverse/profile/$route?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
+              )
+          : null,
+      child: Text(
+        '$display $label',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: const {'followers', 'following'}.contains(route)
+              ? Theme.of(context).colorScheme.primary
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic> _normalizeMastodonStatus(dynamic value) {
+    final status = Map<String, dynamic>.from(value as Map);
+    final account = status['account'] is Map
+        ? Map<String, dynamic>.from(status['account'] as Map)
+        : <String, dynamic>{};
+    final acct = '${account['acct'] ?? account['username'] ?? 'remote'}';
+    final parts = acct.split('@');
+    final domain =
+        parts.length > 1 ? parts.last : Uri.parse(_mastodonInstance).host;
+    final media = status['media_attachments'] is List
+        ? (status['media_attachments'] as List).whereType<Map>().map((item) {
+            final attachment = Map<String, dynamic>.from(item);
+            return <String, dynamic>{
+              'url': attachment['url'] ?? attachment['preview_url'],
+              'mediaType': switch ('${attachment['type'] ?? ''}') {
+                'video' => 'video/mp4',
+                'audio' => 'audio/mpeg',
+                _ => 'image/*',
+              },
+              'name': attachment['description'],
+            };
+          }).toList()
+        : <Map<String, dynamic>>[];
+    final uri = '${status['uri'] ?? status['url'] ?? ''}';
+    return <String, dynamic>{
+      'id': status['id'],
+      'uri': uri,
+      'url': status['url'] ?? uri,
+      'object_type': 'Note',
+      'content': _plainRemoteContent('${status['content'] ?? ''}'),
+      'summary': _plainRemoteContent('${status['spoiler_text'] ?? ''}'),
+      'content_warning': status['spoiler_text'] ?? '',
+      'sensitive': status['sensitive'] == true,
+      'published_at': status['created_at'],
+      'attachments': media,
+      'like_count': status['favourites_count'] ?? 0,
+      'announce_count': status['reblogs_count'] ?? 0,
+      'reply_count': status['replies_count'] ?? 0,
+      'actor': <String, dynamic>{
+        'username': parts.first,
+        'domain': domain,
+        'display_name': account['display_name'],
+        'avatar_url': account['avatar'],
+        'actor_uri': account['url'] ?? account['uri'],
+      },
+    };
+  }
+
+  Future<void> _loadMastodonTimeline({String? query}) async {
+    final action =
+        query == null || query.trim().isEmpty ? 'public_timeline' : 'search';
+    final response = await _db.functions.invoke(
+      'megalodon-gateway',
+      body: {
+        'action': action,
+        'instance': _mastodonInstance,
+        'limit': 30,
+        if (action == 'search') 'query': query!.trim(),
+        if (action == 'search') 'type': 'statuses',
+      },
+    ).timeout(const Duration(seconds: 15));
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        'Mastodon timeline service returned an invalid response.',
+      );
+    }
+    final result = data['result'];
+    final statuses = data['statuses'] ??
+        (result is Map ? result['statuses'] : null) ??
+        (result is List ? result : null);
+    if (statuses is! List) {
+      throw StateError('Mastodon timeline response did not contain statuses.');
+    }
+    final normalized = statuses
+        .whereType<Map>()
+        .map(_normalizeMastodonStatus)
+        .where((post) => '${post['uri'] ?? ''}'.startsWith('https://'))
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _posts = normalized;
+      _pendingPosts = [];
+      _liked
+        ..clear()
+        ..addAll(
+          statuses
+              .whereType<Map>()
+              .where((status) => status['favourited'] == true)
+              .map((status) => '${status['uri'] ?? ''}'),
+        );
+      _boosted
+        ..clear()
+        ..addAll(
+          statuses
+              .whereType<Map>()
+              .where((status) => status['reblogged'] == true)
+              .map((status) => '${status['uri'] ?? ''}'),
+        );
+    });
+  }
+
+  Future<void> _searchMastodon() async {
+    final query = _mastodonSearchController.text.trim();
+    if (query.isEmpty) {
+      await _load();
+      return;
+    }
+    setState(() {
+      _searchingMastodon = true;
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await _loadMastodonTimeline(query: query);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error =
+              'Mastodon search failed. Check the instance or try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _searchingMastodon = false;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadRemoteProfile() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    if (!actorUri.startsWith('https://') ||
+        Uri.tryParse(actorUri)?.host.isEmpty != false) {
+      _surfaceMessage =
+          'This profile has no valid HTTPS ActivityPub actor URL.';
+      return;
+    }
+    final response = await _db.functions.invoke(
+      'testagram-api',
+      body: {
+        'path': '/federated-profile',
+        'method': 'GET',
+        'params': {
+          'actor_uri': actorUri,
+          'limit': const {
+            'followers',
+            'following',
+            'featured',
+            'likes',
+          }.contains(widget.section)
+              ? 1
+              : 80,
+        },
+      },
+    ).timeout(const Duration(seconds: 20));
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError('Remote profile service returned an invalid response.');
+    }
+    final actor = data['actor'] is Map
+        ? Map<String, dynamic>.from(data['actor'] as Map)
+        : <String, dynamic>{};
+    final domain = Uri.parse(actorUri).host;
+    final username =
+        '${actor['preferredUsername'] ?? widget.handle ?? 'remote'}'
+            .replaceFirst(RegExp(r'^@'), '')
+            .split('@')
+            .first;
+    final responseCounts = data['counts'] is Map
+        ? Map<String, dynamic>.from(data['counts'] as Map)
+        : <String, dynamic>{};
+    final profileFollowers = _remoteCount(
+          actor['followers'] is Map
+              ? (actor['followers'] as Map)['totalItems']
+              : actor['followers'] ??
+                  actor['followers_count'] ??
+                  actor['followersCount'],
+        ) ??
+        _remoteCount(
+          data['followers_count'] ??
+              data['followersCount'] ??
+              responseCounts['followers'] ??
+              responseCounts['followers_count'],
+        );
+    final profileFollowing = _remoteCount(
+          actor['following'] is Map
+              ? (actor['following'] as Map)['totalItems']
+              : actor['following'] ??
+                  actor['following_count'] ??
+                  actor['followingCount'],
+        ) ??
+        _remoteCount(
+          data['following_count'] ??
+              data['followingCount'] ??
+              responseCounts['following'] ??
+              responseCounts['following_count'],
+        );
+    if (mounted) {
+      setState(() {
+        _remoteProfile = {
+          ...actor,
+          'actor_uri': actorUri,
+          'username': username,
+          'domain': domain,
+          'display_name': actor['name'] ?? username,
+          'bio': actor['summary'] ?? '',
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
+          'header_url': _remoteUrl(
+            actor['image'] is Map ? actor['image']['url'] : actor['image'],
+          ),
+          'followers_count': _remoteCount(profileFollowers),
+          'following_count': _remoteCount(profileFollowing),
+          'posts_count': _remoteCount(
+            actor['outbox'] is Map
+                ? actor['outbox']['totalItems']
+                : actor['statuses_count'] ?? actor['statusesCount'],
+          ),
+          'created_at': actor['published'],
+          'profile_url': _remoteUrl(actor['url']),
+          'actor_type': actor['type'] ?? 'Person',
+          'locked': actor['manuallyApprovesFollowers'] == true,
+          'bot': actor['type'] == 'Service',
+          'discoverable': actor['discoverable'] != false,
+          'indexable': actor['indexable'] != false,
+          'limited': actor['limited'] == true,
+          'suspended': actor['suspended'] == true,
+          'last_status_at': actor['lastStatusAt'] ?? actor['last_status_at'],
+          'fields':
+              actor['attachment'] is List ? actor['attachment'] : const [],
+          'emojis': actor['emoji'] is List ? actor['emoji'] : const [],
+          'moved_to':
+              actor['moved'] is Map ? actor['moved']['id'] : actor['moved'],
+          'also_known_as':
+              actor['alsoKnownAs'] is List ? actor['alsoKnownAs'] : const [],
+        };
+      });
+    }
+    if (const {'tips', 'gifts'}.contains(widget.section)) {
+      if (mounted) {
+        setState(() {
+          _posts = [];
+          _surfaceRows = [];
+          _surfaceMetrics = {};
+          _surfaceMessage =
+              'Tips and gifts are Testagram-native features and are not exposed as public ActivityPub profile data.';
+        });
+      }
+      return;
+    }
+    if (const {
+      'followers',
+      'following',
+      'featured',
+      'likes',
+    }.contains(widget.section)) {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {
+            'actor_uri': actorUri,
+            'kind': widget.section,
+            'limit': 30,
+          },
+        },
+      ).timeout(const Duration(seconds: 25));
+      final result = response.data;
+      if (result is! Map || result['ok'] != true) {
+        throw StateError('Remote ${widget.section} collection is unavailable.');
+      }
+      final rows = result['items'] is List
+          ? (result['items'] as List)
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() {
+        _surfaceRows = rows;
+        _relationshipCursor = result['next_cursor'] is String
+            ? result['next_cursor'] as String
+            : null;
+        final total = _remoteCount(
+          result['totalItems'] ?? result['total_items'] ?? result['total'],
+        );
+        if (total != null &&
+            const {'followers', 'following'}.contains(widget.section)) {
+          _remoteProfile[widget.section == 'followers'
+              ? 'followers_count'
+              : 'following_count'] = total;
+        }
+        final metricLabel = switch (widget.section) {
+          'followers' => 'Followers reported',
+          'following' => 'Following reported',
+          'featured' => 'Featured posts reported',
+          'likes' => 'Public likes reported',
+          _ => 'Items reported',
+        };
+        _surfaceMetrics = total != null ? {metricLabel: total.toInt()} : {};
+        _surfaceMessage = result['unavailable'] == true
+            ? 'This remote instance does not publish a public ${widget.section} collection.'
+            : rows.isEmpty
+                ? 'No public ${widget.section} were returned. The remote instance may hide this collection.'
+                : null;
+        _posts = [];
+      });
+      return;
+    }
+    _remoteTimelineCursor =
+        data['next_cursor'] is String ? data['next_cursor'] as String : null;
+    final items = data['items'] is List ? data['items'] as List : const [];
+    final posts = <Map<String, dynamic>>[];
+    for (final item in items.whereType<Map>()) {
+      final object = item['object'] is Map
+          ? Map<String, dynamic>.from(item['object'] as Map)
+          : Map<String, dynamic>.from(item);
+      final uri = '${object['id'] ?? object['url'] ?? ''}';
+      if (!uri.startsWith('https://') ||
+          object['type'] == 'Tombstone' ||
+          object['type'] == 'Delete') {
+        continue;
+      }
+      final attachments = object['attachment'] is List
+          ? object['attachment'] as List
+          : object['attachment'] == null
+              ? const []
+              : [object['attachment']];
+      posts.add(<String, dynamic>{
+        'id': uri,
+        'uri': uri,
+        'url': object['url'] is String ? object['url'] : uri,
+        'object_type': object['type'] ?? 'Note',
+        'content': _plainRemoteContent(
+          '${object['content'] ?? object['summary'] ?? ''}',
+        ),
+        'summary': object['summary'] ?? '',
+        'content_warning': object['summary'] ?? '',
+        'sensitive': object['sensitive'] == true,
+        'published_at': object['published'] ?? object['updated'],
+        'in_reply_to_uri': object['inReplyTo'],
+        'attachments': attachments,
+        'tags': object['tag'] is List ? object['tag'] : const [],
+        'actor_uri': actorUri,
+        'actor': <String, dynamic>{
+          'username': username,
+          'domain': domain,
+          'display_name': actor['name'] ?? username,
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
+          'actor_uri': actorUri,
+        },
+        'like_count': object['likes'] is Map
+            ? object['likes']['totalItems']
+            : object['like_count'] ?? object['likeCount'],
+        'announce_count': object['shares'] is Map
+            ? object['shares']['totalItems']
+            : object['announce_count'] ?? object['shareCount'],
+        'reply_count': object['replies'] is Map
+            ? object['replies']['totalItems']
+            : object['reply_count'] ?? object['replyCount'],
+      });
+    }
+    if (!mounted) return;
+    setState(() {
+      _posts = posts;
+      _pendingPosts = [];
+      if (widget.section == 'profile-analytics') {
+        _surfaceMetrics = {
+          'Public posts loaded': posts.length,
+          'Media posts loaded': posts
+              .where(
+                (post) =>
+                    post['attachments'] is List &&
+                    (post['attachments'] as List).isNotEmpty,
+              )
+              .length,
+          if (_remoteProfile['posts_count'] is num)
+            'Posts reported by server':
+                (_remoteProfile['posts_count'] as num).toInt(),
+          if (_remoteProfile['followers_count'] is num)
+            'Followers reported':
+                (_remoteProfile['followers_count'] as num).toInt(),
+          if (_remoteProfile['following_count'] is num)
+            'Following reported':
+                (_remoteProfile['following_count'] as num).toInt(),
+        };
+        _surfaceMessage =
+            'Counts marked reported come from the remote server; loaded totals only describe the public items fetched here.';
+      } else {
+        _surfaceMessage = posts.isEmpty
+            ? 'No public posts were returned for this federated profile.'
+            : null;
+      }
+    });
+  }
+
+  Future<void> _loadMoreRemoteRelationships() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    final cursor = _relationshipCursor;
+    if (!actorUri.startsWith('https://') ||
+        cursor == null ||
+        _loadingMoreRelationships) {
+      return;
+    }
+    setState(() => _loadingMoreRelationships = true);
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {
+            'actor_uri': actorUri,
+            'kind': widget.section,
+            'limit': 30,
+            'cursor': cursor,
+          },
+        },
+      ).timeout(const Duration(seconds: 25));
+      final result = response.data;
+      if (result is! Map || result['ok'] != true) {
+        throw StateError('Could not load more remote relationships.');
+      }
+      final rows = result['items'] is List
+          ? (result['items'] as List)
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+      final seen = _surfaceRows
+          .map((row) => '${row['actor_uri'] ?? row['id'] ?? row['url']}')
+          .toSet();
+      if (mounted) {
+        setState(() {
+          _surfaceRows.addAll(
+            rows.where((row) {
+              final key = '${row['actor_uri'] ?? row['id'] ?? row['url']}';
+              return key.isNotEmpty && seen.add(key);
+            }),
+          );
+          _relationshipCursor = result['next_cursor'] is String
+              ? result['next_cursor'] as String
+              : null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load more ${widget.section}: $error'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMoreRelationships = false);
+    }
+  }
+
+  Future<void> _loadMoreRemoteTimeline() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    final cursor = _remoteTimelineCursor;
+    if (!actorUri.startsWith('https://') ||
+        cursor == null ||
+        _loadingMoreRemoteTimeline) {
+      return;
+    }
+    setState(() => _loadingMoreRemoteTimeline = true);
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-profile',
+          'method': 'GET',
+          'params': {'actor_uri': actorUri, 'limit': 60, 'cursor': cursor},
+        },
+      ).timeout(const Duration(seconds: 25));
+      final data = response.data;
+      if (data is! Map || data['ok'] != true) {
+        throw StateError('Remote timeline pagination failed.');
+      }
+      final items = data['items'] is List ? data['items'] as List : const [];
+      final rows = <Map<String, dynamic>>[];
+      for (final item in items.whereType<Map>()) {
+        final object = item['object'] is Map
+            ? Map<String, dynamic>.from(item['object'] as Map)
+            : Map<String, dynamic>.from(item);
+        final uri = '${object['id'] ?? object['url'] ?? ''}';
+        if (!uri.startsWith('https://') ||
+            const {'Delete', 'Tombstone'}.contains(object['type'])) {
+          continue;
+        }
+        final attachments = object['attachment'] is List
+            ? object['attachment'] as List
+            : object['attachment'] == null
+                ? const []
+                : [object['attachment']];
+        rows.add({
+          'id': uri,
+          'uri': uri,
+          'url': object['url'] is String ? object['url'] : uri,
+          'object_type': object['type'] ?? 'Note',
+          'content': _plainRemoteContent(
+            '${object['content'] ?? object['summary'] ?? ''}',
+          ),
+          'summary': object['summary'] ?? '',
+          'sensitive': object['sensitive'] == true,
+          'content_warning': object['summary'] ?? '',
+          'published_at': object['published'] ?? object['updated'],
+          'in_reply_to_uri': object['inReplyTo'],
+          'attachments': attachments,
+          'tags': object['tag'] is List ? object['tag'] : const [],
+          'actor_uri': actorUri,
+          'actor': _remoteProfile,
+          'like_count': object['likes'] is Map
+              ? object['likes']['totalItems']
+              : object['like_count'] ?? object['likeCount'],
+          'announce_count': object['shares'] is Map
+              ? object['shares']['totalItems']
+              : object['announce_count'] ?? object['shareCount'],
+          'reply_count': object['replies'] is Map
+              ? object['replies']['totalItems']
+              : object['reply_count'] ?? object['replyCount'],
+        });
+      }
+      final seen = _posts.map((post) => '${post['uri'] ?? post['id']}').toSet();
+      if (mounted) {
+        setState(() {
+          _posts.addAll(
+            rows.where((row) => seen.add('${row['uri'] ?? row['id']}')),
+          );
+          _remoteTimelineCursor = data['next_cursor'] is String
+              ? data['next_cursor'] as String
+              : null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load more public posts: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMoreRemoteTimeline = false);
+    }
+  }
+
+  Future<void> _loadDedicatedSection() async {
+    final uid = _uid;
+    if (uid == null) {
+      _surfaceMessage = 'Sign in to use this Fediverse feature.';
+      return;
+    }
+
+    switch (widget.section) {
+      case 'inbox':
+        final inboxRows = await _db
+            .from('activitypub_inbox')
+            .select(
+              'id,activity_type,actor_url,object_url,payload,processed,created_at',
+            )
+            .eq('local_user_id', uid)
+            .order('created_at', ascending: false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = inboxRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'identity':
+        final identityRows = await _db
+            .from('activitypub_actors')
+            .select(
+              'id,actor_id,username,domain,inbox_url,outbox_url,followers_url,following_url,public_key_pem,created_at,updated_at',
+            )
+            .eq('user_id', uid)
+            .limit(10)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = identityRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        if (_surfaceRows.isEmpty) {
+          _surfaceMessage =
+              'No local ActivityPub identity is registered for this account yet.';
+        }
+        return;
+      case 'relay':
+        final relayRows = await _db
+            .from('activitypub_outbox')
+            .select('id,activity_type,activity_id,payload,delivered,created_at')
+            .eq('local_user_id', uid)
+            .order('created_at', ascending: false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = relayRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'controls':
+        final results = await Future.wait([
+          _db
+              .from('fediverse_domain_blocks')
+              .select('id,domain,created_at')
+              .eq('user_id', uid)
+              .limit(100),
+          _db
+              .from('fediverse_content_filters')
+              .select('id,name,phrase,action,contexts,expires_at,created_at')
+              .eq('user_id', uid)
+              .limit(100),
+        ]);
+        _surfaceRows = [
+          ...(results[0] as List).map(
+            (row) => {
+              'kind': 'Blocked domain',
+              ...Map<String, dynamic>.from(row as Map),
+            },
+          ),
+          ...(results[1] as List).map(
+            (row) => {
+              'kind': 'Content filter',
+              ...Map<String, dynamic>.from(row as Map),
+            },
+          ),
+        ];
+        if (_surfaceRows.isEmpty) {
+          _surfaceMessage =
+              'No domain blocks or content filters are configured.';
+        }
+        return;
+      case 'analytics':
+      case 'profile-analytics':
+        final results = await Future.wait([
+          _db.from('federated_objects').select('id').limit(1000),
+          _db.from('federated_actors').select('id').limit(1000),
+          _db
+              .from('federated_reactions')
+              .select('id')
+              .eq('user_id', uid)
+              .limit(1000),
+          _db.from('federated_instances').select('id').limit(1000),
+          _db
+              .from('activitypub_outbox')
+              .select('id')
+              .eq('local_user_id', uid)
+              .limit(1000),
+        ]);
+        _surfaceMetrics = {
+          'Cached posts (sample)': (results[0] as List).length,
+          'Known actors (sample)': (results[1] as List).length,
+          'Your reactions': (results[2] as List).length,
+          'Known instances (sample)': (results[3] as List).length,
+          'Your activities': (results[4] as List).length,
+        };
+        return;
+      case 'following':
+        final followingRows = await _db
+            .from('federated_following')
+            .select(
+              'id,remote_actor_url,remote_username,remote_domain,created_at',
+            )
+            .eq('local_user_id', uid)
+            .order('created_at', ascending: false)
+            .limit(200)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = followingRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'followers':
+        final followerRows = await _db
+            .from('activitypub_inbox')
+            .select(
+              'id,activity_type,actor_url,object_url,payload,processed,created_at',
+            )
+            .eq('local_user_id', uid)
+            .ilike('activity_type', '%Follow%')
+            .order('created_at', ascending: false)
+            .limit(200)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = followerRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'likes':
+        final reactions = await _db
+            .from('federated_reactions')
+            .select('object_uri,created_at')
+            .eq('user_id', uid)
+            .eq('reaction_type', 'like')
+            .order('created_at', ascending: false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        final uris = reactions
+            .map((row) => '${row['object_uri'] ?? ''}')
+            .where((uri) => uri.isNotEmpty)
+            .toList();
+        if (uris.isEmpty) return;
+        final likedRows = await _db
+            .from('federated_objects')
+            .select(
+              'id,uri,object_type,actor_uri,url,content,summary,published_at,attachments,tags,like_count,announce_count,reply_count,content_warning',
+            )
+            .inFilter('uri', uris)
+            .isFilter('deleted_at', null)
+            .eq('tombstone', false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        _surfaceRows = likedRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        return;
+      case 'tips':
+      case 'gifts':
+        _surfaceMessage =
+            'Tips and gifts do not yet have a native ActivityPub data contract.';
+        return;
+      default:
+        final actors = await _db
+            .from('activitypub_actors')
+            .select('actor_id,username,domain')
+            .eq('user_id', uid)
+            .limit(1)
+            .timeout(const Duration(seconds: 15));
+        if (actors.isEmpty) {
+          _surfaceMessage =
+              'Create a local Fediverse identity before viewing this profile surface.';
+          return;
+        }
+        final actorUri = '${actors.first['actor_id'] ?? ''}';
+        if (actorUri.isEmpty) {
+          _surfaceMessage =
+              'The local Fediverse identity has no canonical actor URI.';
+          return;
+        }
+        final profileRows = await _db
+            .from('federated_objects')
+            .select(
+              'id,uri,object_type,actor_uri,url,content,summary,published_at,in_reply_to_uri,attachments,tags,like_count,announce_count,reply_count,content_warning',
+            )
+            .eq('actor_uri', actorUri)
+            .isFilter('deleted_at', null)
+            .eq('tombstone', false)
+            .order('published_at', ascending: false)
+            .limit(200)
+            .timeout(const Duration(seconds: 15));
+        var items = profileRows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        if (widget.section == 'replies') {
+          items = items.where((row) => row['in_reply_to_uri'] != null).toList();
+        } else if (widget.section == 'threads') {
+          items = items.where((row) => row['in_reply_to_uri'] == null).toList();
+        } else if (widget.section == 'media') {
+          items = items
+              .where(
+                (row) =>
+                    row['attachments'] is List &&
+                    (row['attachments'] as List).isNotEmpty,
+              )
+              .toList();
+        } else if (widget.section == 'videos') {
+          items = items
+              .where(
+                (row) =>
+                    '${row['object_type'] ?? ''}'.toLowerCase() == 'video' ||
+                    (row['attachments'] is List &&
+                        (row['attachments'] as List).any(
+                          (item) =>
+                              item is Map &&
+                              '${item['mediaType'] ?? item['media_type'] ?? ''}'
+                                  .startsWith('video/'),
+                        )),
+              )
+              .toList();
+        } else if (widget.section == 'podcasts') {
+          items = items
+              .where(
+                (row) => '${row['object_type'] ?? ''}'.toLowerCase() == 'audio',
+              )
+              .toList();
+        } else if (widget.section == 'series') {
+          items = items
+              .where(
+                (row) =>
+                    '${row['object_type'] ?? ''}'.toLowerCase() == 'series',
+              )
+              .toList();
+        }
+        _surfaceRows = items;
+        return;
+    }
+  }
+
+  Future<void> _removeSafetyControl(Map<String, dynamic> row) async {
+    final uid = _uid;
+    if (uid == null || row['id'] == null) return;
+    try {
+      if (row['kind'] == 'Blocked domain') {
+        await _db
+            .from('fediverse_domain_blocks')
+            .delete()
+            .eq('id', row['id'])
+            .eq('user_id', uid);
+      } else {
+        await _db
+            .from('fediverse_content_filters')
+            .delete()
+            .eq('id', row['id'])
+            .eq('user_id', uid);
+      }
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not remove this Fediverse safety control.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _markInboxProcessed(Map<String, dynamic> row) async {
+    final uid = _uid;
+    if (uid == null || row['id'] == null) return;
+    try {
+      await _db
+          .from('activitypub_inbox')
+          .update({'processed': true})
+          .eq('id', row['id'])
+          .eq('local_user_id', uid);
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not mark this inbox activity as processed.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _react(Map<String, dynamic> post, String kind) async {
+    final uid = _uid;
+    if (uid == null) {
+      context.go('/auth');
+      return;
+    }
+    final uri = '${post['uri'] ?? ''}';
+    if (!uri.startsWith('https://')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This remote post has no valid ActivityPub URI.'),
+        ),
+      );
+      return;
+    }
+    final set = kind == 'like' ? _liked : _boosted;
+    final wasActive = set.contains(uri);
+    setState(() {
+      wasActive ? set.remove(uri) : set.add(uri);
+    });
+    try {
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': wasActive
+              ? (kind == 'like' ? '/unfavorite' : '/unboost')
+              : (kind == 'like' ? '/favorite' : '/boost'),
+          'method': 'POST',
+          'body': {'post_id': uri},
+        },
+      );
+      if (response.data == null) throw StateError('empty response');
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          wasActive ? set.add(uri) : set.remove(uri);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Federated action failed. Your local state was restored.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _feedScrollController.dispose();
+    _mastodonSearchController.dispose();
+    super.dispose();
+  }
+
+  // Keep the profile surface rendered in-app; external navigation is intentionally restricted.
+  @override
+  Widget build(BuildContext context) {
+    if (widget.instancesOnly ||
+        widget.section == 'discover' ||
+        widget.section == 'organic-discovery') {
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(14),
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => context.go('/fediverse'),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Text(_error!),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ],
+                ),
+              ),
+            ..._instances.map(
+              (i) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.public_rounded),
+                  ),
+                  title: Text(
+                    '${i['domain']}',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    '${i['software'] ?? i['provider'] ?? 'ActivityPub'} · Last synced ${i['last_fetched_at'] ?? 'not yet'}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        controller: _feedScrollController,
+        padding: const EdgeInsets.all(14),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Discover instances',
+                onPressed: () => context.go('/fediverse/instances'),
+                icon: const Icon(Icons.public_rounded),
+              ),
+              IconButton(
+                tooltip: 'Refresh timeline',
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (widget.actorUri != null && _remoteProfile.isNotEmpty) ...[
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 104,
+                    width: double.infinity,
+                    child: _remoteProfile['header_url'] is String
+                        ? Image.network(
+                            '${_remoteProfile['header_url']}',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const ColoredBox(color: Color(0x22336699)),
+                          )
+                        : const ColoredBox(color: Color(0x22336699)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundImage:
+                                  _remoteProfile['avatar_url'] is String
+                                      ? NetworkImage(
+                                          '${_remoteProfile['avatar_url']}',
+                                        )
+                                      : null,
+                              child: _remoteProfile['avatar_url'] is String
+                                  ? null
+                                  : const Icon(Icons.person_rounded),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_remoteProfile['display_name'] ?? _remoteProfile['username']}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
+                                  Text(
+                                    '@${_remoteProfile['username']}@${_remoteProfile['domain']}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_remoteProfile['bot'] == true)
+                              const Tooltip(
+                                message: 'Bot or service account',
+                                child: Icon(Icons.smart_toy_outlined),
+                              ),
+                            if (_remoteProfile['locked'] == true)
+                              const Tooltip(
+                                message: 'Follow requests require approval',
+                                child: Icon(Icons.lock_outline_rounded),
+                              ),
+                          ],
+                        ),
+                        if ('${_remoteProfile['bio'] ?? ''}'.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(
+                              _plainRemoteContent('${_remoteProfile['bio']}'),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 18,
+                          runSpacing: 8,
+                          children: [
+                            _profileMetric(
+                              'Followers',
+                              _remoteProfile['followers_count'],
+                              'followers',
+                            ),
+                            _profileMetric(
+                              'Following',
+                              _remoteProfile['following_count'],
+                              'following',
+                            ),
+                            _profileMetric(
+                              'Posts',
+                              _remoteProfile['posts_count'],
+                              'posts',
+                            ),
+                            if (_remoteProfile['created_at'] is String)
+                              Text(
+                                'Joined ${'${_remoteProfile['created_at']}'.split('T').first}',
+                              ),
+                            if (_remoteProfile['discoverable'] == false)
+                              const Text('Not listed in discovery'),
+                            if (_remoteProfile['actor_type'] is String)
+                              Text('Type: ${_remoteProfile['actor_type']}'),
+                            if (_remoteProfile['indexable'] == false)
+                              const Text('Not indexable'),
+                            if (_remoteProfile['limited'] == true)
+                              const Text('Limited'),
+                            if (_remoteProfile['suspended'] == true)
+                              const Text('Suspended'),
+                            if (_remoteProfile['last_status_at'] is String)
+                              Text(
+                                'Last public status: ${'${_remoteProfile['last_status_at']}'.split('T').first}',
+                              ),
+                          ],
+                        ),
+                        if (_remoteProfile['fields'] is List &&
+                            (_remoteProfile['fields'] as List).isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          ...(_remoteProfile['fields'] as List)
+                              .whereType<Map>()
+                              .map(
+                                (field) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 100,
+                                        child: Text(
+                                          '${field['name'] ?? 'Field'}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          _plainRemoteContent(
+                                            '${field['value'] ?? field['content'] ?? ''}',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                        ],
+                        if (_remoteProfile['also_known_as'] is List &&
+                            (_remoteProfile['also_known_as'] as List)
+                                .isNotEmpty)
+                          Text(
+                            'Also known as: ${(_remoteProfile['also_known_as'] as List).map((item) => item is Map ? item['id'] : item).join(' · ')}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        if (_remoteProfile['tag'] is List &&
+                            (_remoteProfile['tag'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: (_remoteProfile['tag'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (tag) => Chip(
+                                      label: Text(
+                                        '${tag['name'] ?? tag['href'] ?? 'Tag'}',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        if (_remoteProfile['emojis'] is List &&
+                            (_remoteProfile['emojis'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              children: (_remoteProfile['emojis'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (emoji) => Chip(
+                                      label: Text(
+                                        ':${emoji['shortcode'] ?? emoji['name'] ?? 'emoji'}:',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final entry in const [
+                    ('Posts', 'posts'),
+                    ('Featured', 'featured'),
+                    ('Threads', 'threads'),
+                    ('Replies', 'replies'),
+                    ('Media', 'media'),
+                    ('Videos', 'videos'),
+                    ('Podcasts', 'podcasts'),
+                    ('Series', 'series'),
+                    ('Likes', 'likes'),
+                    ('Tips', 'tips'),
+                    ('Gifts', 'gifts'),
+                    ('Analytics', 'profile-analytics'),
+                    ('Followers', 'followers'),
+                    ('Following', 'following'),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(entry.$1),
+                        selected: widget.section == entry.$2 ||
+                            (widget.section == 'profile' &&
+                                entry.$2 == 'posts'),
+                        onSelected: (_) => context.push(
+                          '/fediverse/profile/${entry.$2}?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (widget.section == 'mastodon')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _mastodonSearchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _searchMastodon(),
+                      decoration: const InputDecoration(
+                        hintText: 'Search public Mastodon posts',
+                        prefixIcon: Icon(Icons.search_rounded),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    tooltip: 'Search Mastodon',
+                    onPressed: _searchingMastodon ? null : _searchMastodon,
+                    icon: _searchingMastodon
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.search_rounded),
+                  ),
+                ],
+              ),
+            ),
+          if (_surfaceMessage != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(_surfaceMessage!),
+              ),
+            ),
+          if (_surfaceMetrics.isNotEmpty)
+            ..._surfaceMetrics.entries.map(
+              (entry) => Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.insights_rounded),
+                  ),
+                  title: Text(entry.key),
+                  trailing: Text(
+                    '${entry.value}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ),
+          if ((_sectionNeedsDedicatedBackend ||
+                  (_isProfileSection &&
+                      const {
+                        'followers',
+                        'following',
+                        'featured',
+                        'likes',
+                      }.contains(widget.section))) &&
+              !_loading &&
+              _error == null &&
+              _surfaceMessage == null &&
+              _surfaceMetrics.isEmpty &&
+              _surfaceRows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('Nothing to show here yet.')),
+            ),
+          if (_sectionNeedsDedicatedBackend ||
+              (_isProfileSection &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
+                  }.contains(widget.section))) ...[
+            ..._surfaceRows.map((row) {
+              final title =
+                  '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
+              final subtitle =
+                  '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
+              final detail =
+                  '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
+              final isRelationship =
+                  const {'followers', 'following'}.contains(widget.section) &&
+                      widget.actorUri != null;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: isRelationship && row['actor_uri'] is String
+                      ? () => context.push(
+                            '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
+                          )
+                      : null,
+                  leading: isRelationship && row['avatar_url'] is String
+                      ? CircleAvatar(
+                          backgroundImage: NetworkImage('${row['avatar_url']}'),
+                        )
+                      : Icon(
+                          widget.section == 'inbox'
+                              ? Icons.inbox_rounded
+                              : widget.section == 'relay'
+                                  ? Icons.outbox_rounded
+                                  : widget.section == 'controls'
+                                      ? Icons.shield_rounded
+                                      : Icons.public_rounded,
+                        ),
+                  title: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    [
+                      subtitle,
+                      if (isRelationship && row['followers_count'] is num)
+                        '${row['followers_count']} followers',
+                      if (isRelationship && row['following_count'] is num)
+                        '${row['following_count']} following',
+                      if (isRelationship && row['bio'] is String)
+                        _plainRemoteContent('${row['bio']}'),
+                      detail,
+                    ]
+                        .where((value) => value.isNotEmpty && value != '{}')
+                        .join('\n'),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: widget.section == 'inbox' &&
+                          row['processed'] != true
+                      ? IconButton(
+                          tooltip: 'Mark processed',
+                          onPressed: () => _markInboxProcessed(row),
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                        )
+                      : widget.section == 'relay'
+                          ? Icon(
+                              row['delivered'] == true
+                                  ? Icons.check_circle_rounded
+                                  : Icons.schedule_rounded,
+                            )
+                          : widget.section == 'controls'
+                              ? IconButton(
+                                  tooltip: 'Remove safety control',
+                                  onPressed: () => _removeSafetyControl(row),
+                                  icon:
+                                      const Icon(Icons.delete_outline_rounded),
+                                )
+                              : null,
+                ),
+              );
+            }),
+            if (const {
+                  'followers',
+                  'following',
+                  'featured',
+                  'likes',
+                }.contains(widget.section) &&
+                _relationshipCursor != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: OutlinedButton.icon(
+                    onPressed: _loadingMoreRelationships
+                        ? null
+                        : _loadMoreRemoteRelationships,
+                    icon: _loadingMoreRelationships
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.expand_more_rounded),
+                    label: Text(
+                      _loadingMoreRelationships
+                          ? 'Loading…'
+                          : 'Load more ${widget.section}',
+                    ),
+                  ),
+                ),
+              ),
+          ],
+          if (widget.section == 'discover' ||
+              widget.section == 'organic-discovery')
+            const Text(
+              'Discover public instances and open social communities.',
+            ),
+          if (!_sectionNeedsDedicatedBackend &&
+              widget.section != 'discover' &&
+              widget.section != 'organic-discovery')
+            const Text(
+              'A cached ActivityPub timeline from the open social web.',
+            ),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Text(_error!),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
+                ],
+              ),
+            ),
+          if (!_loading &&
+              _posts.isEmpty &&
+              _error == null &&
+              !(widget.actorUri != null &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                  }.contains(widget.section)))
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: Text(
+                  'No federated posts are cached yet. Refresh later.',
+                ),
+              ),
+            ),
+          if (!_sectionNeedsDedicatedBackend &&
+              !(widget.actorUri != null &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
+                  }.contains(widget.section)) &&
+              _visiblePosts.isEmpty &&
+              !_loading &&
+              _error == null)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Text(
+                  'No items are available in ${widget.title.toLowerCase()} yet.',
+                ),
+              ),
+            ),
+          if (_pendingPosts.isNotEmpty && !_sectionNeedsDedicatedBackend)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 12),
+              child: Center(
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    setState(() {
+                      _posts = applyPendingFediversePosts(
+                        _posts,
+                        _pendingPosts,
+                      );
+                      _pendingPosts = [];
+                    });
+                    // Scroll to the top only after explicit user intent.
+                    _feedScrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_upward_rounded),
+                  label: Text(
+                    '${_pendingPosts.length} new ${_pendingPosts.length == 1 ? 'post' : 'posts'} · Show',
+                  ),
+                ),
+              ),
+            ),
+          if (!_sectionNeedsDedicatedBackend)
+            ..._visiblePosts.map((p) {
+              final actor = (p['actor'] as Map<String, dynamic>?) ?? {};
+              final handle =
+                  '${actor['username'] ?? 'remote'}@${actor['domain'] ?? 'fediverse'}';
+              final name = '${actor['display_name'] ?? handle}';
+              final uri = '${p['uri'] ?? ''}';
+              final url = '${p['url'] ?? uri}';
+              final sensitive = p['sensitive'] == true ||
+                  '${p['content_warning'] ?? ''}'.isNotEmpty;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundImage:
+                                '${actor['avatar_url'] ?? ''}'.startsWith(
+                              'http',
+                            )
+                                    ? NetworkImage('${actor['avatar_url']}')
+                                    : null,
+                            child: '${actor['avatar_url'] ?? ''}'.startsWith(
+                              'http',
+                            )
+                                ? null
+                                : const Icon(Icons.person_outline_rounded),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  '@$handle',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.public_rounded,
+                            semanticLabel:
+                                'Federated post shown inside Testagram',
+                          ),
+                        ],
+                      ),
+                      if (sensitive)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            'Content warning: ${p['content_warning'] ?? 'sensitive media'}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(
+                          sensitive
+                              ? 'This post is marked sensitive. Open the remote post to view its full content.'
+                              : '${p['content'] ?? p['summary'] ?? ''}',
+                          maxLines: sensitive ? 3 : 12,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (p['tags'] is List && (p['tags'] as List).isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Wrap(
+                            spacing: 6,
+                            children: (p['tags'] as List)
+                                .take(6)
+                                .map(
+                                  (tag) => Chip(
+                                    label: Text(
+                                      '#${tag is Map ? tag['name'] ?? '' : tag}',
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _react(p, 'like'),
+                            icon: Icon(
+                              _liked.contains(uri)
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color: _liked.contains(uri) ? Colors.pink : null,
+                            ),
+                            label: Text('${p['like_count'] ?? '—'}'),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _react(p, 'boost'),
+                            icon: Icon(
+                              Icons.repeat_rounded,
+                              color:
+                                  _boosted.contains(uri) ? Colors.green : null,
+                            ),
+                            label: Text('${p['announce_count'] ?? '—'}'),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${p['reply_count'] ?? '—'} replies',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          IconButton(
+                            tooltip: 'Share',
+                            onPressed: () => Share.share('$name\n$url'),
+                            icon: const Icon(Icons.share_rounded),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          if (widget.actorUri != null &&
+              _remoteTimelineCursor != null &&
+              !const {
+                'followers',
+                'following',
+                'featured',
+                'likes',
+                'tips',
+                'gifts',
+                'profile-analytics',
+              }.contains(widget.section))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: OutlinedButton.icon(
+                  onPressed: _loadingMoreRemoteTimeline
+                      ? null
+                      : _loadMoreRemoteTimeline,
+                  icon: _loadingMoreRemoteTimeline
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.expand_more_rounded),
+                  label: Text(
+                    _loadingMoreRemoteTimeline ? 'Loading…' : 'Load more posts',
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+).hasMatch(path)) {
+      return 'audio/mpeg';
+    }
+    return 'image/*';
+  }
+
+  List<Widget> _renderAttachments(dynamic value) {
+    if (value is! List) return const [];
+    return value.take(4).map((item) {
+      final attachment = item is Map
+          ? Map<String, dynamic>.from(item)
+          : <String, dynamic>{'url': item};
+      final source = _localizedMediaUrl(
+        attachment['url'] ?? attachment['href'] ?? attachment['id'],
+      );
+      if (source.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: FederatedAttachmentView(
+          url: source,
+          mediaType: _attachmentMediaType(attachment),
+          altText: '${attachment['name'] ?? attachment['alt'] ?? attachment['summary'] ?? ''}',
+        ),
+      );
+    }).toList();
   }
 
   Widget _profileMetric(String label, dynamic value, String route) {
