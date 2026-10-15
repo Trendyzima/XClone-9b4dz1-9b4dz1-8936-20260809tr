@@ -145,14 +145,12 @@ class _FeedPageState extends State<FeedPage> {
           : postQuery;
       // Keyset pagination is stable when new posts arrive while the reader
       // scrolls; offset pagination can skip or repeat rows between requests.
-      if (pageCursorCreatedAt != null &&
-          pageCursorCreatedAt.isNotEmpty &&
-          pageCursorId != null &&
-          pageCursorId.isNotEmpty) {
-        pagedQuery = pagedQuery.or(
-          'created_at.lt.$pageCursorCreatedAt,'
-          'and(created_at.eq.$pageCursorCreatedAt,id.lt.$pageCursorId)',
-        );
+      final cursorFilter = FeedLoadPolicy.cursorFilter(
+        createdAt: pageCursorCreatedAt,
+        id: pageCursorId,
+      );
+      if (cursorFilter != null) {
+        pagedQuery = pagedQuery.or(cursorFilter);
       }
       final response =
           _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
