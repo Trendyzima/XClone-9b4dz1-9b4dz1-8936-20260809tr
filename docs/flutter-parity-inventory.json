@@ -5431,7 +5431,7 @@
       "status": "reference_only",
       "note": "Increase the scheduled federation delivery timeout to cover bounded remote inbox batches and recover attempt counters inflated by abandoned in-flight claims."
     },
-    "supabase/migrations/20261015182130_federation_worker_batch_limit.sql": {
+    "supabase/migrations/20261015182134_federation_worker_batch_limit.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Limit each scheduled federation worker invocation to one five-job concurrency batch and repair retry counters inflated by abandoned claims."
