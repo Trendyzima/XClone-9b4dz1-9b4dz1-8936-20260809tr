@@ -9,7 +9,7 @@ val releaseStorePath = System.getenv("TESTAGRAM_ANDROID_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("TESTAGRAM_ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("TESTAGRAM_ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("TESTAGRAM_ANDROID_KEY_PASSWORD")
-val hasProductionSigning = listOf(
+val hasReleaseSigning = listOf(
     releaseStorePath,
     releaseStorePassword,
     releaseKeyAlias,
@@ -42,7 +42,7 @@ android {
     }
 
     signingConfigs {
-        if (hasProductionSigning) {
+        if (hasReleaseSigning) {
             create("production") {
                 storeFile = file(releaseStorePath!!)
                 storePassword = releaseStorePassword
