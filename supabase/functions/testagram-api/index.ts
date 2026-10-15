@@ -211,7 +211,6 @@ function localPostActivity(profile:any,actor:any,post:any){
   if(!media.length&&post.video_url&&/^https:\/\//i.test(post.video_url))media.push({type:"Video",mediaType:"video/mp4",url:post.video_url});
   if(!media.length&&post.image_url&&/^https:\/\//i.test(post.image_url))media.push({type:"Image",mediaType:"image/*",url:post.image_url});
   const note:any={"@context":"https://www.w3.org/ns/activitystreams",id:objectUri,type:"Note",attributedTo:actor.actor_id,content:String(post.content||""),published:post.created_at,updated:post.edited_at||post.updated_at||post.created_at,url:objectUri,to:["https://www.w3.org/ns/activitystreams#Public"],cc:[`${actor.actor_id}/followers`]};
-  if(post.reply_to_post_id)note.inReplyTo=post.reply_to_post_id;
   if(media.length)note.attachment=media;
   return {"@context":"https://www.w3.org/ns/activitystreams",id:`${objectUri}/activity`,type:"Create",actor:actor.actor_id,published:post.created_at,to:["https://www.w3.org/ns/activitystreams#Public"],cc:[`${actor.actor_id}/followers`],object:note};
 }
@@ -225,7 +224,7 @@ async function localOutbox(username:string,params:Record<string,string>){
   const outboxId=actor.outbox_url||`${actor.actor_id}/outbox`;
   const isPublic=p.visibility==="public"&&p.protected_account!==true;
   const limit=Math.min(Math.max(Number(params.limit||20),1),40);
-  const baseQuery=()=>admin.from("posts").select("id,author_id,user_id,content,created_at,updated_at,edited_at,image_url,video_url,is_video,media_urls,reply_to_post_id").or(`author_id.eq.${p.id},user_id.eq.${p.id}`).is("deleted_at",null);
+  const baseQuery=()=>admin.from("posts").select("id,author_id,user_id,content,created_at,updated_at,edited_at,image_url,video_url,is_video,media_urls").or(`author_id.eq.${p.id},user_id.eq.${p.id}`).is("deleted_at",null);
   if(!isPublic){
     return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:outboxId,type:"OrderedCollection",totalItems:0,first:{id:`${outboxId}?page=true&limit=${limit}`,type:"OrderedCollectionPage",partOf:outboxId,orderedItems:[]}});
   }
