@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'mobile/**'
+      - 'scripts/validate-android-app-links.mjs'
       - 'docs/flutter-migration-plan.md'
       - 'docs/flutter-migration-release-gates.md'
       - 'docs/flutter-parity-inventory.json'
@@ -24,6 +25,7 @@ on:
     branches: [main]
     paths:
       - 'mobile/**'
+      - 'scripts/validate-android-app-links.mjs'
       - 'docs/flutter-migration-plan.md'
       - 'docs/flutter-parity-inventory.json'
       - 'docs/flutter-route-parity.json'
@@ -59,6 +61,7 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/validate-flutter-parity-inventory.mjs
+      - run: node scripts/validate-android-app-links.mjs
       - run: node scripts/validate-ad-review-contract.mjs
       - run: node scripts/validate-sports-hub-contract.mjs
       - run: node scripts/validate-shopping-mall-contract.mjs
