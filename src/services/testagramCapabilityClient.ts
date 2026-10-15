@@ -201,7 +201,7 @@ export class TestagramCapabilityClient{
   }
   if(!token) throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
   const directUrl=`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/testagram_search_unified`;
-  const searchPayload=(payload:any)=>({users:Array.isArray(payload?.users)?payload.users:[],hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],next_cursor:payload?.next_cursor??null});
+  const searchPayload=(payload:any)=>({users:Array.isArray(payload?.users)?payload.users:[],hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],instances:Array.isArray(payload?.instances)?payload.instances:[],next_cursor:payload?.next_cursor??null});
   let directFailure:unknown=null;
   for(let attempt=0;attempt<2;attempt++){
    try{
