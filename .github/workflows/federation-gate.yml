@@ -85,9 +85,9 @@ jobs:
             echo "$inbox_path GET -> HTTP $inbox_status"
             [[ "$inbox_status" == "405" ]] || exit 1
           done
-          echo "Checking remote WebFinger and actor interoperability against mastodon.social..."
-          remote_finger="$(curl --retry 3 --retry-delay 2 -fsSL --max-redirs 3 --connect-timeout 10 --max-time 30 -H "Accept: application/jrd+json" "https://mastodon.social/.well-known/webfinger?resource=acct:Gargron@mastodon.social")"
+          echo "Checking remote WebFinger and actor interoperability against mstdn.social..."
+          remote_finger="$(curl --retry 3 --retry-delay 2 -fsSL --max-redirs 3 --connect-timeout 10 --max-time 30 -A "Testagram-Federation/4.0" -H "Accept: application/jrd+json" "https://mstdn.social/.well-known/webfinger?resource=acct:teletekst@mstdn.social")"
           remote_actor="$(printf '%s' "$remote_finger" | python3 -c "import json,sys; f=json.load(sys.stdin); links=[x for x in f.get('links',[]) if x.get('rel')=='self' and 'activity' in x.get('type','') and x.get('href')]; assert links, 'remote WebFinger has no ActivityPub self link'; print(links[0]['href'])")"
-          remote_doc="$(curl --retry 3 --retry-delay 2 -fsSL --max-redirs 3 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$remote_actor")"
+          remote_doc="$(curl --retry 3 --retry-delay 2 -fsSL --max-redirs 3 --connect-timeout 10 --max-time 30 -A "Testagram-Federation/4.0" -H "Accept: application/activity+json" "$remote_actor")"
           printf '%s' "$remote_doc" | python3 -c "import json,sys; a=json.load(sys.stdin); assert a.get('id') and a.get('id')==sys.argv[1], 'remote actor id mismatch'; assert a.get('inbox') and a.get('outbox') and a.get('publicKey',{}).get('publicKeyPem'), 'remote actor contract incomplete'; print('Independent Mastodon WebFinger and actor contract passed.')" "$remote_actor"
           echo "Production ActivityPub discovery, actor, collection, and all public inbox route contracts passed."
