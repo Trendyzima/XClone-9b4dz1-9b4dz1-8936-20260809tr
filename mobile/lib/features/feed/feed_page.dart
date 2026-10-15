@@ -11,6 +11,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/media/media_upload_policy.dart';
 import 'feed_load_policy.dart';
+import 'feed_media_url.dart';
 import 'feed_offline_cache.dart';
 import 'sponsored_ad_service.dart';
 
@@ -1080,8 +1081,8 @@ class _PostCard extends StatelessWidget {
         '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
     final avatar = '${profile['avatar_url'] ?? ''}';
     final content = '${post['content'] ?? ''}';
-    final media = '${post['image_url'] ?? ''}';
-    final video = '${post['video_url'] ?? ''}';
+    final media = FeedMediaUrl.normalize(post['image_url']) ?? '';
+    final video = FeedMediaUrl.normalize(post['video_url']) ?? '';
     final verified = profile['verified'] == true ||
         (profile['verified_tier'] != null &&
             profile['verified_tier'] != 'none');
