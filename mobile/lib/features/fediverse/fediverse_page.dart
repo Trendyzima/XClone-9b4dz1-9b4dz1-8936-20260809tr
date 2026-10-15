@@ -115,7 +115,10 @@ class _FediversePageState extends State<FediversePage> {
     }
     final publishedAt = _feedCursorPublishedAt;
     final id = _feedCursorId;
-    if (publishedAt == null || id == null || publishedAt.isEmpty || id.isEmpty) {
+    if (publishedAt == null ||
+        id == null ||
+        publishedAt.isEmpty ||
+        id.isEmpty) {
       return;
     }
 
