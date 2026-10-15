@@ -32,10 +32,13 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
   bool get _isAudio =>
       widget.mediaType.startsWith('audio/') || widget.mediaType == 'audio';
 
+  bool _mediaRequested = false;
+
   @override
   void initState() {
     super.initState();
-    _initializePlayerIfNeeded();
+    // Do not open remote audio/video connections for every card in a feed.
+    // The user explicitly opts into player initialization.
   }
 
   @override
@@ -44,7 +47,7 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
     if (oldWidget.url != widget.url ||
         oldWidget.mediaType != widget.mediaType) {
       _disposePlayer();
-      _initializePlayerIfNeeded();
+      _mediaRequested = false;
     }
   }
 
@@ -54,7 +57,8 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
     if (uri == null || uri.scheme != 'https') return;
     final controller = VideoPlayerController.networkUrl(uri);
     _controller = controller;
-    _initialization = controller.initialize().then((_) {
+    _initialization =
+        controller.initialize().timeout(const Duration(seconds: 20)).then((_) {
       if (mounted) setState(() {});
     }).catchError((Object _) {
       if (mounted) setState(() {});
@@ -79,6 +83,51 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
   @override
   Widget build(BuildContext context) {
     if (_isVideo || _isAudio) {
+      if (!_mediaRequested) {
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              setState(() => _mediaRequested = true);
+              _initializePlayerIfNeeded();
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  Icon(
+                    _isVideo
+                        ? Icons.play_circle_outline_rounded
+                        : Icons.audio_file_rounded,
+                    size: 36,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isVideo ? 'Video attachment' : 'Audio attachment',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        if (widget.altText?.trim().isNotEmpty == true)
+                          Text(
+                            widget.altText!.trim(),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        const SizedBox(height: 4),
+                        const Text('Tap to load media'),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.download_rounded),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
       final controller = _controller;
       final initialization = _initialization;
       if (controller == null || initialization == null) {

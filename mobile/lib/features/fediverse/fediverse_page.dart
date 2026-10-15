@@ -61,6 +61,12 @@ class _FediversePageState extends State<FediversePage> {
   List<Map<String, dynamic>> _posts = [], _instances = [];
   List<Map<String, dynamic>> _pendingPosts = [];
   final ScrollController _feedScrollController = ScrollController();
+  static const int _feedPageSize = 30;
+  bool _loadingMoreFeed = false;
+  bool _hasMoreFeed = true;
+  String? _feedCursorPublishedAt;
+  String? _feedCursorId;
+  final Set<String> _loadedFeedUris = <String>{};
   final TextEditingController _mastodonSearchController =
       TextEditingController();
   final String _mastodonInstance = 'https://mastodon.social';
@@ -79,7 +85,110 @@ class _FediversePageState extends State<FediversePage> {
   @override
   void initState() {
     super.initState();
+    _feedScrollController.addListener(_onFeedScroll);
     _load();
+  }
+
+  bool get _supportsGenericFeedPagination =>
+      !widget.instancesOnly &&
+      widget.section != 'discover' &&
+      widget.section != 'organic-discovery' &&
+      widget.section != 'mastodon' &&
+      !_sectionNeedsDedicatedBackend &&
+      widget.actorUri == null;
+
+  void _onFeedScroll() {
+    if (!_feedScrollController.hasClients ||
+        _loadingMoreFeed ||
+        !_hasMoreFeed ||
+        !_supportsGenericFeedPagination) {
+      return;
+    }
+    if (_feedScrollController.position.extentAfter < 900) {
+      _loadMoreFeed();
+    }
+  }
+
+  Future<void> _loadMoreFeed() async {
+    if (_loadingMoreFeed || !_hasMoreFeed) {
+      return;
+    }
+    final publishedAt = _feedCursorPublishedAt;
+    final id = _feedCursorId;
+    if (publishedAt == null ||
+        id == null ||
+        publishedAt.isEmpty ||
+        id.isEmpty) {
+      return;
+    }
+
+    setState(() => _loadingMoreFeed = true);
+    try {
+      final rows = await _db
+          .from('federated_objects')
+          .select(
+            'id,uri,object_type,actor_uri,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning',
+          )
+          .isFilter('deleted_at', null)
+          .eq('tombstone', false)
+          .or(
+            'published_at.lt.$publishedAt,and(published_at.eq.$publishedAt,id.lt.$id)',
+          )
+          .order('published_at', ascending: false)
+          .order('id', ascending: false)
+          .limit(_feedPageSize)
+          .timeout(const Duration(seconds: 15));
+      final posts =
+          rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final actorUris = posts
+          .map((post) => '${post['actor_uri'] ?? ''}')
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList();
+      final actors = actorUris.isEmpty
+          ? <dynamic>[]
+          : await _db
+              .from('federated_actors')
+              .select('actor_uri,username,domain,display_name,avatar_url')
+              .inFilter('actor_uri', actorUris)
+              .timeout(const Duration(seconds: 10));
+      final byUri = <String, Map<String, dynamic>>{
+        for (final actor in actors)
+          '${actor['actor_uri']}': Map<String, dynamic>.from(actor as Map),
+      };
+      for (final post in posts) {
+        post['actor'] = byUri['${post['actor_uri']}'];
+      }
+      if (!mounted) return;
+      setState(() {
+        for (final post in posts) {
+          final key = '${post['uri'] ?? post['id']}';
+          if (key.isNotEmpty && _loadedFeedUris.add(key)) _posts.add(post);
+        }
+        if (rows.length < _feedPageSize || posts.isEmpty) {
+          _hasMoreFeed = false;
+        } else {
+          final last = rows.last as Map;
+          _feedCursorPublishedAt = '${last['published_at'] ?? ''}';
+          _feedCursorId = '${last['id'] ?? ''}';
+          if (_feedCursorPublishedAt!.isEmpty || _feedCursorId!.isEmpty) {
+            _hasMoreFeed = false;
+          }
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not load more Fediverse posts. Tap “Load more posts” to retry.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMoreFeed = false);
+    }
   }
 
   Future<void> _load() async {
@@ -133,7 +242,7 @@ class _FediversePageState extends State<FediversePage> {
           .eq('tombstone', false)
           .order('published_at', ascending: false)
           .order('id', ascending: false)
-          .limit(30)
+          .limit(_feedPageSize)
           .timeout(const Duration(seconds: 15));
       final posts =
           rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
@@ -201,6 +310,24 @@ class _FediversePageState extends State<FediversePage> {
                     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
                 return bTime.compareTo(aTime);
               });
+          }
+          _loadedFeedUris
+            ..clear()
+            ..addAll(
+              _posts
+                  .map((post) => '${post['uri'] ?? post['id']}')
+                  .where((key) => key.isNotEmpty),
+            );
+          _hasMoreFeed = posts.length == _feedPageSize;
+          if (posts.isEmpty) {
+            _feedCursorPublishedAt = null;
+            _feedCursorId = null;
+          } else {
+            _feedCursorPublishedAt = '${posts.last['published_at'] ?? ''}';
+            _feedCursorId = '${posts.last['id'] ?? ''}';
+            if (_feedCursorPublishedAt!.isEmpty || _feedCursorId!.isEmpty) {
+              _hasMoreFeed = false;
+            }
           }
         });
       }
@@ -1317,6 +1444,7 @@ class _FediversePageState extends State<FediversePage> {
 
   @override
   void dispose() {
+    _feedScrollController.removeListener(_onFeedScroll);
     _feedScrollController.dispose();
     _mastodonSearchController.dispose();
     super.dispose();
@@ -1446,16 +1574,17 @@ class _FediversePageState extends State<FediversePage> {
                             CircleAvatar(
                               radius: 28,
                               backgroundImage: _localizedMediaUrl(
-                                          _remoteProfile['avatar_url'])
-                                      .isNotEmpty
+                                _remoteProfile['avatar_url'],
+                              ).isNotEmpty
                                   ? CachedNetworkImageProvider(
                                       _localizedMediaUrl(
-                                          _remoteProfile['avatar_url']),
+                                        _remoteProfile['avatar_url'],
+                                      ),
                                     )
                                   : null,
                               child: _localizedMediaUrl(
-                                          _remoteProfile['avatar_url'])
-                                      .isNotEmpty
+                                _remoteProfile['avatar_url'],
+                              ).isNotEmpty
                                   ? null
                                   : const Icon(Icons.person_rounded),
                             ),
@@ -2031,12 +2160,12 @@ class _FediversePageState extends State<FediversePage> {
                                 'This post is marked sensitive. Its content and media are available here on Testagram.',
                               ),
                               TextButton.icon(
-                                onPressed: () => setState(
-                                  () => _revealedSensitive.add(uri),
-                                ),
+                                onPressed: () =>
+                                    setState(() => _revealedSensitive.add(uri)),
                                 icon: const Icon(Icons.visibility_rounded),
-                                label:
-                                    const Text('Reveal content on Testagram'),
+                                label: const Text(
+                                  'Reveal content on Testagram',
+                                ),
                               ),
                             ],
                           ),
@@ -2136,6 +2265,19 @@ class _FediversePageState extends State<FediversePage> {
                     _loadingMoreRemoteTimeline ? 'Loading…' : 'Load more posts',
                   ),
                 ),
+              ),
+            ),
+          if (_supportsGenericFeedPagination && _hasMoreFeed)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: _loadingMoreFeed
+                    ? const CircularProgressIndicator()
+                    : OutlinedButton.icon(
+                        onPressed: _loadMoreFeed,
+                        icon: const Icon(Icons.expand_more_rounded),
+                        label: const Text('Load more posts'),
+                      ),
               ),
             ),
         ],

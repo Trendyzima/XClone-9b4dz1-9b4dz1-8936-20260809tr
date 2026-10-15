@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-15T05:36:37.082Z",
+  "generated_at": "2026-10-15T13:45:19.413Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -5404,22 +5404,22 @@
     "supabase/functions/_shared/activitypub-normalize.ts": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
-      "note": "Shared ActivityStreams actor, recipient, visibility, attachment and identity normalization used by federation inbox and feed authorization; keep parity checks tied to this server contract."
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20261015140000_federated_visibility_normalization.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
-      "note": "Database visibility normalization for existing federated objects; preserve private/followers-only semantics and validate migration state before release."
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20261015150000_federated_object_recipients.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
-      "note": "Private/followers-only object recipient ledger; database reads must remain service-role-only and personalized feed access must enforce recipient grants."
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20261015151000_federated_private_object_rls.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
-      "note": "Restrict direct federated-object reads to public/unlisted visibility; private delivery must use authorization-aware server paths."
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     }
   }
 }
