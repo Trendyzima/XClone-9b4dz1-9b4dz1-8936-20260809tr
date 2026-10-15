@@ -11,6 +11,9 @@ const checks = [
   ['mobile/lib/features/fediverse/fediverse_page.dart', /federated-collection[\s\S]*_relationshipCursor[\s\S]*_loadMoreRemoteRelationships/, 'Flutter profile routes must load and paginate remote relationship collections.'],
   ['mobile/lib/features/fediverse/fediverse_page.dart', /_remoteProfile[\s\S]*followers_count[\s\S]*following_count[\s\S]*also_known_as/, 'Flutter profiles must preserve ActivityPub actor metadata and reported counts.'],
   ['mobile/lib/app/testagram_app.dart', /path: '\/fediverse\/profile\/followers',[\s\S]*queryParameters\['actor'\][\s\S]*path: '\/fediverse\/profile\/following',[\s\S]*queryParameters\['actor'\]/, 'Flutter followers/following routes must retain the selected remote actor identity.'],
+  ['mobile/lib/features/fediverse/fediverse_page.dart', /\('Tips', 'tips'\)[\s\S]*\('Gifts', 'gifts'\)[\s\S]*\('Analytics', 'profile-analytics'\)/, 'Flutter profile tabs must match native web profile sections.'],
+  ['mobile/lib/features/fediverse/fediverse_page.dart', /Testagram-native features[\s\S]*Public posts loaded/, 'Flutter profiles must explain native-only tips/gifts and provide profile analytics.'],
+  ['mobile/lib/app/testagram_app.dart', /path: '\/fediverse\/profile\/tips'[\s\S]*queryParameters\['actor'\][\s\S]*path: '\/fediverse\/profile\/gifts'[\s\S]*queryParameters\['actor'\][\s\S]*path: '\/fediverse\/profile\/analytics'[\s\S]*queryParameters\['actor'\]/, 'Flutter tips, gifts, and analytics profile routes must preserve the selected actor identity.'],
 ];
 let failures = 0;
 for (const [path, pattern, message] of checks) {
