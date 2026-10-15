@@ -5421,7 +5421,7 @@
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
-    "supabase/migrations/20261015180000_profile_follow_counters.sql": {
+    "supabase/migrations/20261015181131_profile_follow_counters.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Database trigger maintains exact accepted follow counts and backfills existing profile counters; Flutter profile reads these canonical values."
