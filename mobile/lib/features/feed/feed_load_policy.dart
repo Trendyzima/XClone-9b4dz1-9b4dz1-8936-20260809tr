@@ -22,10 +22,7 @@ class FeedLoadPolicy {
     required String? createdAt,
     required String? id,
   }) {
-    if (createdAt == null ||
-        createdAt.isEmpty ||
-        id == null ||
-        id.isEmpty) {
+    if (createdAt == null || createdAt.isEmpty || id == null || id.isEmpty) {
       return null;
     }
     return 'created_at.lt.$createdAt,'
