@@ -1678,4 +1678,3 @@ class _CommentsSheetState extends State<_CommentsSheet> {
         ),
       );
 }
-
