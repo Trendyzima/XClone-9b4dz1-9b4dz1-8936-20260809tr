@@ -68,7 +68,10 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients || _loading || _loadingMore || !_hasMore) {
+    if (!_scrollController.hasClients ||
+        _loading ||
+        _loadingMore ||
+        !_hasMore) {
       return;
     }
     if (_scrollController.position.extentAfter < 420) {
