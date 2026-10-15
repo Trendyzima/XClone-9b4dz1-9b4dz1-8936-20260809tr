@@ -506,11 +506,13 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {post.attachments.slice(0, 4).map((attachment: any, index: number) => {
                                 const mediaType = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
-                                const remoteUrl = attachment?.url || attachment?.href;
+                                const remoteUrl = String(attachment?.url || attachment?.href || '');
                                 const url = federatedMediaUrl(remoteUrl, resolvedActorUri);
                                 if (!url) return null;
-                                if (mediaType.startsWith('video/')) return <video key={index} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted" />;
-                                if (mediaType.startsWith('audio/')) return <audio key={index} src={url} controls preload="metadata" className="w-full" />;
+                                const video = mediaType === 'video' || mediaType === 'gifv' || mediaType.startsWith('video/') || /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(remoteUrl);
+                                const audio = mediaType === 'audio' || mediaType.startsWith('audio/') || /\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:[?#]|$)/i.test(remoteUrl);
+                                if (video) return <video key={index} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted" />;
+                                if (audio) return <audio key={index} src={url} controls preload="metadata" className="w-full" />;
                                 return <img key={index} src={url} alt={attachment?.name || ''} loading="lazy" className="w-full aspect-square object-cover rounded-xl bg-muted" />;
                               })}
                             </div>
@@ -540,14 +542,15 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                       ) : (
                         <div className="grid grid-cols-3 gap-1 p-1">
                           {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
-                            const remoteUrl = attachment?.url || attachment?.href;
+                            const remoteUrl = String(attachment?.url || attachment?.href || '');
                             const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri);
                             const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
-                            return url && type.startsWith('video/') ? (
-                              <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
-                            ) : url ? (
-                              <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />
-                            ) : null;
+                            const video = type === 'video' || type === 'gifv' || type.startsWith('video/') || /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(remoteUrl);
+                            const audio = type === 'audio' || type.startsWith('audio/') || /\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:[?#]|$)/i.test(remoteUrl);
+                            if (!url) return null;
+                            if (video) return <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />;
+                            if (audio) return <audio key={`${post.id}-${index}`} src={url} controls className="w-full" />;
+                            return <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />;
                           }))}
                         </div>
                       )}
