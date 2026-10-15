@@ -175,5 +175,8 @@ jobs:
           if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq 'app-release.aab'; then
             gh release delete-asset "$tag" app-release.aab --yes
           fi
+          gh release edit "$tag" \
+            --title "Testagram Flutter Native Android — direct-download build" \
+            --notes "This release's app-release.apk is the native Flutter Android app. The retired WebView APK is no longer the canonical phone download.\n\nSigning: this direct-download APK uses a temporary CI-generated signing identity. Builds from later runs may not install as in-place updates over this build. This is not a stable Play Store signing identity or an AAB for store submission. A valid APK signature does not guarantee that Google Play Protect will never show a warning.\n\nDownload from the README's Android phone link."
           gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'app-release.apk'
           echo "Canonical download now points to the verified Flutter-native APK."
