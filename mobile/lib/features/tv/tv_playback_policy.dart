@@ -2,10 +2,10 @@ import 'package:flutter/widgets.dart';
 
 /// Returns whether the currently selected TV item has a real playback surface.
 ///
-/// A web HLS URL is a playback surface even though Flutter's native
-/// VideoPlayerController is intentionally absent on Web. Keeping this policy
-/// separate prevents the vertical feed from showing a permanent "Watch" button
-/// over an already-mounted browser player.
+/// A web HLS URL and an external-provider launch action are valid playback
+/// surfaces even though they do not use a native VideoPlayerController. Keeping
+/// this policy separate prevents the vertical feed from showing a permanent
+/// "Watch" button over an already-mounted player or launch action.
 bool tvHasPlaybackSurface({
   required bool isWeb,
   required String? webPlaybackUrl,
