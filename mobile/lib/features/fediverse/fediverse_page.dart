@@ -525,12 +525,35 @@ class _FediversePageState extends State<FediversePage> {
             .replaceFirst(RegExp(r'^@'), '')
             .split('@')
             .first;
-    final profileFollowers = actor['followers'] is Map
-        ? (actor['followers'] as Map)['totalItems']
-        : actor['followers_count'] ?? actor['followersCount'];
-    final profileFollowing = actor['following'] is Map
-        ? (actor['following'] as Map)['totalItems']
-        : actor['following_count'] ?? actor['followingCount'];
+    final responseCounts = data['counts'] is Map
+        ? Map<String, dynamic>.from(data['counts'] as Map)
+        : <String, dynamic>{};
+    final profileFollowers = _remoteCount(
+          actor['followers'] is Map
+              ? (actor['followers'] as Map)['totalItems']
+              : actor['followers'] ??
+                  actor['followers_count'] ??
+                  actor['followersCount'],
+        ) ??
+        _remoteCount(
+          data['followers_count'] ??
+              data['followersCount'] ??
+              responseCounts['followers'] ??
+              responseCounts['followers_count'],
+        );
+    final profileFollowing = _remoteCount(
+          actor['following'] is Map
+              ? (actor['following'] as Map)['totalItems']
+              : actor['following'] ??
+                  actor['following_count'] ??
+                  actor['followingCount'],
+        ) ??
+        _remoteCount(
+          data['following_count'] ??
+              data['followingCount'] ??
+              responseCounts['following'] ??
+              responseCounts['following_count'],
+        );
     if (mounted) {
       setState(() {
         _remoteProfile = {
@@ -619,8 +642,10 @@ class _FediversePageState extends State<FediversePage> {
         _relationshipCursor = result['next_cursor'] is String
             ? result['next_cursor'] as String
             : null;
-        final total = result['totalItems'];
-        if (total is num &&
+        final total = _remoteCount(
+          result['totalItems'] ?? result['total_items'] ?? result['total'],
+        );
+        if (total != null &&
             const {'followers', 'following'}.contains(widget.section)) {
           _remoteProfile[widget.section == 'followers'
               ? 'followers_count'
@@ -633,7 +658,7 @@ class _FediversePageState extends State<FediversePage> {
           'likes' => 'Public likes reported',
           _ => 'Items reported',
         };
-        _surfaceMetrics = total is num ? {metricLabel: total.toInt()} : {};
+        _surfaceMetrics = total != null ? {metricLabel: total.toInt()} : {};
         _surfaceMessage = result['unavailable'] == true
             ? 'This remote instance does not publish a public ${widget.section} collection.'
             : rows.isEmpty
@@ -2027,3 +2052,4 @@ class _FediversePageState extends State<FediversePage> {
     );
   }
 }
+
