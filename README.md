@@ -2,17 +2,17 @@
 
 **XClone** is a social platform for short-form videos, posts and threads, live video and audio, communities, messaging, creator tools, discovery, commerce, and digital payments. The product's current public web experience is hosted at **[testagram.site](https://testagram.site/)**.
 
-Choose the build for your device. The public Android download URL follows the latest GitHub Release. The native Flutter Android release pipeline is being prepared to replace the legacy WebView APK once persistent signing credentials are configured; Android TV and desktop installers remain separate preview/testing releases. iPhone/iPad currently use the web app—there is no native iOS app or IPA in this repository yet.
+Choose the build for your device. The Android phone download link is reserved for the Flutter-native APK; Android TV and Windows/macOS/Linux installers are separate preview/testing releases. iPhone/iPad currently use the web app—there is no native iOS app or IPA in this repository yet.
 
 [**Open XClone on the web**](https://testagram.site/) · [**Download Android phone APK**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk) · [**Android TV test APK releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test) · [**Desktop OS releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop) · [**All releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
 
-> **Release status:** the current latest release still contains the legacy Android APK until the native Flutter release pipeline has been run with the persistent signing key. The Flutter release workflow publishes one public `app-release.apk` plus an `app-release.aab` for store distribution—not a second APK. Do not treat temporary CI signing as a Play Protect bypass or a safe update identity.
+> **Release status:** the canonical Android phone release link is intended to serve one Flutter-native APK, replacing the retired WebView APK. The release workflow generates a temporary signing identity and does not use long-lived signing secrets. Such APKs are suitable for direct testing but are not a stable upgrade identity or a Play Store upload key. A valid signature cannot guarantee that Play Protect will never show a warning. Android TV and desktop packages remain separate preview/testing releases.
 
 ## Get XClone for your device
 
 | Platform | Download / access | Availability |
 |---|---|---|
-| **Android phone or tablet** | **[Download latest APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** · [Release notes](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) · [AAB for store distribution](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.aab) | Published release assets |
+| **Android phone or tablet** | **[Download latest Flutter-native APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** · [Release notes](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) | Published release assets |
 | **Android TV / Google TV** | **[Find the latest TV test APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test)** · [TV setup guide](android-tv/README.md) · [TV release workflow](.github/workflows/xclone-tv-debug-release.yml) | Debug-signed test APK; not the stable signed production TV release |
 | **Windows** | **[Find Windows installers (.msi/.exe)](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop)** | Preview installer when the desktop workflow succeeds |
 | **macOS** | **[Find macOS disk images (.dmg)](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop)** | Preview installer when published; CPU/OS compatibility depends on the asset |
