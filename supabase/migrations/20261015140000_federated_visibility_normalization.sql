@@ -22,6 +22,7 @@ with audiences as (
 )
 update public.federated_objects as object
 set visibility = case
+  when lower(object.raw_object->>'visibility') = 'private' then 'followers'
   when lower(object.raw_object->>'visibility') in ('public', 'unlisted', 'followers', 'direct')
     then lower(object.raw_object->>'visibility')
   when exists (
