@@ -743,11 +743,12 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           // The embedded YouTube Flutter player depends on Android WebView.
           // Keep the APK WebView-free and hand off to the official provider app
           // or the user's external browser instead.
-          final watchUri = Uri.https('www.youtube.com', '/watch', {
-            'v': videoId,
-          });
+          final watchUrl = tvExternalYoutubeWatchUrl(videoId);
+          if (watchUrl == null) {
+            throw Exception('The YouTube provider returned an invalid video identifier.');
+          }
           if (generation != _playGeneration) return;
-          _youtubeExternalUrl = watchUri.toString();
+          _youtubeExternalUrl = watchUrl;
           if (mounted) setState(() {});
           return;
         }
@@ -964,7 +965,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                               tvHasPlaybackSurface(
                                 isWeb: kIsWeb,
                                 webPlaybackUrl: _webPlaybackUrl,
-                                hasYoutubePlayer: _youtubeExternalUrl != null,
+                                hasExternalPlaybackAction: _youtubeExternalUrl != null,
                                 hasInitializedNativePlayer:
                                     player?.value.isInitialized == true,
                               );
