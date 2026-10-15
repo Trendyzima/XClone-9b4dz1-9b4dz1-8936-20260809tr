@@ -222,8 +222,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 200,
-    "native_shell_routes": 11,
+    "native_route_matches": 198,
+    "native_shell_routes": 13,
     "legacy_web_fallbacks": 0
   },
   "routes": [
@@ -428,8 +428,8 @@
     {
       "path": "/challenge/:id",
       "domain": "general",
-      "status": "native_partial",
-      "note": "Dedicated Flutter challenge detail page now loads challenge metadata and hashtag-matched posts from Supabase. Flutter analyzer, widget tests, permission review, and web/Android build acceptance remain pending."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/channel/:handle",
@@ -728,8 +728,8 @@
     {
       "path": "/leaderboard/challenges",
       "domain": "creator",
-      "status": "native_partial",
-      "note": "Dedicated Flutter challenge leaderboard now supports Supabase-backed listing, search, sorting, loading/error states, and navigation. Flutter analyzer, widget tests, permission review, and web/Android build acceptance remain pending."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/leaderboard/creators",
