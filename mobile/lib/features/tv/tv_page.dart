@@ -745,7 +745,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           // or the user's external browser instead.
           final watchUrl = tvExternalYoutubeWatchUrl(videoId);
           if (watchUrl == null) {
-            throw Exception('The YouTube provider returned an invalid video identifier.');
+            throw Exception(
+                'The YouTube provider returned an invalid video identifier.');
           }
           if (generation != _playGeneration) return;
           _youtubeExternalUrl = watchUrl;
@@ -965,7 +966,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                               tvHasPlaybackSurface(
                                 isWeb: kIsWeb,
                                 webPlaybackUrl: _webPlaybackUrl,
-                                hasExternalPlaybackAction: _youtubeExternalUrl != null,
+                                hasExternalPlaybackAction:
+                                    _youtubeExternalUrl != null,
                                 hasInitializedNativePlayer:
                                     player?.value.isInitialized == true,
                               );
@@ -1410,7 +1412,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                           onPressed: () async {
                             _playGeneration++;
                             await _player?.dispose();
-                                                  if (mounted) {
+                            if (mounted) {
                               setState(() {
                                 _player = null;
                                 _youtubeExternalUrl = null;
