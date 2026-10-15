@@ -43,7 +43,7 @@ android {
 
     signingConfigs {
         if (hasReleaseSigning) {
-            create("production") {
+            create("releaseSigning") {
                 storeFile = file(releaseStorePath!!)
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
@@ -58,7 +58,7 @@ android {
             // only when the caller supplies a complete keystore identity; CI may
             // generate an ephemeral identity for a direct-download test APK.
             if (hasReleaseSigning) {
-                signingConfig = signingConfigs.getByName("production")
+                signingConfig = signingConfigs.getByName("releaseSigning")
             }
         }
     }
