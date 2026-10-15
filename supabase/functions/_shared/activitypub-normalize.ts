@@ -30,6 +30,22 @@ function linkUrl(value: unknown): string | null {
   return idOf(value);
 }
 
+/** Resolve an actor URI from a followers collection URI. */
+export function followersOwnerUri(value: unknown): string | null {
+  const id = idOf(value);
+  if (!id) return null;
+  try {
+    const url = new URL(id);
+    if (url.protocol !== "https:" || url.search || url.hash) return null;
+    const path = url.pathname.replace(/\/$/, "");
+    if (!path.endsWith("/followers")) return null;
+    url.pathname = path.slice(0, -"/followers".length);
+    return url.origin + url.pathname;
+  } catch {
+    return null;
+  }
+}
+
 function recipientIds(value: unknown): string[] {
   return asArray(value).map(idOf).filter((id): id is string => !!id);
 }
