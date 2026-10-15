@@ -219,6 +219,10 @@ class _FediversePageState extends State<FediversePage> {
   List<Map<String, dynamic>> get _visiblePosts {
     final source = _posts;
     switch (widget.section) {
+      case 'tips':
+      case 'gifts':
+      case 'profile-analytics':
+        return const [];
       case 'replies':
         return source
             .where((p) => '${p['in_reply_to_uri'] ?? ''}'.isNotEmpty)
@@ -273,6 +277,9 @@ class _FediversePageState extends State<FediversePage> {
         'podcasts',
         'series',
         'likes',
+        'tips',
+        'gifts',
+        'profile-analytics',
         'followers',
         'following',
       }.contains(widget.section);
@@ -312,7 +319,8 @@ class _FediversePageState extends State<FediversePage> {
         if (resolved != null) return resolved;
       }
     }
-    if (value is Map) return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
+    if (value is Map)
+      return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
     return null;
   }
 
@@ -523,8 +531,12 @@ class _FediversePageState extends State<FediversePage> {
           'domain': domain,
           'display_name': actor['name'] ?? username,
           'bio': actor['summary'] ?? '',
-          'avatar_url': _remoteUrl(actor['icon'] is Map ? actor['icon']['url'] : actor['icon']),
-          'header_url': _remoteUrl(actor['image'] is Map ? actor['image']['url'] : actor['image']),
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
+          'header_url': _remoteUrl(
+            actor['image'] is Map ? actor['image']['url'] : actor['image'],
+          ),
           'followers_count': profileFollowers is num ? profileFollowers : null,
           'following_count': profileFollowing is num ? profileFollowing : null,
           'posts_count': actor['outbox'] is Map
@@ -543,6 +555,18 @@ class _FediversePageState extends State<FediversePage> {
               actor['alsoKnownAs'] is List ? actor['alsoKnownAs'] : const [],
         };
       });
+    }
+    if (const {'tips', 'gifts'}.contains(widget.section)) {
+      if (mounted) {
+        setState(() {
+          _posts = [];
+          _surfaceRows = [];
+          _surfaceMetrics = {};
+          _surfaceMessage =
+              'Tips and gifts are Testagram-native features and are not exposed as public ActivityPub profile data.';
+        });
+      }
+      return;
     }
     if (const {
       'followers',
@@ -641,21 +665,53 @@ class _FediversePageState extends State<FediversePage> {
           'username': username,
           'domain': domain,
           'display_name': actor['name'] ?? username,
-          'avatar_url': _remoteUrl(actor['icon'] is Map ? actor['icon']['url'] : actor['icon']),
+          'avatar_url': _remoteUrl(
+            actor['icon'] is Map ? actor['icon']['url'] : actor['icon'],
+          ),
           'actor_uri': actorUri,
         },
-        'like_count': object['likes'] is Map ? object['likes']['totalItems'] : object['like_count'] ?? object['likeCount'],
-        'announce_count': object['shares'] is Map ? object['shares']['totalItems'] : object['announce_count'] ?? object['shareCount'],
-        'reply_count': object['replies'] is Map ? object['replies']['totalItems'] : object['reply_count'] ?? object['replyCount'],
+        'like_count': object['likes'] is Map
+            ? object['likes']['totalItems']
+            : object['like_count'] ?? object['likeCount'],
+        'announce_count': object['shares'] is Map
+            ? object['shares']['totalItems']
+            : object['announce_count'] ?? object['shareCount'],
+        'reply_count': object['replies'] is Map
+            ? object['replies']['totalItems']
+            : object['reply_count'] ?? object['replyCount'],
       });
     }
     if (!mounted) return;
     setState(() {
       _posts = posts;
       _pendingPosts = [];
-      _surfaceMessage = posts.isEmpty
-          ? 'No public posts were returned for this federated profile.'
-          : null;
+      if (widget.section == 'profile-analytics') {
+        _surfaceMetrics = {
+          'Public posts loaded': posts.length,
+          'Media posts loaded': posts
+              .where(
+                (post) =>
+                    post['attachments'] is List &&
+                    (post['attachments'] as List).isNotEmpty,
+              )
+              .length,
+          if (_remoteProfile['posts_count'] is num)
+            'Posts reported by server':
+                (_remoteProfile['posts_count'] as num).toInt(),
+          if (_remoteProfile['followers_count'] is num)
+            'Followers reported':
+                (_remoteProfile['followers_count'] as num).toInt(),
+          if (_remoteProfile['following_count'] is num)
+            'Following reported':
+                (_remoteProfile['following_count'] as num).toInt(),
+        };
+        _surfaceMessage =
+            'Counts marked reported come from the remote server; loaded totals only describe the public items fetched here.';
+      } else {
+        _surfaceMessage = posts.isEmpty
+            ? 'No public posts were returned for this federated profile.'
+            : null;
+      }
     });
   }
 
@@ -767,9 +823,15 @@ class _FediversePageState extends State<FediversePage> {
           'tags': object['tag'] is List ? object['tag'] : const [],
           'actor_uri': actorUri,
           'actor': _remoteProfile,
-          'like_count': 0,
-          'announce_count': 0,
-          'reply_count': 0,
+          'like_count': object['likes'] is Map
+              ? object['likes']['totalItems']
+              : object['like_count'] ?? object['likeCount'],
+          'announce_count': object['shares'] is Map
+              ? object['shares']['totalItems']
+              : object['announce_count'] ?? object['shareCount'],
+          'reply_count': object['replies'] is Map
+              ? object['replies']['totalItems']
+              : object['reply_count'] ?? object['replyCount'],
         });
       }
       final seen = _posts.map((post) => '${post['uri'] ?? post['id']}').toSet();
@@ -1473,6 +1535,9 @@ class _FediversePageState extends State<FediversePage> {
                     ('Podcasts', 'podcasts'),
                     ('Series', 'series'),
                     ('Likes', 'likes'),
+                    ('Tips', 'tips'),
+                    ('Gifts', 'gifts'),
+                    ('Analytics', 'profile-analytics'),
                     ('Followers', 'followers'),
                     ('Following', 'following'),
                   ])
@@ -1574,6 +1639,9 @@ class _FediversePageState extends State<FediversePage> {
                     'following',
                     'featured',
                     'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
                   }.contains(widget.section))) ...[
             ..._surfaceRows.map((row) {
               final title =
@@ -1736,6 +1804,9 @@ class _FediversePageState extends State<FediversePage> {
                     'following',
                     'featured',
                     'likes',
+                    'tips',
+                    'gifts',
+                    'profile-analytics',
                   }.contains(widget.section)) &&
               _visiblePosts.isEmpty &&
               !_loading &&
@@ -1882,7 +1953,7 @@ class _FediversePageState extends State<FediversePage> {
                                   : Icons.favorite_border,
                               color: _liked.contains(uri) ? Colors.pink : null,
                             ),
-                            label: Text('${p['like_count'] ?? 0}'),
+                            label: Text('${p['like_count'] ?? '—'}'),
                           ),
                           TextButton.icon(
                             onPressed: () => _react(p, 'boost'),
@@ -1891,11 +1962,11 @@ class _FediversePageState extends State<FediversePage> {
                               color:
                                   _boosted.contains(uri) ? Colors.green : null,
                             ),
-                            label: Text('${p['announce_count'] ?? 0}'),
+                            label: Text('${p['announce_count'] ?? '—'}'),
                           ),
                           const Spacer(),
                           Text(
-                            '${p['reply_count'] ?? 0} replies',
+                            '${p['reply_count'] ?? '—'} replies',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           IconButton(
@@ -1917,6 +1988,9 @@ class _FediversePageState extends State<FediversePage> {
                 'following',
                 'featured',
                 'likes',
+                'tips',
+                'gifts',
+                'profile-analytics',
               }.contains(widget.section))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
