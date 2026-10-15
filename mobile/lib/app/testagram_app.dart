@@ -19,7 +19,6 @@ import '../features/messages/team_chat_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/discovery/trending_topic_page.dart';
-import '../features/challenges/challenge_pages.dart';
 import '../features/commerce/seller_storefront_page.dart';
 import '../features/commerce/premium_page.dart';
 import '../features/commerce/credits_page.dart';
@@ -879,8 +878,10 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/challenge/:id',
-              builder: (_, state) => ChallengeDetailPage(
-                challengeId: state.pathParameters['id'] ?? '',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Challenge',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
               ),
             ),
             GoRoute(path: '/credits', builder: (_, __) => const CreditsPage()),
@@ -907,7 +908,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/leaderboard/challenges',
-              builder: (_, __) => const ChallengeLeaderboardPage(),
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Challenge Leaderboard',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
             ),
             GoRoute(path: '/lists', builder: (_, __) => const ListsPage()),
             GoRoute(
