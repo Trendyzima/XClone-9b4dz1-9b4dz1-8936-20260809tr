@@ -21,34 +21,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Validate release tag and required signing secrets
+      - name: Validate release tag
         shell: bash
         env:
           RELEASE_TAG: ${{ inputs.tag }}
-          KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.TESTAGRAM_ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || {
-            echo "Use a semantic version tag such as v0.3.0."
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || {
+            echo "Use a semantic version tag such as v0.2.535."
             exit 1
           }
-          for pair in \
-            "TESTAGRAM_ANDROID_KEYSTORE_BASE64:$KEYSTORE_BASE64" \
-            "TESTAGRAM_ANDROID_KEYSTORE_PASSWORD:$STORE_PASSWORD" \
-            "TESTAGRAM_ANDROID_KEY_ALIAS:$KEY_ALIAS" \
-            "TESTAGRAM_ANDROID_KEY_PASSWORD:$KEY_PASSWORD"; do
-            name="${pair%%:*}"
-            value="${pair#*:}"
-            if [[ -z "$value" ]]; then
-              echo "Missing required GitHub Actions secret: $name"
-              exit 1
-            fi
-          done
-          echo "Release tag and persistent Android signing configuration are present."
-
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -65,25 +47,28 @@ jobs:
           flutter-version: "3.27.4"
           cache: true
 
-      - name: Configure persistent release signing
+      - name: Generate temporary CI signing key
         shell: bash
-        env:
-          KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.TESTAGRAM_ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          KEYSTORE_PATH="$RUNNER_TEMP/testagram-android-release.jks"
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
-          test -s "$KEYSTORE_PATH"
-          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          KEYSTORE_PATH="$RUNNER_TEMP/testagram-temporary-ci.jks"
+          keytool -genkeypair -v \\
+            -keystore "$KEYSTORE_PATH" \\
+            -storetype JKS \\
+            -storepass testagram-temporary-ci-store \\
+            -alias testagram-temporary-ci \\
+            -keypass testagram-temporary-ci-store \\
+            -keyalg RSA \\
+            -keysize 3072 \\
+            -validity 30 \\
+            -dname "CN=Testagram Temporary CI, OU=Android, O=Testagram, L=CI, ST=CI, C=KE"
           {
             echo "TESTAGRAM_ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH"
-            echo "TESTAGRAM_ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
-            echo "TESTAGRAM_ANDROID_KEY_ALIAS=$KEY_ALIAS"
-            echo "TESTAGRAM_ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+            echo "TESTAGRAM_ANDROID_KEYSTORE_PASSWORD=testagram-temporary-ci-store"
+            echo "TESTAGRAM_ANDROID_KEY_ALIAS=testagram-temporary-ci"
+            echo "TESTAGRAM_ANDROID_KEY_PASSWORD=testagram-temporary-ci-store"
           } >> "$GITHUB_ENV"
+          echo "::warning::This APK uses an ephemeral signing identity. It is for direct testing, is not Play Store signing, and will not be compatible as an in-place update to APKs signed with a different key."
 
       - name: Resolve Flutter dependencies
         working-directory: mobile
@@ -163,4 +148,4 @@ jobs:
 
       - name: Remove temporary runner copy of signing material
         if: always()
-        run: rm -f "$RUNNER_TEMP/testagram-android-release.jks"
+        run: rm -f "$RUNNER_TEMP/testagram-temporary-ci.jks"
