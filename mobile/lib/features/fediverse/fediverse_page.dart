@@ -2049,4 +2049,3 @@ class _FediversePageState extends State<FediversePage> {
     );
   }
 }
-
