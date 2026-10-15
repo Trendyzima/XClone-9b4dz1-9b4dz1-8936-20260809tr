@@ -41,6 +41,41 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/profile" />
             </intent-filter>
+            <!-- Public Testagram content links. These paths must remain aligned with GoRouter routes. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="testagram.site" android:path="/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/post/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/post-remote" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/thread/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/threads" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/profile/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/hashtag/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/hashtags" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/videos" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/shorts" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/c/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/p/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/channel/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/stream/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/spaces" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/space/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/space-recording/" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/news" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/fediverse" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/search" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/explore" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/discover" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/tv" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/iptv" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/sports" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/shop" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/marketplace" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/products" />
+                <data android:scheme="https" android:host="testagram.site" android:pathPrefix="/auth" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
