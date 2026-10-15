@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-15T05:36:37.082Z",
+  "generated_at": "2026-10-15T13:30:13.869Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -5400,6 +5400,26 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Provision the public federated-media cache bucket with strict MIME and object-size limits; upload access remains service-role-only."
+    },
+    "supabase/functions/_shared/activitypub-normalize.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261015140000_federated_visibility_normalization.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261015150000_federated_object_recipients.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261015151000_federated_private_object_rls.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     }
   }
 }
