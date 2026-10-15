@@ -452,7 +452,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                   {profile.moved_to && <a className="inline-flex items-center gap-1 text-primary hover:underline" href={profile.moved_to} target="_blank" rel="noreferrer">Moved account <ExternalLink className="w-3 h-3"/></a>}
                 </div>
                 {Array.isArray(profile.also_known_as) && profile.also_known_as.length > 0 && <div className="mt-3 text-xs text-muted-foreground">Also known as: {profile.also_known_as.map((uri: any) => String(uri?.id ?? uri)).join(' · ')}</div>}
-                {profile.url && <a href={profile.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">Open original profile <ExternalLink className="w-3 h-3"/></a>}
+                {profile.url && <p className="mt-3 text-xs text-muted-foreground">Remote profile address: <span className="break-all">{profile.url}</span></p>}
                 {Array.isArray(profile.emojis) && profile.emojis.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.emojis.map((emoji: any, i: number) => <span key={`${emoji.shortcode ?? emoji.name ?? i}`} className="text-xs rounded-full border border-border px-2 py-1">:{emoji.shortcode ?? emoji.name ?? 'emoji'}:</span>)}</div>}
                 {Array.isArray(profile.tags) && profile.tags.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.tags.filter((tag: any) => tag && typeof tag === 'object').map((tag: any, i: number) => <span key={`${tag.name ?? tag.href ?? i}`} className="text-xs rounded-full bg-muted px-2 py-1">{tag.name ?? tag.href ?? 'Tag'}</span>)}</div>}
                 {following && (
@@ -520,7 +520,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                             {typeof post.like_count === 'number' && <span>{displayCount(post.like_count)} likes</span>}
                             {typeof post.announce_count === 'number' && <span>{displayCount(post.announce_count)} boosts</span>}
                             {typeof post.reply_count === 'number' && <span>{displayCount(post.reply_count)} replies</span>}
-                            {post.url && <a href={post.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Original post <ExternalLink className="w-3 h-3"/></a>}
+                            <span className="inline-flex items-center gap-1 text-muted-foreground"><Globe className="w-3 h-3"/>Federated content · shown on Testagram</span>
                           </p>
                         </article>
                       )) : (
