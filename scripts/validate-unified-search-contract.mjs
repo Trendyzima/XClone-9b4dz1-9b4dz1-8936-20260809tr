@@ -8,8 +8,8 @@ const page = read('mobile/lib/features/discovery/unified_search_page.dart');
 const policy = read('mobile/lib/features/discovery/unified_search_policy.dart');
 const tests = read('mobile/test/features/discovery/unified_search_policy_test.dart');
 const sql = read('supabase/migrations/20260925250000_unified_search_everything_fediverse_v3.sql');
-const paginationSql = read('supabase/migrations/20261015120000_unified_search_cursor_pagination.sql');
-const sortingSql = read('supabase/migrations/20261015140000_unified_search_server_sort.sql');
+const paginationSql = read('supabase/migrations/20261015044758_unified_search_pagination_sort_contract.sql');
+const sortingSql = paginationSql;
 const web = read('src/pages/SearchPageV3.tsx');
 const webClient = read('src/services/testagramCapabilityClient.ts');
 const failures = [];
@@ -32,11 +32,11 @@ requireText(tests, /normalizes all unified result groups[\s\S]*maps every tab[\s
 requireText(sql, /CREATE OR REPLACE FUNCTION public\.testagram_search_unified[\s\S]*return jsonb_build_object\('users',vu,'hashtags',vh,'posts',vp,'threads',vt,'communities',vc,'replies',vr,'fediverse',vf,'next_cursor',null\)/, 'The server migration must expose all unified-search result groups.');
 requireText(sql, /grant execute on function public\.testagram_search_unified\(text,text,integer\) to authenticated/, 'Base unified-search RPC must retain authenticated-only execute grants.');
 requireText(paginationSql, /p_offset integer DEFAULT 0[\s\S]*limit n offset v_offset[\s\S]*'instances',vi,'next_cursor',next_offset::text/, 'Unified search must provide server-backed offset pagination, instances, and a continuation cursor.');
-requireText(paginationSql, /grant execute on function public\.testagram_search_unified\(text,text,integer,integer\) to authenticated/, 'Paginated unified-search RPC must retain authenticated-only execute grants.');
+requireText(paginationSql, /security definer[\s\S]*grant execute on function public\.testagram_search_unified\(text,text,integer,integer,text\) to authenticated/, 'Paginated unified-search RPC must retain the production SECURITY DEFINER boundary and authenticated-only execute grants.');
 requireText(web, /code==='AUTH_REQUIRED'[\s\S]*Sign in again to search Testagram/, 'Web search must show an actionable authentication error instead of a generic failure.');
 requireText(webClient, /Promise\.allSettled/, 'Web unified search must tolerate partial success from fallback capabilities.');
 requireText(webClient, /p_offset:input\.offset,p_sort:input\.sort/, 'Web unified search must send pagination offsets and sort mode to the canonical RPC.');
-requireText(sortingSql, /p_sort text DEFAULT 'relevance'[\s\S]*sort_mode='most_liked'[\s\S]*sort_mode='most_viewed'[\s\S]*grant execute on function public\.testagram_search_unified\(text,text,integer,integer,text\) to authenticated/, 'Server-side sort modes must use stable pagination and authenticated-only grants.');
+requireText(sortingSql, /p_sort text DEFAULT 'relevance'[\s\S]*sort_mode='most_liked'[\s\S]*sort_mode='most_viewed'[\s\S]*testagram_search_unified_uncached\(q,kind,n,page_offset,sort_mode\)[\s\S]*grant execute on function public\.testagram_search_unified\(text,text,integer,integer,text\) to authenticated/, 'Server-side sort modes must use stable pagination and authenticated-only grants.');
 requireText(web, /append&&Number\.isFinite\(Number\(data\.next_cursor\)\)/, 'Web pagination must safely consume server continuation cursors.');
 requireText(webClient, /this\.searchUsers/, 'Web fallback must call the existing user-search capability.');
 requireText(webClient, /this\.searchPosts/, 'Web fallback must call the existing post-search capability.');
@@ -44,5 +44,7 @@ requireText(webClient, /if\(!token\)\s*\{[\s\S]{0,220}supabase\.auth\.refreshSes
 requireText(web, /id:'unified-search-auth-required'/, 'Repeated auth failures must share one stable toast identity.');
 requireText(web, /seen\.add\(name\)/, 'Federated hashtag and account suggestions must deduplicate within each remote response.');
 requireText(web, /remote_status_uri\?\?p\.url\?\?p\.id/, 'Federated search results must deduplicate by canonical remote object URI before display.');
+requireText(read('supabase/migrations/20261015120000_unified_search_cursor_pagination.sql'), /DO \$migration\$ BEGIN NULL; END \$migration\$;/, 'The superseded pagination draft must not overwrite the production RPC contract.');
+requireText(read('supabase/migrations/20261015140000_unified_search_server_sort.sql'), /DO \$migration\$ BEGIN NULL; END \$migration\$;/, 'The superseded sorting draft must not overwrite the production RPC contract.');
 if (failures.length) { console.error('Unified-search contract failed:\n- ' + failures.join('\n- ')); process.exitCode = 1; }
 else console.log('Unified-search contract passed: Flutter route, RPC shape, auth retry, stale-response guard, SQL result contract and web error mapping are aligned.');
