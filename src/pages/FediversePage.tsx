@@ -1437,11 +1437,22 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                         <FediverseRichText html={content} tags={toot.tags ?? []} className="text-sm leading-relaxed mb-2" />
                         {mediaAtts.length > 0 && (
                           <div className={`mt-2 grid gap-1 rounded-xl overflow-hidden ${mediaAtts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                            {mediaAtts.slice(0, 4).map((att: any) => (
-                              att.type === 'image' ? <img key={att.id} src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(att.preview_url ?? att.url ?? ''))}`} alt={att.description ?? ''} className="w-full object-cover max-h-48" />
-                              : att.type === 'video' || att.type === 'gifv' ? <video key={att.id} src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(att.url ?? ''))}`} controls playsInline preload="metadata" className="w-full max-h-48" />
-                              : null
-                            ))}
+                            {mediaAtts.slice(0, 4).map((att: any) => {
+                              const rawMediaUrl = att.preview_url ?? att.url;
+                              const localMediaUrl = (raw: unknown) => typeof raw === 'string' && /^https:\/\//i.test(raw)
+                                ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(raw)}`
+                                : '';
+                              if (att.type === 'video' || att.type === 'gifv') {
+                                const src = localMediaUrl(att.url);
+                                return src ? <video key={att.id} src={src} controls playsInline preload="metadata" className="w-full max-h-48" /> : null;
+                              }
+                              if (att.type === 'audio') {
+                                const src = localMediaUrl(att.url);
+                                return src ? <audio key={att.id} src={src} controls preload="metadata" className="w-full" /> : null;
+                              }
+                              const src = localMediaUrl(rawMediaUrl);
+                              return src ? <img key={att.id} src={src} alt={att.description ?? ''} loading="lazy" className="w-full object-cover max-h-48" /> : null;
+                            })}
                           </div>
                         )}
                         <div className="flex items-center gap-2 mt-2">
