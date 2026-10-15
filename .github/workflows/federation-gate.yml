@@ -77,7 +77,7 @@ jobs:
           for collection in outbox followers following; do
             curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat/$collection" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('type') in ('OrderedCollection','OrderedCollectionPage'), 'invalid collection type: '+str(d.get('type')); assert d.get('id'), 'collection id missing'; print('ActivityPub collection contract passed.')"
           done
-          unsigned_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -X POST -H "Content-Type: application/activity+json" --data "{}" -o /dev/null -w '%{http_code}' "$base/users/crissbeat/inbox")"
+          unsigned_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -X POST -H "Content-Type: application/activity+json" --data '{"@context":"https://www.w3.org/ns/activitystreams","id":"https://remote.example/activities/probe","type":"Create","actor":"https://remote.example/users/probe","object":{"id":"https://remote.example/objects/probe","type":"Note","attributedTo":"https://remote.example/users/probe","content":"contract probe","to":["https://www.w3.org/ns/activitystreams#Public"]}}' -o /dev/null -w '%{http_code}' "$base/users/crissbeat/inbox")"
           echo "Unsigned inbox POST -> HTTP $unsigned_status"
           [[ "$unsigned_status" == "401" ]] || { echo "Inbox accepted or misclassified an unsigned activity." >&2; exit 1; }
           for inbox_path in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
