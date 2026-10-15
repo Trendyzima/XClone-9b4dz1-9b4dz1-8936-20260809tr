@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Globe, UserPlus, UserMinus, Loader2, Users, Rss, LockKeyhole, Bot, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Globe, UserPlus, UserMinus, Loader2, Users, Rss, LockKeyhole, Bot, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import * as federation from '@/api/federation';
@@ -404,12 +404,12 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           <>
             <section className="border-b border-border">
               <div className="h-32 bg-gradient-to-br from-purple-500/20 via-primary/10 to-background overflow-hidden">
-                {(profile.header_url || profile.header) && <img src={federatedMediaUrl(profile.header_url || profile.header, profile.actor_uri || profile.actor_url) || profile.header_url || profile.header} alt="" className="w-full h-full object-cover" />}
+                {(profile.header_url || profile.header) && <img src={federatedMediaUrl(profile.header_url || profile.header, profile.actor_uri || profile.actor_url)} alt="" className="w-full h-full object-cover" />}
               </div>
               <div className="px-4 pb-5">
                 <div className="flex items-end justify-between -mt-10">
                   <img
-                    src={federatedMediaUrl(profile.icon?.url || profile.avatar || profile.avatar_url, profile.actor_uri || profile.actor_url) || profile.icon?.url || profile.avatar || profile.avatar_url}
+                    src={federatedMediaUrl(profile.icon?.url || profile.avatar || profile.avatar_url, profile.actor_uri || profile.actor_url)}
                     alt={profile.name || profile.preferredUsername || profile.username || 'Fediverse profile'}
                     className="w-20 h-20 rounded-full object-cover bg-muted border-4 border-background"
                   />
@@ -449,10 +449,10 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                   {profile.locked && <span className="inline-flex items-center gap-1"><LockKeyhole className="w-3.5 h-3.5"/>Approval required</span>}
                   {profile.bot && <span className="inline-flex items-center gap-1"><Bot className="w-3.5 h-3.5"/>Bot / service</span>}
                   {profile.discoverable === false && <span>Not listed in discovery</span>}
-                  {profile.moved_to && <a className="inline-flex items-center gap-1 text-primary hover:underline" href={profile.moved_to} target="_blank" rel="noreferrer">Moved account <ExternalLink className="w-3 h-3"/></a>}
+                  {profile.moved_to && <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => navigate('/fediverse/profile?actor=' + encodeURIComponent(String(profile.moved_to)))}>Moved account · open on Testagram</button>}
                 </div>
                 {Array.isArray(profile.also_known_as) && profile.also_known_as.length > 0 && <div className="mt-3 text-xs text-muted-foreground">Also known as: {profile.also_known_as.map((uri: any) => String(uri?.id ?? uri)).join(' · ')}</div>}
-                {profile.url && <a href={profile.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">Open original profile <ExternalLink className="w-3 h-3"/></a>}
+                {profile.url && <p className="mt-3 text-xs text-muted-foreground">Remote profile address: <span className="break-all">{profile.url}</span></p>}
                 {Array.isArray(profile.emojis) && profile.emojis.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.emojis.map((emoji: any, i: number) => <span key={`${emoji.shortcode ?? emoji.name ?? i}`} className="text-xs rounded-full border border-border px-2 py-1">:{emoji.shortcode ?? emoji.name ?? 'emoji'}:</span>)}</div>}
                 {Array.isArray(profile.tags) && profile.tags.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{profile.tags.filter((tag: any) => tag && typeof tag === 'object').map((tag: any, i: number) => <span key={`${tag.name ?? tag.href ?? i}`} className="text-xs rounded-full bg-muted px-2 py-1">{tag.name ?? tag.href ?? 'Tag'}</span>)}</div>}
                 {following && (
@@ -506,11 +506,13 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {post.attachments.slice(0, 4).map((attachment: any, index: number) => {
                                 const mediaType = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
-                                const remoteUrl = attachment?.url || attachment?.href;
-                                const url = federatedMediaUrl(remoteUrl, resolvedActorUri) || remoteUrl;
+                                const remoteUrl = String(attachment?.url || attachment?.href || '');
+                                const url = federatedMediaUrl(remoteUrl, resolvedActorUri);
                                 if (!url) return null;
-                                if (mediaType.startsWith('video/')) return <video key={index} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted" />;
-                                if (mediaType.startsWith('audio/')) return <audio key={index} src={url} controls preload="metadata" className="w-full" />;
+                                const video = mediaType === 'video' || mediaType === 'gifv' || mediaType.startsWith('video/') || /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(remoteUrl);
+                                const audio = mediaType === 'audio' || mediaType.startsWith('audio/') || /\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:[?#]|$)/i.test(remoteUrl);
+                                if (video) return <video key={index} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted" />;
+                                if (audio) return <audio key={index} src={url} controls preload="metadata" className="w-full" />;
                                 return <img key={index} src={url} alt={attachment?.name || ''} loading="lazy" className="w-full aspect-square object-cover rounded-xl bg-muted" />;
                               })}
                             </div>
@@ -520,7 +522,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                             {typeof post.like_count === 'number' && <span>{displayCount(post.like_count)} likes</span>}
                             {typeof post.announce_count === 'number' && <span>{displayCount(post.announce_count)} boosts</span>}
                             {typeof post.reply_count === 'number' && <span>{displayCount(post.reply_count)} replies</span>}
-                            {post.url && <a href={post.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Original post <ExternalLink className="w-3 h-3"/></a>}
+                            <span className="inline-flex items-center gap-1 text-muted-foreground"><Globe className="w-3 h-3"/>Federated content · shown on Testagram</span>
                           </p>
                         </article>
                       )) : (
@@ -540,14 +542,15 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                       ) : (
                         <div className="grid grid-cols-3 gap-1 p-1">
                           {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
-                            const remoteUrl = attachment?.url || attachment?.href;
-                            const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri) || remoteUrl;
+                            const remoteUrl = String(attachment?.url || attachment?.href || '');
+                            const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri);
                             const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
-                            return url && type.startsWith('video/') ? (
-                              <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
-                            ) : url ? (
-                              <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />
-                            ) : null;
+                            const video = type === 'video' || type === 'gifv' || type.startsWith('video/') || /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(remoteUrl);
+                            const audio = type === 'audio' || type.startsWith('audio/') || /\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:[?#]|$)/i.test(remoteUrl);
+                            if (!url) return null;
+                            if (video) return <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />;
+                            if (audio) return <audio key={`${post.id}-${index}`} src={url} controls className="w-full" />;
+                            return <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />;
                           }))}
                         </div>
                       )}
@@ -572,14 +575,14 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                       {relationshipRows.map((person: any, index: number) => {
                         if (['Featured', 'Likes'].includes(activeTab)) return <article key={person.uri ?? person.id ?? index} className="p-4">
                           <FediverseRichText html={person.content ?? person.summary ?? ''} tags={person.raw_object?.tag ?? person.tags ?? []} className="text-sm leading-6"/>
-                          {Array.isArray(person.attachments) && person.attachments.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2">{person.attachments.map((attachment: any, mediaIndex: number) => { const raw=attachment?.url || attachment?.href; const url=federatedMediaUrl(raw, person.actor_uri || resolvedActorUri) || raw; const type=String(attachment?.type || attachment?.mediaType || attachment?.media_type || '').toLowerCase(); if (!url) return null; return type.startsWith('video/') ? <video key={mediaIndex} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted"/> : type.startsWith('audio/') ? <audio key={mediaIndex} src={url} controls preload="metadata" className="w-full"/> : <img key={mediaIndex} src={url} alt={attachment?.name || ''} loading="lazy" className="w-full rounded-xl object-cover bg-muted"/>; })}</div>}
+                          {Array.isArray(person.attachments) && person.attachments.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2">{person.attachments.map((attachment: any, mediaIndex: number) => { const raw=String(attachment?.url || attachment?.href || ''); const url=federatedMediaUrl(raw, person.actor_uri || resolvedActorUri); const type=String(attachment?.type || attachment?.mediaType || attachment?.media_type || '').toLowerCase(); const video=type==='video'||type==='gifv'||type.startsWith('video/')||/\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(raw); const audio=type==='audio'||type.startsWith('audio/')||/\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:[?#]|$)/i.test(raw); if (!url) return null; return video ? <video key={mediaIndex} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted"/> : audio ? <audio key={mediaIndex} src={url} controls preload="metadata" className="w-full"/> : <img key={mediaIndex} src={url} alt={attachment?.name || ''} loading="lazy" className="w-full rounded-xl object-cover bg-muted"/>; })}</div>}
                           <p className="mt-2 text-xs text-muted-foreground">{person.published_at ? new Date(person.published_at).toLocaleString() : ''}{person.actor_uri ? ` · ${new URL(person.actor_uri).hostname}` : ''}</p>
                         </article>;
                         const actor = String(person.actor_uri ?? person.actor_url ?? person.id ?? person.url ?? '');
                         const domain = String(person.domain ?? (() => { try { return new URL(actor).hostname; } catch { return ''; } })());
                         const username = String(person.username ?? person.preferredUsername ?? 'remote');
                         return <button key={actor || index} onClick={() => actor && navigate(`/fediverse/profile?actor=${encodeURIComponent(actor)}&handle=${encodeURIComponent(`${username}@${domain}`)}`)} className="w-full text-left p-4 flex items-center gap-3 hover:bg-muted/40">
-                          <img src={federatedMediaUrl(person.avatar_url, actor) || person.avatar_url || undefined} alt="" className="w-11 h-11 rounded-full object-cover bg-muted"/>
+                          <img src={federatedMediaUrl(person.avatar_url, actor) || undefined} alt="" className="w-11 h-11 rounded-full object-cover bg-muted"/>
                           <span className="min-w-0 flex-1"><span className="block font-bold truncate">{person.display_name ?? person.name ?? username}</span><span className="block text-sm text-muted-foreground truncate">@{username}@{domain}</span>{person.bio && <span className="block text-xs text-muted-foreground line-clamp-2 mt-1">{String(person.bio).replace(/<[^>]*>/g, ' ').slice(0, 180)}</span>}</span>
                           {person.bot && <Bot className="w-4 h-4 text-muted-foreground"/>}{person.locked && <LockKeyhole className="w-4 h-4 text-muted-foreground"/>}
                         </button>;

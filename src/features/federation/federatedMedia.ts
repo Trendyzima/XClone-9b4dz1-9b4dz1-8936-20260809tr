@@ -1,14 +1,12 @@
-const FUNCTION_BASE = "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/federated-media-proxy";
+const FUNCTION_BASE = "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/federated-media";
 
-export function federatedMediaUrl(remoteUrl: unknown, actorUrl: unknown): string | null {
+export function federatedMediaUrl(remoteUrl: unknown, _actorUrl?: unknown): string | null {
   if (typeof remoteUrl !== "string" || !remoteUrl.trim()) return null;
-  if (typeof actorUrl !== "string" || !actorUrl.trim()) return remoteUrl;
   try {
     const target = new URL(remoteUrl);
-    const source = new URL(actorUrl);
-    if (target.protocol !== "https:" || source.protocol !== "https:") return remoteUrl;
-    return `${FUNCTION_BASE}?url=${encodeURIComponent(target.toString())}&source=${encodeURIComponent(source.toString())}`;
+    if (!target.hostname) return null;
+    return `${FUNCTION_BASE}?url=${encodeURIComponent(target.toString())}`;
   } catch {
-    return remoteUrl;
+    return null;
   }
 }

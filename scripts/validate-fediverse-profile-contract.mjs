@@ -16,6 +16,8 @@ const checks = [
   ['mobile/lib/features/fediverse/fediverse_page.dart', /\('Tips', 'tips'\)[\s\S]*\('Gifts', 'gifts'\)[\s\S]*\('Analytics', 'profile-analytics'\)/, 'Flutter profile tabs must match native web profile sections.'],
   ['mobile/lib/features/fediverse/fediverse_page.dart', /Testagram-native features[\s\S]*Public posts loaded/, 'Flutter profiles must explain native-only tips/gifts and provide profile analytics.'],
   ['mobile/lib/app/testagram_app.dart', /path: '\/fediverse\/profile\/tips'[\s\S]*queryParameters\['actor'\][\s\S]*path: '\/fediverse\/profile\/gifts'[\s\S]*queryParameters\['actor'\][\s\S]*path: '\/fediverse\/profile\/analytics'[\s\S]*queryParameters\['actor'\]/, 'Flutter tips, gifts, and analytics profile routes must preserve the selected actor identity.'],
+  ['src/pages/FediverseProfilePage.tsx', /^(?![\s\S]*Original post)[\s\S]*$/, 'Remote profile timelines must not redirect readers to an Original post.'],
+  ['src/pages/FediversePage.tsx', /FediverseRichText html={content}[\s\S]*functions\/v1\/federated-media/, 'Remote post text must render safely and remote media must use Testagram media URLs.'],
 ];
 let failures = 0;
 for (const [path, pattern, message] of checks) {

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'fediverse_feed_policy.dart';
 import 'fediverse_content.dart';
+import 'federated_attachment_view.dart';
 
 class FediversePage extends StatefulWidget {
   const FediversePage({
@@ -71,7 +73,7 @@ class _FediversePageState extends State<FediversePage> {
   bool _loadingMoreRelationships = false;
   Map<String, int> _surfaceMetrics = {};
   String? _surfaceMessage;
-  final Set<String> _liked = {}, _boosted = {};
+  final Set<String> _liked = {}, _boosted = {}, _revealedSensitive = {};
   bool _loading = true;
   String? _error;
   @override
@@ -331,6 +333,67 @@ class _FediversePageState extends State<FediversePage> {
       return _remoteUrl(value['href'] ?? value['url'] ?? value['id']);
     }
     return null;
+  }
+
+  /// Routes public remote media through Testagram's persistent media cache.
+  String _localizedMediaUrl(dynamic value) {
+    final source = _remoteUrl(value);
+    if (source == null) return '';
+    final parsed = Uri.tryParse(source);
+    if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
+      return '';
+    }
+    return Uri.parse(_db.rest.url.replaceFirst('/rest/v1', '')).replace(
+      path: '/functions/v1/federated-media',
+      queryParameters: {'url': source},
+    ).toString();
+  }
+
+  String _attachmentMediaType(Map<String, dynamic> attachment) {
+    final declared =
+        '${attachment['mediaType'] ?? attachment['media_type'] ?? attachment['mimeType'] ?? ''}'
+            .toLowerCase()
+            .trim();
+    if (declared == 'video' || declared == 'gifv') return 'video/mp4';
+    if (declared == 'audio') return 'audio/mpeg';
+    if (declared.startsWith('image/') ||
+        declared.startsWith('video/') ||
+        declared.startsWith('audio/')) {
+      return declared;
+    }
+    final source = _remoteUrl(
+      attachment['url'] ?? attachment['href'] ?? attachment['id'],
+    );
+    final path = Uri.tryParse(source ?? '')?.path.toLowerCase() ?? '';
+    if (RegExp(r'\.(mp4|m4v|mov|webm)$').hasMatch(path)) {
+      return 'video/mp4';
+    }
+    if (RegExp(r'\.(mp3|m4a|aac|ogg|opus|wav|flac)$').hasMatch(path)) {
+      return 'audio/mpeg';
+    }
+    return 'image/*';
+  }
+
+  List<Widget> _renderAttachments(dynamic value) {
+    if (value is! List) return const [];
+    return value.take(4).map((item) {
+      final attachment = item is Map
+          ? Map<String, dynamic>.from(item)
+          : <String, dynamic>{'url': item};
+      final source = _localizedMediaUrl(
+        attachment['url'] ?? attachment['href'] ?? attachment['id'],
+      );
+      if (source.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: FederatedAttachmentView(
+          url: source,
+          mediaType: _attachmentMediaType(attachment),
+          altText:
+              '${attachment['name'] ?? attachment['alt'] ?? attachment['summary'] ?? ''}',
+        ),
+      );
+    }).toList();
   }
 
   Widget _profileMetric(String label, dynamic value, String route) {
@@ -1363,9 +1426,10 @@ class _FediversePageState extends State<FediversePage> {
                   SizedBox(
                     height: 104,
                     width: double.infinity,
-                    child: _remoteProfile['header_url'] is String
+                    child: _localizedMediaUrl(_remoteProfile['header_url'])
+                            .isNotEmpty
                         ? Image.network(
-                            '${_remoteProfile['header_url']}',
+                            _localizedMediaUrl(_remoteProfile['header_url']),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) =>
                                 const ColoredBox(color: Color(0x22336699)),
@@ -1381,13 +1445,17 @@ class _FediversePageState extends State<FediversePage> {
                           children: [
                             CircleAvatar(
                               radius: 28,
-                              backgroundImage:
-                                  _remoteProfile['avatar_url'] is String
-                                      ? NetworkImage(
-                                          '${_remoteProfile['avatar_url']}',
-                                        )
-                                      : null,
-                              child: _remoteProfile['avatar_url'] is String
+                              backgroundImage: _localizedMediaUrl(
+                                          _remoteProfile['avatar_url'])
+                                      .isNotEmpty
+                                  ? CachedNetworkImageProvider(
+                                      _localizedMediaUrl(
+                                          _remoteProfile['avatar_url']),
+                                    )
+                                  : null,
+                              child: _localizedMediaUrl(
+                                          _remoteProfile['avatar_url'])
+                                      .isNotEmpty
                                   ? null
                                   : const Icon(Icons.person_rounded),
                             ),
@@ -1702,9 +1770,12 @@ class _FediversePageState extends State<FediversePage> {
                             '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
                           )
                       : null,
-                  leading: isRelationship && row['avatar_url'] is String
+                  leading: isRelationship &&
+                          _localizedMediaUrl(row['avatar_url']).isNotEmpty
                       ? CircleAvatar(
-                          backgroundImage: NetworkImage('${row['avatar_url']}'),
+                          backgroundImage: CachedNetworkImageProvider(
+                            _localizedMediaUrl(row['avatar_url']),
+                          ),
                         )
                       : Icon(
                           widget.section == 'inbox'
@@ -1903,14 +1974,14 @@ class _FediversePageState extends State<FediversePage> {
                         children: [
                           CircleAvatar(
                             backgroundImage:
-                                '${actor['avatar_url'] ?? ''}'.startsWith(
-                              'http',
-                            )
-                                    ? NetworkImage('${actor['avatar_url']}')
+                                _localizedMediaUrl(actor['avatar_url'])
+                                        .isNotEmpty
+                                    ? CachedNetworkImageProvider(
+                                        _localizedMediaUrl(actor['avatar_url']),
+                                      )
                                     : null,
-                            child: '${actor['avatar_url'] ?? ''}'.startsWith(
-                              'http',
-                            )
+                            child: _localizedMediaUrl(actor['avatar_url'])
+                                    .isNotEmpty
                                 ? null
                                 : const Icon(Icons.person_outline_rounded),
                           ),
@@ -1950,16 +2021,35 @@ class _FediversePageState extends State<FediversePage> {
                             ),
                           ),
                         ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Text(
-                          sensitive
-                              ? 'This post is marked sensitive. Open the remote post to view its full content.'
-                              : '${p['content'] ?? p['summary'] ?? ''}',
-                          maxLines: sensitive ? 3 : 12,
-                          overflow: TextOverflow.ellipsis,
+                      if (sensitive && !_revealedSensitive.contains(uri))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'This post is marked sensitive. Its content and media are available here on Testagram.',
+                              ),
+                              TextButton.icon(
+                                onPressed: () => setState(
+                                  () => _revealedSensitive.add(uri),
+                                ),
+                                icon: const Icon(Icons.visibility_rounded),
+                                label:
+                                    const Text('Reveal content on Testagram'),
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: SelectableText(
+                            '${p['content'] ?? p['summary'] ?? ''}',
+                          ),
                         ),
-                      ),
+                        ..._renderAttachments(p['attachments']),
+                      ],
                       if (p['tags'] is List && (p['tags'] as List).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),

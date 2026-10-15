@@ -20,6 +20,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { formatNumber } from '@/lib/utils';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
+import { FediverseRichText } from '@/components/features/FediverseRichText';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { PostCard } from '@/components/features/PostCard';
@@ -943,40 +944,41 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
 
   // ─── Render helpers ────────────────────────────────────────────────────────
   function RemotePostMedia({ attachments, compact = false }: { attachments: any[]; compact?: boolean }) {
-    const media = Array.isArray(attachments) ? attachments.filter((a: any) => a && (a.preview_url || a.url || a.remote_url)) : [];
+    const media = Array.isArray(attachments) ? attachments.filter((a: any) => a && (a.preview_url || a.preview_remote_url || a.url || a.remote_url || a.href)) : [];
     if (!media.length) return null;
 
     const proxy = (value: unknown) => {
       const raw = String(value || '').trim();
       if (!/^https:\/\//i.test(raw)) return '';
-      return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media-proxy?url=${encodeURIComponent(raw)}&source=${encodeURIComponent(raw)}`;
+      return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(raw)}`;
     };
 
     return (
       <div className={`mt-3 grid gap-1.5 ${media.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {media.slice(0, 4).map((attachment: any, index: number) => {
-          const previewRaw = attachment.preview_url || attachment.preview_remote_url || attachment.url || attachment.remote_url;
-          const originalRaw = attachment.remote_url || attachment.url || previewRaw;
-          const preview = proxy(previewRaw);
-          const original = proxy(originalRaw);
-          const type = String(attachment.type || '').toLowerCase();
-          const isVideo = type === 'video' || type === 'gifv' || /\.(?:mp4|webm|mov)(?:[?#]|$)/i.test(originalRaw);
-          const isAudio = type === 'audio' || /\.(?:mp3|ogg|wav|m4a|opus)(?:[?#]|$)/i.test(originalRaw);
+          const previewRaw = attachment.preview_url || attachment.preview_remote_url || attachment.url || attachment.remote_url || attachment.href;
+          const originalRaw = attachment.remote_url || attachment.url || attachment.href || previewRaw;
+          const preview = proxy(previewRaw) || proxy(originalRaw);
+          const original = proxy(originalRaw) || proxy(previewRaw);
+          if (!preview && !original) return null;
+          const type = String(attachment.mediaType || attachment.media_type || attachment.type || '').toLowerCase();
+          const isVideo = type === 'video' || type === 'gifv' || type.startsWith('video/') || /\.(?:mp4|webm|mov|m4v)(?:[?#]|$)/i.test(originalRaw);
+          const isAudio = type === 'audio' || type.startsWith('audio/') || /\.(?:mp3|ogg|wav|m4a|opus|flac)(?:[?#]|$)/i.test(originalRaw);
 
           if (isVideo) return <video key={attachment.id ?? index} src={original} poster={preview || undefined} controls playsInline preload="metadata" className="w-full max-h-[420px] rounded-xl bg-black object-contain" />;
           if (isAudio) return <audio key={attachment.id ?? index} src={original} controls preload="none" className="w-full" />;
 
           return (
-            <a key={attachment.id ?? index} href={original || previewRaw} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-muted">
+            <div key={attachment.id ?? index} className="overflow-hidden rounded-xl bg-muted">
               <img src={preview} alt={attachment.description || ''} loading="lazy" decoding="async" fetchPriority="low"
                 className={`w-full ${media.length === 1 ? 'max-h-[520px]' : 'aspect-square'} object-cover`}
                 onError={(event) => {
                   const img = event.currentTarget;
-                  const fallback = proxy(attachment.remote_url || attachment.url);
+                  const fallback = proxy(attachment.remote_url || attachment.url || attachment.href);
                   if (fallback && img.src !== fallback) img.src = fallback;
                   else img.style.display = 'none';
                 }} />
-            </a>
+            </div>
           );
         })}
       </div>
@@ -1026,7 +1028,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
             aria-label={`Open @${username}`}
           >
             <div className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full bg-muted overflow-hidden`}>
-              {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> :
+              {avatarUrl ? <img src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(avatarUrl))}`} alt={username} className="w-full h-full object-cover" /> :
                 <div className="w-full h-full flex items-center justify-center font-bold text-xs">{username[0]?.toUpperCase()}</div>}
             </div>
           </button>
@@ -1044,7 +1046,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
               ><Globe className="w-3 h-3" />{domain}</button>
               {created && <span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(created), { addSuffix: true })}</span>}
             </div>
-            <div className={`${compact ? 'text-xs' : 'text-sm'} leading-relaxed line-clamp-3`} dangerouslySetInnerHTML={{ __html: content }} />
+            <FediverseRichText html={content} tags={p.raw_object?.tag ?? p.tags ?? []} className={`${compact ? 'text-xs' : 'text-sm'} leading-relaxed`} />
             <RemotePostMedia attachments={p.attachments ?? p.media_attachments ?? p.raw_object?.media_attachments ?? []} compact={compact} />
             <div className="mt-2 flex items-center gap-1 flex-wrap">
               <button onClick={() => handleFedLike({ ...p, object_url: key })}
@@ -1413,7 +1415,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                           followers_count: account.followers_count,
                           following_count: account.following_count,
                         })} className="w-10 h-10 rounded-full bg-muted overflow-hidden shrink-0 hover:ring-2 hover:ring-[#6364FF] transition-all">
-                        {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{displayName[0]?.toUpperCase()}</div>}
+                        {avatarUrl ? <img src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(avatarUrl))}`} alt={username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{displayName[0]?.toUpperCase()}</div>}
                       </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -1433,14 +1435,25 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                           </span>
                           {created && <span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(created), { addSuffix: true })}</span>}
                         </div>
-                        <div className="text-sm leading-relaxed line-clamp-4 mb-2" dangerouslySetInnerHTML={{ __html: content }} />
+                        <FediverseRichText html={content} tags={toot.tags ?? []} className="text-sm leading-relaxed mb-2" />
                         {mediaAtts.length > 0 && (
                           <div className={`mt-2 grid gap-1 rounded-xl overflow-hidden ${mediaAtts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                            {mediaAtts.slice(0, 4).map((att: any) => (
-                              att.type === 'image' ? <img key={att.id} src={att.preview_url ?? att.url} alt={att.description ?? ''} className="w-full object-cover max-h-48" />
-                              : att.type === 'video' || att.type === 'gifv' ? <video key={att.id} src={att.url} controls className="w-full max-h-48" />
-                              : null
-                            ))}
+                            {mediaAtts.slice(0, 4).map((att: any) => {
+                              const rawMediaUrl = att.preview_url ?? att.url;
+                              const localMediaUrl = (raw: unknown) => typeof raw === 'string' && /^https:\/\//i.test(raw)
+                                ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(raw)}`
+                                : '';
+                              if (att.type === 'video' || att.type === 'gifv') {
+                                const src = localMediaUrl(att.url);
+                                return src ? <video key={att.id} src={src} controls playsInline preload="metadata" className="w-full max-h-48" /> : null;
+                              }
+                              if (att.type === 'audio') {
+                                const src = localMediaUrl(att.url);
+                                return src ? <audio key={att.id} src={src} controls preload="metadata" className="w-full" /> : null;
+                              }
+                              const src = localMediaUrl(rawMediaUrl);
+                              return src ? <img key={att.id} src={src} alt={att.description ?? ''} loading="lazy" className="w-full object-cover max-h-48" /> : null;
+                            })}
                           </div>
                         )}
                         <div className="flex items-center gap-2 mt-2">
@@ -1811,7 +1824,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold">{searchResult.display_name ?? searchResult.username}</p>
                     <p className="text-sm text-muted-foreground">@{searchResult.username}@{searchResult.domain}</p>
-                    {searchResult.bio && <div className="mt-1 text-xs text-muted-foreground line-clamp-3" dangerouslySetInnerHTML={{ __html: searchResult.bio }} />}
+                    {searchResult.bio && <FediverseRichText html={searchResult.bio} className="mt-1 text-xs text-muted-foreground line-clamp-3" />}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -1953,13 +1966,13 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
               <div className="mt-3">
                 <h2 className="text-lg font-bold">{activeRemoteProfile.display_name ?? activeRemoteProfile.username}</h2>
                 <p className="text-sm text-[#6364FF]">@{activeRemoteProfile.username}@{activeRemoteProfile.domain}</p>
-                {activeRemoteProfile.bio && <div className="mt-3 text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{__html: activeRemoteProfile.bio}} />}
+                {activeRemoteProfile.bio && <FediverseRichText html={activeRemoteProfile.bio} className="mt-3 text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none" />}
                 {Array.isArray(activeRemoteProfile.fields) && activeRemoteProfile.fields.length > 0 && (
                   <div className="mt-3 space-y-1.5">
                     {activeRemoteProfile.fields.slice(0, 8).map((field: any, i: number) => (
                       <div key={i} className="flex gap-2 text-xs rounded-lg bg-muted/50 px-3 py-2">
                         <span className="font-semibold shrink-0">{field.name}</span>
-                        <span className="text-muted-foreground break-words" dangerouslySetInnerHTML={{__html: field.value}} />
+                        <FediverseRichText html={field.value} className="text-muted-foreground break-words" />
                       </div>
                     ))}
                   </div>

@@ -73,3 +73,7 @@ verify_jwt = false
 # Public, read-only SportScore proxy used by the Sports Hub.
 [functions.testagram-sports]
 verify_jwt = false
+
+# Public ActivityPub media is copied to Testagram storage after strict SSRF, MIME and size checks.
+[functions.federated-media]
+verify_jwt = false
