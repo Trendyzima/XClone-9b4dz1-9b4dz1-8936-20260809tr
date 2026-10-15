@@ -14,7 +14,7 @@ export function idOf(value: unknown): string | null {
   if (typeof value === "string") return value.trim() || null;
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
-    return firstString(record.id, record.href, record.url);
+    return firstString(record.id, record["@id"], record.href, record.url);
   }
   return null;
 }
