@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Globe, UserPlus, UserMinus, Loader2, Users, Rss, LockKeyhole, Bot, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Globe, UserPlus, UserMinus, Loader2, Users, Rss, LockKeyhole, Bot, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import * as federation from '@/api/federation';
@@ -449,7 +449,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                   {profile.locked && <span className="inline-flex items-center gap-1"><LockKeyhole className="w-3.5 h-3.5"/>Approval required</span>}
                   {profile.bot && <span className="inline-flex items-center gap-1"><Bot className="w-3.5 h-3.5"/>Bot / service</span>}
                   {profile.discoverable === false && <span>Not listed in discovery</span>}
-                  {profile.moved_to && <a className="inline-flex items-center gap-1 text-primary hover:underline" href={profile.moved_to} target="_blank" rel="noreferrer">Moved account <ExternalLink className="w-3 h-3"/></a>}
+                  {profile.moved_to && <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => navigate('/fediverse/profile?actor=' + encodeURIComponent(String(profile.moved_to)))}>Moved account · open on Testagram</button>}
                 </div>
                 {Array.isArray(profile.also_known_as) && profile.also_known_as.length > 0 && <div className="mt-3 text-xs text-muted-foreground">Also known as: {profile.also_known_as.map((uri: any) => String(uri?.id ?? uri)).join(' · ')}</div>}
                 {profile.url && <p className="mt-3 text-xs text-muted-foreground">Remote profile address: <span className="break-all">{profile.url}</span></p>}
