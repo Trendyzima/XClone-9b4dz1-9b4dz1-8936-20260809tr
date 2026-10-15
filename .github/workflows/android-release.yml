@@ -1,5 +1,6 @@
-name: Testagram Android Release
-# CI uses temporary signing while production signing is intentionally disabled.
+name: Legacy WebView Android Build (retired from publishing)
+# This legacy WebView client is retained only for manual forensic builds.
+# Canonical Android phone releases are produced by flutter-android-native-release.yml.
 # APK publication is finalized by publish-testagram-apk after this verified build completes.
 # Publisher commit ordering is now verified against concurrent main updates.
 # Expected README/APK rebase conflicts are now auto-resolved by the publisher.
@@ -13,30 +14,12 @@ on:
         description: "Release tag (for example v0.2.0)"
         required: false
         default: ""
-  push:
-    branches:
-      - main
-      - "release/*"
-    paths:
-      - "android/**"
-      - "public/**"
-      - "src/**"
-      - "api/**"
-      - "index.html"
-      - "package.json"
-      - "package-lock.json"
-      - "_build.cjs"
-      - "vite.config.*"
-      - "tailwind.config.*"
-      - "postcss.config.*"
-      - ".github/workflows/android-release.yml"
-
 permissions:
   contents: write
 
 jobs:
   android-release:
-    name: Build and publish the production WebView Android app
+    name: Build legacy WebView APK for diagnostics
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -134,18 +117,3 @@ jobs:
       - name: Remove signing material
         if: always()
         run: rm -f android/testagram-release.jks android/keystore.properties
-
-      - name: Publish GitHub Release
-        continue-on-error: true
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
-          name: Testagram Android ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
-          target_commitish: ${{ github.sha }}
-          make_latest: true
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          overwrite_files: true
-          files: |
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/outputs/bundle/release/*.aab
