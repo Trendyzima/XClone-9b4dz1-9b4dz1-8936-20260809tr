@@ -40,7 +40,9 @@ void main() {
       );
     });
 
-    test('recognizes an external YouTube playback action on either platform', () {
+    test(
+      'recognizes an external YouTube playback action on either platform',
+      () {
       expect(
         tvHasPlaybackSurface(
           isWeb: true,
@@ -50,7 +52,8 @@ void main() {
         ),
         isTrue,
       );
-    });
+    },
+    );
 
     test('recognizes an initialized native player', () {
       expect(
