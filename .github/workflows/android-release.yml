@@ -1,21 +1,11 @@
 name: Legacy WebView Android Build (retired from publishing)
 # This legacy WebView client is retained only for manual forensic builds.
 # Canonical Android phone releases are produced by flutter-android-native-release.yml.
-# APK publication is finalized by publish-testagram-apk after this verified build completes.
-# Publisher commit ordering is now verified against concurrent main updates.
-# Expected README/APK rebase conflicts are now auto-resolved by the publisher.
-# The publisher now validates the release artifact without mutating main.
-# Release build is the verified source for the APK publisher.
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag (for example v0.2.0)"
-        required: false
-        default: ""
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   android-release:
