@@ -9,7 +9,7 @@ void main() {
         tvHasPlaybackSurface(
           isWeb: true,
           webPlaybackUrl: 'https://cdn.example/live/index.m3u8',
-          hasYoutubePlayer: false,
+          hasExternalPlaybackAction: false,
           hasInitializedNativePlayer: false,
         ),
         isTrue,
@@ -21,7 +21,7 @@ void main() {
         tvHasPlaybackSurface(
           isWeb: true,
           webPlaybackUrl: '  ',
-          hasYoutubePlayer: false,
+          hasExternalPlaybackAction: false,
           hasInitializedNativePlayer: false,
         ),
         isFalse,
@@ -33,35 +33,53 @@ void main() {
         tvHasPlaybackSurface(
           isWeb: false,
           webPlaybackUrl: 'https://cdn.example/live/index.m3u8',
-          hasYoutubePlayer: false,
+          hasExternalPlaybackAction: false,
           hasInitializedNativePlayer: false,
         ),
         isFalse,
       );
     });
 
-    test('recognizes YouTube playback on either platform', () {
-      expect(
-        tvHasPlaybackSurface(
-          isWeb: true,
-          webPlaybackUrl: null,
-          hasYoutubePlayer: true,
-          hasInitializedNativePlayer: false,
-        ),
-        isTrue,
-      );
-    });
+    test(
+      'recognizes an external YouTube playback action on either platform',
+      () {
+        expect(
+          tvHasPlaybackSurface(
+            isWeb: true,
+            webPlaybackUrl: null,
+            hasExternalPlaybackAction: true,
+            hasInitializedNativePlayer: false,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('recognizes an initialized native player', () {
       expect(
         tvHasPlaybackSurface(
           isWeb: false,
           webPlaybackUrl: null,
-          hasYoutubePlayer: false,
+          hasExternalPlaybackAction: false,
           hasInitializedNativePlayer: true,
         ),
         isTrue,
       );
+    });
+  });
+
+  group('tvExternalYoutubeWatchUrl', () {
+    test('returns a canonical YouTube URL for a valid video id', () {
+      expect(
+        tvExternalYoutubeWatchUrl('dQw4w9WgXcQ'),
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      );
+    });
+
+    test('rejects empty or malformed video ids', () {
+      expect(tvExternalYoutubeWatchUrl(''), isNull);
+      expect(tvExternalYoutubeWatchUrl('not a video id'), isNull);
+      expect(tvExternalYoutubeWatchUrl('dQw4w9WgXcQ&autoplay=1'), isNull);
     });
   });
 

@@ -2,17 +2,17 @@ import 'package:flutter/widgets.dart';
 
 /// Returns whether the currently selected TV item has a real playback surface.
 ///
-/// A web HLS URL is a playback surface even though Flutter's native
-/// VideoPlayerController is intentionally absent on Web. Keeping this policy
-/// separate prevents the vertical feed from showing a permanent "Watch" button
-/// over an already-mounted browser player.
+/// A web HLS URL and an external-provider launch action are valid playback
+/// surfaces even though they do not use a native VideoPlayerController. Keeping
+/// this policy separate prevents the vertical feed from showing a permanent
+/// "Watch" button over an already-mounted player or launch action.
 bool tvHasPlaybackSurface({
   required bool isWeb,
   required String? webPlaybackUrl,
-  required bool hasYoutubePlayer,
+  required bool hasExternalPlaybackAction,
   required bool hasInitializedNativePlayer,
 }) {
-  if (hasYoutubePlayer || hasInitializedNativePlayer) return true;
+  if (hasExternalPlaybackAction || hasInitializedNativePlayer) return true;
   return isWeb && (webPlaybackUrl?.trim().isNotEmpty ?? false);
 }
 
@@ -35,3 +35,11 @@ bool tvShouldResumeAfterLifecycle({
   required bool wasPlayingBeforePause,
 }) =>
     state == AppLifecycleState.resumed && wasPlayingBeforePause;
+
+/// Return a canonical external YouTube URL only for a valid video identifier.
+/// YouTube playback is deliberately external on Android so the APK needs no WebView.
+String? tvExternalYoutubeWatchUrl(String videoId) {
+  final id = videoId.trim();
+  if (!RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id)) return null;
+  return Uri.https('www.youtube.com', '/watch', {'v': id}).toString();
+}
