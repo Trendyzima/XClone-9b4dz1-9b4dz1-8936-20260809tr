@@ -118,8 +118,26 @@ async function processActivity(activity:any,actor:string){
   const objectUri=uri(activity.object);
   const object=activity.object&&typeof activity.object==='object'?activity.object:null;
   const objectActor=uri(object?.attributedTo)||uri(object?.actor);
-  const actorOwnsObject=!objectActor||objectActor===actor;
-  if(['Update','Delete'].includes(type)&&objectUri&&!actorOwnsObject)throw Error('activity actor is not authorized to modify the referenced object');
+  if (objectActor && objectActor !== actor) {
+    throw Error("activity actor does not match object attribution");
+  }
+  if (["Create", "Update", "Delete"].includes(type) && objectUri) {
+    const existingObject = await db.from("federated_objects")
+      .select("actor_uri")
+      .eq("uri", objectUri)
+      .maybeSingle();
+    if (existingObject.error) throw existingObject.error;
+    if (existingObject.data && existingObject.data.actor_uri !== actor) {
+      throw Error("activity actor does not own the referenced object");
+    }
+    // Updates must not create or take over an object unless its attribution
+    // explicitly binds it to the authenticated activity actor.
+    if (type === "Update" && !existingObject.data && objectActor !== actor) {
+      throw Error("cannot update an unknown object without matching attribution");
+    }
+    // Do not mutate recipient grants for an unknown object on Delete.
+    if (type === "Delete" && !existingObject.data) return;
+  }
   if(type==="Follow"&&objectUri){
     const local=await localActorForTarget(objectUri);
     if(local?.data?.user_id){
@@ -188,18 +206,31 @@ async function persistPrivateObjectRecipients(activity:any, actor:string) {
   const object=activity.object&&typeof activity.object==="object"?activity.object:null;
   const objectUri=uri(object)||str(activity.object);
   if(activityType==="Delete"&&objectUri){
+    // The object ownership check in processActivity is necessary but not
+    // sufficient here: this helper is a separate side-effect boundary.
+    const owned = await db.from("federated_objects")
+      .select("uri")
+      .eq("uri", objectUri)
+      .eq("actor_uri", actor)
+      .maybeSingle();
+    if (owned.error) throw owned.error;
+    if (!owned.data) return;
     const removed=await db.from("federated_object_recipients").delete().eq("object_uri",objectUri);
     if(removed.error)throw removed.error;
     return;
   }
   if(!object||!objectUri||!["Create","Update"].includes(activityType))return;
 
-  const visibility=normalizeVisibility(object.visibility||activity.visibility,object.to??activity.to,object.cc??activity.cc);
+  const visibility=normalizeVisibility(
+    object.visibility||activity.visibility,
+    asArray(object.to).length ? object.to : activity.to,
+    asArray(object.cc).length ? object.cc : activity.cc
+  );
   const recipientValues=[
-    ...asArray(object.to??activity.to),
-    ...asArray(object.cc??activity.cc),
-    ...asArray(activity.to),
-    ...asArray(activity.cc)
+    ...asArray(object.to), ...asArray(object.cc), ...asArray(object.bto),
+    ...asArray(object.bcc), ...asArray(object.audience),
+    ...asArray(activity.to), ...asArray(activity.cc), ...asArray(activity.bto),
+    ...asArray(activity.bcc), ...asArray(activity.audience)
   ];
   const recipientUris=[...new Set(recipientValues.map(idOf).filter((value):value is string=>!!value))];
   const authorizedUsers=new Set<string>();
@@ -263,7 +294,10 @@ Deno.serve(async req=>{
     }else await verify(req,raw,actor);
     const duplicate=await db.from("activitypub_inbox").select("id").eq("payload->>id",id).maybeSingle();
     if(duplicate.data)return new Response(null,{status:202,headers:CORS});
-    const recipients=[...(Array.isArray(activity.to)?activity.to:[]),...(Array.isArray(activity.cc)?activity.cc:[]),...(Array.isArray(activity.bto)?activity.bto:[]),...(Array.isArray(activity.bcc)?activity.bcc:[]),...(Array.isArray(activity.audience)?activity.audience:[])].map(uri).filter(Boolean);
+    const recipients=[
+      ...asArray(activity.to), ...asArray(activity.cc), ...asArray(activity.bto),
+      ...asArray(activity.bcc), ...asArray(activity.audience)
+    ].map(uri).filter(Boolean);
     let local:any=null;
     for(const candidate of [...recipients,uri(activity.object),uri(activity.target)]){
       if(!candidate) continue;
