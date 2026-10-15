@@ -46,5 +46,9 @@ requireText(web, /seen\.add\(name\)/, 'Federated hashtag and account suggestions
 requireText(web, /remote_status_uri\?\?p\.url\?\?p\.id/, 'Federated search results must deduplicate by canonical remote object URI before display.');
 requireText(read('supabase/migrations/20261015120000_unified_search_cursor_pagination.sql'), /DO \$migration\$ BEGIN NULL; END \$migration\$;/, 'The superseded pagination draft must not overwrite the production RPC contract.');
 requireText(read('supabase/migrations/20261015140000_unified_search_server_sort.sql'), /DO \$migration\$ BEGIN NULL; END \$migration\$;/, 'The superseded sorting draft must not overwrite the production RPC contract.');
+requireText(read('supabase/migrations/20261015170000_unified_search_fediverse_identity_counts.sql'), /raw_actor[\s\S]*distinct on[\s\S]*fa\.actor_uri/, 'Fediverse people search must return real follower counts and deduplicate equivalent actor URLs by canonical host.');
+requireText(web, /function searchPersonIdentity[\s\S]*function followerSummary[\s\S]*Follower count unavailable/, 'Web profile results must normalize follower-count fields and use canonical Fediverse account identities.');
+requireText(web, /setData\(prev=>\(\{\.\.\.prev,users:mergeRows\(prev\.users\?\?\[\],rows,searchPersonIdentity\)\}\)\)/, 'Live Fediverse people must merge into People results without duplicate actor cards.');
+requireText(policy, /group == 'users'[\s\S]*remote:\$username@/, 'Flutter page merging must deduplicate the same Fediverse account across alternate actor URLs.');
 if (failures.length) { console.error('Unified-search contract failed:\n- ' + failures.join('\n- ')); process.exitCode = 1; }
 else console.log('Unified-search contract passed: Flutter route, RPC shape, auth retry, stale-response guard, SQL result contract and web error mapping are aligned.');

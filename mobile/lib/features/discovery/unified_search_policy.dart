@@ -47,6 +47,19 @@ class UnifiedSearchPolicy {
     Map<String, dynamic> page,
   ) {
     String identity(String group, Map<String, dynamic> row) {
+      if (group == 'users' &&
+          (row['origin'] == 'fediverse' ||
+              row['actor_uri'] != null || row['actor_url'] != null)) {
+        final username = firstText(row, ['username', 'preferredUsername'])
+            .replaceFirst(RegExp(r'^@'), '').toLowerCase();
+        final actor = firstText(row, ['actor_uri', 'actor_url', 'url']);
+        final host = Uri.tryParse(actor)?.host.toLowerCase() ??
+            firstText(row, ['domain']).toLowerCase();
+        if (username.isNotEmpty && host.isNotEmpty) {
+          final canonicalHost = host.startsWith('www.') ? host.substring(4) : host;
+          return '$group:remote:$username@$canonicalHost';
+        }
+      }
       final canonical = firstText(row, [
         'uri',
         'remote_status_uri',

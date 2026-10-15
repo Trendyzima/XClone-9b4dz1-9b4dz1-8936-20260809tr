@@ -67,6 +67,43 @@ void main() {
       expect(merged['next_cursor'], isNull);
     });
 
+    test('deduplicates the same Fediverse account across actor URL aliases', () {
+      final first = UnifiedSearchPolicy.normalize({
+        'users': [
+          {
+            'id': 'actor-a',
+            'username': 'CNN',
+            'origin': 'fediverse',
+            'actor_uri': 'https://c.im/@CNN',
+            'domain': 'social.coop',
+            'followers_count': 7455,
+          },
+          {
+            'id': 'actor-b',
+            'username': 'CNN',
+            'origin': 'fediverse',
+            'actor_uri': 'https://flipboard.com/users/CNN',
+            'domain': 'flipboard.com',
+          },
+        ],
+      });
+      final second = UnifiedSearchPolicy.normalize({
+        'users': [
+          {
+            'id': 'actor-alias',
+            'username': 'cnn',
+            'origin': 'fediverse',
+            'actor_uri': 'https://c.im/users/CNN',
+            'domain': 'c.im',
+          },
+        ],
+      });
+
+      final merged = UnifiedSearchPolicy.mergePage(first, second);
+      expect(merged['users'], hasLength(2));
+      expect(merged['users'][0]['followers_count'], 7455);
+    });
+
     test('maps every tab to the server supported kind', () {
       expect(UnifiedSearchPolicy.kinds['Top'], 'all');
       expect(UnifiedSearchPolicy.kinds['People'], 'people');
