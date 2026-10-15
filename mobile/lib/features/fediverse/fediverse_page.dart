@@ -269,6 +269,7 @@ class _FediversePageState extends State<FediversePage> {
   bool get _isProfileSection => const {
     'profile',
     'posts',
+    'featured',
     'threads',
     'replies',
     'media',
@@ -482,7 +483,13 @@ class _FediversePageState extends State<FediversePage> {
             'method': 'GET',
             'params': {
               'actor_uri': actorUri,
-              'limit': const {'followers', 'following', 'featured', 'likes'}.contains(widget.section)
+              'limit':
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                  }.contains(widget.section)
                   ? 1
                   : 80,
             },
@@ -541,7 +548,12 @@ class _FediversePageState extends State<FediversePage> {
         };
       });
     }
-    if (const {'followers', 'following', 'featured', 'likes'}.contains(widget.section)) {
+    if (const {
+      'followers',
+      'following',
+      'featured',
+      'likes',
+    }.contains(widget.section)) {
       final response = await _db.functions
           .invoke(
             'testagram-api',
@@ -574,7 +586,10 @@ class _FediversePageState extends State<FediversePage> {
             : null;
         final total = result['totalItems'];
         if (total is num) {
-          _remoteProfile[widget.section == 'followers' ? 'followers_count' : 'following_count'] = total;
+          _remoteProfile[widget.section == 'followers'
+                  ? 'followers_count'
+                  : 'following_count'] =
+              total;
         }
         _surfaceMetrics = total is num
             ? {
@@ -1402,10 +1417,45 @@ class _FediversePageState extends State<FediversePage> {
                             'Also known as: ${(_remoteProfile['also_known_as'] as List).map((item) => item is Map ? item['id'] : item).join(' · ')}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
-                        if (_remoteProfile['tag'] is List && (_remoteProfile['tag'] as List).isNotEmpty)
-                          Padding(padding: const EdgeInsets.only(top: 10), child: Wrap(spacing: 6, runSpacing: 6, children: (_remoteProfile['tag'] as List).whereType<Map>().map((tag) => Chip(label: Text('${tag['name'] ?? tag['href'] ?? 'Tag'}'), visualDensity: VisualDensity.compact)).toList())),
-                        if (_remoteProfile['emojis'] is List && (_remoteProfile['emojis'] as List).isNotEmpty)
-                          Padding(padding: const EdgeInsets.only(top: 8), child: Wrap(spacing: 6, children: (_remoteProfile['emojis'] as List).whereType<Map>().map((emoji) => Chip(label: Text(':${emoji['shortcode'] ?? emoji['name'] ?? 'emoji'}:'), visualDensity: VisualDensity.compact)).toList())),
+                        if (_remoteProfile['tag'] is List &&
+                            (_remoteProfile['tag'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: (_remoteProfile['tag'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (tag) => Chip(
+                                      label: Text(
+                                        '${tag['name'] ?? tag['href'] ?? 'Tag'}',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        if (_remoteProfile['emojis'] is List &&
+                            (_remoteProfile['emojis'] as List).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              children: (_remoteProfile['emojis'] as List)
+                                  .whereType<Map>()
+                                  .map(
+                                    (emoji) => Chip(
+                                      label: Text(
+                                        ':${emoji['shortcode'] ?? emoji['name'] ?? 'emoji'}:',
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -1532,7 +1582,12 @@ class _FediversePageState extends State<FediversePage> {
               final detail =
                   '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
               final isRelationship =
-                  const {'followers', 'following', 'featured', 'likes'}.contains(widget.section) &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                  }.contains(widget.section) &&
                   widget.actorUri != null;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -1598,7 +1653,12 @@ class _FediversePageState extends State<FediversePage> {
                 ),
               );
             }),
-            if (const {'followers', 'following', 'featured', 'likes'}.contains(widget.section) &&
+            if (const {
+                  'followers',
+                  'following',
+                  'featured',
+                  'likes',
+                }.contains(widget.section) &&
                 _relationshipCursor != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1653,7 +1713,12 @@ class _FediversePageState extends State<FediversePage> {
               _posts.isEmpty &&
               _error == null &&
               !(widget.actorUri != null &&
-                  const {'followers', 'following', 'featured', 'likes'}.contains(widget.section)))
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                  }.contains(widget.section)))
             const Padding(
               padding: EdgeInsets.all(24),
               child: Center(
@@ -1664,7 +1729,12 @@ class _FediversePageState extends State<FediversePage> {
             ),
           if (!_sectionNeedsDedicatedBackend &&
               !(widget.actorUri != null &&
-                  const {'followers', 'following', 'featured', 'likes'}.contains(widget.section)) &&
+                  const {
+                    'followers',
+                    'following',
+                    'featured',
+                    'likes',
+                  }.contains(widget.section)) &&
               _visiblePosts.isEmpty &&
               !_loading &&
               _error == null)
@@ -1843,7 +1913,12 @@ class _FediversePageState extends State<FediversePage> {
             }),
           if (widget.actorUri != null &&
               _remoteTimelineCursor != null &&
-              !const {'followers', 'following', 'featured', 'likes'}.contains(widget.section))
+              !const {
+                'followers',
+                'following',
+                'featured',
+                'likes',
+              }.contains(widget.section))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
