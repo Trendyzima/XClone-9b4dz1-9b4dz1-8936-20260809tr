@@ -140,9 +140,15 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           tags: actorDoc.tag ?? result?.tags ?? [],
           emojis: actorDoc.emoji ?? result?.emojis ?? [],
           created_at: actorDoc.published ?? result?.created_at ?? result?.createdAt ?? null,
+          posts_count: numericCount(result?.posts_count ?? result?.statuses_count ?? result?.statusesCount ?? actorDoc.outbox?.totalItems),
+          actor_type: actorDoc.type ?? result?.actor_type ?? result?.type ?? 'Person',
           locked: actorDoc.manuallyApprovesFollowers === true || result?.locked === true,
           bot: actorDoc.type === 'Service' || result?.bot === true,
           discoverable: actorDoc.discoverable !== false,
+          indexable: actorDoc.indexable !== false && result?.indexable !== false,
+          limited: actorDoc.limited === true || result?.limited === true,
+          suspended: actorDoc.suspended === true || result?.suspended === true,
+          last_status_at: result?.last_status_at ?? actorDoc.lastStatusAt ?? null,
           moved_to: linkUrl(actorDoc.moved) ?? result?.moved_to ?? null,
           also_known_as: actorDoc.alsoKnownAs ?? result?.also_known_as ?? [],
           raw_actor: actorDoc,
@@ -219,6 +225,12 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                 followers: numericCount(remoteActor.followers?.totalItems) ?? current.followers ?? null,
                 following: numericCount(remoteActor.following?.totalItems) ?? current.following ?? null,
                 tags: remoteActor.tag ?? current.tags ?? [],
+                posts_count: numericCount(remoteActor.outbox?.totalItems) ?? current.posts_count ?? null,
+                actor_type: remoteActor.type ?? current.actor_type ?? 'Person',
+                indexable: remoteActor.indexable !== false && current.indexable !== false,
+                limited: remoteActor.limited === true || current.limited === true,
+                suspended: remoteActor.suspended === true || current.suspended === true,
+                last_status_at: remoteActor.lastStatusAt ?? current.last_status_at ?? null,
                 raw_actor: remoteActor,
               } : current);
             }
@@ -427,7 +439,13 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                   <button onClick={() => setActiveTab('Followers')} className="flex items-center gap-1 hover:text-foreground"><Users className="w-4 h-4" /><strong className="text-foreground">{displayCount(profile.followers)}</strong> followers</button>
                   <button onClick={() => setActiveTab('Following')} className="flex items-center gap-1 hover:text-foreground"><Users className="w-4 h-4" /><strong className="text-foreground">{displayCount(profile.following)}</strong> following</button>
                   <span className="flex items-center gap-1"><Globe className="w-4 h-4" />{(() => { try { return new URL(profile.actor_uri || profile.actor_url).hostname; } catch { return 'Remote account'; } })()}</span>
+                  <span>{profile.actor_type || 'Person'}</span>
+                  <span><strong className="text-foreground">{displayCount(profile.posts_count)}</strong> posts reported</span>
                   {profile.created_at && <span>Joined {new Date(profile.created_at).toLocaleDateString()}</span>}
+                  {profile.last_status_at && <span>Last public status {new Date(profile.last_status_at).toLocaleDateString()}</span>}
+                  {profile.indexable === false && <span>Not indexable</span>}
+                  {profile.limited && <span>Limited</span>}
+                  {profile.suspended && <span>Suspended</span>}
                   {profile.locked && <span className="inline-flex items-center gap-1"><LockKeyhole className="w-3.5 h-3.5"/>Approval required</span>}
                   {profile.bot && <span className="inline-flex items-center gap-1"><Bot className="w-3.5 h-3.5"/>Bot / service</span>}
                   {profile.discoverable === false && <span>Not listed in discovery</span>}
