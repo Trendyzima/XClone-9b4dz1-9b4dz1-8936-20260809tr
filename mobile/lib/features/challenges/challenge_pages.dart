@@ -58,7 +58,8 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'Challenges could not be loaded. Check your connection and retry.';
+        _error =
+            'Challenges could not be loaded. Check your connection and retry.';
         _loading = false;
       });
     }
@@ -71,7 +72,9 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
       final hashtag = item['hashtags'];
       final tag = hashtag is Map ? (hashtag['tag']?.toString() ?? '') : '';
       return (item['title']?.toString() ?? '').toLowerCase().contains(query) ||
-          (item['description']?.toString() ?? '').toLowerCase().contains(query) ||
+          (item['description']?.toString() ?? '').toLowerCase().contains(
+            query,
+          ) ||
           tag.toLowerCase().contains(query);
     }).toList();
   }
@@ -127,14 +130,8 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
                   value: 'entry_count',
                   child: Text('Most popular'),
                 ),
-                DropdownMenuItem(
-                  value: 'end_date',
-                  child: Text('Ending soon'),
-                ),
-                DropdownMenuItem(
-                  value: 'created_at',
-                  child: Text('Newest'),
-                ),
+                DropdownMenuItem(value: 'end_date', child: Text('Ending soon')),
+                DropdownMenuItem(value: 'created_at', child: Text('Newest')),
               ],
               onChanged: _loading
                   ? null
@@ -169,8 +166,9 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
             else
               ...items.map((item) {
                 final hashtag = item['hashtags'];
-                final tag =
-                    hashtag is Map ? (hashtag['tag']?.toString() ?? '') : '';
+                final tag = hashtag is Map
+                    ? (hashtag['tag']?.toString() ?? '')
+                    : '';
                 final creatorData = item['user_profiles'];
                 final creator = creatorData is Map
                     ? (creatorData['username']?.toString() ?? '')
@@ -187,8 +185,8 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
                     onTap: id.isEmpty
                         ? null
                         : () => context.push(
-                              '/challenge/${Uri.encodeComponent(id)}',
-                            ),
+                            '/challenge/${Uri.encodeComponent(id)}',
+                          ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -214,16 +212,16 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
                                       item['title']?.toString() ?? 'Challenge',
                                       style: theme.textTheme.titleMedium
                                           ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
                                     if (tag.isNotEmpty)
                                       Text(
                                         '#$tag',
                                         style: theme.textTheme.bodyMedium
                                             ?.copyWith(
-                                          color: theme.colorScheme.primary,
-                                        ),
+                                              color: theme.colorScheme.primary,
+                                            ),
                                       ),
                                     if (creator.isNotEmpty)
                                       Text(
@@ -276,8 +274,8 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
                               onPressed: id.isEmpty
                                   ? null
                                   : () => context.push(
-                                        '/challenge/${Uri.encodeComponent(id)}',
-                                      ),
+                                      '/challenge/${Uri.encodeComponent(id)}',
+                                    ),
                               icon: const Icon(Icons.arrow_forward),
                               label: Text(
                                 ended ? 'View results' : 'View challenge',
@@ -344,8 +342,7 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
         return;
       }
       final hashtag = row['hashtags'];
-      final tag =
-          hashtag is Map ? (hashtag['tag']?.toString() ?? '') : '';
+      final tag = hashtag is Map ? (hashtag['tag']?.toString() ?? '') : '';
       List<Map<String, dynamic>> posts = [];
       if (tag.isNotEmpty) {
         final result = await client
@@ -355,10 +352,7 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
               'user_profiles:profiles!posts_user_id_fkey(username,avatar_url,verified)',
             )
             .ilike('content', '%#$tag%')
-            .order(
-              _newest ? 'created_at' : 'likes_count',
-              ascending: false,
-            )
+            .order(_newest ? 'created_at' : 'likes_count', ascending: false)
             .limit(30);
         posts = List<Map<String, dynamic>>.from(result);
       }
@@ -404,179 +398,162 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _ChallengeState(
-                  icon: Icons.info_outline,
-                  title: 'Challenge unavailable',
-                  message: _error!,
-                  action: FilledButton(
-                    onPressed: _load,
-                    child: const Text('Retry'),
-                  ),
-                )
-              : challenge == null
-                  ? const _ChallengeState(
-                      icon: Icons.info_outline,
-                      title: 'Challenge unavailable',
-                      message: 'This challenge is not available.',
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
+          ? _ChallengeState(
+              icon: Icons.info_outline,
+              title: 'Challenge unavailable',
+              message: _error!,
+              action: FilledButton(
+                onPressed: _load,
+                child: const Text('Retry'),
+              ),
+            )
+          : challenge == null
+          ? const _ChallengeState(
+              icon: Icons.info_outline,
+              title: 'Challenge unavailable',
+              message: 'This challenge is not available.',
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    Icons.emoji_events,
-                                    size: 42,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    challenge['title']?.toString() ??
-                                        'Challenge',
-                                    style: theme.textTheme.headlineSmall
-                                        ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  if (tag.isNotEmpty)
-                                    Text(
-                                      '#$tag',
-                                      style: theme.textTheme.titleMedium
-                                          ?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                      ),
-                                    ),
-                                  const SizedBox(height: 12),
-                                  if ((challenge['description']?.toString() ??
-                                          '')
-                                      .trim()
-                                      .isNotEmpty)
-                                    Text(challenge['description'].toString()),
-                                  const SizedBox(height: 16),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      _ChallengeMetric(
-                                        icon: Icons.people_outline,
-                                        label:
-                                            '${challenge['entry_count'] ?? 0} entries',
-                                      ),
-                                      _ChallengeMetric(
-                                        icon: Icons.event,
-                                        label: end == null
-                                            ? 'End date unavailable'
-                                            : 'Ends ${end.toLocal().toIso8601String().substring(0, 10)}',
-                                      ),
-                                      if (creator.isNotEmpty)
-                                        _ChallengeMetric(
-                                          icon: Icons.person_outline,
-                                          label: '@$creator',
-                                        ),
-                                    ],
-                                  ),
-                                  if ((challenge['prize']?.toString() ?? '')
-                                      .trim()
-                                      .isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: const Icon(
-                                        Icons.card_giftcard_outlined,
-                                      ),
-                                      title: const Text('Prize'),
-                                      subtitle: Text(
-                                        challenge['prize'].toString(),
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 12),
-                                  FilledButton.icon(
-                                    onPressed: tag.isEmpty
-                                        ? null
-                                        : () => context.go(
-                                              '/hashtag/${Uri.encodeComponent(tag)}',
-                                            ),
-                                    icon: const Icon(Icons.tag),
-                                    label: Text(
-                                      ended ? 'Explore entries' : 'Open #$tag',
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          Icon(
+                            Icons.emoji_events,
+                            size: 42,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            challenge['title']?.toString() ?? 'Challenge',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Row(
+                          if (tag.isNotEmpty)
+                            Text(
+                              '#$tag',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          if ((challenge['description']?.toString() ?? '')
+                              .trim()
+                              .isNotEmpty)
+                            Text(challenge['description'].toString()),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  'Challenge entries',
-                                  style: theme.textTheme.titleLarge,
+                              _ChallengeMetric(
+                                icon: Icons.people_outline,
+                                label:
+                                    '${challenge['entry_count'] ?? 0} entries',
+                              ),
+                              _ChallengeMetric(
+                                icon: Icons.event,
+                                label: end == null
+                                    ? 'End date unavailable'
+                                    : 'Ends ${end.toLocal().toIso8601String().substring(0, 10)}',
+                              ),
+                              if (creator.isNotEmpty)
+                                _ChallengeMetric(
+                                  icon: Icons.person_outline,
+                                  label: '@$creator',
                                 ),
-                              ),
-                              DropdownButton<bool>(
-                                value: _newest,
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: false,
-                                    child: Text('Top'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: true,
-                                    child: Text('Newest'),
-                                  ),
-                                ],
-                                onChanged: (value) {
-                                  if (value == null) return;
-                                  setState(() => _newest = value);
-                                  _load();
-                                },
-                              ),
                             ],
                           ),
-                          if (_posts.isEmpty)
-                            const _ChallengeState(
-                              icon: Icons.forum_outlined,
-                              title: 'No entries yet',
-                              message:
-                                  'Posts containing this challenge hashtag will appear here.',
-                            )
-                          else
-                            ..._posts.map((post) {
-                              final profile = post['user_profiles'];
-                              final username = profile is Map
-                                  ? (profile['username']?.toString() ?? 'user')
-                                  : 'user';
-                              return Card(
-                                child: ListTile(
-                                  onTap: () => context.push(
-                                    '/post/${Uri.encodeComponent(post['id'].toString())}',
+                          if ((challenge['prize']?.toString() ?? '')
+                              .trim()
+                              .isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.card_giftcard_outlined),
+                              title: const Text('Prize'),
+                              subtitle: Text(challenge['prize'].toString()),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: tag.isEmpty
+                                ? null
+                                : () => context.go(
+                                    '/hashtag/${Uri.encodeComponent(tag)}',
                                   ),
-                                  leading: const CircleAvatar(
-                                    child: Icon(Icons.person_outline),
-                                  ),
-                                  title: Text('@$username'),
-                                  subtitle: Text(
-                                    post['content']?.toString() ?? '',
-                                    maxLines: 4,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: Text(
-                                    '♥ ${post['likes_count'] ?? 0}',
-                                  ),
-                                ),
-                              );
-                            }),
+                            icon: const Icon(Icons.tag),
+                            label: Text(
+                              ended ? 'Explore entries' : 'Open #$tag',
+                            ),
+                          ),
                         ],
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Challenge entries',
+                          style: theme.textTheme.titleLarge,
+                        ),
+                      ),
+                      DropdownButton<bool>(
+                        value: _newest,
+                        items: const [
+                          DropdownMenuItem(value: false, child: Text('Top')),
+                          DropdownMenuItem(value: true, child: Text('Newest')),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _newest = value);
+                          _load();
+                        },
+                      ),
+                    ],
+                  ),
+                  if (_posts.isEmpty)
+                    const _ChallengeState(
+                      icon: Icons.forum_outlined,
+                      title: 'No entries yet',
+                      message: 'Posts containing this challenge hashtag will appear here.',
+                    )
+                  else
+                    ..._posts.map((post) {
+                      final profile = post['user_profiles'];
+                      final username = profile is Map
+                          ? (profile['username']?.toString() ?? 'user')
+                          : 'user';
+                      return Card(
+                        child: ListTile(
+                          onTap: () => context.push(
+                            '/post/${Uri.encodeComponent(post['id'].toString())}',
+                          ),
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.person_outline),
+                          ),
+                          title: Text('@$username'),
+                          subtitle: Text(
+                            post['content']?.toString() ?? '',
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Text('♥ ${post['likes_count'] ?? 0}'),
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
     );
   }
 }
@@ -589,9 +566,9 @@ class _ChallengeMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Chip(
-        avatar: Icon(icon, size: 16),
-        label: Text(label, overflow: TextOverflow.ellipsis),
-      );
+    avatar: Icon(icon, size: 16),
+    label: Text(label, overflow: TextOverflow.ellipsis),
+  );
 }
 
 class _ChallengeState extends StatelessWidget {
@@ -609,23 +586,20 @@ class _ChallengeState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 12),
-        child: Column(
-          children: [
-            Icon(icon, size: 42),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center),
-            if (action != null) ...[
-              const SizedBox(height: 16),
-              action!,
-            ],
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 12),
+    child: Column(
+      children: [
+        Icon(icon, size: 42),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleMedium,
         ),
-      );
+        const SizedBox(height: 8),
+        Text(message, textAlign: TextAlign.center),
+        if (action != null) ...[const SizedBox(height: 16), action!],
+      ],
+    ),
+  );
 }
