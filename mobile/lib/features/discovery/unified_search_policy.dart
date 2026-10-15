@@ -50,6 +50,7 @@ class UnifiedSearchPolicy {
       final canonical = firstText(row, [
         'uri',
         'remote_status_uri',
+        if (row['is_federated'] == true) 'id',
         if (group == 'users') 'actor_uri',
         if (group == 'users') 'actor_url',
       ]);
