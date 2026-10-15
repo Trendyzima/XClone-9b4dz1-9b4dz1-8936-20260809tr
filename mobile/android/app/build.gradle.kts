@@ -54,9 +54,10 @@ android {
 
     buildTypes {
         release {
-            // Never silently fall back to the debug key. The dedicated release
-            // workflow fails closed unless the production signing secrets exist.
-            if (hasProductionSigning) {
+            // Never silently fall back to the debug key. A release build is signed
+            // only when the caller supplies a complete keystore identity; CI may
+            // generate an ephemeral identity for a direct-download test APK.
+            if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("production")
             }
         }
