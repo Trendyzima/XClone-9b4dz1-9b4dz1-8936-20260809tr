@@ -37,3 +37,36 @@ String normalizeFederatedContent(String value) {
       .replaceAll('&nbsp;', ' ')
       .trim();
 }
+
+/// Finds and canonicalizes a public HTTP(S) media URL in ActivityPub attachment
+/// shapes. Servers commonly return a list of Link objects rather than a string;
+/// try each candidate instead of letting an empty/invalid `href` mask a valid
+/// `url` or `id`. The media proxy only fetches HTTPS, so HTTP and protocol-
+/// relative links are upgraded rather than fetched insecurely.
+String? normalizeFederatedMediaUrl(dynamic value) {
+  if (value is String) {
+    var candidate = value.trim();
+    if (candidate.isEmpty) return null;
+    if (candidate.startsWith('//')) candidate = 'https:$candidate';
+    final parsed = Uri.tryParse(candidate);
+    if (parsed == null || parsed.host.isEmpty || parsed.userInfo.isNotEmpty) {
+      return null;
+    }
+    final scheme = parsed.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') return null;
+    return parsed.replace(scheme: 'https', fragment: '').toString();
+  }
+  if (value is List) {
+    for (final item in value) {
+      final resolved = normalizeFederatedMediaUrl(item);
+      if (resolved != null) return resolved;
+    }
+  }
+  if (value is Map) {
+    for (final key in const ['href', 'url', 'id', 'preview_url', 'mediaUrl']) {
+      final resolved = normalizeFederatedMediaUrl(value[key]);
+      if (resolved != null) return resolved;
+    }
+  }
+  return null;
+}
