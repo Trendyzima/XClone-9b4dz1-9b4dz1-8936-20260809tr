@@ -59,6 +59,29 @@ void main() {
       );
     });
 
+    test('builds a stable keyset cursor with an ID tie-breaker', () {
+      expect(
+        FeedLoadPolicy.cursorFilter(
+          createdAt: '2026-10-15T12:00:00.000Z',
+          id: 'post-2',
+        ),
+        'created_at.lt.2026-10-15T12:00:00.000Z,'
+        'and(created_at.eq.2026-10-15T12:00:00.000Z,id.lt.post-2)',
+      );
+    });
+
+    test('omits incomplete cursors rather than constructing invalid filters',
+        () {
+      expect(
+        FeedLoadPolicy.cursorFilter(createdAt: null, id: 'post-1'),
+        isNull,
+      );
+      expect(
+        FeedLoadPolicy.cursorFilter(createdAt: '2026-10-15', id: null),
+        isNull,
+      );
+    });
+
     test('invalidates older responses after a refresh starts', () {
       final paginationGeneration = FeedLoadPolicy.nextGeneration(4);
       final refreshGeneration =

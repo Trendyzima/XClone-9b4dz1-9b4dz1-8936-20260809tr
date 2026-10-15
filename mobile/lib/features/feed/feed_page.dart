@@ -11,6 +11,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/media/media_upload_policy.dart';
 import 'feed_load_policy.dart';
+import 'feed_media_url.dart';
 import 'feed_offline_cache.dart';
 import 'sponsored_ad_service.dart';
 
@@ -31,7 +32,8 @@ class _FeedPageState extends State<FeedPage> {
   bool _hasMore = true;
   String _feedTab = 'For you';
   String? _error;
-  int _page = 0;
+  String? _cursorCreatedAt;
+  String? _cursorId;
   int _loadGeneration = 0;
   int _refreshGeneration = 0;
   SponsoredAd? _sponsoredAd;
@@ -76,8 +78,11 @@ class _FeedPageState extends State<FeedPage> {
     final generation = _loadGeneration;
     if (reset) _refreshGeneration++;
     final refreshGeneration = _refreshGeneration;
+    final pageCursorCreatedAt = reset ? null : _cursorCreatedAt;
+    final pageCursorId = reset ? null : _cursorId;
     if (reset) {
-      _page = 0;
+      _cursorCreatedAt = null;
+      _cursorId = null;
       _hasMore = true;
       _liked.clear();
       _bookmarked.clear();
@@ -105,13 +110,15 @@ class _FeedPageState extends State<FeedPage> {
           _posts
             ..clear()
             ..addAll(cached);
-          _page = (_posts.length / _pageSize).ceil();
-          _hasMore = true;
+          final lastCached = _posts.isEmpty ? null : _posts.last;
+          _cursorCreatedAt =
+              lastCached == null ? null : '${lastCached['created_at'] ?? ''}';
+          _cursorId = lastCached == null ? null : '${lastCached['id'] ?? ''}';
+          _hasMore = _posts.length >= FeedOfflineCache.maxPosts;
         });
       }
     }
     try {
-      final start = reset ? 0 : _page * _pageSize;
       List<String> followingIds = [];
       final viewerId = _client.auth.currentUser?.id;
       if (_feedTab == 'Following' && viewerId != null) {
@@ -132,14 +139,25 @@ class _FeedPageState extends State<FeedPage> {
             .toList();
       }
       final postQuery = _client.from('posts').select('*');
+      var pagedQuery = _feedTab == 'Following'
+          ? postQuery.inFilter('author_id', followingIds)
+          : postQuery;
+      // Keyset pagination is stable when new posts arrive while the reader
+      // scrolls; offset pagination can skip or repeat rows between requests.
+      final cursorFilter = FeedLoadPolicy.cursorFilter(
+        createdAt: pageCursorCreatedAt,
+        id: pageCursorId,
+      );
+      if (cursorFilter != null) {
+        pagedQuery = pagedQuery.or(cursorFilter);
+      }
       final response =
           _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
               ? <dynamic>[]
-              : await (_feedTab == 'Following'
-                      ? postQuery.inFilter('author_id', followingIds)
-                      : postQuery)
+              : await pagedQuery
                   .order('created_at', ascending: false)
-                  .range(start, start + _pageSize - 1)
+                  .order('id', ascending: false)
+                  .limit(_pageSize)
                   .timeout(const Duration(seconds: 15));
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
@@ -247,7 +265,11 @@ class _FeedPageState extends State<FeedPage> {
           _bookmarked.addAll(loadedBookmarks);
           _reposted.addAll(loadedReposts);
         }
-        _page = start ~/ _pageSize + 1;
+        final lastLoaded = rows.isEmpty ? null : rows.last;
+        if (lastLoaded != null) {
+          _cursorCreatedAt = '${lastLoaded['created_at'] ?? ''}';
+          _cursorId = '${lastLoaded['id'] ?? ''}';
+        }
         _hasMore = rows.length == _pageSize;
       });
       unawaited(
@@ -1056,8 +1078,8 @@ class _PostCard extends StatelessWidget {
         '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
     final avatar = '${profile['avatar_url'] ?? ''}';
     final content = '${post['content'] ?? ''}';
-    final media = '${post['image_url'] ?? ''}';
-    final video = '${post['video_url'] ?? ''}';
+    final media = FeedMediaUrl.normalize(post['image_url']) ?? '';
+    final video = FeedMediaUrl.normalize(post['video_url']) ?? '';
     final verified = profile['verified'] == true ||
         (profile['verified_tier'] != null &&
             profile['verified_tier'] != 'none');
@@ -1270,46 +1292,117 @@ class _InlineVideo extends StatefulWidget {
 
 class _InlineVideoState extends State<_InlineVideo> {
   VideoPlayerController? _controller;
+  ScrollPosition? _scrollPosition;
   bool _loading = false;
+  bool _initializing = false;
+  bool _wasVisible = false;
+  bool _manuallyPaused = false;
   String? _error;
 
-  Future<void> _toggle() async {
-    if (_controller == null) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-      try {
-        final controller = VideoPlayerController.networkUrl(
-          Uri.parse(widget.url),
-        );
-        _controller = controller;
-        await controller.initialize().timeout(const Duration(seconds: 18));
-        if (!mounted) {
-          await controller.dispose();
-          return;
-        }
-        await controller.play();
-        setState(() {});
-      } catch (error) {
-        _error = 'Video could not start. Check the stream URL or network.';
-        await _controller?.dispose();
-        _controller = null;
-      } finally {
-        if (mounted) setState(() => _loading = false);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextPosition = Scrollable.maybeOf(context)?.position;
+    if (!identical(nextPosition, _scrollPosition)) {
+      _scrollPosition?.removeListener(_onScroll);
+      _scrollPosition = nextPosition;
+      _scrollPosition?.addListener(_onScroll);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateVisibility());
+  }
+
+  void _onScroll() => _updateVisibility();
+
+  void _updateVisibility() {
+    if (!mounted) return;
+    final object = context.findRenderObject();
+    if (object is! RenderBox || !object.hasSize) return;
+    final rect = object.localToGlobal(Offset.zero) & object.size;
+    final screen = MediaQuery.sizeOf(context);
+    final padding = MediaQuery.paddingOf(context);
+    final visibleTop = padding.top;
+    final visibleBottom = screen.height - padding.bottom;
+    final visibleHeight = (rect.bottom.clamp(visibleTop, visibleBottom) -
+            rect.top.clamp(visibleTop, visibleBottom))
+        .clamp(0.0, rect.height);
+    final visible = rect.height > 0 && visibleHeight / rect.height >= 0.55;
+
+    if (visible && !_wasVisible) _manuallyPaused = false;
+    _wasVisible = visible;
+    final controller = _controller;
+    if (!visible) {
+      if (controller?.value.isPlaying == true) {
+        controller!.pause();
       }
       return;
     }
-    if (_controller!.value.isPlaying) {
-      await _controller!.pause();
+    if (_manuallyPaused) return;
+    if (controller == null) {
+      unawaited(_initializeAndPlay());
+    } else if (controller.value.isInitialized && !controller.value.isPlaying) {
+      unawaited(controller.play());
+    }
+  }
+
+  Future<void> _initializeAndPlay() async {
+    if (_initializing || _controller != null || !mounted) return;
+    _initializing = true;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    VideoPlayerController? controller;
+    try {
+      final uri = Uri.parse(widget.url);
+      if (uri.scheme != 'https' || uri.host.isEmpty) {
+        throw const FormatException('Unsafe video URL');
+      }
+      controller = VideoPlayerController.networkUrl(uri);
+      _controller = controller;
+      await controller.initialize().timeout(const Duration(seconds: 18));
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {});
+      if (_wasVisible && !_manuallyPaused) await controller.play();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Video could not start. Check the stream URL or network.';
+        });
+      }
+      if (identical(_controller, controller)) _controller = null;
+      await controller?.dispose();
+    } finally {
+      _initializing = false;
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggle() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      _manuallyPaused = false;
+      await _initializeAndPlay();
+      return;
+    }
+    if (controller.value.isPlaying) {
+      _manuallyPaused = true;
+      await controller.pause();
     } else {
-      await _controller!.play();
+      _manuallyPaused = false;
+      await controller.setVolume(0);
+      await controller.play();
     }
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _scrollPosition?.removeListener(_onScroll);
     _controller?.dispose();
     super.dispose();
   }
@@ -1371,6 +1464,11 @@ class _InlineVideoState extends State<_InlineVideo> {
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
+            const Positioned(
+              right: 8,
+              top: 8,
+              child: Icon(Icons.volume_off_rounded, color: Colors.white70),
+            ),
           ],
         ),
       ),
