@@ -22,6 +22,8 @@ with audiences as (
 )
 update public.federated_objects as object
 set visibility = case
+  when lower(object.raw_object->>'visibility') in ('public', 'unlisted', 'followers', 'direct')
+    then lower(object.raw_object->>'visibility')
   when exists (
     select 1 from jsonb_array_elements(audiences.to_recipients) recipient
     where coalesce(recipient->>'id', recipient->>'@id', recipient->>'href', recipient#>>'{}')
