@@ -337,8 +337,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         final seen = <String>{};
         for (final row in [
           ...((data['posts'] as List<Map<String, dynamic>>?) ?? const []),
-          ...((data['fediverse'] as List<Map<String, dynamic>>?) ??
-              const []),
+          ...((data['fediverse'] as List<Map<String, dynamic>>?) ?? const []),
         ]) {
           final remote = row['uri'] ??
               row['remote_status_uri'] ??
@@ -631,7 +630,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                         ],
                       ),
                     )
-                  else ...rows.map(_resultCard),
+                  else
+                    ...rows.map(_resultCard),
                   if (additionalDiscoveryRows.isNotEmpty) ...[
                     const Padding(
                       padding: EdgeInsets.fromLTRB(4, 20, 4, 10),
