@@ -20,6 +20,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { formatNumber } from '@/lib/utils';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
+import { FediverseRichText } from '@/components/features/FediverseRichText';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { PostCard } from '@/components/features/PostCard';
@@ -949,7 +950,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     const proxy = (value: unknown) => {
       const raw = String(value || '').trim();
       if (!/^https:\/\//i.test(raw)) return '';
-      return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media-proxy?url=${encodeURIComponent(raw)}&source=${encodeURIComponent(raw)}`;
+      return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(raw)}`;
     };
 
     return (
@@ -1026,7 +1027,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
             aria-label={`Open @${username}`}
           >
             <div className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full bg-muted overflow-hidden`}>
-              {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> :
+              {avatarUrl ? <img src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(avatarUrl))}`} alt={username} className="w-full h-full object-cover" /> :
                 <div className="w-full h-full flex items-center justify-center font-bold text-xs">{username[0]?.toUpperCase()}</div>}
             </div>
           </button>
@@ -1044,7 +1045,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
               ><Globe className="w-3 h-3" />{domain}</button>
               {created && <span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(created), { addSuffix: true })}</span>}
             </div>
-            <div className={`${compact ? 'text-xs' : 'text-sm'} leading-relaxed line-clamp-3`} dangerouslySetInnerHTML={{ __html: content }} />
+            <FediverseRichText html={content} tags={p.raw_object?.tag ?? p.tags ?? []} className={`${compact ? 'text-xs' : 'text-sm'} leading-relaxed`} />
             <RemotePostMedia attachments={p.attachments ?? p.media_attachments ?? p.raw_object?.media_attachments ?? []} compact={compact} />
             <div className="mt-2 flex items-center gap-1 flex-wrap">
               <button onClick={() => handleFedLike({ ...p, object_url: key })}
@@ -1413,7 +1414,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                           followers_count: account.followers_count,
                           following_count: account.following_count,
                         })} className="w-10 h-10 rounded-full bg-muted overflow-hidden shrink-0 hover:ring-2 hover:ring-[#6364FF] transition-all">
-                        {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{displayName[0]?.toUpperCase()}</div>}
+                        {avatarUrl ? <img src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(avatarUrl))}`} alt={username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{displayName[0]?.toUpperCase()}</div>}
                       </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -1433,12 +1434,12 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                           </span>
                           {created && <span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(created), { addSuffix: true })}</span>}
                         </div>
-                        <div className="text-sm leading-relaxed line-clamp-4 mb-2" dangerouslySetInnerHTML={{ __html: content }} />
+                        <FediverseRichText html={content} tags={toot.tags ?? []} className="text-sm leading-relaxed mb-2" />
                         {mediaAtts.length > 0 && (
                           <div className={`mt-2 grid gap-1 rounded-xl overflow-hidden ${mediaAtts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                             {mediaAtts.slice(0, 4).map((att: any) => (
-                              att.type === 'image' ? <img key={att.id} src={att.preview_url ?? att.url} alt={att.description ?? ''} className="w-full object-cover max-h-48" />
-                              : att.type === 'video' || att.type === 'gifv' ? <video key={att.id} src={att.url} controls className="w-full max-h-48" />
+                              att.type === 'image' ? <img key={att.id} src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(att.preview_url ?? att.url ?? ''))}`} alt={att.description ?? ''} className="w-full object-cover max-h-48" />
+                              : att.type === 'video' || att.type === 'gifv' ? <video key={att.id} src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media?url=${encodeURIComponent(String(att.url ?? ''))}`} controls playsInline preload="metadata" className="w-full max-h-48" />
                               : null
                             ))}
                           </div>
