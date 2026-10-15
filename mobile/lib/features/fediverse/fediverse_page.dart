@@ -1672,9 +1672,6 @@ class _FediversePageState extends State<FediversePage> {
               final isRelationship =
                   const {'followers', 'following'}.contains(widget.section) &&
                       widget.actorUri != null;
-              final isRemotePostCollection =
-                  const {'featured', 'likes'}.contains(widget.section) &&
-                      widget.actorUri != null;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
@@ -1682,9 +1679,7 @@ class _FediversePageState extends State<FediversePage> {
                       ? () => context.push(
                             '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
                           )
-                      : isRemotePostCollection
-                          ? null
-                          : null,
+                      : null,
                   leading: isRelationship && row['avatar_url'] is String
                       ? CircleAvatar(
                           backgroundImage: NetworkImage('${row['avatar_url']}'),
