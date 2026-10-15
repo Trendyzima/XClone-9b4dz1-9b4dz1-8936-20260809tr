@@ -673,8 +673,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
 
   Future<void> _openExternalUrl(String value) async {
     final uri = Uri.tryParse(value);
-    if (uri == null ||
-        (!uri.isScheme('http') && !uri.isScheme('https'))) {
+    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
       return;
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
