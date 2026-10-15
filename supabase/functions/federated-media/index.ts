@@ -27,6 +27,13 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function redirectTo(url: string) {
+  return new Response(null, {
+    status: 302,
+    headers: { ...CORS, "Location": url, "Cache-Control": "public, max-age=86400" },
+  });
+}
+
 function publicIpv4(value: string): boolean {
   const parts = value.split(".").map(Number);
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
@@ -145,7 +152,7 @@ Deno.serve(async (request) => {
     const cached = await storage.from(BUCKET).list(key.slice(0, 2), { search: key, limit: 1 });
     if (!cached.error && cached.data?.some((item) => item.name === key)) {
       const url = storage.from(BUCKET).getPublicUrl(objectPath).data.publicUrl;
-      return Response.redirect(url, 302);
+      return redirectTo(url);
     }
 
     let upstream: Response | null = null;
@@ -177,7 +184,7 @@ Deno.serve(async (request) => {
       return json({ error: "Media could not be cached" }, 502);
     }
     const localUrl = storage.from(BUCKET).getPublicUrl(objectPath).data.publicUrl;
-    return Response.redirect(localUrl, 302);
+    return redirectTo(localUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Media proxy failed";
     const status = /invalid media URL|only public HTTPS|not allowed|resolved to a non-public|could not be resolved/i.test(message) ? 400 : 502;
