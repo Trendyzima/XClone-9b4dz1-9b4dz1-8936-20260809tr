@@ -187,6 +187,11 @@ async function persistPrivateObjectRecipients(activity:any, actor:string, direct
   const activityType=str(activity.type);
   const object=activity.object&&typeof activity.object==="object"?activity.object:null;
   const objectUri=uri(object)||str(activity.object);
+  if(activityType==="Delete"&&objectUri){
+    const removed=await db.from("federated_object_recipients").delete().eq("object_uri",objectUri);
+    if(removed.error)throw removed.error;
+    return;
+  }
   if(!object||!objectUri||!["Create","Update"].includes(activityType))return;
 
   const visibility=normalizeVisibility(object.visibility||activity.visibility,object.to??activity.to,object.cc??activity.cc);
