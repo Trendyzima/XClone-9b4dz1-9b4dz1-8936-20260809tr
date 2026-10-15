@@ -9,10 +9,10 @@ import 'package:flutter/widgets.dart';
 bool tvHasPlaybackSurface({
   required bool isWeb,
   required String? webPlaybackUrl,
-  required bool hasYoutubePlayer,
+  required bool hasExternalPlaybackAction,
   required bool hasInitializedNativePlayer,
 }) {
-  if (hasYoutubePlayer || hasInitializedNativePlayer) return true;
+  if (hasExternalPlaybackAction || hasInitializedNativePlayer) return true;
   return isWeb && (webPlaybackUrl?.trim().isNotEmpty ?? false);
 }
 
@@ -35,3 +35,11 @@ bool tvShouldResumeAfterLifecycle({
   required bool wasPlayingBeforePause,
 }) =>
     state == AppLifecycleState.resumed && wasPlayingBeforePause;
+
+/// Return a canonical external YouTube URL only for a valid video identifier.
+/// YouTube playback is deliberately external on Android so the APK needs no WebView.
+String? tvExternalYoutubeWatchUrl(String videoId) {
+  final id = videoId.trim();
+  if (!RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id)) return null;
+  return Uri.https('www.youtube.com', '/watch', {'v': id}).toString();
+}
