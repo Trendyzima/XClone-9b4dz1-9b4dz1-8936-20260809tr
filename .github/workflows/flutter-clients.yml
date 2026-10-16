@@ -41,6 +41,7 @@ on:
       - 'scripts/validate-appeals-reports-contract.mjs'
       - 'scripts/validate-unified-search-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
+      - 'scripts/validate-flutter-sdk-pin.mjs'
       - 'docs/flutter-migration-release-gates.md'
       - '.github/workflows/flutter-clients.yml'
   workflow_dispatch:
