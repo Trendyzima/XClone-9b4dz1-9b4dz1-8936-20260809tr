@@ -252,7 +252,8 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
     if (!video) return;
     if (!active) {
       video.pause();
-      if (props.preload !== 'auto') hlsRef.current?.stopLoad();
+      if (props.preload === 'auto') hlsRef.current?.startLoad();
+      else hlsRef.current?.stopLoad();
       return;
     }
     hlsRef.current?.startLoad();
