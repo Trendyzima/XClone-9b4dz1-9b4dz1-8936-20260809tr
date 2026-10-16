@@ -57,8 +57,12 @@ requireText(federationWorker, /if\(cls==="public_timeline_unavailable"\)instance
   'Transient timeouts and 5xx responses must not erase a source previously known to have a public timeline.');
 requireText(federationWorker, /UNAVAILABLE_RECHECK_INTERVAL_MS = 24 \* 60 \* 60 \* 1000/,
   'Instances that do not expose public timelines must be rechecked daily rather than monopolizing the ingestion queue.');
-requireText(federationWorker, /const concurrency=6;[\s\S]*const progress=await db\.from\("fediverse_ingestion_runs"\)\.update/,
-  'The inbound worker must use a timeout-safe batch size and report per-batch progress so a slow run is diagnosable.');
+requireText(federationWorker, /const concurrency=4;[\s\S]*const progress=await db\.from\("fediverse_ingestion_runs"\)\.update/,
+  'The inbound worker must use reduced concurrency and report per-batch progress so a slow run is diagnosable.');
+requireText(federationWorker, /for\(let offset=0;offset<rows\.length;offset\+=10\)[\s\S]*rows\.slice\(offset,offset\+10\)[\s\S]*database upsert failed/,
+  'Federated objects must be written in small chunks to avoid statement timeouts from row-level indexing triggers.');
+requireText(federationWorker, /for\(let offset=0;offset<actorRows\.length;offset\+=10\)[\s\S]*actorRows\.slice\(offset,offset\+10\)/,
+  'Federated actor indexing must also use bounded writes.');
 requireText(ingestionBatchTuning, /schedule := '\*\/2 \* \* \* \*'/,
   'After bounded batches are in place, inbound Fediverse sync should be scheduled every two minutes.');
 requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'/,
