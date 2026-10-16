@@ -13,6 +13,18 @@ const SEED = [
 ];
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
+const errorMessage=(value:unknown)=>{
+  if(value instanceof Error)return value.message;
+  if(value&&typeof value==="object"){
+    const e=value as Record<string,unknown>;
+    const parts=[e.message,e.code,e.details,e.hint]
+      .filter((part):part is string=>typeof part==="string"&&part.trim().length>0)
+      .map(part=>part.trim());
+    if(parts.length)return parts.join(" | ");
+    try{return JSON.stringify(value);}catch{/* fall through */}
+  }
+  return String(value);
+};
 const cleanDomain=(v:string)=>v.toLowerCase().trim().replace(/^https?:\/\//,"").replace(/\/$/,"").split("/")[0];
 const classify=(status:number|null,error:string)=>{
   if(status===400||status===401||status===403||status===404||status===405||status===406||status===410||status===422)return "public_timeline_unavailable";
@@ -58,7 +70,7 @@ async function syncDomain(instance:any){
       signal:AbortSignal.timeout(8000)
     });
   }catch(e){
-    const msg=e instanceof Error?e.message:String(e), cls=classify(null,msg), attempts=Number(instance.consecutive_failures||0)+1;
+    const msg=errorMessage(e), cls=classify(null,msg), attempts=Number(instance.consecutive_failures||0)+1;
     const next=new Date(Date.now()+backoff(cls,attempts));
     await recordFailure(instance,domain,msg,null,cls,attempts,next); return {domain,status:"error",error:msg};
   }
@@ -209,7 +221,7 @@ Deno.serve(async(req)=>{
         const started=Date.now();
         try{return await syncDomain({...instance,_startedAt:started});}
         catch(e){
-          const msg=e instanceof Error?e.message:String(e),attempts=Number(instance.consecutive_failures||0)+1,cls=classify(null,msg),next=new Date(Date.now()+backoff(cls,attempts));
+          const msg=errorMessage(e),attempts=Number(instance.consecutive_failures||0)+1,cls=classify(null,msg),next=new Date(Date.now()+backoff(cls,attempts));
           await recordFailure({...instance,_startedAt:started},cleanDomain(String(instance.domain)),msg,null,cls,attempts,next);
           return {domain:instance.domain,status:"error",error:msg,class:cls,durationMs:Date.now()-started};
         }
@@ -244,7 +256,7 @@ Deno.serve(async(req)=>{
       nextCycleAt:new Date(Date.now()+SYNC_INTERVAL_MS).toISOString(),at:completedAt,results
     },status==="failed"?500:200);
   }catch(e){
-    const msg=e instanceof Error?e.message:String(e);
+    const msg=errorMessage(e);
     if(runId)await db.from("fediverse_ingestion_runs").update({completed_at:new Date().toISOString(),status:"failed",duration_ms:Date.now()-runStarted,error:msg}).eq("id",runId);
     console.error("[federation-inbound]",e);
     return json({ok:false,runId,error:msg},500);
