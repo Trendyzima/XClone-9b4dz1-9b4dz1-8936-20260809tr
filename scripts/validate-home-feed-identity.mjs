@@ -47,21 +47,24 @@ requireText(richText, /const routeHashtag[\s\S]*navigate\('\/hashtag\/'[\s\S]*co
   'Fediverse rich text must route hashtags and remote mentions into canonical Testagram surfaces.');
 
 
-requireText(federationWorker, /function normalizeTimelineVisibility\\(value:any\\)[\\s\\S]*visibility:normalizeTimelineVisibility\\(s\\.visibility\\)/,
+requireText(federationWorker, /function normalizeTimelineVisibility\(value:any\)[\s\S]*visibility:normalizeTimelineVisibility\(s\.visibility\)/,
   'Public timeline ingestion must persist the upstream visibility instead of falling back to the database direct-only default.');
-requireText(visibilityRepair, /instance_id is not null[\\s\\S]*raw_object->>'visibility'[\\s\\S]*visibility is distinct from/,
+requireText(visibilityRepair, /instance_id is not null[\s\S]*raw_object->>'visibility'[\s\S]*visibility is distinct from/,
   'Visibility repair must backfill only explicitly visible upstream status values and must not infer public visibility from missing metadata.');
-requireText(supabaseConfig, /\\[functions\\.federated-feed\\]\\s*verify_jwt = false/,
+requireText(supabaseConfig, /\[functions\.federated-feed\]\s*verify_jwt = false/,
   'Public homepage federation must be callable anonymously; the handler still validates optional user JWTs before private personalization.');
-requireText(federatedFeed, /\\.in\\("visibility", \\["public", "unlisted"\\]\\)/,
+requireText(federatedFeed, /\.in\("visibility", \["public", "unlisted"\]\)/,
   'Federated home discovery must continue to exclude followers-only and direct messages.');
 requireText(videoPlayer, /loader: VirtualCdnLoader as any/,
   'HLS video playback must use the Virtual CDN fragment loader.');
-requireText(postCard, /<UniversalVideoPlayer[\\s\\S]*active=\\{videoInView && !showVideoAd\\}[\\s\\S]*muted[\\s\\S]*preload=\\{videoNearView \\? 'auto' : 'metadata'\\}/,
+requireText(postCard, /<UniversalVideoPlayer[\s\S]*active=\{videoInView && !showVideoAd\}[\s\S]*muted[\s\S]*preload=\{videoNearView \? 'auto' : 'metadata'\}/,
   'Home feed video cards must autoplay muted only when visible and preload nearby media.');
-requireText(home, /<FederatedHashtagDiscovery surface="home" \\/>[\\s\\S]*<FeedAdCard/,
-  'The infinite home surface must retain hashtag discovery and native-style in-feed ads alongside posts and TV content.');
-\nif (failures.length) {
+requireText(home, /FederatedHashtagDiscovery surface="home"/,
+  'The infinite home surface must retain hashtag discovery alongside posts.');
+requireText(home, /<FeedAdCard/,
+  'The infinite home surface must retain native-style in-feed ads alongside posts and TV content.');
+
+if (failures.length) {
   console.error('Home-feed/ecosystem contract failed:\n- ' + failures.join('\n- '));
   process.exitCode = 1;
 } else {
