@@ -317,7 +317,7 @@ Deno.serve(async (request) => {
             .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit * 3);
-          const cursorBoundHashtagObjects = applyFeedCursor(hashtagObjects, before);
+          const cursorBoundHashtagObjects = applyFeedCursor(hashtagObjectsQuery, before);
           const { data: hashtagPage, error: hashtagObjectsError } = await cursorBoundHashtagObjects;
 
           if (hashtagObjectsError) throw hashtagObjectsError;
