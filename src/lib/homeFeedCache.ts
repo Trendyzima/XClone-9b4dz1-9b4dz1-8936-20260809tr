@@ -47,11 +47,39 @@ export async function writeHomeFeedCache(value:CachedFeed,key='home'){
 
 export function isHomeFeedCacheUsable(cache:CachedFeed|null,now=Date.now()){return Boolean(cache?.items?.length && Number.isFinite(cache.updatedAt) && now-cache.updatedAt<=MAX_CACHE_AGE_MS);}
 
+/** Stable identity shared by the home feed, pagination buffer, and offline cache.
+ * Prefer canonical ActivityPub/object URIs so one item isn't repeated when it
+ * arrives through local, followed, hashtag, or public federated discovery lanes.
+ */
+export function homeFeedItemIdentity(item:any):string{
+  const data=item?.data??{};
+  const candidates=[data.remote_status_uri,data.uri,(item?.type==='fedpost'||data.is_federated===true)?data.url:null];
+  for(const value of candidates){
+    const raw=typeof value==='string'?value.trim():'';
+    if(!/^https?:\/\//i.test(raw))continue;
+    try{
+      const url=new URL(raw);
+      url.hash='';
+      url.hostname=url.hostname.toLowerCase();
+      if(url.pathname.length>1)url.pathname=url.pathname.replace(/\/+$/,'');
+      const canonical=url.toString().replace(/\/$/,'');
+      if(canonical)return 'uri:'+canonical;
+    }catch{
+      const canonical=raw.replace(/\/+$/,'');
+      if(canonical)return 'uri:'+canonical;
+    }
+  }
+  const id=data.id??data.post_id;
+  if(id===null||id===undefined||String(id)==='')return '';
+  const type=item?.type==='post'||item?.type==='fedpost'?'content':String(item?.type??'unknown');
+  return type+':'+String(id);
+}
+
 export function mergeHomeFeedItems(existing:any[],incoming:any[],max=Number.MAX_SAFE_INTEGER){
   const seen=new Set<string>();
   const out:any[]=[];
   for(const item of filterFreshHomeFeedItems([...incoming,...existing])){
-    const key=String(item?.type??'')+':'+String(item?.data?.id??item?.data?.uri??'');
+    const key=homeFeedItemIdentity(item);
     if(!key.endsWith(':')&&!seen.has(key)){seen.add(key);out.push(item);}
   }
   return out.slice(0,max);

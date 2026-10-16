@@ -94,6 +94,8 @@ jobs:
         run: npm run lint
       - name: Validate ad slot and viewability contract
         run: npm run validate:ads
+      - name: Validate cross-source home-feed identity contract
+        run: npm run validate:home-feed-identity
       - name: Build application
         run: npm run build
       - name: Verify PostCard canonical interaction contract

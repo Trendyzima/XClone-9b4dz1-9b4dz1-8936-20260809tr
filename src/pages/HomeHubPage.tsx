@@ -12,7 +12,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
-import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable, HOME_FEED_CACHE_LIMIT } from '@/lib/homeFeedCache';
+import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable, homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT } from '@/lib/homeFeedCache';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 import { TvPostStream } from '@/components/features/TvPostStream';
@@ -31,11 +31,11 @@ type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'|'publisher'; data:any };
 
 function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.MAX_SAFE_INTEGER): Item[] {
-  const seen = new Set(existing.map((item) => String(item.type) + ':' + String(item.data?.id ?? item.data?.uri ?? '')));
+  const seen = new Set(existing.map(homeFeedItemIdentity).filter(Boolean));
   const out = [...existing];
   for (const item of incoming) {
-    const key = String(item.type) + ':' + String(item.data?.id ?? item.data?.uri ?? '');
-    if (key.endsWith(':') || seen.has(key)) continue;
+    const key = homeFeedItemIdentity(item);
+    if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(item);
     if (out.length >= max) break;
@@ -372,15 +372,15 @@ export default function HomeHubPage(){
         setNextCursor(continuationCursor);
       }
       const previous=feedBufferRef.current;
-      const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
-      const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
+      const previousIds=new Set(previous.map(homeFeedItemIdentity).filter(Boolean));
+      const fresh=next.filter(x=>!previousIds.has(homeFeedItemIdentity(x)));
       if(background){
         // Refresh the visible top without replacing the cursor for the already
         // buffered older pages. The cache contains only the ordered API feed;
         // publisher cards are layered into the visible list separately.
         setNewCount(fresh.length);
         if(fresh.length&&window.scrollY<500){
-          setItems(prev=>[...fresh.filter(item=>!prev.some(existing=>String(existing.data?.id??existing.data?.uri??'')===String(item.data?.id??item.data?.uri??''))),...prev]);
+          setItems(prev=>appendUniqueFeedItems(fresh,prev));
         }
       }else{
         const composed = composeForYouContent(next);
