@@ -33,6 +33,13 @@ requireText(home, /const next=await fetchTab\('all',0,null,true\)/,
   'The first For You request must include public Fediverse content instead of waiting for the background refresh.');
 requireText(home, /signal: AbortSignal\.timeout\(15000\)/,
   'A stalled home-feed aggregator must time out into the existing direct fallback rather than leaving first load pending indefinitely.');
+requireText(home, /const parsedFallbackOffset = cursorOverride\?\.startsWith\('fallback:'\)[\s\S]*range\(fallbackOffset, fallbackOffset \+ fallbackLimit - 1\)/,
+  'The direct Home fallback must paginate local posts and threads instead of repeatedly fetching page one.');
+requireText(home, /const fallbackCursor = hasMoreFallbackRows \? 'fallback:' \+ \(fallbackOffset \+ fallbackLimit\) : null[\s\S]*nextCursorRef\.current = fallbackCursor/,
+  'The Home fallback must publish a continuation cursor only while another local fallback page exists.');
+requireText(home, /cursorOverride\?\.startsWith\('fallback:'\) && federatedCursorRef\.current[\s\S]*fedParams\.set\('before', federatedCursorRef\.current\)/,
+  'Federated pagination must continue from its own cursor while the local Home fallback is active.');
+
 requireText(home, /new Set\(existing\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)\)/,
   'HomeHub page append must seed its deduplication set from canonical identities.');
 requireText(home, /previous\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)/,
