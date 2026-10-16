@@ -68,8 +68,10 @@ requireText(federationWorker, /const concurrency=4;[\s\S]*const progress=await d
   'The inbound worker must use reduced concurrency and report per-batch progress so a slow run is diagnosable.');
 requireText(federationWorker, /for\(let offset=0;offset<rows\.length;offset\+=10\)[\s\S]*rows\.slice\(offset,offset\+10\)[\s\S]*database upsert failed/,
   'Federated objects must be written in small chunks to avoid statement timeouts from row-level indexing triggers.');
-requireText(federationWorker, /for\(let offset=0;offset<actorRows\.length;offset\+=10\)[\s\S]*actorRows\.slice\(offset,offset\+10\)/,
-  'Federated actor indexing must also use bounded writes.');
+requireText(federationWorker, /const uniqueActors = new Map<string, any>\(\)[\s\S]*uniqueActors\.get\(actorRow\.actor_uri\)[\s\S]*const deduplicatedActorRows = \[\.\.\.uniqueActors\.values\(\)\][\s\S]*deduplicatedActorRows\.slice\(offset,offset\+10\)/,
+  'Federated actor rows must be deduplicated by actor_uri before any ON CONFLICT batch to prevent SQLSTATE 21000.');
+requireText(federationWorker, /for\(let offset=0;offset<deduplicatedActorRows\.length;offset\+=10\)[\s\S]*deduplicatedActorRows\.slice\(offset,offset\+10\)/,
+  'Deduplicated federated actor writes must remain bounded in batches of ten.');
 requireText(ingestionBatchTuning, /schedule := '\*\/2 \* \* \* \*'/,
   'After bounded batches are in place, inbound Fediverse sync should be scheduled every two minutes.');
 requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'/,
