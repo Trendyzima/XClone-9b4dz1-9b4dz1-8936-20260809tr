@@ -61,8 +61,10 @@ requireText(federationWorker, /const concurrency=6;[\s\S]*const progress=await d
   'The inbound worker must use a timeout-safe batch size and report per-batch progress so a slow run is diagnosable.');
 requireText(ingestionBatchTuning, /schedule := '\*\/2 \* \* \* \*'/,
   'After bounded batches are in place, inbound Fediverse sync should be scheduled every two minutes.');
-requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'[\s\S]*timeout_milliseconds := 120000/,
-  'The inbound worker cron cadence and HTTP timeout must match its bounded processing batch.');
+requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'/,
+  'The bounded inbound worker must retain its safe five-minute baseline cadence before batch tuning.');
+requireText(ingestionCadence, /timeout_milliseconds := 120000/,
+  'The inbound worker HTTP timeout must cover its bounded processing batch.');
 requireText(federationWorker, /function normalizeTimelineVisibility\(value:any\)[\s\S]*visibility:normalizeTimelineVisibility\(s\.visibility\)/,
   'Public timeline ingestion must persist the upstream visibility instead of falling back to the database direct-only default.');
 requireText(visibilityRepair, /instance_id is not null[\s\S]*raw_object->>'visibility'[\s\S]*visibility is distinct from/,
