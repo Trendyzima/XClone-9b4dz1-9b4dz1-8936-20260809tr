@@ -4,26 +4,10 @@ import 'package:testagram/features/moderation/moderation_workflow_policy.dart';
 void main() {
   group('ModerationWorkflowPolicy', () {
     test('validates trimmed appeal reasons with server-aligned bounds', () {
-      expect(
-        ModerationWorkflowPolicy.validAppealReason(' too short '),
-        isFalse,
-      );
-      expect(
-        ModerationWorkflowPolicy.validAppealReason(List.filled(20, 'x').join()),
-        isTrue,
-      );
-      expect(
-        ModerationWorkflowPolicy.validAppealReason(
-          List.filled(800, 'x').join(),
-        ),
-        isTrue,
-      );
-      expect(
-        ModerationWorkflowPolicy.validAppealReason(
-          List.filled(801, 'x').join(),
-        ),
-        isFalse,
-      );
+      expect(ModerationWorkflowPolicy.validAppealReason(' too short '), isFalse);
+      expect(ModerationWorkflowPolicy.validAppealReason(List.filled(20, 'x').join()), isTrue);
+      expect(ModerationWorkflowPolicy.validAppealReason(List.filled(800, 'x').join()), isTrue);
+      expect(ModerationWorkflowPolicy.validAppealReason(List.filled(801, 'x').join()), isFalse);
     });
 
     test('prevents duplicate, unauthenticated, and in-flight submissions', () {
@@ -150,14 +134,8 @@ void main() {
     });
 
     test('limits audit note length', () {
-      expect(
-        ModerationWorkflowPolicy.validAuditNote(List.filled(1000, 'x').join()),
-        isTrue,
-      );
-      expect(
-        ModerationWorkflowPolicy.validAuditNote(List.filled(1001, 'x').join()),
-        isFalse,
-      );
+      expect(ModerationWorkflowPolicy.validAuditNote(List.filled(1000, 'x').join()), isTrue);
+      expect(ModerationWorkflowPolicy.validAuditNote(List.filled(1001, 'x').join()), isFalse);
     });
   });
 }

@@ -20,8 +20,7 @@ class _ReferralPageState extends State<ReferralPage> {
   List<Map<String, dynamic>> _referrals = const [];
   List<Map<String, dynamic>> _leaders = const [];
 
-  String get _link =>
-      'https://testagram.site/auth?ref=${Uri.encodeComponent(_code ?? '')}';
+  String get _link => 'https://testagram.site/auth?ref=${Uri.encodeComponent(_code ?? '')}';
 
   @override
   void initState() {
@@ -50,9 +49,7 @@ class _ReferralPageState extends State<ReferralPage> {
       if (!mounted) return;
       setState(() {
         _code = code?.toString();
-        _credits = status is Map
-            ? int.tryParse('${status['earned_credits'] ?? 0}') ?? 0
-            : 0;
+        _credits = status is Map ? int.tryParse('${status['earned_credits'] ?? 0}') ?? 0 : 0;
         _referrals = referrals is Map && referrals['items'] is List
             ? (referrals['items'] as List)
                 .whereType<Map>()
@@ -72,8 +69,7 @@ class _ReferralPageState extends State<ReferralPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error =
-            'Referral details are unavailable. Check your connection and retry.';
+        _error = 'Referral details are unavailable. Check your connection and retry.';
       });
     }
   }
@@ -102,9 +98,7 @@ class _ReferralPageState extends State<ReferralPage> {
         children: [
           Text(
             'Refer & earn',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -117,10 +111,7 @@ class _ReferralPageState extends State<ReferralPage> {
               child: ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           Card(
@@ -133,14 +124,10 @@ class _ReferralPageState extends State<ReferralPage> {
                   const SizedBox(height: 8),
                   Text(
                     '$_credits',
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'Your code: ${_code ?? (_loading ? 'Loading…' : 'Unavailable')}',
-                  ),
+                  Text('Your code: ${_code ?? (_loading ? 'Loading…' : 'Unavailable')}'),
                   const SizedBox(height: 12),
                   SelectableText(_link, style: theme.textTheme.bodySmall),
                   const SizedBox(height: 12),
@@ -169,18 +156,14 @@ class _ReferralPageState extends State<ReferralPage> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(18),
-                child: Text(
-                  'No referrals yet. Share your link to get started.',
-                ),
+                child: Text('No referrals yet. Share your link to get started.'),
               ),
             ),
           for (final item in _referrals)
             Card(
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                title: Text(
-                  '${item['username'] ?? item['invited_user'] ?? 'New member'}',
-                ),
+                title: Text('${item['username'] ?? item['invited_user'] ?? 'New member'}'),
                 subtitle: Text('Joined ${item['created_at'] ?? 'recently'}'),
                 trailing: Text('+${item['credits_awarded'] ?? 0}'),
               ),

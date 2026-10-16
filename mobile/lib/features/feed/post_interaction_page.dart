@@ -7,11 +7,7 @@ import 'post_interaction_policy.dart';
 enum PostInteractionKind { likes, replies, reposts, quotes, quoteLikes }
 
 class PostInteractionPage extends StatefulWidget {
-  const PostInteractionPage({
-    required this.postId,
-    required this.kind,
-    super.key,
-  });
+  const PostInteractionPage({required this.postId, required this.kind, super.key});
 
   final String postId;
   final PostInteractionKind kind;
@@ -83,19 +79,19 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
     try {
       if (widget.postId.trim().isEmpty) {
         throw StateError(
-            'Post ID or remote post URI is missing. Open this list from the original post.');
+          'Post ID or remote post URI is missing. Open this list from the original post.',
+        );
       }
       if (PostInteractionPolicy.isRemotePostId(widget.postId)) {
         final root = await _db
             .from('federated_objects')
             .select(
-                'uri,actor_uri,content,summary,published_at,like_count,announce_count,reply_count,quote_count,deleted_at,tombstone')
+              'uri,actor_uri,content,summary,published_at,like_count,announce_count,reply_count,quote_count,deleted_at,tombstone',
+            )
             .eq('uri', widget.postId)
             .maybeSingle()
             .timeout(const Duration(seconds: 15));
-        if (root == null ||
-            root['deleted_at'] != null ||
-            root['tombstone'] == true) {
+        if (root == null || root['deleted_at'] != null || root['tombstone'] == true) {
           throw StateError('This federated post is unavailable.');
         }
         dynamic remoteData;
@@ -104,7 +100,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             remoteData = await _db
                 .from('federated_objects')
                 .select(
-                    'uri,actor_uri,content,summary,published_at,in_reply_to_uri,deleted_at,tombstone')
+                  'uri,actor_uri,content,summary,published_at,in_reply_to_uri,deleted_at,tombstone',
+                )
                 .eq('in_reply_to_uri', widget.postId)
                 .isFilter('deleted_at', null)
                 .eq('tombstone', false)
@@ -115,8 +112,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
           case PostInteractionKind.quotes:
             remoteData = await _db
                 .from('federated_objects')
-                .select(
-                    'uri,actor_uri,content,summary,published_at,quote_uri,deleted_at,tombstone')
+                .select('uri,actor_uri,content,summary,published_at,quote_uri,deleted_at,tombstone')
                 .eq('quote_uri', widget.postId)
                 .isFilter('deleted_at', null)
                 .eq('tombstone', false)
@@ -136,9 +132,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             .toList();
         if (widget.kind == PostInteractionKind.replies ||
             widget.kind == PostInteractionKind.quotes) {
-          final table = widget.kind == PostInteractionKind.quotes
-              ? 'federated_quotes'
-              : 'federated_replies';
+          final table =
+              widget.kind == PostInteractionKind.quotes ? 'federated_quotes' : 'federated_replies';
           final ownRows = await _db
               .from(table)
               .select('id,user_id,object_uri,content,delivery_state,created_at')
@@ -146,10 +141,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
               .order('created_at', ascending: false)
               .limit(PostInteractionPolicy.boundedListLimit(100))
               .timeout(const Duration(seconds: 15));
-          final own = ownRows
-              .whereType<Map>()
-              .map((row) => Map<String, dynamic>.from(row))
-              .toList();
+          final own =
+              ownRows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
           final userIds = own
               .map((row) => '${row['user_id'] ?? ''}')
               .where((id) => id.isNotEmpty)
@@ -173,12 +166,9 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
               'content': row['content'],
               'summary': null,
               'published_at': row['created_at'],
-              'quote_uri': widget.kind == PostInteractionKind.quotes
-                  ? row['object_uri']
-                  : null,
-              'in_reply_to_uri': widget.kind == PostInteractionKind.replies
-                  ? row['object_uri']
-                  : null,
+              'quote_uri': widget.kind == PostInteractionKind.quotes ? row['object_uri'] : null,
+              'in_reply_to_uri':
+                  widget.kind == PostInteractionKind.replies ? row['object_uri'] : null,
               'delivery_state': row['delivery_state'],
               'profile': ownProfileById['${row['user_id']}'],
             });
@@ -197,8 +187,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                 .inFilter('actor_uri', actorUris)
                 .timeout(const Duration(seconds: 12));
         final actorByUri = <String, Map<String, dynamic>>{
-          for (final actor in actors)
-            '${actor['actor_uri']}': Map<String, dynamic>.from(actor),
+          for (final actor in actors) '${actor['actor_uri']}': Map<String, dynamic>.from(actor),
         };
         for (final row in remoteRows) {
           row['profile'] ??= actorByUri['${row['actor_uri']}'];
@@ -268,19 +257,15 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             .order('created_at', ascending: false)
             .limit(PostInteractionPolicy.boundedListLimit(100))
             .timeout(const Duration(seconds: 15));
-        final quotes =
-            quoteRows.map((row) => Map<String, dynamic>.from(row)).toList();
+        final quotes = quoteRows.map((row) => Map<String, dynamic>.from(row)).toList();
         quoteContentById = {
-          for (final quote in quotes)
-            '${quote['id']}': '${quote['content'] ?? ''}',
+          for (final quote in quotes) '${quote['id']}': '${quote['content'] ?? ''}',
         };
         if (widget.kind == PostInteractionKind.quotes) {
           rows = quotes;
         } else {
-          final quoteIds = quotes
-              .map((quote) => '${quote['id'] ?? ''}')
-              .where((id) => id.isNotEmpty)
-              .toList();
+          final quoteIds =
+              quotes.map((quote) => '${quote['id'] ?? ''}').where((id) => id.isNotEmpty).toList();
           if (quoteIds.isEmpty) {
             rows = [];
           } else {
@@ -310,8 +295,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
               .inFilter('id', userIds)
               .timeout(const Duration(seconds: 12));
       final profileById = <String, Map<String, dynamic>>{
-        for (final profile in profiles)
-          '${profile['id']}': Map<String, dynamic>.from(profile),
+        for (final profile in profiles) '${profile['id']}': Map<String, dynamic>.from(profile),
       };
       final enriched = rows.map((row) {
         final userId = '${row['author_id'] ?? row['user_id'] ?? ''}';
@@ -343,8 +327,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
       return;
     }
     final content = _replyText.text.trim();
-    if (PostInteractionPolicy.validateComposerText(content) != null ||
-        _sendingReply) {
+    if (PostInteractionPolicy.validateComposerText(content) != null || _sendingReply) {
       return;
     }
     setState(() {
@@ -353,21 +336,27 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
     });
     try {
       if (PostInteractionPolicy.isRemotePostId(widget.postId)) {
-        final response = await _db.functions.invoke('testagram-api', body: {
-          'path': '/reply',
-          'method': 'POST',
-          'body': {'post_id': widget.postId, 'content': content},
-        }).timeout(const Duration(seconds: 30));
+        final response = await _db.functions.invoke(
+          'testagram-api',
+          body: {
+            'path': '/reply',
+            'method': 'POST',
+            'body': {'post_id': widget.postId, 'content': content},
+          },
+        ).timeout(const Duration(seconds: 30));
         if (response.data is Map &&
             (response.data as Map)['error'] != null &&
             (response.data as Map)['ok'] != true) {
           throw StateError('The federation service rejected this reply.');
         }
       } else {
-        final result = await _db.rpc('capability_dispatch', params: {
-          'p_capability': 'testagram.replies.create',
-          'p_input': {'post_id': widget.postId, 'content': content},
-        }).timeout(const Duration(seconds: 20));
+        final result = await _db.rpc(
+          'capability_dispatch',
+          params: {
+            'p_capability': 'testagram.replies.create',
+            'p_input': {'post_id': widget.postId, 'content': content},
+          },
+        ).timeout(const Duration(seconds: 20));
         if (result is! Map || result['created'] != true) {
           throw StateError('The reply service did not confirm the reply.');
         }
@@ -426,9 +415,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                     IconButton.filled(
                       tooltip: 'Send reply',
                       onPressed: _sendingReply ||
-                              PostInteractionPolicy.validateComposerText(
-                                      _replyText.text) !=
-                                  null
+                              PostInteractionPolicy.validateComposerText(_replyText.text) != null
                           ? null
                           : _sendReply,
                       icon: _sendingReply
@@ -478,8 +465,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('Original post',
-                                    style:
-                                        Theme.of(context).textTheme.labelLarge),
+                                    style: Theme.of(context).textTheme.labelLarge),
                                 const SizedBox(height: 6),
                                 SelectableText(
                                   '${_rootPost!['content'] ?? _rootPost!['summary'] ?? ''}',
@@ -488,8 +474,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                                     _rootPost!['created_at'] != null)
                                   Text(
                                     '${_rootPost!['published_at'] ?? _rootPost!['created_at']}',
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(context).textTheme.bodySmall,
                                   ),
                                 if (_rootPost!['like_count'] != null ||
                                     _rootPost!['likes_count'] != null)
@@ -497,8 +482,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                                     padding: const EdgeInsets.only(top: 6),
                                     child: Text(
                                       '${_rootPost!['like_count'] ?? _rootPost!['likes_count'] ?? 0} likes · ${_rootPost!['reply_count'] ?? _rootPost!['replies_count'] ?? 0} replies · ${_rootPost!['announce_count'] ?? _rootPost!['reposts_count'] ?? 0} reposts',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                      style: Theme.of(context).textTheme.bodySmall,
                                     ),
                                   ),
                               ],
@@ -513,12 +497,11 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                       if (_items.isEmpty && _notice == null)
                         Padding(
                           padding: const EdgeInsets.all(24),
-                          child: Text('No ${_title.toLowerCase()} yet.',
-                              textAlign: TextAlign.center),
+                          child:
+                              Text('No ${_title.toLowerCase()} yet.', textAlign: TextAlign.center),
                         ),
                       ..._items.map((item) {
-                        final profile =
-                            item['profile'] as Map<String, dynamic>?;
+                        final profile = item['profile'] as Map<String, dynamic>?;
                         final name = _displayName(profile);
                         final username = '${profile?['username'] ?? ''}';
                         final avatar = '${profile?['avatar_url'] ?? ''}';
@@ -535,30 +518,23 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                         return Card(
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundImage: avatar.startsWith('http')
-                                  ? NetworkImage(avatar)
-                                  : null,
+                              backgroundImage:
+                                  avatar.startsWith('http') ? NetworkImage(avatar) : null,
                               child: avatar.startsWith('http')
                                   ? null
-                                  : Text(name.isEmpty
-                                      ? 'T'
-                                      : name[0].toUpperCase()),
+                                  : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
                             ),
-                            title: Text(name,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (username.isNotEmpty) Text('@$username'),
-                                Text(detail,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis),
+                                Text(detail, maxLines: 3, overflow: TextOverflow.ellipsis),
                               ],
                             ),
                             isThreeLine: username.isNotEmpty,
-                            onTap: username.isEmpty
-                                ? null
-                                : () => context.push('/profile/$username'),
+                            onTap:
+                                username.isEmpty ? null : () => context.push('/profile/$username'),
                           ),
                         );
                       }),

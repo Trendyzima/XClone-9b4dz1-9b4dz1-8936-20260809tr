@@ -13,7 +13,7 @@ const required = [
   ['payment settlement returns actual activation state', /'activated',\(select status='active' from public\.testagram_ad_campaigns where id=p\.campaign_id\)/i],
   ['campaign owner receives an inbox result', /insert into public\.platform_inbox\(user_id, type, subject, body, icon_emoji, cta_label, cta_url, metadata\)/i],
   ['review is audited', /insert into public\.testagram_governance_audit_log\(actor_user_id, action, target_user_id, reason, metadata\)/i],
-  ['Flutter page calls the secure review RPC', /rpc\('testagram_admin_review_ad_campaign'/i],
+  ['Flutter page calls the secure review RPC', /\.rpc\(\s*['"]testagram_admin_review_ad_campaign['"]/i],
   ['Flutter UI does not allow repeat review', /status == 'pending'/i],
   ['reject reason length is bounded', /length <= 500/i],
 ];

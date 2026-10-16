@@ -4,26 +4,28 @@ import 'package:testagram/features/migration_batch_policy.dart';
 void main() {
   group('MigrationBatchPolicy', () {
     test('requires three unique interests', () {
-      expect(
-          MigrationBatchPolicy.hasEnoughInterests(['tech', 'music']), isFalse);
-      expect(MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'tech']),
-          isFalse);
-      expect(
-          MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'sport']),
-          isTrue);
+      expect(MigrationBatchPolicy.hasEnoughInterests(['tech', 'music']), isFalse);
+      expect(MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'tech']), isFalse);
+      expect(MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'sport']), isTrue);
     });
 
     test('daily claim is available once per UTC calendar day', () {
       final now = DateTime.utc(2026, 10, 13, 21);
       expect(MigrationBatchPolicy.canClaimDailyReward(now: now), isTrue);
       expect(
-          MigrationBatchPolicy.canClaimDailyReward(
-              lastClaimedAt: DateTime.utc(2026, 10, 13, 1), now: now),
-          isFalse);
+        MigrationBatchPolicy.canClaimDailyReward(
+          lastClaimedAt: DateTime.utc(2026, 10, 13, 1),
+          now: now,
+        ),
+        isFalse,
+      );
       expect(
-          MigrationBatchPolicy.canClaimDailyReward(
-              lastClaimedAt: DateTime.utc(2026, 10, 12, 23, 59), now: now),
-          isTrue);
+        MigrationBatchPolicy.canClaimDailyReward(
+          lastClaimedAt: DateTime.utc(2026, 10, 12, 23, 59),
+          now: now,
+        ),
+        isTrue,
+      );
     });
 
     test('minor units are formatted safely and duration is bounded', () {
@@ -37,17 +39,17 @@ void main() {
 
     test('Premium approval URLs must use HTTPS and include a host', () {
       expect(
-          MigrationBatchPolicy.isValidPremiumApprovalUrl(
-              Uri.parse('https://paypal.example/approve')),
-          isTrue);
+        MigrationBatchPolicy.isValidPremiumApprovalUrl(Uri.parse('https://paypal.example/approve')),
+        isTrue,
+      );
       expect(
-          MigrationBatchPolicy.isValidPremiumApprovalUrl(
-              Uri.parse('http://paypal.example/approve')),
-          isFalse);
+        MigrationBatchPolicy.isValidPremiumApprovalUrl(Uri.parse('http://paypal.example/approve')),
+        isFalse,
+      );
       expect(
-          MigrationBatchPolicy.isValidPremiumApprovalUrl(
-              Uri.parse('https:///approve')),
-          isFalse);
+        MigrationBatchPolicy.isValidPremiumApprovalUrl(Uri.parse('https:///approve')),
+        isFalse,
+      );
       expect(MigrationBatchPolicy.isValidPremiumApprovalUrl(null), isFalse);
     });
   });

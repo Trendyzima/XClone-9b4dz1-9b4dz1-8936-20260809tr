@@ -44,13 +44,11 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
           .limit(100)
           .timeout(const Duration(seconds: 20));
       if (mounted) {
-        setState(() => _series =
-            rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
+        setState(() => _series = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
       }
     } catch (_) {
       if (mounted) {
-        setState(() =>
-            _error = 'Your series could not load. Confirm access and retry.');
+        setState(() => _error = 'Your series could not load. Confirm access and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -61,29 +59,31 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
     final title = TextEditingController();
     final description = TextEditingController();
     final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-                title: const Text('Create a series'),
-                content: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextField(
-                      controller: title,
-                      maxLength: 100,
-                      decoration: const InputDecoration(labelText: 'Title')),
-                  TextField(
-                      controller: description,
-                      maxLength: 500,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                          labelText: 'Description (optional)'))
-                ]),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel')),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Create'))
-                ]));
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create a series'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: title,
+              maxLength: 100,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            TextField(
+              controller: description,
+              maxLength: 500,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Description (optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Create')),
+        ],
+      ),
+    );
     if (ok != true || title.text.trim().isEmpty) {
       title.dispose();
       description.dispose();
@@ -100,14 +100,12 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
       await _db.from('post_series').insert({
         'owner_id': user.id,
         'title': title.text.trim(),
-        'description':
-            description.text.trim().isEmpty ? null : description.text.trim()
+        'description': description.text.trim().isEmpty ? null : description.text.trim(),
       }).timeout(const Duration(seconds: 15));
       if (mounted) await _load();
     } catch (_) {
       if (mounted) {
-        setState(() =>
-            _error = 'Series was not created. Check the title and try again.');
+        setState(() => _error = 'Series was not created. Check the title and try again.');
       }
     } finally {
       title.dispose();
@@ -130,8 +128,7 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
           .order('sort_order')
           .timeout(const Duration(seconds: 15));
       if (mounted) {
-        setState(() => _posts =
-            rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
+        setState(() => _posts = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'Series episodes could not load.');
@@ -149,14 +146,14 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('${series['title']}',
-                    style: Theme.of(sheetContext).textTheme.titleLarge),
+                child: Text(
+                  '${series['title']}',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
               ),
               Expanded(
                 child: _posts.isEmpty
-                    ? const Center(
-                        child: Text(
-                            'No posts have been added to this series yet.'))
+                    ? const Center(child: Text('No posts have been added to this series yet.'))
                     : ListView(
                         children: [
                           for (final row in _posts)
@@ -181,19 +178,18 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
 
   Future<void> _delete(Map<String, dynamic> series) async {
     final yes = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-                title: const Text('Delete series?'),
-                content: const Text(
-                    'The series and its membership records will be removed; individual posts are not deleted.'),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Keep')),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Delete'))
-                ]));
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete series?'),
+        content: const Text(
+          'The series and its membership records will be removed; individual posts are not deleted.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
     if (yes != true) return;
     setState(() => _working = true);
     try {
@@ -210,8 +206,7 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-            () => _error = 'Could not delete the series. Refresh and retry.');
+        setState(() => _error = 'Could not delete the series. Refresh and retry.');
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -220,61 +215,67 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(title: const Text('Creator series'), actions: [
-        IconButton(
-            onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
-      ]),
-      floatingActionButton: FloatingActionButton.extended(
+        appBar: AppBar(
+          title: const Text('Creator series'),
+          actions: [
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
           onPressed: _working ? null : _create,
           icon: const Icon(Icons.add),
-          label: const Text('New series')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
+          label: const Text('New series'),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                   children: [
                     const Text(
-                        'Organize your posts into ordered collections. Series access is limited to the signed-in owner under the current database policy.'),
+                      'Organize your posts into ordered collections. Series access is limited to the signed-in owner under the current database policy.',
+                    ),
                     if (_working) const LinearProgressIndicator(),
                     if (_error != null)
                       Card(
-                          child: ListTile(
-                              leading: const Icon(Icons.error_outline),
-                              title: Text(_error!),
-                              trailing: IconButton(
-                                  onPressed: _load,
-                                  icon: const Icon(Icons.refresh)))),
+                        child: ListTile(
+                          leading: const Icon(Icons.error_outline),
+                          title: Text(_error!),
+                          trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+                        ),
+                      ),
                     if (_series.isEmpty && _error == null)
                       const Card(
-                          child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child:
-                                  Text('You have not created a series yet.'))),
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('You have not created a series yet.'),
+                        ),
+                      ),
                     for (final s in _series)
                       Card(
-                          child: ListTile(
-                              leading: const Icon(Icons.auto_stories_outlined),
-                              title: Text('${s['title'] ?? 'Untitled series'}'),
-                              subtitle: Text(
-                                  '${s['description'] ?? 'No description'}'),
-                              onTap: () => _showItems(s),
-                              trailing: PopupMenuButton<String>(
-                                  onSelected: (v) {
-                                    if (v == 'delete') {
-                                      _delete(s);
-                                    } else {
-                                      _showItems(s);
-                                    }
-                                  },
-                                  itemBuilder: (_) => const [
-                                        PopupMenuItem(
-                                            value: 'open',
-                                            child: Text('View episodes')),
-                                        PopupMenuItem(
-                                            value: 'delete',
-                                            child: Text('Delete series'))
-                                      ]))),
-                  ])));
+                        child: ListTile(
+                          leading: const Icon(Icons.auto_stories_outlined),
+                          title: Text('${s['title'] ?? 'Untitled series'}'),
+                          subtitle: Text('${s['description'] ?? 'No description'}'),
+                          onTap: () => _showItems(s),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (v) {
+                              if (v == 'delete') {
+                                _delete(s);
+                              } else {
+                                _showItems(s);
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'open', child: Text('View episodes')),
+                              PopupMenuItem(value: 'delete', child: Text('Delete series')),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      );
 }

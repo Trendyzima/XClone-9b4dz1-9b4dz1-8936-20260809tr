@@ -39,23 +39,11 @@ void main() {
       );
     });
 
-    test(
-      'rejects absolute, protocol-relative and malformed external paths',
-      () {
-        expect(
-          PlatformInboxPolicy.safeInternalPath('https://attacker.example'),
-          isNull,
-        );
-        expect(
-          PlatformInboxPolicy.safeInternalPath('//attacker.example/path'),
-          isNull,
-        );
-        expect(
-          PlatformInboxPolicy.safeInternalPath('/\\\\attacker.example'),
-          isNull,
-        );
-        expect(PlatformInboxPolicy.safeInternalPath(null), isNull);
-      },
-    );
+    test('rejects absolute, protocol-relative and malformed external paths', () {
+      expect(PlatformInboxPolicy.safeInternalPath('https://attacker.example'), isNull);
+      expect(PlatformInboxPolicy.safeInternalPath('//attacker.example/path'), isNull);
+      expect(PlatformInboxPolicy.safeInternalPath('/\\\\attacker.example'), isNull);
+      expect(PlatformInboxPolicy.safeInternalPath(null), isNull);
+    });
   });
 }

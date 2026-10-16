@@ -28,9 +28,7 @@ void main() {
 
     test('does not discard a URL when an anchor has no visible label', () {
       expect(
-        normalizeFederatedContent(
-          '<a href="https://example.org/story"></a>',
-        ),
+        normalizeFederatedContent('<a href="https://example.org/story"></a>'),
         'https://example.org/story',
       );
     });

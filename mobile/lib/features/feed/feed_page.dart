@@ -37,9 +37,7 @@ class _FeedPageState extends State<FeedPage> {
   int _loadGeneration = 0;
   int _refreshGeneration = 0;
   SponsoredAd? _sponsoredAd;
-  late final SponsoredAdService _adService = SponsoredAdService.forClient(
-    _client,
-  );
+  late final SponsoredAdService _adService = SponsoredAdService.forClient(_client);
   static const _pageSize = 15;
 
   SupabaseClient get _client => Supabase.instance.client;
@@ -67,11 +65,7 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _load({bool reset = false}) async {
-    if (!FeedLoadPolicy.shouldStart(
-      loading: _loading,
-      hasMore: _hasMore,
-      reset: reset,
-    )) {
+    if (!FeedLoadPolicy.shouldStart(loading: _loading, hasMore: _hasMore, reset: reset)) {
       return;
     }
     _loadGeneration = FeedLoadPolicy.nextGeneration(_loadGeneration);
@@ -111,8 +105,7 @@ class _FeedPageState extends State<FeedPage> {
             ..clear()
             ..addAll(cached);
           final lastCached = _posts.isEmpty ? null : _posts.last;
-          _cursorCreatedAt =
-              lastCached == null ? null : '${lastCached['created_at'] ?? ''}';
+          _cursorCreatedAt = lastCached == null ? null : '${lastCached['created_at'] ?? ''}';
           _cursorId = lastCached == null ? null : '${lastCached['id'] ?? ''}';
           _hasMore = _posts.length >= FeedOfflineCache.maxPosts;
         });
@@ -133,15 +126,12 @@ class _FeedPageState extends State<FeedPage> {
         )) {
           return;
         }
-        followingIds = follows
-            .map((row) => '${row['following_id']}')
-            .where((id) => id.isNotEmpty)
-            .toList();
+        followingIds =
+            follows.map((row) => '${row['following_id']}').where((id) => id.isNotEmpty).toList();
       }
       final postQuery = _client.from('posts').select('*');
-      var pagedQuery = _feedTab == 'Following'
-          ? postQuery.inFilter('author_id', followingIds)
-          : postQuery;
+      var pagedQuery =
+          _feedTab == 'Following' ? postQuery.inFilter('author_id', followingIds) : postQuery;
       // Keyset pagination is stable when new posts arrive while the reader
       // scrolls; offset pagination can skip or repeat rows between requests.
       final cursorFilter = FeedLoadPolicy.cursorFilter(
@@ -151,14 +141,13 @@ class _FeedPageState extends State<FeedPage> {
       if (cursorFilter != null) {
         pagedQuery = pagedQuery.or(cursorFilter);
       }
-      final response =
-          _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
-              ? <dynamic>[]
-              : await pagedQuery
-                  .order('created_at', ascending: false)
-                  .order('id', ascending: false)
-                  .limit(_pageSize)
-                  .timeout(const Duration(seconds: 15));
+      final response = _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
+          ? <dynamic>[]
+          : await pagedQuery
+              .order('created_at', ascending: false)
+              .order('id', ascending: false)
+              .limit(_pageSize)
+              .timeout(const Duration(seconds: 15));
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
@@ -178,9 +167,7 @@ class _FeedPageState extends State<FeedPage> {
           ? <dynamic>[]
           : await _client
               .from('profiles')
-              .select(
-                'id,username,display_name,avatar_url,verified,verified_tier',
-              )
+              .select('id,username,display_name,avatar_url,verified,verified_tier')
               .inFilter('id', ids);
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
@@ -273,11 +260,7 @@ class _FeedPageState extends State<FeedPage> {
         _hasMore = rows.length == _pageSize;
       });
       unawaited(
-        FeedOfflineCache.write(
-          userId: viewerId ?? 'anonymous',
-          tab: _feedTab,
-          posts: _posts,
-        ),
+        FeedOfflineCache.write(userId: viewerId ?? 'anonymous', tab: _feedTab, posts: _posts),
       );
       if (reset && _posts.length >= 5) {
         unawaited(_loadSponsoredAd(refreshGeneration));
@@ -322,18 +305,14 @@ class _FeedPageState extends State<FeedPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        action: SnackBarAction(
-          label: 'Sign in',
-          onPressed: () => context.go('/auth'),
-        ),
+        action: SnackBarAction(label: 'Sign in', onPressed: () => context.go('/auth')),
       ),
     );
   }
 
   String _friendlyError(Object error) {
     final message = error.toString();
-    if (message.contains('SocketException') ||
-        message.contains('Failed host lookup')) {
+    if (message.contains('SocketException') || message.contains('Failed host lookup')) {
       return 'You appear to be offline. Check your connection and retry.';
     }
     if (message.contains('TimeoutException')) {
@@ -370,8 +349,7 @@ class _FeedPageState extends State<FeedPage> {
       if (mounted) {
         setState(
           () => post['likes_count'] =
-              ((post['likes_count'] as num?)?.toInt() ?? 0) +
-                  (wasLiked ? -1 : 1),
+              ((post['likes_count'] as num?)?.toInt() ?? 0) + (wasLiked ? -1 : 1),
         );
       }
     } catch (error) {
@@ -379,9 +357,8 @@ class _FeedPageState extends State<FeedPage> {
         setState(() {
           wasLiked ? _liked.add(id) : _liked.remove(id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update like: $error')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update like: $error')));
       }
     }
   }
@@ -398,25 +375,17 @@ class _FeedPageState extends State<FeedPage> {
     });
     try {
       if (wasSaved) {
-        await _client
-            .from('bookmarks')
-            .delete()
-            .eq('user_id', _userId)
-            .eq('post_id', id);
+        await _client.from('bookmarks').delete().eq('user_id', _userId).eq('post_id', id);
       } else {
-        await _client.from('bookmarks').insert({
-          'user_id': _userId,
-          'post_id': id,
-        });
+        await _client.from('bookmarks').insert({'user_id': _userId, 'post_id': id});
       }
     } catch (error) {
       if (mounted) {
         setState(() {
           wasSaved ? _bookmarked.add(id) : _bookmarked.remove(id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update bookmark: $error')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update bookmark: $error')));
       }
     }
   }
@@ -433,22 +402,14 @@ class _FeedPageState extends State<FeedPage> {
     });
     try {
       if (wasReposted) {
-        await _client
-            .from('reposts')
-            .delete()
-            .eq('user_id', _userId)
-            .eq('post_id', id);
+        await _client.from('reposts').delete().eq('user_id', _userId).eq('post_id', id);
       } else {
-        await _client.from('reposts').insert({
-          'user_id': _userId,
-          'post_id': id,
-        });
+        await _client.from('reposts').insert({'user_id': _userId, 'post_id': id});
       }
       if (mounted) {
         setState(
           () => post['reposts_count'] =
-              ((post['reposts_count'] as num?)?.toInt() ?? 0) +
-                  (wasReposted ? -1 : 1),
+              ((post['reposts_count'] as num?)?.toInt() ?? 0) + (wasReposted ? -1 : 1),
         );
       }
     } catch (error) {
@@ -456,9 +417,8 @@ class _FeedPageState extends State<FeedPage> {
         setState(() {
           wasReposted ? _reposted.add(id) : _reposted.remove(id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update repost: $error')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update repost: $error')));
       }
     }
   }
@@ -474,15 +434,13 @@ class _FeedPageState extends State<FeedPage> {
 
   Future<void> _sharePost(Map<String, dynamic> post) async {
     final link = 'https://testagram.site/post/${post['id']}';
-    final body =
-        '${post['content'] ?? 'Check out this post on Testagram'}\n$link';
+    final body = '${post['content'] ?? 'Check out this post on Testagram'}\n$link';
     try {
       await Share.share(body, subject: 'Testagram post');
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open the share sheet: $error')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not open the share sheet: $error')));
       }
     }
   }
@@ -515,12 +473,7 @@ class _FeedPageState extends State<FeedPage> {
               )
               .toList(),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel'))],
       ),
     );
     if (reason == null) return;
@@ -532,17 +485,14 @@ class _FeedPageState extends State<FeedPage> {
         'reason': reason,
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report submitted to Testagram moderation.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Report submitted to Testagram moderation.')));
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Report could not be submitted: $error')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Report could not be submitted: $error')));
       }
     }
   }
@@ -556,11 +506,8 @@ class _FeedPageState extends State<FeedPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => _CommentsSheet(
-        postId: '${post['id']}',
-        client: _client,
-        userId: _userId,
-      ),
+      builder: (context) =>
+          _CommentsSheet(postId: '${post['id']}', client: _client, userId: _userId),
     );
   }
 
@@ -593,10 +540,8 @@ class _FeedPageState extends State<FeedPage> {
               children: [
                 Text(
                   'Create a post',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style:
+                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -615,17 +560,12 @@ class _FeedPageState extends State<FeedPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          selectedIsVideo
-                              ? Icons.video_file_rounded
-                              : Icons.image_rounded,
-                        ),
+                        Icon(selectedIsVideo ? Icons.video_file_rounded : Icons.image_rounded),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -670,8 +610,7 @@ class _FeedPageState extends State<FeedPage> {
                                 }
                               } catch (_) {
                                 if (sheetContext.mounted) {
-                                  ScaffoldMessenger.of(sheetContext)
-                                      .showSnackBar(
+                                  ScaffoldMessenger.of(sheetContext).showSnackBar(
                                     const SnackBar(
                                       content: Text(
                                         'Camera is unavailable or permission was denied.',
@@ -707,8 +646,7 @@ class _FeedPageState extends State<FeedPage> {
                                 }
                               } catch (_) {
                                 if (sheetContext.mounted) {
-                                  ScaffoldMessenger.of(sheetContext)
-                                      .showSnackBar(
+                                  ScaffoldMessenger.of(sheetContext).showSnackBar(
                                     const SnackBar(
                                       content: Text(
                                         'Photo selection failed. Check media permissions and retry.',
@@ -743,8 +681,7 @@ class _FeedPageState extends State<FeedPage> {
                                 }
                               } catch (_) {
                                 if (sheetContext.mounted) {
-                                  ScaffoldMessenger.of(sheetContext)
-                                      .showSnackBar(
+                                  ScaffoldMessenger.of(sheetContext).showSnackBar(
                                     const SnackBar(
                                       content: Text(
                                         'Video selection failed. Check media permissions and retry.',
@@ -766,15 +703,14 @@ class _FeedPageState extends State<FeedPage> {
                 if (choosingMedia) const LinearProgressIndicator(),
                 const SizedBox(height: 14),
                 FilledButton(
-                  onPressed: choosingMedia ||
-                          (controller.text.trim().isEmpty &&
-                              selectedMedia == null)
-                      ? null
-                      : () => Navigator.pop(sheetContext, {
-                            'content': controller.text.trim(),
-                            'media': selectedMedia,
-                            'isVideo': selectedIsVideo,
-                          }),
+                  onPressed:
+                      choosingMedia || (controller.text.trim().isEmpty && selectedMedia == null)
+                          ? null
+                          : () => Navigator.pop(sheetContext, {
+                                'content': controller.text.trim(),
+                                'media': selectedMedia,
+                                'isVideo': selectedIsVideo,
+                              }),
                   child: const Text('Publish post'),
                 ),
               ],
@@ -796,13 +732,9 @@ class _FeedPageState extends State<FeedPage> {
       String? mediaUrl;
       if (media != null) {
         final bytes = await media.readAsBytes();
-        final extension = MediaUploadPolicy.normalizeExtension(
-          media.name,
-          isVideo: isVideo,
-        );
+        final extension = MediaUploadPolicy.normalizeExtension(media.name, isVideo: isVideo);
         MediaUploadPolicy.validateSize(bytes.length, isVideo: isVideo);
-        final path =
-            '$_userId/${DateTime.now().microsecondsSinceEpoch}.$extension';
+        final path = '$_userId/${DateTime.now().microsecondsSinceEpoch}.$extension';
         await _client.storage.from('posts').uploadBinary(
               path,
               bytes,
@@ -825,9 +757,8 @@ class _FeedPageState extends State<FeedPage> {
       if (mounted) {
         await _load(reset: true);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Your post has been published.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Your post has been published.')));
       }
     } catch (error) {
       if (uploadedPath != null) {
@@ -858,12 +789,8 @@ class _FeedPageState extends State<FeedPage> {
           SliverToBoxAdapter(
             child: Container(
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .scaffoldBackgroundColor
-                    .withValues(alpha: 0.94),
-                border: Border(
-                  bottom: BorderSide(color: Theme.of(context).dividerColor),
-                ),
+                color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.94),
+                border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
               ),
               child: Row(
                 children: [
@@ -896,10 +823,7 @@ class _FeedPageState extends State<FeedPage> {
                               fontWeight: FontWeight.w700,
                               color: _feedTab == tab
                                   ? Theme.of(context).colorScheme.onSurface
-                                  : Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color,
+                                  : Theme.of(context).textTheme.bodySmall?.color,
                             ),
                           ),
                         ),
@@ -921,14 +845,11 @@ class _FeedPageState extends State<FeedPage> {
                     child: Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primaryContainer,
+                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                           child: const Icon(Icons.edit_rounded),
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text('Share something with your community…'),
-                        ),
+                        const Expanded(child: Text('Share something with your community…')),
                         IconButton(
                           tooltip: 'Create post',
                           onPressed: _compose,
@@ -947,12 +868,9 @@ class _FeedPageState extends State<FeedPage> {
                 padding: const EdgeInsets.all(18),
                 child: Column(
                   children: [
-                    if (_posts.isNotEmpty)
-                      const Icon(Icons.cloud_off_rounded, size: 20),
+                    if (_posts.isNotEmpty) const Icon(Icons.cloud_off_rounded, size: 20),
                     Text(
-                      _posts.isNotEmpty
-                          ? 'Live refresh failed — showing saved posts.'
-                          : _error!,
+                      _posts.isNotEmpty ? 'Live refresh failed — showing saved posts.' : _error!,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
@@ -985,13 +903,10 @@ class _FeedPageState extends State<FeedPage> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
               sliver: SliverList.separated(
-                itemCount: _posts.length +
-                    (_sponsoredAd != null && _posts.length >= 5 ? 1 : 0),
+                itemCount: _posts.length + (_sponsoredAd != null && _posts.length >= 5 ? 1 : 0),
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
-                  if (_sponsoredAd != null &&
-                      _posts.length >= 5 &&
-                      index == 5) {
+                  if (_sponsoredAd != null && _posts.length >= 5 && index == 5) {
                     return SponsoredAdCard(
                       key: ValueKey(_sponsoredAd!.impressionId),
                       ad: _sponsoredAd!,
@@ -999,9 +914,7 @@ class _FeedPageState extends State<FeedPage> {
                     );
                   }
                   final postIndex =
-                      _sponsoredAd != null && _posts.length >= 5 && index > 5
-                          ? index - 1
-                          : index;
+                      _sponsoredAd != null && _posts.length >= 5 && index > 5 ? index - 1 : index;
                   final post = _posts[postIndex];
                   return _PostCard(
                     post: post,
@@ -1030,12 +943,7 @@ class _FeedPageState extends State<FeedPage> {
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(20, 10, 20, 24),
-                child: Center(
-                  child: Text(
-                    'You’re all caught up.',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
+                child: Center(child: Text('You’re all caught up.', style: TextStyle(fontSize: 12))),
               ),
             ),
         ],
@@ -1072,17 +980,14 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = (post['profile'] as Map?)?.cast<String, dynamic>() ??
-        <String, dynamic>{};
-    final name =
-        '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+    final profile = (post['profile'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final name = '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
     final avatar = '${profile['avatar_url'] ?? ''}';
     final content = '${post['content'] ?? ''}';
     final media = FeedMediaUrl.normalize(post['image_url']) ?? '';
     final video = FeedMediaUrl.normalize(post['video_url']) ?? '';
     final verified = profile['verified'] == true ||
-        (profile['verified_tier'] != null &&
-            profile['verified_tier'] != 'none');
+        (profile['verified_tier'] != null && profile['verified_tier'] != 'none');
     final date = DateTime.tryParse('${post['created_at'] ?? ''}');
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -1095,9 +1000,8 @@ class _PostCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 21,
-                  backgroundImage: avatar.startsWith('http')
-                      ? CachedNetworkImageProvider(avatar)
-                      : null,
+                  backgroundImage:
+                      avatar.startsWith('http') ? CachedNetworkImageProvider(avatar) : null,
                   child: avatar.startsWith('http')
                       ? null
                       : Text(name.isNotEmpty ? name[0].toUpperCase() : 'T'),
@@ -1114,9 +1018,7 @@ class _PostCard extends StatelessWidget {
                               name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
+                              style: const TextStyle(fontWeight: FontWeight.w800),
                             ),
                           ),
                           if (verified)
@@ -1132,11 +1034,10 @@ class _PostCard extends StatelessWidget {
                       ),
                       Text(
                         '@${profile['username'] ?? 'testagram'} · ${date == null ? '' : _relativeDate(date)}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -1176,10 +1077,7 @@ class _PostCard extends StatelessWidget {
             if (content.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 10, bottom: 8),
-                child: SelectableText(
-                  content,
-                  style: const TextStyle(fontSize: 15, height: 1.4),
-                ),
+                child: SelectableText(content, style: const TextStyle(fontSize: 15, height: 1.4)),
               ),
             if (video.startsWith('http'))
               Padding(
@@ -1210,9 +1108,7 @@ class _PostCard extends StatelessWidget {
             Row(
               children: [
                 _PostAction(
-                  icon: liked
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
+                  icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                   label: '${post['likes_count'] ?? 0}',
                   active: liked,
                   onTap: onLike,
@@ -1238,12 +1134,8 @@ class _PostCard extends StatelessWidget {
                   tooltip: bookmarked ? 'Remove bookmark' : 'Bookmark',
                   onPressed: onBookmark,
                   icon: Icon(
-                    bookmarked
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
-                    color: bookmarked
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
+                    bookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                    color: bookmarked ? Theme.of(context).colorScheme.primary : null,
                   ),
                 ),
               ],
@@ -1322,9 +1214,9 @@ class _InlineVideoState extends State<_InlineVideo> {
     final padding = MediaQuery.paddingOf(context);
     final visibleTop = padding.top;
     final visibleBottom = screen.height - padding.bottom;
-    final visibleHeight = (rect.bottom.clamp(visibleTop, visibleBottom) -
-            rect.top.clamp(visibleTop, visibleBottom))
-        .clamp(0.0, rect.height);
+    final visibleHeight =
+        (rect.bottom.clamp(visibleTop, visibleBottom) - rect.top.clamp(visibleTop, visibleBottom))
+            .clamp(0.0, rect.height);
     final visible = rect.height > 0 && visibleHeight / rect.height >= 0.55;
 
     if (visible && !_wasVisible) _manuallyPaused = false;
@@ -1413,9 +1305,8 @@ class _InlineVideoState extends State<_InlineVideo> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: AspectRatio(
-        aspectRatio: controller?.value.isInitialized == true
-            ? controller!.value.aspectRatio
-            : 16 / 9,
+        aspectRatio:
+            controller?.value.isInitialized == true ? controller!.value.aspectRatio : 16 / 9,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -1477,11 +1368,7 @@ class _InlineVideoState extends State<_InlineVideo> {
 }
 
 class _CommentsSheet extends StatefulWidget {
-  const _CommentsSheet({
-    required this.postId,
-    required this.client,
-    required this.userId,
-  });
+  const _CommentsSheet({required this.postId, required this.client, required this.userId});
   final String postId;
   final SupabaseClient client;
   final String userId;
@@ -1520,8 +1407,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           .eq('post_id', widget.postId)
           .order('created_at', ascending: true)
           .limit(100);
-      final replies =
-          rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final replies = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
       final ids = replies.map((row) => '${row['user_id']}').toSet().toList();
       if (ids.isNotEmpty) {
         final profiles = await widget.client
@@ -1529,8 +1415,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             .select('id,username,display_name,avatar_url')
             .inFilter('id', ids);
         final byId = {
-          for (final row in profiles)
-            '${row['id']}': Map<String, dynamic>.from(row as Map),
+          for (final row in profiles) '${row['id']}': Map<String, dynamic>.from(row as Map),
         };
         for (final reply in replies) {
           reply['profile'] = byId['${reply['user_id']}'];
@@ -1575,8 +1460,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           child: Column(
             children: [
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -1588,18 +1472,13 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                     ),
-                    IconButton(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
+                    IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
                   ],
                 ),
               ),
-              if (_error != null)
-                Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
+              if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
               if (_loading && _replies.isEmpty)
-                const Expanded(
-                    child: Center(child: CircularProgressIndicator()))
+                const Expanded(child: Center(child: CircularProgressIndicator()))
               else
                 Expanded(
                   child: _replies.isEmpty
@@ -1608,8 +1487,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           itemCount: _replies.length,
                           itemBuilder: (context, index) {
                             final reply = _replies[index];
-                            final profile = (reply['profile'] as Map?)
-                                    ?.cast<String, dynamic>() ??
+                            final profile = (reply['profile'] as Map?)?.cast<String, dynamic>() ??
                                 <String, dynamic>{};
                             final name =
                                 '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
@@ -1621,29 +1499,18 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                     : null,
                                 child: avatar.startsWith('http')
                                     ? null
-                                    : Text(
-                                        name.isEmpty
-                                            ? 'T'
-                                            : name[0].toUpperCase(),
-                                      ),
+                                    : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
                               ),
-                              title: Text(
-                                name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700),
-                              ),
+                              title:
+                                  Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
                               subtitle: Text('${reply['content'] ?? ''}'),
                             );
                           },
                         ),
                 ),
               Padding(
-                padding: EdgeInsets.fromLTRB(
-                  12,
-                  8,
-                  12,
-                  MediaQuery.viewInsetsOf(context).bottom + 12,
-                ),
+                padding:
+                    EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.viewInsetsOf(context).bottom + 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -1653,10 +1520,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                         minLines: 1,
                         maxLines: 4,
                         maxLength: 2000,
-                        decoration: const InputDecoration(
-                          hintText: 'Write a reply…',
-                          counterText: '',
-                        ),
+                        decoration:
+                            const InputDecoration(hintText: 'Write a reply…', counterText: ''),
                       ),
                     ),
                     const SizedBox(width: 8),

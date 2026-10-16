@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../migration_batch_policy.dart';
 
 class CreditsPage extends StatefulWidget {
@@ -40,11 +41,7 @@ class _CreditsPageState extends State<CreditsPage> {
     });
     try {
       final results = await Future.wait<dynamic>([
-        _db
-            .from('user_wallets')
-            .select('credits')
-            .eq('user_id', user.id)
-            .maybeSingle(),
+        _db.from('user_wallets').select('credits').eq('user_id', user.id).maybeSingle(),
         _db
             .from('daily_rewards')
             .select('streak_day,last_claimed_at')
@@ -59,9 +56,7 @@ class _CreditsPageState extends State<CreditsPage> {
       ]).timeout(const Duration(seconds: 20));
       final wallet = results[0] as Map?;
       final reward = results[1] as Map?;
-      final history = (results[2] as List)
-          .map((r) => Map<String, dynamic>.from(r as Map))
-          .toList();
+      final history = (results[2] as List).map((r) => Map<String, dynamic>.from(r as Map)).toList();
       if (mounted) {
         setState(() {
           _credits = (wallet?['credits'] as num?)?.toInt() ?? 0;
@@ -72,18 +67,14 @@ class _CreditsPageState extends State<CreditsPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              _error = 'Credits could not load. Retry before claiming rewards.',
-        );
+        setState(() => _error = 'Credits could not load. Retry before claiming rewards.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  bool get _canClaim =>
-      MigrationBatchPolicy.canClaimDailyReward(lastClaimedAt: _lastClaim);
+  bool get _canClaim => MigrationBatchPolicy.canClaimDailyReward(lastClaimedAt: _lastClaim);
 
   Future<void> _claim() async {
     if (_claiming || !_canClaim) return;
@@ -92,25 +83,20 @@ class _CreditsPageState extends State<CreditsPage> {
       _error = null;
     });
     try {
-      final result = await _db
-          .rpc('claim_daily_reward')
-          .timeout(const Duration(seconds: 20));
+      final result = await _db.rpc('claim_daily_reward').timeout(const Duration(seconds: 20));
       if (result is! Map || result['ok'] != true) {
         throw StateError('Reward claim was not accepted by the server.');
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('+${result['credits_earned'] ?? 0} credits added'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('+${result['credits_earned'] ?? 0} credits added')));
       }
       await _load();
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Daily reward was not confirmed. Refresh the balance before retrying.',
+          () => _error = 'Daily reward was not confirmed. Refresh the balance before retrying.',
         );
       }
     } finally {
@@ -123,10 +109,7 @@ class _CreditsPageState extends State<CreditsPage> {
         appBar: AppBar(
           title: const Text('Credits'),
           actions: [
-            IconButton(
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-            ),
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
           ],
         ),
         body: _loading
@@ -141,14 +124,11 @@ class _CreditsPageState extends State<CreditsPage> {
                         padding: const EdgeInsets.all(22),
                         child: Column(
                           children: [
-                            const Icon(Icons.monetization_on_outlined,
-                                size: 44),
+                            const Icon(Icons.monetization_on_outlined, size: 44),
                             const SizedBox(height: 8),
                             const Text('Your credit balance'),
-                            Text(
-                              _credits.toString(),
-                              style: Theme.of(context).textTheme.displaySmall,
-                            ),
+                            Text(_credits.toString(),
+                                style: Theme.of(context).textTheme.displaySmall),
                             Text('Daily streak: $_streak'),
                           ],
                         ),
@@ -159,10 +139,7 @@ class _CreditsPageState extends State<CreditsPage> {
                         child: ListTile(
                           leading: const Icon(Icons.error_outline),
                           title: Text(_error!),
-                          trailing: IconButton(
-                            onPressed: _load,
-                            icon: const Icon(Icons.refresh),
-                          ),
+                          trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                         ),
                       ),
                     FilledButton.icon(
@@ -183,10 +160,7 @@ class _CreditsPageState extends State<CreditsPage> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    Text(
-                      'Recent activity',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                    Text('Recent activity', style: Theme.of(context).textTheme.titleLarge),
                     if (_history.isEmpty)
                       const Padding(
                         padding: EdgeInsets.all(20),
@@ -200,8 +174,7 @@ class _CreditsPageState extends State<CreditsPage> {
                                 ? Icons.add_circle_outline
                                 : Icons.remove_circle_outline,
                           ),
-                          title:
-                              Text('${row['reason'] ?? 'Credit transaction'}'),
+                          title: Text('${row['reason'] ?? 'Credit transaction'}'),
                           subtitle: Text('${row['created_at'] ?? ''}'),
                           trailing: Text(
                             '${(row['amount'] as num?)?.toInt() ?? 0}',

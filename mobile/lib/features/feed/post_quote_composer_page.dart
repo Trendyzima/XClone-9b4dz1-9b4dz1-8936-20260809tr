@@ -59,13 +59,12 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
         row = await _db
             .from('federated_objects')
             .select(
-                'uri,actor_uri,content,summary,published_at,quote_uri,object_type,deleted_at,tombstone')
+              'uri,actor_uri,content,summary,published_at,quote_uri,object_type,deleted_at,tombstone',
+            )
             .eq('uri', widget.postId)
             .maybeSingle()
             .timeout(const Duration(seconds: 15));
-        if (row == null ||
-            row['deleted_at'] != null ||
-            row['tombstone'] == true) {
+        if (row == null || row['deleted_at'] != null || row['tombstone'] == true) {
           throw StateError('This federated post is unavailable.');
         }
       } else {
@@ -82,9 +81,11 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
       setState(() => _post = Map<String, dynamic>.from(row as Map));
     } catch (e) {
       if (mounted && generation == _generation) {
-        setState(() => _error = e is StateError
-            ? e.message.toString()
-            : 'The quote target could not be loaded. Retry when connected.');
+        setState(
+          () => _error = e is StateError
+              ? e.message.toString()
+              : 'The quote target could not be loaded. Retry when connected.',
+        );
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -100,8 +101,7 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
       return;
     }
     final content = _text.text.trim();
-    if (PostInteractionPolicy.validateComposerText(content) != null ||
-        _sending) {
+    if (PostInteractionPolicy.validateComposerText(content) != null || _sending) {
       return;
     }
     setState(() {
@@ -110,41 +110,48 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
     });
     try {
       if (_remote) {
-        final response = await _db.functions.invoke('testagram-api', body: {
-          'path': '/quote',
-          'method': 'POST',
-          'body': {'post_id': widget.postId, 'content': content},
-        }).timeout(const Duration(seconds: 30));
+        final response = await _db.functions.invoke(
+          'testagram-api',
+          body: {
+            'path': '/quote',
+            'method': 'POST',
+            'body': {'post_id': widget.postId, 'content': content},
+          },
+        ).timeout(const Duration(seconds: 30));
         if (response.data is Map && (response.data as Map)['error'] != null) {
           throw StateError('The federation service rejected this quote.');
         }
       } else {
-        final result = await _db.rpc('create_post_atomic', params: {
-          'p_input': {
-            'content': content,
-            'quoted_post_id': widget.postId,
-            'visibility': 'public',
+        final result = await _db.rpc(
+          'create_post_atomic',
+          params: {
+            'p_input': {
+              'content': content,
+              'quoted_post_id': widget.postId,
+              'visibility': 'public',
+            },
           },
-        }).timeout(const Duration(seconds: 20));
-        if (result is! Map ||
-            result['created'] != true ||
-            result['post_id'] == null) {
-          throw StateError(
-              'The post service did not confirm the quote was created.');
+        ).timeout(const Duration(seconds: 20));
+        if (result is! Map || result['created'] != true || result['post_id'] == null) {
+          throw StateError('The post service did not confirm the quote was created.');
         }
         if (!mounted) return;
         context.go('/post/${Uri.encodeComponent('${result['post_id']}')}');
         return;
       }
       if (!mounted) return;
-      context.go(_remote
-          ? '/post-remote?postId=${Uri.encodeComponent(widget.postId)}'
-          : '/post/${Uri.encodeComponent(widget.postId)}');
+      context.go(
+        _remote
+            ? '/post-remote?postId=${Uri.encodeComponent(widget.postId)}'
+            : '/post/${Uri.encodeComponent(widget.postId)}',
+      );
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e is StateError
-            ? e.message.toString()
-            : 'Quote could not be published. Check your connection and permissions, then retry.');
+        setState(
+          () => _error = e is StateError
+              ? e.message.toString()
+              : 'Quote could not be published. Check your connection and permissions, then retry.',
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -158,54 +165,64 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
       appBar: AppBar(title: const Text('Quote post')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(padding: const EdgeInsets.all(16), children: [
-              if (_error != null) ...[
-                Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (_error != null) ...[
+                  Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
                     onPressed: _load,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Retry loading')),
-                const SizedBox(height: 12),
-              ],
-              if (_post != null)
-                Card(
+                    label: const Text('Retry loading'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_post != null)
+                  Card(
                     child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(_remote ? 'Federated post' : 'Post',
-                                  style: theme.textTheme.labelLarge),
-                              const SizedBox(height: 8),
-                              SelectableText(
-                                  '${_post!['content'] ?? _post!['summary'] ?? ''}'),
-                            ]))),
-              const SizedBox(height: 16),
-              TextField(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _remote ? 'Federated post' : 'Post',
+                            style: theme.textTheme.labelLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText('${_post!['content'] ?? _post!['summary'] ?? ''}'),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                TextField(
                   controller: _text,
                   minLines: 4,
                   maxLines: 10,
                   maxLength: 5000,
                   enabled: _post != null && !_sending,
                   decoration: const InputDecoration(
-                      labelText: 'Add your comment',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true)),
-              const SizedBox(height: 12),
-              FilledButton.icon(
+                    labelText: 'Add your comment',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
                   onPressed:
-                      _post == null || _sending || _text.text.trim().isEmpty
-                          ? null
-                          : _submit,
+                      _post == null || _sending || _text.text.trim().isEmpty ? null : _submit,
                   icon: _sending
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.format_quote),
-                  label: Text(_sending ? 'Publishing…' : 'Publish quote')),
-            ]),
+                  label: Text(_sending ? 'Publishing…' : 'Publish quote'),
+                ),
+              ],
+            ),
     );
   }
 }

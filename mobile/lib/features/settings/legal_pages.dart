@@ -57,9 +57,7 @@ class _HelpPageState extends State<HelpPage> {
       if (!opened && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Could not open an email app. Contact testagramreels@gmail.com.',
-            ),
+            content: Text('Could not open an email app. Contact testagramreels@gmail.com.'),
           ),
         );
       }
@@ -67,9 +65,7 @@ class _HelpPageState extends State<HelpPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Could not open an email app. Contact testagramreels@gmail.com.',
-            ),
+            content: Text('Could not open an email app. Contact testagramreels@gmail.com.'),
           ),
         );
       }
@@ -101,14 +97,10 @@ class _HelpPageState extends State<HelpPage> {
       children: [
         Text(
           'Help centre',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
-        const Text(
-          'Find practical answers about your account, posts, payments, and safety.',
-        ),
+        const Text('Find practical answers about your account, posts, payments, and safety.'),
         const SizedBox(height: 14),
         TextField(
           controller: _search,
@@ -123,25 +115,17 @@ class _HelpPageState extends State<HelpPage> {
         for (final section in visible)
           Card(
             child: ExpansionTile(
-              title: Text(
-                section.title,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
+              title: Text(section.title, style: const TextStyle(fontWeight: FontWeight.w800)),
               children: [
                 for (final point in section.points)
-                  ListTile(
-                    leading: const Icon(Icons.help_outline),
-                    title: Text(point),
-                  ),
+                  ListTile(leading: const Icon(Icons.help_outline), title: Text(point)),
               ],
             ),
           ),
         if (visible.isEmpty)
           const Padding(
             padding: EdgeInsets.all(24),
-            child: Text(
-              'No help articles match that search. Try another keyword.',
-            ),
+            child: Text('No help articles match that search. Try another keyword.'),
           ),
         const SizedBox(height: 12),
         Card(
@@ -291,12 +275,7 @@ class LegalDocumentPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          title,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Text(title, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
         Text(intro),
         const SizedBox(height: 6),
@@ -311,9 +290,7 @@ class LegalDocumentPage extends StatelessWidget {
                 children: [
                   Text(
                     section.title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 8),
                   for (final point in section.points)

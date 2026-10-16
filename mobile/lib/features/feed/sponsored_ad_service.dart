@@ -67,9 +67,7 @@ class SponsoredAd {
   static String? _safeHttpUrl(Object? value) {
     final raw = _string(value);
     final uri = Uri.tryParse(raw);
-    if (uri == null ||
-        (uri.scheme != 'https' && uri.scheme != 'http') ||
-        uri.host.isEmpty) {
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http') || uri.host.isEmpty) {
       return null;
     }
     return uri.toString();
@@ -106,8 +104,7 @@ class SponsoredAdService {
     return Uri.parse('$base/functions/v1/$name');
   }
 
-  String get _deviceHint =>
-      kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
+  String get _deviceHint => kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
 
   String _requestId() {
     final random = Random.secure().nextInt(1 << 32);
@@ -119,8 +116,7 @@ class SponsoredAdService {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         if ((accessTokenProvider?.call() ?? accessToken)?.isNotEmpty == true)
-          'Authorization':
-              'Bearer ${accessTokenProvider?.call() ?? accessToken}',
+          'Authorization': 'Bearer ${accessTokenProvider?.call() ?? accessToken}',
       };
 
   Future<SponsoredAd?> requestAd({
@@ -169,7 +165,7 @@ class SponsoredAdService {
       'video_first_quartile',
       'video_midpoint',
       'video_third_quartile',
-      'video_complete'
+      'video_complete',
     }.contains(eventType)) {
       return Future.value(false);
     }
@@ -179,11 +175,7 @@ class SponsoredAdService {
     final pending = _eventsInFlight[key];
     if (pending != null) return pending;
 
-    final request = _sendEvent(
-      ad: ad,
-      eventType: eventType,
-      metadata: metadata,
-    ).then((success) {
+    final request = _sendEvent(ad: ad, eventType: eventType, metadata: metadata).then((success) {
       if (success) _recordedEvents.add(key);
       return success;
     }).whenComplete(() {
@@ -226,19 +218,13 @@ double sponsoredAdVisibleFraction(Rect creativeRect, Size viewport) {
   if (creativeRect.isEmpty || viewport.isEmpty) return 0;
   final visibleRect = creativeRect.intersect(Offset.zero & viewport);
   if (visibleRect.isEmpty) return 0;
-  return (visibleRect.width * visibleRect.height) /
-      (creativeRect.width * creativeRect.height);
+  return (visibleRect.width * visibleRect.height) / (creativeRect.width * creativeRect.height);
 }
 
 /// Compact but clearly labelled native sponsored unit; organic feed remains
 /// usable when the ad has no fill, fails to load, or cannot open its destination.
 class SponsoredAdCard extends StatefulWidget {
-  const SponsoredAdCard({
-    required this.ad,
-    required this.service,
-    this.compact = false,
-    super.key,
-  });
+  const SponsoredAdCard({required this.ad, required this.service, this.compact = false, super.key});
 
   final SponsoredAd ad;
   final SponsoredAdService service;
@@ -248,8 +234,7 @@ class SponsoredAdCard extends StatefulWidget {
   State<SponsoredAdCard> createState() => _SponsoredAdCardState();
 }
 
-class _SponsoredAdCardState extends State<SponsoredAdCard>
-    with WidgetsBindingObserver {
+class _SponsoredAdCardState extends State<SponsoredAdCard> with WidgetsBindingObserver {
   static const _viewabilityThreshold = 0.5;
   static const _viewabilityDuration = Duration(seconds: 1);
   static const _sampleInterval = Duration(milliseconds: 250);
@@ -294,8 +279,7 @@ class _SponsoredAdCardState extends State<SponsoredAdCard>
     if (renderObject is! RenderBox || !renderObject.hasSize) return;
 
     final viewport = MediaQuery.sizeOf(context);
-    final creativeRect =
-        renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    final creativeRect = renderObject.localToGlobal(Offset.zero) & renderObject.size;
     final visibleFraction = sponsoredAdVisibleFraction(creativeRect, viewport);
     if (visibleFraction < _viewabilityThreshold) {
       _visibleSince = null;
@@ -331,9 +315,7 @@ class _SponsoredAdCardState extends State<SponsoredAdCard>
     final raw = widget.ad.clickThroughUrl;
     if (raw == null) return;
     final uri = Uri.tryParse(raw);
-    if (uri == null ||
-        (uri.scheme != 'https' && uri.scheme != 'http') ||
-        uri.host.isEmpty) {
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http') || uri.host.isEmpty) {
       return;
     }
     await widget.service.recordEvent(
@@ -379,20 +361,14 @@ class _SponsoredAdCardState extends State<SponsoredAdCard>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: const Text(
                         'Sponsored',
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.w800),
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
                       ),
                     ),
                     const SizedBox(height: 5),

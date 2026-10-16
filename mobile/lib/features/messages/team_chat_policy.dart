@@ -11,10 +11,7 @@ class TeamChatPolicy {
   }) =>
       isOwner || isRegulator || hasActiveAssignment;
 
-  static bool canModerate({
-    required bool isOwner,
-    required bool isRegulator,
-  }) =>
+  static bool canModerate({required bool isOwner, required bool isRegulator}) =>
       isOwner || isRegulator;
 
   static String composeMessage(String input) => input.trim();

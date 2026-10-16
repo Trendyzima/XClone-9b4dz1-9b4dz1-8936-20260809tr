@@ -27,10 +27,7 @@ void main() {
     });
 
     test('treats no-fill as no ad', () {
-      expect(
-        SponsoredAd.tryParse({'kind': 'no_fill', 'requestId': 'req-1'}),
-        isNull,
-      );
+      expect(SponsoredAd.tryParse({'kind': 'no_fill', 'requestId': 'req-1'}), isNull);
     });
 
     test('rejects an unsigned or malformed display payload', () {
@@ -81,47 +78,20 @@ void main() {
     const viewport = Size(400, 800);
 
     test('counts a fully visible creative as fully visible', () {
-      expect(
-        sponsoredAdVisibleFraction(
-          const Rect.fromLTWH(20, 100, 100, 100),
-          viewport,
-        ),
-        1,
-      );
+      expect(sponsoredAdVisibleFraction(const Rect.fromLTWH(20, 100, 100, 100), viewport), 1);
     });
 
     test('reports the actual fraction when clipped at the viewport edge', () {
+      expect(sponsoredAdVisibleFraction(const Rect.fromLTWH(-50, 100, 100, 100), viewport), 0.5);
       expect(
-        sponsoredAdVisibleFraction(
-          const Rect.fromLTWH(-50, 100, 100, 100),
-          viewport,
-        ),
-        0.5,
-      );
-      expect(
-        sponsoredAdVisibleFraction(
-          const Rect.fromLTWH(-60, 100, 100, 100),
-          viewport,
-        ),
+        sponsoredAdVisibleFraction(const Rect.fromLTWH(-60, 100, 100, 100), viewport),
         closeTo(0.4, 0.0001),
       );
     });
 
     test('returns zero for an offscreen creative or empty viewport', () {
-      expect(
-        sponsoredAdVisibleFraction(
-          const Rect.fromLTWH(0, -120, 100, 100),
-          viewport,
-        ),
-        0,
-      );
-      expect(
-        sponsoredAdVisibleFraction(
-          const Rect.fromLTWH(0, 0, 100, 100),
-          Size.zero,
-        ),
-        0,
-      );
+      expect(sponsoredAdVisibleFraction(const Rect.fromLTWH(0, -120, 100, 100), viewport), 0);
+      expect(sponsoredAdVisibleFraction(const Rect.fromLTWH(0, 0, 100, 100), Size.zero), 0);
     });
   });
 
@@ -151,7 +121,7 @@ void main() {
       final ad = await service.requestAd(
         slotCode: 'feed-inline',
         content: {
-          'keywords': ['creator']
+          'keywords': ['creator'],
         },
       );
       expect(ad, isNotNull);
@@ -166,8 +136,7 @@ void main() {
       final service = SponsoredAdService(
         supabaseUrl: 'https://project.supabase.co',
         publishableKey: 'public-key',
-        httpClient: MockClient(
-            (request) async => http.Response('{"kind":"no_fill"}', 200)),
+        httpClient: MockClient((request) async => http.Response('{"kind":"no_fill"}', 200)),
       );
       expect(await service.requestAd(slotCode: 'feed-inline'), isNull);
       service.close();
@@ -191,22 +160,13 @@ void main() {
         body: '',
         sponsored: true,
       );
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isTrue,
-      );
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isTrue,
-      );
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isTrue);
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isTrue);
       expect(requests, hasLength(1));
       expect(requests.single.url.path, '/functions/v1/zenad-event');
       expect(jsonDecode(requests.single.body)['eventToken'], 'signed-token');
 
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'click'),
-        isTrue,
-      );
+      expect(await service.recordEvent(ad: ad, eventType: 'click'), isTrue);
       expect(requests, hasLength(2));
       expect(jsonDecode(requests.last.body)['eventType'], 'click');
       service.close();
@@ -261,14 +221,8 @@ void main() {
         sponsored: true,
       );
 
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isFalse,
-      );
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isTrue,
-      );
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isFalse);
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isTrue);
       expect(requestCount, 2);
       service.close();
     });

@@ -74,8 +74,7 @@ class _HistoryPageState extends State<HistoryPage> {
           .isFilter('deleted_at', null)
           .timeout(const Duration(seconds: 15));
       final byId = <String, Map<String, dynamic>>{
-        for (final row in postRows)
-          '${row['id']}': Map<String, dynamic>.from(row as Map),
+        for (final row in postRows) '${row['id']}': Map<String, dynamic>.from(row as Map),
       };
       final authorIds = byId.values
           .map((post) => '${post['author_id'] ?? post['user_id'] ?? ''}')
@@ -90,8 +89,7 @@ class _HistoryPageState extends State<HistoryPage> {
               .inFilter('id', authorIds)
               .timeout(const Duration(seconds: 15));
       final profiles = <String, Map<String, dynamic>>{
-        for (final row in profileRows)
-          '${row['id']}': Map<String, dynamic>.from(row as Map),
+        for (final row in profileRows) '${row['id']}': Map<String, dynamic>.from(row as Map),
       };
 
       final orderedPosts = <Map<String, dynamic>>[];
@@ -107,10 +105,12 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     } catch (_) {
       if (mounted && generation == _generation) {
-        setState(() => _error = [
-              'Browsing history could not load.',
-              'Check your connection and retry.',
-            ].join(' '));
+        setState(
+          () => _error = [
+            'Browsing history could not load.',
+            'Check your connection and retry.',
+          ].join(' '),
+        );
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -126,15 +126,14 @@ class _HistoryPageState extends State<HistoryPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear browsing history?'),
-        content: Text([
-          'This removes your browsing-history records.',
-          'It does not delete the posts themselves.',
-        ].join(' ')),
+        content: Text(
+          [
+            'This removes your browsing-history records.',
+            'It does not delete the posts themselves.',
+          ].join(' '),
+        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Clear history'),
@@ -155,25 +154,21 @@ class _HistoryPageState extends State<HistoryPage> {
           .timeout(const Duration(seconds: 15));
       if (mounted) {
         setState(() => _posts = []);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Browsing history cleared.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Browsing history cleared.')));
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not clear browsing history. Retry.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Could not clear browsing history. Retry.')));
       }
     } finally {
       if (mounted) setState(() => _clearing = false);
     }
   }
 
-  String _initial(String value) =>
-      value.trim().isEmpty ? 'T' : value.trim()[0].toUpperCase();
+  String _initial(String value) => value.trim().isEmpty ? 'T' : value.trim()[0].toUpperCase();
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
@@ -263,22 +258,15 @@ class _HistoryPageState extends State<HistoryPage> {
                     children: [
                       Row(
                         children: [
-                          CircleAvatar(
-                            child: Text(_initial(name)),
-                          ),
+                          CircleAvatar(child: Text(_initial(name))),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(name,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w800)),
+                                Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
                                 if (username.isNotEmpty)
-                                  Text('@$username',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall),
+                                  Text('@$username', style: Theme.of(context).textTheme.bodySmall),
                               ],
                             ),
                           ),
@@ -288,9 +276,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                       if (body.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: SelectableText(body),
-                        ),
+                            padding: const EdgeInsets.only(top: 12), child: SelectableText(body)),
                       if (image.startsWith('https://'))
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
@@ -298,8 +284,7 @@ class _HistoryPageState extends State<HistoryPage> {
                             image,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const SizedBox.shrink(),
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                           ),
                         ),
                       if (video.startsWith('https://'))
@@ -319,8 +304,7 @@ class _HistoryPageState extends State<HistoryPage> {
                             ),
                           ),
                           TextButton.icon(
-                            onPressed: () =>
-                                context.push('/post/${post['id']}'),
+                            onPressed: () => context.push('/post/${post['id']}'),
                             icon: const Icon(Icons.open_in_new_rounded),
                             label: const Text('Open'),
                           ),
@@ -329,15 +313,11 @@ class _HistoryPageState extends State<HistoryPage> {
                             onPressed: () async {
                               final id = '${post['id']}';
                               await Clipboard.setData(
-                                ClipboardData(
-                                  text: 'https://testagram.site/post/$id',
-                                ),
+                                ClipboardData(text: 'https://testagram.site/post/$id'),
                               );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text('Post link copied.')),
-                                );
+                                    const SnackBar(content: Text('Post link copied.')));
                               }
                             },
                             icon: const Icon(Icons.link_rounded),

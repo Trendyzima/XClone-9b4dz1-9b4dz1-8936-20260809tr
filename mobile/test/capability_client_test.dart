@@ -8,31 +8,27 @@ import 'package:testagram/core/api/testagram_capability_client.dart';
 void main() {
   final endpoint = Uri.parse('https://testagram.site/api/capability');
 
-  test(
-    'rejects private capabilities without a session before network access',
-    () async {
-      var requests = 0;
-      final client = TestagramCapabilityClient(
-        endpoint: endpoint,
-        publishableKey: 'public-key',
-        getAccessToken: () async => null,
-        httpClient: MockClient((_) async {
-          requests++;
-          return http.Response('{}', 200);
-        }),
-      );
+  test('rejects private capabilities without a session before network access', () async {
+    var requests = 0;
+    final client = TestagramCapabilityClient(
+      endpoint: endpoint,
+      publishableKey: 'public-key',
+      getAccessToken: () async => null,
+      httpClient: MockClient((_) async {
+        requests++;
+        return http.Response('{}', 200);
+      }),
+    );
 
-      await expectLater(
-        client.call<Map<String, dynamic>>('testagram.messages.list'),
-        throwsA(
-          isA<TestagramCapabilityException>()
-              .having((error) => error.code, 'code', 'AUTH_REQUIRED'),
-        ),
-      );
-      expect(requests, 0);
-      client.close();
-    },
-  );
+    await expectLater(
+      client.call<Map<String, dynamic>>('testagram.messages.list'),
+      throwsA(
+        isA<TestagramCapabilityException>().having((error) => error.code, 'code', 'AUTH_REQUIRED'),
+      ),
+    );
+    expect(requests, 0);
+    client.close();
+  });
 
   test('sends authenticated capability requests with a session JWT', () async {
     late http.Request captured;
@@ -63,29 +59,24 @@ void main() {
     client.close();
   });
 
-  test(
-    'only allows explicitly public capabilities without a session',
-    () async {
-      late http.Request captured;
-      final client = TestagramCapabilityClient(
-        endpoint: endpoint,
-        publishableKey: 'public-key',
-        getAccessToken: () async => null,
-        httpClient: MockClient((request) async {
-          captured = request;
-          return http.Response(jsonEncode({'services': <dynamic>[]}), 200);
-        }),
-      );
+  test('only allows explicitly public capabilities without a session', () async {
+    late http.Request captured;
+    final client = TestagramCapabilityClient(
+      endpoint: endpoint,
+      publishableKey: 'public-key',
+      getAccessToken: () async => null,
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response(jsonEncode({'services': <dynamic>[]}), 200);
+      }),
+    );
 
-      final result = await client.call<Map<String, dynamic>>(
-        'testagram.health.read',
-      );
+    final result = await client.call<Map<String, dynamic>>('testagram.health.read');
 
-      expect(captured.headers['Authorization'], 'Bearer public-key');
-      expect(result['services'], isEmpty);
-      client.close();
-    },
-  );
+    expect(captured.headers['Authorization'], 'Bearer public-key');
+    expect(result['services'], isEmpty);
+    client.close();
+  });
 
   test('refreshes a rejected session once before retrying', () async {
     var requests = 0;
@@ -107,9 +98,7 @@ void main() {
       }),
     );
 
-    final result = await client.call<Map<String, dynamic>>(
-      'testagram.messages.list',
-    );
+    final result = await client.call<Map<String, dynamic>>('testagram.messages.list');
 
     expect(requests, 2);
     expect(firstAuthorization, 'Bearer expired-jwt');
@@ -118,57 +107,44 @@ void main() {
     client.close();
   });
 
-  test(
-    'preserves a useful server error without leaking response internals',
-    () async {
-      final client = TestagramCapabilityClient(
-        endpoint: endpoint,
-        publishableKey: 'public-key',
-        getAccessToken: () async => 'session-jwt',
-        httpClient: MockClient((_) async => http.Response(
-              jsonEncode({'message': 'Conversation membership required'}),
-              403,
-            )),
-      );
+  test('preserves a useful server error without leaking response internals', () async {
+    final client = TestagramCapabilityClient(
+      endpoint: endpoint,
+      publishableKey: 'public-key',
+      getAccessToken: () async => 'session-jwt',
+      httpClient: MockClient(
+        (_) async =>
+            http.Response(jsonEncode({'message': 'Conversation membership required'}), 403),
+      ),
+    );
 
-      await expectLater(
-        client.call<Map<String, dynamic>>('testagram.messages.list'),
-        throwsA(
-          isA<TestagramCapabilityException>()
-              .having((error) => error.statusCode, 'statusCode', 403)
-              .having(
-                (error) => error.message,
-                'message',
-                'Conversation membership required',
-              ),
-        ),
-      );
-      client.close();
-    },
-  );
+    await expectLater(
+      client.call<Map<String, dynamic>>('testagram.messages.list'),
+      throwsA(
+        isA<TestagramCapabilityException>()
+            .having((error) => error.statusCode, 'statusCode', 403)
+            .having((error) => error.message, 'message', 'Conversation membership required'),
+      ),
+    );
+    client.close();
+  });
 
-  test(
-    'times out instead of leaving a request pending indefinitely',
-    () async {
-      final client = TestagramCapabilityClient(
-        endpoint: endpoint,
-        publishableKey: 'public-key',
-        getAccessToken: () async => 'session-jwt',
-        timeout: const Duration(milliseconds: 10),
-        httpClient: MockClient((_) async {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-          return http.Response('{}', 200);
-        }),
-      );
+  test('times out instead of leaving a request pending indefinitely', () async {
+    final client = TestagramCapabilityClient(
+      endpoint: endpoint,
+      publishableKey: 'public-key',
+      getAccessToken: () async => 'session-jwt',
+      timeout: const Duration(milliseconds: 10),
+      httpClient: MockClient((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        return http.Response('{}', 200);
+      }),
+    );
 
-      await expectLater(
-        client.call<Map<String, dynamic>>('testagram.messages.list'),
-        throwsA(
-          isA<TestagramCapabilityException>()
-              .having((error) => error.code, 'code', 'TIMEOUT'),
-        ),
-      );
-      client.close();
-    },
-  );
+    await expectLater(
+      client.call<Map<String, dynamic>>('testagram.messages.list'),
+      throwsA(isA<TestagramCapabilityException>().having((error) => error.code, 'code', 'TIMEOUT')),
+    );
+    client.close();
+  });
 }

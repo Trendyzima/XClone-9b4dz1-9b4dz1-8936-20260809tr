@@ -10,6 +10,5 @@ class AdminFraudPolicy {
     return severity[0].toUpperCase() + severity.substring(1);
   }
 
-  static bool isResolved(Map<String, dynamic> alert) =>
-      alert['resolved'] == true;
+  static bool isResolved(Map<String, dynamic> alert) => alert['resolved'] == true;
 }

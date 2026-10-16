@@ -4,10 +4,7 @@ import 'package:testagram/core/auth/auth_redirect_policy.dart';
 void main() {
   group('AuthRedirectPolicy', () {
     test('preserves an internal deep route and query after sign-in', () {
-      expect(
-        AuthRedirectPolicy.safeReturnPath('/messages?thread=abc'),
-        '/messages?thread=abc',
-      );
+      expect(AuthRedirectPolicy.safeReturnPath('/messages?thread=abc'), '/messages?thread=abc');
     });
 
     test('falls back for empty or non-internal targets', () {
@@ -49,13 +46,7 @@ void main() {
     });
 
     test('keeps private routes and similarly named paths protected', () {
-      const privateRoutes = [
-        '/messages',
-        '/wallet',
-        '/settings',
-        '/channel-admin',
-        '/streaming',
-      ];
+      const privateRoutes = ['/messages', '/wallet', '/settings', '/channel-admin', '/streaming'];
 
       for (final route in privateRoutes) {
         expect(
@@ -67,8 +58,7 @@ void main() {
     });
 
     test('prevents auth and setup redirect loops', () {
-      expect(
-          AuthRedirectPolicy.safeReturnPath('/auth?returnTo=/messages'), '/');
+      expect(AuthRedirectPolicy.safeReturnPath('/auth?returnTo=/messages'), '/');
       expect(AuthRedirectPolicy.safeReturnPath('/setup'), '/');
     });
   });

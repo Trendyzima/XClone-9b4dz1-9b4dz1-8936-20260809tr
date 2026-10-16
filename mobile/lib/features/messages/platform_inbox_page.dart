@@ -71,18 +71,14 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
           .range(offset, offset + PlatformInboxPolicy.pageSize - 1)
           .timeout(const Duration(seconds: 15));
       if (!mounted || generation != _generation) return;
-      final next =
-          rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final next = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
       setState(() {
         _messages = append ? [..._messages, ...next] : next;
         _hasMore = next.length == PlatformInboxPolicy.pageSize;
       });
     } catch (_) {
       if (mounted && generation == _generation) {
-        setState(
-          () => _error =
-              'Your inbox could not be loaded. Check your connection and retry.',
-        );
+        setState(() => _error = 'Your inbox could not be loaded. Check your connection and retry.');
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -94,10 +90,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
     }
   }
 
-  Future<void> _mutate(
-    String id,
-    Future<void> Function(String userId) action,
-  ) async {
+  Future<void> _mutate(String id, Future<void> Function(String userId) action) async {
     final userId = _userId;
     if (userId == null || _actionId != null) return;
     setState(() => _actionId = id);
@@ -112,10 +105,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
           });
         } else if (id.startsWith('delete:')) {
           final messageId = id.substring('delete:'.length);
-          setState(
-            () => _messages =
-                _messages.where((m) => '${m['id']}' != messageId).toList(),
-          );
+          setState(() => _messages = _messages.where((m) => '${m['id']}' != messageId).toList());
         } else {
           setState(() {
             for (final message in _messages) {
@@ -126,11 +116,8 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('That inbox action failed. Please retry.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('That inbox action failed. Please retry.')));
       }
     } finally {
       if (mounted) setState(() => _actionId = null);
@@ -141,11 +128,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
     if (message['read'] == true) return;
     final id = '${message['id']}';
     await _mutate(id, (userId) async {
-      await _db
-          .from('platform_inbox')
-          .update({'read': true})
-          .eq('id', id)
-          .eq('user_id', userId);
+      await _db.from('platform_inbox').update({'read': true}).eq('id', id).eq('user_id', userId);
     });
   }
 
@@ -157,34 +140,24 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
             .eq('read', false);
       });
 
-  Future<void> _delete(String id) async =>
-      _mutate('delete:$id', (userId) async {
-        await _db
-            .from('platform_inbox')
-            .delete()
-            .eq('id', id)
-            .eq('user_id', userId);
+  Future<void> _delete(String id) async => _mutate('delete:$id', (userId) async {
+        await _db.from('platform_inbox').delete().eq('id', id).eq('user_id', userId);
       });
 
   Future<void> _generateDigest() async {
     if (_actionId != null) return;
     setState(() => _actionId = 'digest');
     try {
-      await _db
-          .rpc('generate_platform_inbox_digest')
-          .timeout(const Duration(seconds: 20));
+      await _db.rpc('generate_platform_inbox_digest').timeout(const Duration(seconds: 20));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Wise Brain digest refreshed.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Wise Brain digest refreshed.')));
       }
       await _load();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Digest generation is unavailable. Retry later.'),
-          ),
+          const SnackBar(content: Text('Digest generation is unavailable. Retry later.')),
         );
       }
     } finally {
@@ -214,9 +187,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
         ),
       );
     }
-    final visible = _messages
-        .where((m) => PlatformInboxPolicy.matchesFilter(m, _filter))
-        .toList();
+    final visible = _messages.where((m) => PlatformInboxPolicy.matchesFilter(m, _filter)).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Wise Brain Inbox'),
@@ -249,9 +220,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    const CircleAvatar(
-                      child: Icon(Icons.auto_awesome_outlined),
-                    ),
+                    const CircleAvatar(child: Icon(Icons.auto_awesome_outlined)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -301,9 +270,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
-                        label: Text(
-                          filter[0].toUpperCase() + filter.substring(1),
-                        ),
+                        label: Text(filter[0].toUpperCase() + filter.substring(1)),
                         selected: _filter == filter,
                         onSelected: (_) => setState(() => _filter = filter),
                       ),
@@ -348,10 +315,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                 margin: const EdgeInsets.only(top: 8),
                 color: message['read'] == true
                     ? null
-                    : Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: .35),
+                    : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .35),
                 child: ListTile(
                   isThreeLine: true,
                   leading: CircleAvatar(
@@ -366,9 +330,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                   title: Text(
                     '${message['subject'] ?? 'Testagram update'}',
                     style: TextStyle(
-                      fontWeight: message['read'] == true
-                          ? FontWeight.normal
-                          : FontWeight.w700,
+                      fontWeight: message['read'] == true ? FontWeight.normal : FontWeight.w700,
                     ),
                   ),
                   subtitle: Padding(
@@ -387,15 +349,10 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                           style: Theme.of(context).textTheme.labelSmall,
                         ),
                         if (message['cta_label'] is String &&
-                            PlatformInboxPolicy.safeInternalPath(
-                                  message['cta_url'],
-                                ) !=
-                                null)
+                            PlatformInboxPolicy.safeInternalPath(message['cta_url']) != null)
                           TextButton.icon(
                             onPressed: () {
-                              final path = PlatformInboxPolicy.safeInternalPath(
-                                message['cta_url'],
-                              );
+                              final path = PlatformInboxPolicy.safeInternalPath(message['cta_url']);
                               if (path != null) context.go(path);
                             },
                             icon: const Icon(Icons.open_in_new, size: 16),
@@ -413,14 +370,8 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                     },
                     itemBuilder: (_) => [
                       if (message['read'] != true)
-                        const PopupMenuItem(
-                          value: 'read',
-                          child: Text('Mark as read'),
-                        ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete'),
-                      ),
+                        const PopupMenuItem(value: 'read', child: Text('Mark as read')),
+                      const PopupMenuItem(value: 'delete', child: Text('Delete')),
                     ],
                   ),
                 ),

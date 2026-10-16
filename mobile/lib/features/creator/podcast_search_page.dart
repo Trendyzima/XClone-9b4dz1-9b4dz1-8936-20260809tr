@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../migration_batch_policy.dart';
 
 class PodcastSearchPage extends StatefulWidget {
@@ -52,10 +53,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
 
   void _scheduleSearch() {
     _debounce?.cancel();
-    _debounce = Timer(
-      const Duration(milliseconds: 400),
-      () => _load(reset: true),
-    );
+    _debounce = Timer(const Duration(milliseconds: 400), () => _load(reset: true));
   }
 
   Future<void> _load({required bool reset}) async {
@@ -91,8 +89,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
           .order('listener_count', ascending: false)
           .range(page * _pageSize, page * _pageSize + _pageSize - 1)
           .timeout(const Duration(seconds: 20));
-      final list =
-          rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+      final list = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
       if (!mounted) return;
       setState(() {
         _items = reset ? list : [..._items, ...list];
@@ -101,10 +98,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
       });
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              _error = 'Podcast search is unavailable. Retry or clear filters.',
-        );
+        setState(() => _error = 'Podcast search is unavailable. Retry or clear filters.');
       }
     } finally {
       if (mounted) {
@@ -116,8 +110,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
     }
   }
 
-  String _durationLabel(dynamic value) =>
-      MigrationBatchPolicy.formatDuration(value);
+  String _durationLabel(dynamic value) => MigrationBatchPolicy.formatDuration(value);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -155,11 +148,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: ChoiceChip(
-                        label: Text(
-                          c == 'all'
-                              ? 'All'
-                              : c[0].toUpperCase() + c.substring(1),
-                        ),
+                        label: Text(c == 'all' ? 'All' : c[0].toUpperCase() + c.substring(1)),
                         selected: _category == c,
                         onSelected: (_) {
                           setState(() => _category = c);
@@ -180,10 +169,8 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
                     value: _duration,
                     items: const [
                       DropdownMenuItem(value: 'any', child: Text('Any')),
-                      DropdownMenuItem(
-                          value: 'short', child: Text('Under 15 min')),
-                      DropdownMenuItem(
-                          value: 'medium', child: Text('15–60 min')),
+                      DropdownMenuItem(value: 'short', child: Text('Under 15 min')),
+                      DropdownMenuItem(value: 'medium', child: Text('15–60 min')),
                       DropdownMenuItem(value: 'long', child: Text('60+ min')),
                     ],
                     onChanged: (v) {
@@ -208,10 +195,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
+                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
             Expanded(
               child: _loading
@@ -224,10 +208,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
                           if (_items.isEmpty && _error == null)
                             const Padding(
                               padding: EdgeInsets.all(32),
-                              child: Center(
-                                child:
-                                    Text('No recordings match these filters.'),
-                              ),
+                              child: Center(child: Text('No recordings match these filters.')),
                             ),
                           for (final item in _items)
                             Card(
@@ -268,12 +249,8 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
                             Padding(
                               padding: const EdgeInsets.all(12),
                               child: OutlinedButton(
-                                onPressed: _loadingMore
-                                    ? null
-                                    : () => _load(reset: false),
-                                child: Text(
-                                  _loadingMore ? 'Loading…' : 'Load more',
-                                ),
+                                onPressed: _loadingMore ? null : () => _load(reset: false),
+                                child: Text(_loadingMore ? 'Loading…' : 'Load more'),
                               ),
                             ),
                         ],

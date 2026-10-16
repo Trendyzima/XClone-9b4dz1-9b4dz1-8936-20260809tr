@@ -44,10 +44,7 @@ class _WishlistPageState extends State<WishlistPage> {
           .eq('user_id', user.id)
           .order('created_at', ascending: false)
           .limit(100);
-      final ids = rows
-          .map((r) => '${r['product_id']}')
-          .where((id) => id.isNotEmpty)
-          .toList();
+      final ids = rows.map((r) => '${r['product_id']}').where((id) => id.isNotEmpty).toList();
       if (ids.isEmpty) {
         if (mounted) {
           setState(() {
@@ -62,24 +59,17 @@ class _WishlistPageState extends State<WishlistPage> {
           .select('id,name,description,price,image_url,is_featured,user_id')
           .inFilter('id', ids)
           .eq('is_active', true);
-      final byId = {
-        for (final row in products)
-          '${row['id']}': Map<String, dynamic>.from(row),
-      };
+      final byId = {for (final row in products) '${row['id']}': Map<String, dynamic>.from(row)};
       if (!mounted) return;
       setState(() {
-        _products = ids
-            .map((id) => byId[id])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+        _products = ids.map((id) => byId[id]).whereType<Map<String, dynamic>>().toList();
         _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error =
-            'Wishlist could not be loaded. Check your connection and retry.';
+        _error = 'Wishlist could not be loaded. Check your connection and retry.';
       });
     }
   }
@@ -89,22 +79,14 @@ class _WishlistPageState extends State<WishlistPage> {
     if (user == null || _busy) return;
     setState(() => _busy = true);
     try {
-      await _client
-          .from('wishlists')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('product_id', productId);
+      await _client.from('wishlists').delete().eq('user_id', user.id).eq('product_id', productId);
       if (mounted) {
-        setState(
-          () => _products =
-              _products.where((p) => '${p['id']}' != productId).toList(),
-        );
+        setState(() => _products = _products.where((p) => '${p['id']}' != productId).toList());
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item was not removed. Please retry.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Item was not removed. Please retry.')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -125,9 +107,7 @@ class _WishlistPageState extends State<WishlistPage> {
         children: [
           Text(
             'Wishlist',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -140,10 +120,7 @@ class _WishlistPageState extends State<WishlistPage> {
               child: ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (!_loading && _error == null && _products.isEmpty)
@@ -168,22 +145,19 @@ class _WishlistPageState extends State<WishlistPage> {
           for (final product in _products)
             Card(
               child: ListTile(
-                leading: product['image_url'] is String &&
-                        '${product['image_url']}'.startsWith('http')
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          '${product['image_url']}',
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.shopping_bag_outlined),
-                        ),
-                      )
-                    : const CircleAvatar(
-                        child: Icon(Icons.shopping_bag_outlined),
-                      ),
+                leading:
+                    product['image_url'] is String && '${product['image_url']}'.startsWith('http')
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              '${product['image_url']}',
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag_outlined),
+                            ),
+                          )
+                        : const CircleAvatar(child: Icon(Icons.shopping_bag_outlined)),
                 title: Text(
                   '${product['name'] ?? 'Product'}',
                   maxLines: 2,

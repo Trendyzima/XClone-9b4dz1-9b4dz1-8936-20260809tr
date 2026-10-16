@@ -132,9 +132,7 @@ class _TestagramAppState extends State<TestagramApp> {
           builder: (_, state) => AuthPage(
             recovery: state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
-            returnTo: AuthRedirectPolicy.safeReturnPath(
-              state.uri.queryParameters['returnTo'],
-            ),
+            returnTo: AuthRedirectPolicy.safeReturnPath(state.uri.queryParameters['returnTo']),
           ),
         ),
         ShellRoute(
@@ -157,14 +155,8 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(path: '/discover', builder: (_, __) => const ExplorePage()),
-            GoRoute(
-              path: '/discover/suggested',
-              builder: (_, __) => const ExplorePage(),
-            ),
-            GoRoute(
-              path: '/discover/popular',
-              builder: (_, __) => const ExplorePage(),
-            ),
+            GoRoute(path: '/discover/suggested', builder: (_, __) => const ExplorePage()),
+            GoRoute(path: '/discover/popular', builder: (_, __) => const ExplorePage()),
             GoRoute(
               path: '/discover/fediverse',
               builder: (_, __) => const FediversePage(section: 'discover'),
@@ -207,47 +199,36 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post/:postId',
-              builder: (_, state) =>
-                  PostDetailPage(postId: state.pathParameters['postId'] ?? ''),
+              builder: (_, state) => PostDetailPage(postId: state.pathParameters['postId'] ?? ''),
             ),
-            GoRoute(
-              path: '/communities',
-              builder: (_, __) => const CommunitiesPage(),
-            ),
+            GoRoute(path: '/communities', builder: (_, __) => const CommunitiesPage()),
             GoRoute(
               path: '/c/:name',
-              builder: (_, state) =>
-                  CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
+              builder: (_, state) => CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
             ),
             GoRoute(
               path: '/c/:name/posts',
-              builder: (_, state) =>
-                  CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
+              builder: (_, state) => CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
             ),
             GoRoute(
               path: '/c/:name/members',
-              builder: (_, state) =>
-                  CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
+              builder: (_, state) => CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
             ),
             GoRoute(
               path: '/c/:name/chat',
-              builder: (_, state) =>
-                  CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
+              builder: (_, state) => CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
             ),
             GoRoute(
               path: '/c/:name/events',
-              builder: (_, state) =>
-                  CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
+              builder: (_, state) => CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
             ),
             GoRoute(
               path: '/c/:name/shop',
-              builder: (_, state) =>
-                  CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
+              builder: (_, state) => CommunityDetailPage(name: state.pathParameters['name'] ?? ''),
             ),
             GoRoute(
               path: '/thread/:id',
-              builder: (_, state) =>
-                  ThreadDetailPage(threadId: state.pathParameters['id'] ?? ''),
+              builder: (_, state) => ThreadDetailPage(threadId: state.pathParameters['id'] ?? ''),
             ),
             GoRoute(
               path: '/thread/:threadId/replies',
@@ -262,9 +243,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/channel/:handle',
-              builder: (_, state) => TvChannelProfilePage(
-                handle: state.pathParameters['handle'] ?? '',
-              ),
+              builder: (_, state) =>
+                  TvChannelProfilePage(handle: state.pathParameters['handle'] ?? ''),
             ),
             GoRoute(
               path: '/iptv',
@@ -272,116 +252,66 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/tv/channels',
-              builder: (_, __) => const TvPage(
-                title: 'TV channels',
-                initialVerticalMode: false,
-              ),
+              builder: (_, __) => const TvPage(title: 'TV channels', initialVerticalMode: false),
             ),
             GoRoute(
               path: '/tv/reels',
-              builder: (_, __) =>
-                  const TvPage(title: 'TV Reels', initialVerticalMode: true),
+              builder: (_, __) => const TvPage(title: 'TV Reels', initialVerticalMode: true),
             ),
             GoRoute(
               path: '/stream/:streamId',
-              builder: (_, state) => TvPage(
-                title: 'Live broadcast',
-                streamId: state.pathParameters['streamId'],
-              ),
+              builder: (_, state) =>
+                  TvPage(title: 'Live broadcast', streamId: state.pathParameters['streamId']),
             ),
             GoRoute(
               path: '/tv/live/:streamId',
-              builder: (_, state) => TvPage(
-                title: 'Live broadcast',
-                streamId: state.pathParameters['streamId'],
-              ),
+              builder: (_, state) =>
+                  TvPage(title: 'Live broadcast', streamId: state.pathParameters['streamId']),
             ),
             GoRoute(path: '/videos', builder: (_, __) => const VideosPage()),
-            GoRoute(
-              path: '/shorts',
-              builder: (_, __) => const VideosPage(shortsMode: true),
-            ),
+            GoRoute(path: '/shorts', builder: (_, __) => const VideosPage(shortsMode: true)),
             GoRoute(
               path: '/videos/watchlater',
               builder: (_, __) => const VideosPage(watchLaterOnly: true),
             ),
-            GoRoute(
-              path: '/hashtags',
-              builder: (_, __) => const HashtagsPage(),
-            ),
+            GoRoute(path: '/hashtags', builder: (_, __) => const HashtagsPage()),
             GoRoute(
               path: '/hashtag/:tag',
-              builder: (_, state) =>
-                  HashtagsPage(tag: state.pathParameters['tag']),
+              builder: (_, state) => HashtagsPage(tag: state.pathParameters['tag']),
             ),
-            GoRoute(
-              path: '/leaderboard',
-              builder: (_, __) => const LeaderboardPage(),
-            ),
-            GoRoute(
-              path: '/leaderboard/creators',
-              builder: (_, __) => const LeaderboardPage(),
-            ),
-            GoRoute(
-              path: '/products',
-              builder: (_, __) => const ProductsPage(),
-            ),
-            GoRoute(
-              path: '/marketplace',
-              builder: (_, __) => const ProductsPage(),
-            ),
+            GoRoute(path: '/leaderboard', builder: (_, __) => const LeaderboardPage()),
+            GoRoute(path: '/leaderboard/creators', builder: (_, __) => const LeaderboardPage()),
+            GoRoute(path: '/products', builder: (_, __) => const ProductsPage()),
+            GoRoute(path: '/marketplace', builder: (_, __) => const ProductsPage()),
             GoRoute(
               path: '/p/:productId',
-              builder: (_, state) =>
-                  ProductsPage(productId: state.pathParameters['productId']),
+              builder: (_, state) => ProductsPage(productId: state.pathParameters['productId']),
             ),
-            GoRoute(
-              path: '/shop',
-              builder: (_, __) => const ShoppingMallPage(),
-            ),
-            GoRoute(
-              path: '/mall',
-              builder: (_, __) => const ShoppingMallPage(),
-            ),
+            GoRoute(path: '/shop', builder: (_, __) => const ShoppingMallPage()),
+            GoRoute(path: '/mall', builder: (_, __) => const ShoppingMallPage()),
             GoRoute(path: '/orders', builder: (_, __) => const OrdersPage()),
             GoRoute(
               path: '/create-ad',
-              builder: (_, __) =>
-                  const AdCampaignsPage(mode: AdCampaignsMode.create),
+              builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.create),
             ),
             GoRoute(
               path: '/my-ads',
-              builder: (_, __) =>
-                  const AdCampaignsPage(mode: AdCampaignsMode.list),
+              builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.list),
             ),
             GoRoute(
               path: '/ad-analytics',
-              builder: (_, __) =>
-                  const AdCampaignsPage(mode: AdCampaignsMode.analytics),
+              builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.analytics),
             ),
-            GoRoute(
-              path: '/admin/ad-config',
-              builder: (_, __) => const AdConfigPage(),
-            ),
-            GoRoute(
-              path: '/admin/ads',
-              builder: (_, __) => const AdConfigPage(),
-            ),
-            GoRoute(
-              path: '/admin/ads-management',
-              builder: (_, __) => const AdConfigPage(),
-            ),
+            GoRoute(path: '/admin/ad-config', builder: (_, __) => const AdConfigPage()),
+            GoRoute(path: '/admin/ads', builder: (_, __) => const AdConfigPage()),
+            GoRoute(path: '/admin/ads-management', builder: (_, __) => const AdConfigPage()),
             GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
             GoRoute(
               path: '/news/:id',
-              builder: (_, state) =>
-                  NewsArticlePage(articleId: state.pathParameters['id'] ?? ''),
+              builder: (_, state) => NewsArticlePage(articleId: state.pathParameters['id'] ?? ''),
             ),
             GoRoute(path: '/history', builder: (_, __) => const HistoryPage()),
-            GoRoute(
-              path: '/fediverse',
-              builder: (_, __) => const FediversePage(),
-            ),
+            GoRoute(path: '/fediverse', builder: (_, __) => const FediversePage()),
             GoRoute(
               path: '/fediverse/feed',
               builder: (_, __) => const FediversePage(section: 'feed'),
@@ -392,8 +322,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/organic-discovery',
-              builder: (_, __) =>
-                  const FediversePage(section: 'organic-discovery'),
+              builder: (_, __) => const FediversePage(section: 'organic-discovery'),
             ),
             GoRoute(
               path: '/fediverse/instances',
@@ -546,170 +475,114 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/spaces', builder: (_, __) => const SpacesPage()),
             GoRoute(
               path: '/spaces/:id',
-              builder: (_, state) =>
-                  SpacesPage(spaceId: state.pathParameters['id']),
+              builder: (_, state) => SpacesPage(spaceId: state.pathParameters['id']),
             ),
             GoRoute(
               path: '/space-recording/:id',
-              builder: (_, state) =>
-                  SpacesPage(recordingId: state.pathParameters['id']),
+              builder: (_, state) => SpacesPage(recordingId: state.pathParameters['id']),
             ),
             GoRoute(
               path: '/space/:id',
-              builder: (_, state) =>
-                  SpacesPage(spaceId: state.pathParameters['id']),
+              builder: (_, state) => SpacesPage(spaceId: state.pathParameters['id']),
             ),
             GoRoute(
               path: '/space/:id/recordings',
-              builder: (_, state) =>
-                  SpacesPage(spaceId: state.pathParameters['id']),
+              builder: (_, state) => SpacesPage(spaceId: state.pathParameters['id']),
             ),
-            GoRoute(
-              path: '/start-stream',
-              builder: (_, __) => const TvStudioPage(),
-            ),
-            GoRoute(
-              path: '/tv-studio',
-              builder: (_, __) => const TvStudioPage(),
-            ),
+            GoRoute(path: '/start-stream', builder: (_, __) => const TvStudioPage()),
+            GoRoute(path: '/tv-studio', builder: (_, __) => const TvStudioPage()),
             GoRoute(
               path: '/tv-studio/:streamId',
-              builder: (_, state) =>
-                  TvStudioPage(streamId: state.pathParameters['streamId']),
+              builder: (_, state) => TvStudioPage(streamId: state.pathParameters['streamId']),
             ),
             GoRoute(
               path: '/tv-studio/:streamId/guests',
-              builder: (_, state) => TvStudioPage(
-                streamId: state.pathParameters['streamId'],
-                guestsOnly: true,
-              ),
+              builder: (_, state) =>
+                  TvStudioPage(streamId: state.pathParameters['streamId'], guestsOnly: true),
             ),
-            GoRoute(
-              path: '/creator-studio',
-              builder: (_, __) => const CreatorStudioPage(),
-            ),
+            GoRoute(path: '/creator-studio', builder: (_, __) => const CreatorStudioPage()),
             GoRoute(
               path: '/creator-studio/:section',
-              builder: (_, state) => CreatorStudioPage(
-                section: state.pathParameters['section'] ?? 'overview',
-              ),
+              builder: (_, state) =>
+                  CreatorStudioPage(section: state.pathParameters['section'] ?? 'overview'),
             ),
-            GoRoute(
-              path: '/notifications',
-              builder: (_, __) => const NotificationsPage(),
-            ),
-            GoRoute(
-              path: '/messages',
-              builder: (_, __) => const MessagesPage(),
-            ),
+            GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
+            GoRoute(path: '/messages', builder: (_, __) => const MessagesPage()),
             GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
-            GoRoute(
-              path: '/bookmarks',
-              builder: (_, __) => const BookmarksPage(),
-            ),
+            GoRoute(path: '/bookmarks', builder: (_, __) => const BookmarksPage()),
             GoRoute(
               path: '/profile/:username/followers',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'followers',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'followers'),
             ),
             GoRoute(
               path: '/profile/:username/following',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'following',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'following'),
             ),
             // Preserve the web client's distinct profile section deep links.
             // These use the native profile data layer rather than falling
             // through to the generic "screen still being migrated" handler.
             GoRoute(
               path: '/profile/:username/posts',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'posts',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'posts'),
             ),
             GoRoute(
               path: '/profile/:username/threads',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'threads',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'threads'),
             ),
             GoRoute(
               path: '/profile/:username/replies',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'replies',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'replies'),
             ),
             GoRoute(
               path: '/profile/:username/media',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'media',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'media'),
             ),
             GoRoute(
               path: '/profile/:username/videos',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'videos',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'videos'),
             ),
             GoRoute(
               path: '/profile/:username/likes',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'likes',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'likes'),
             ),
             GoRoute(
               path: '/profile/:username/podcasts',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'podcasts',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'podcasts'),
             ),
             GoRoute(
               path: '/profile/:username/series',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'series',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'series'),
             ),
             GoRoute(
               path: '/profile/:username/tips',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'tips',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'tips'),
             ),
             GoRoute(
               path: '/profile/:username/gifts',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'gifts',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'gifts'),
             ),
             GoRoute(
               path: '/profile/:username/analytics',
-              builder: (_, state) => ProfilePage(
-                username: state.pathParameters['username'],
-                section: 'analytics',
-              ),
+              builder: (_, state) =>
+                  ProfilePage(username: state.pathParameters['username'], section: 'analytics'),
             ),
             GoRoute(
               path: '/profile/:username',
-              builder: (_, state) =>
-                  ProfilePage(username: state.pathParameters['username']),
+              builder: (_, state) => ProfilePage(username: state.pathParameters['username']),
             ),
-            GoRoute(
-              path: '/settings',
-              builder: (_, __) => const SettingsPage(),
-            ),
+            GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
             GoRoute(
               path: '/settings/account',
               builder: (_, __) => const SettingsPage(section: 'account'),
@@ -734,34 +607,16 @@ class _TestagramAppState extends State<TestagramApp> {
               path: '/notification-preferences',
               builder: (_, __) => const SettingsPage(section: 'notifications'),
             ),
-            GoRoute(
-              path: '/ad-performance',
-              builder: (_, __) => const AdPerformancePage(),
-            ),
-            GoRoute(
-              path: '/admin',
-              builder: (_, __) => const AdminOverviewPage(),
-            ),
-            GoRoute(
-              path: '/admin/ads-review',
-              builder: (_, __) => const AdReviewPage(),
-            ),
-            GoRoute(
-              path: '/admin/fraud',
-              builder: (_, __) => const AdminFraudPage(),
-            ),
-            GoRoute(
-              path: '/admin/governance',
-              builder: (_, __) => const GovernancePage(),
-            ),
+            GoRoute(path: '/ad-performance', builder: (_, __) => const AdPerformancePage()),
+            GoRoute(path: '/admin', builder: (_, __) => const AdminOverviewPage()),
+            GoRoute(path: '/admin/ads-review', builder: (_, __) => const AdReviewPage()),
+            GoRoute(path: '/admin/fraud', builder: (_, __) => const AdminFraudPage()),
+            GoRoute(path: '/admin/governance', builder: (_, __) => const GovernancePage()),
             GoRoute(
               path: '/admin/identity-verification',
               builder: (_, __) => const IdentityVerificationReviewPage(),
             ),
-            GoRoute(
-              path: '/admin/overview',
-              builder: (_, __) => const AdminOverviewPage(),
-            ),
+            GoRoute(path: '/admin/overview', builder: (_, __) => const AdminOverviewPage()),
             GoRoute(
               path: '/admin/platform-revenue',
               builder: (_, state) => NativeFeaturePage(
@@ -778,18 +633,12 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/admin/seo',
-              builder: (_, __) => const SeoAuditPage(),
-            ),
+            GoRoute(path: '/admin/seo', builder: (_, __) => const SeoAuditPage()),
             GoRoute(
               path: '/admin/staff-recruitment',
               builder: (_, __) => const StaffRecruitmentPage(),
             ),
-            GoRoute(
-              path: '/admin/users',
-              builder: (_, __) => const AdminUsersPage(),
-            ),
+            GoRoute(path: '/admin/users', builder: (_, __) => const AdminUsersPage()),
             GoRoute(
               path: '/admin/verifications',
               builder: (_, __) => const VerificationRequestsPage(),
@@ -812,26 +661,18 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             // Analytics uses the existing authenticated, data-backed post
             // analytics flow rather than a generic migration shell.
-            GoRoute(
-              path: '/analytics',
-              builder: (_, __) => const PostAnalyticsPage(),
-            ),
+            GoRoute(path: '/analytics', builder: (_, __) => const PostAnalyticsPage()),
             GoRoute(path: '/appeals', builder: (_, __) => const AppealsPage()),
-            GoRoute(
-              path: '/blocked',
-              builder: (_, __) => const BlockedUsersPage(),
-            ),
+            GoRoute(path: '/blocked', builder: (_, __) => const BlockedUsersPage()),
             GoRoute(
               path: '/boost-analytics/:postId',
-              builder: (_, state) =>
-                  PostAnalyticsPage(postId: state.pathParameters['postId']),
+              builder: (_, state) => PostAnalyticsPage(postId: state.pathParameters['postId']),
             ),
             // Reuse the audited server-backed campaign creation workflow;
             // payment state is still confirmed by the backend callback.
             GoRoute(
               path: '/boost-create',
-              builder: (_, __) =>
-                  const AdCampaignsPage(mode: AdCampaignsMode.create),
+              builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.create),
             ),
             GoRoute(
               path: '/call/:callId',
@@ -843,24 +684,14 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/challenge/:id',
-              builder: (_, state) => ChallengeDetailPage(
-                challengeId: state.pathParameters['id'] ?? '',
-              ),
+              builder: (_, state) =>
+                  ChallengeDetailPage(challengeId: state.pathParameters['id'] ?? ''),
             ),
             GoRoute(path: '/credits', builder: (_, __) => const CreditsPage()),
-            GoRoute(
-              path: '/daily-rewards',
-              builder: (_, __) => const RewardsPage(),
-            ),
-            GoRoute(
-              path: '/fraud-detection',
-              builder: (_, __) => const AdminFraudPage(),
-            ),
+            GoRoute(path: '/daily-rewards', builder: (_, __) => const RewardsPage()),
+            GoRoute(path: '/fraud-detection', builder: (_, __) => const AdminFraudPage()),
             GoRoute(path: '/help', builder: (_, __) => const HelpPage()),
-            GoRoute(
-              path: '/interests',
-              builder: (_, __) => const InterestsPage(),
-            ),
+            GoRoute(path: '/interests', builder: (_, __) => const InterestsPage()),
             GoRoute(
               path: '/jobs',
               builder: (_, state) => NativeFeaturePage(
@@ -876,15 +707,11 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/lists', builder: (_, __) => const ListsPage()),
             GoRoute(
               path: '/lists/:id',
-              builder: (_, state) =>
-                  ListDetailPage(listId: state.pathParameters['id']!),
+              builder: (_, state) => ListDetailPage(listId: state.pathParameters['id']!),
             ),
             // The native Creator Studio already owns the creator's
             // monetization controls and earnings read model.
-            GoRoute(
-              path: '/monetization',
-              builder: (_, __) => const CreatorStudioPage(),
-            ),
+            GoRoute(path: '/monetization', builder: (_, __) => const CreatorStudioPage()),
             GoRoute(
               path: '/payouts',
               builder: (_, state) => NativeFeaturePage(
@@ -893,31 +720,15 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/platform-inbox',
-              builder: (_, __) => const PlatformInboxPage(),
-            ),
-            GoRoute(
-              path: '/podcasts/analytics',
-              builder: (_, __) => const PodcastAnalyticsPage(),
-            ),
-            GoRoute(
-              path: '/podcasts/search',
-              builder: (_, __) => const PodcastSearchPage(),
-            ),
-            GoRoute(
-              path: '/policy',
-              builder: (_, __) => const ContentPolicyPage(),
-            ),
+            GoRoute(path: '/platform-inbox', builder: (_, __) => const PlatformInboxPage()),
+            GoRoute(path: '/podcasts/analytics', builder: (_, __) => const PodcastAnalyticsPage()),
+            GoRoute(path: '/podcasts/search', builder: (_, __) => const PodcastSearchPage()),
+            GoRoute(path: '/policy', builder: (_, __) => const ContentPolicyPage()),
             GoRoute(path: '/polls', builder: (_, __) => const PollsPage()),
-            GoRoute(
-              path: '/post-analytics',
-              builder: (_, __) => const PostAnalyticsPage(),
-            ),
+            GoRoute(path: '/post-analytics', builder: (_, __) => const PostAnalyticsPage()),
             GoRoute(
               path: '/post-analytics/:postId',
-              builder: (_, state) =>
-                  PostAnalyticsPage(postId: state.pathParameters['postId']),
+              builder: (_, state) => PostAnalyticsPage(postId: state.pathParameters['postId']),
             ),
             GoRoute(
               path: '/post-remote',
@@ -975,9 +786,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post/:postId/quote',
-              builder: (_, state) => PostQuoteComposerPage(
-                postId: state.pathParameters['postId'] ?? '',
-              ),
+              builder: (_, state) =>
+                  PostQuoteComposerPage(postId: state.pathParameters['postId'] ?? ''),
             ),
             GoRoute(
               path: '/post/:postId/reply/:replyId',
@@ -994,31 +804,17 @@ class _TestagramAppState extends State<TestagramApp> {
                     : null,
               ),
             ),
-            GoRoute(
-              path: '/privacy',
-              builder: (_, __) => const PrivacyPolicyPage(),
-            ),
-            GoRoute(
-              path: '/profile-features',
-              builder: (_, __) => const ProfileFeaturesPage(),
-            ),
-            GoRoute(
-              path: '/referral',
-              builder: (_, __) => const ReferralPage(),
-            ),
-            GoRoute(
-              path: '/referrals',
-              builder: (_, __) => const ReferralPage(),
-            ),
+            GoRoute(path: '/privacy', builder: (_, __) => const PrivacyPolicyPage()),
+            GoRoute(path: '/profile-features', builder: (_, __) => const ProfileFeaturesPage()),
+            GoRoute(path: '/referral', builder: (_, __) => const ReferralPage()),
+            GoRoute(path: '/referrals', builder: (_, __) => const ReferralPage()),
             GoRoute(
               path: '/regulator',
-              builder: (_, state) =>
-                  RegulatorConsolePage(routePath: state.matchedLocation),
+              builder: (_, state) => RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/analytics',
-              builder: (_, state) =>
-                  RegulatorConsolePage(routePath: state.matchedLocation),
+              builder: (_, state) => RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/announce',
@@ -1030,36 +826,25 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/regulator/audit',
-              builder: (_, state) =>
-                  RegulatorConsolePage(routePath: state.matchedLocation),
+              builder: (_, state) => RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/employees',
-              builder: (_, state) =>
-                  RegulatorConsolePage(routePath: state.matchedLocation),
+              builder: (_, state) => RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/features',
-              builder: (_, state) =>
-                  RegulatorConsolePage(routePath: state.matchedLocation),
+              builder: (_, state) => RegulatorConsolePage(routePath: state.matchedLocation),
             ),
-            GoRoute(
-              path: '/regulator/moderation',
-              builder: (_, __) => const AdminFraudPage(),
-            ),
+            GoRoute(path: '/regulator/moderation', builder: (_, __) => const AdminFraudPage()),
             GoRoute(
               path: '/regulator/platform',
-              builder: (_, state) =>
-                  RegulatorConsolePage(routePath: state.matchedLocation),
+              builder: (_, state) => RegulatorConsolePage(routePath: state.matchedLocation),
             ),
-            GoRoute(
-              path: '/regulator/reports',
-              builder: (_, __) => const RegulatorReportsPage(),
-            ),
+            GoRoute(path: '/regulator/reports', builder: (_, __) => const RegulatorReportsPage()),
             GoRoute(
               path: '/regulator/wallets',
-              builder: (_, state) =>
-                  RegulatorConsolePage(routePath: state.matchedLocation),
+              builder: (_, state) => RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/revenue-analytics',
@@ -1078,24 +863,14 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/scheduled',
-              builder: (_, __) => const ScheduledPostsPage(),
-            ),
+            GoRoute(path: '/scheduled', builder: (_, __) => const ScheduledPostsPage()),
             GoRoute(
               path: '/seller/:username',
-              builder: (_, state) => SellerStorefrontPage(
-                username: state.pathParameters['username'] ?? '',
-              ),
+              builder: (_, state) =>
+                  SellerStorefrontPage(username: state.pathParameters['username'] ?? ''),
             ),
-            GoRoute(
-              path: '/series',
-              builder: (_, __) => const CreatorSeriesPage(),
-            ),
-            GoRoute(
-              path: '/sessions',
-              builder: (_, __) => const ActiveSessionsPage(),
-            ),
+            GoRoute(path: '/series', builder: (_, __) => const CreatorSeriesPage()),
+            GoRoute(path: '/sessions', builder: (_, __) => const ActiveSessionsPage()),
             GoRoute(path: '/sports', builder: (_, __) => const SportsHubPage()),
             GoRoute(
               path: '/staff',
@@ -1105,18 +880,9 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/story-analytics',
-              builder: (_, __) => const StoryAnalyticsPage(),
-            ),
-            GoRoute(
-              path: '/team-chat',
-              builder: (_, __) => const TeamChatPage(),
-            ),
-            GoRoute(
-              path: '/terms',
-              builder: (_, __) => const TermsOfServicePage(),
-            ),
+            GoRoute(path: '/story-analytics', builder: (_, __) => const StoryAnalyticsPage()),
+            GoRoute(path: '/team-chat', builder: (_, __) => const TeamChatPage()),
+            GoRoute(path: '/terms', builder: (_, __) => const TermsOfServicePage()),
             GoRoute(
               path: '/thread/:threadId/likes',
               builder: (_, state) => ThreadInteractionPage(
@@ -1154,21 +920,14 @@ class _TestagramAppState extends State<TestagramApp> {
                 mode: ThreadInteractionMode.reposts,
               ),
             ),
-            GoRoute(
-              path: '/threads/create',
-              builder: (_, __) => const ThreadsPage(),
-            ),
+            GoRoute(path: '/threads/create', builder: (_, __) => const ThreadsPage()),
             GoRoute(
               path: '/trending/:topic',
-              builder: (_, state) =>
-                  TrendingTopicPage(topic: state.pathParameters['topic'] ?? ''),
+              builder: (_, state) => TrendingTopicPage(topic: state.pathParameters['topic'] ?? ''),
             ),
             // Keep the legacy /verify deep link on the real native
             // verification status flow instead of the generic migration shell.
-            GoRoute(
-              path: '/verify',
-              builder: (_, __) => const IdentityVerificationStatusPage(),
-            ),
+            GoRoute(path: '/verify', builder: (_, __) => const IdentityVerificationStatusPage()),
             GoRoute(
               path: '/verify-identity',
               builder: (_, __) => const IdentityVerificationStatusPage(),
@@ -1176,66 +935,38 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/wallet', builder: (_, __) => const WalletPage()),
             GoRoute(
               path: '/wallet/analytics',
-              builder: (_, __) => const WalletAuxiliaryPage(
-                mode: WalletAuxiliaryMode.analytics,
-              ),
+              builder: (_, __) => const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.analytics),
             ),
-            GoRoute(
-              path: '/wallet/converter',
-              builder: (_, __) => const CurrencyConverterPage(),
-            ),
+            GoRoute(path: '/wallet/converter', builder: (_, __) => const CurrencyConverterPage()),
             GoRoute(
               path: '/wallet/history',
               builder: (_, __) => const WalletPage(showHistory: true),
             ),
-            GoRoute(
-              path: '/wallet/mpesa',
-              builder: (_, __) => const WalletMpesaPage(),
-            ),
+            GoRoute(path: '/wallet/mpesa', builder: (_, __) => const WalletMpesaPage()),
             GoRoute(
               path: '/wallet/pocket',
-              builder: (_, __) =>
-                  const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.pocket),
+              builder: (_, __) => const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.pocket),
             ),
             GoRoute(
               path: '/wallet/receive',
-              builder: (_, __) =>
-                  const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.receive),
+              builder: (_, __) => const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.receive),
             ),
             GoRoute(
               path: '/wallet/referrals',
-              builder: (_, __) => const WalletAuxiliaryPage(
-                mode: WalletAuxiliaryMode.referrals,
-              ),
+              builder: (_, __) => const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.referrals),
             ),
             GoRoute(
               path: '/wallet/reminders',
-              builder: (_, __) => const WalletAuxiliaryPage(
-                mode: WalletAuxiliaryMode.reminders,
-              ),
+              builder: (_, __) => const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.reminders),
             ),
-            GoRoute(
-              path: '/wallet/savings',
-              builder: (_, __) => const WalletSavingsPage(),
-            ),
+            GoRoute(path: '/wallet/savings', builder: (_, __) => const WalletSavingsPage()),
             GoRoute(
               path: '/wallet/scheduled',
-              builder: (_, __) => const WalletAuxiliaryPage(
-                mode: WalletAuxiliaryMode.scheduled,
-              ),
+              builder: (_, __) => const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.scheduled),
             ),
-            GoRoute(
-              path: '/wallet/security',
-              builder: (_, __) => const WalletSecurityPage(),
-            ),
-            GoRoute(
-              path: '/wallet/send',
-              builder: (_, __) => const WalletSendPage(),
-            ),
-            GoRoute(
-              path: '/wishlist',
-              builder: (_, __) => const WishlistPage(),
-            ),
+            GoRoute(path: '/wallet/security', builder: (_, __) => const WalletSecurityPage()),
+            GoRoute(path: '/wallet/send', builder: (_, __) => const WalletSendPage()),
+            GoRoute(path: '/wishlist', builder: (_, __) => const WishlistPage()),
           ],
         ),
       ],
@@ -1290,11 +1021,7 @@ class _SetupPage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  'assets/branding/testagram-icon.webp',
-                  width: 76,
-                  height: 76,
-                ),
+                Image.asset('assets/branding/testagram-icon.webp', width: 76, height: 76),
                 const SizedBox(height: 20),
                 Text(
                   'Testagram is not configured',

@@ -57,10 +57,7 @@ class FeedOfflineCache {
       final safePosts = posts.take(maxPosts).toList(growable: false);
       await prefs.setString(
         _key(userId: userId, tab: tab),
-        jsonEncode({
-          'savedAt': DateTime.now().toUtc().toIso8601String(),
-          'posts': safePosts,
-        }),
+        jsonEncode({'savedAt': DateTime.now().toUtc().toIso8601String(), 'posts': safePosts}),
       );
     } catch (_) {
       // Quota/platform serialization failures are non-fatal; online feed remains usable.

@@ -23,9 +23,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   String? _error;
   int _generation = 0;
 
-  List<Map<String, dynamic>> get _filtered => _users
-      .where((user) => AdminUsersPolicy.matchesSearch(user, _search.text))
-      .toList();
+  List<Map<String, dynamic>> get _filtered =>
+      _users.where((user) => AdminUsersPolicy.matchesSearch(user, _search.text)).toList();
 
   @override
   void initState() {
@@ -61,10 +60,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       _error = null;
     });
     try {
-      final owner = await _db
-              .rpc('testagram_is_owner')
-              .timeout(const Duration(seconds: 12)) ==
-          true;
+      final owner =
+          await _db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12)) == true;
       if (!AdminUsersPolicy.canAccess(isOwner: owner)) {
         if (mounted && generation == _generation) {
           setState(() {
@@ -80,10 +77,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           .order('created_at', ascending: false)
           .limit(200)
           .timeout(const Duration(seconds: 20));
-      final users = rows
-          .whereType<Map>()
-          .map((row) => Map<String, dynamic>.from(row))
-          .toList();
+      final users = rows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
       if (!mounted || generation != _generation) return;
       setState(() {
         _authorized = true;
@@ -92,8 +86,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     } catch (_) {
       if (mounted && generation == _generation) {
         setState(() {
-          _error =
-              'User administration could not load. Verify owner access and retry.';
+          _error = 'User administration could not load. Verify owner access and retry.';
         });
       }
     } finally {
@@ -116,16 +109,14 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           .timeout(const Duration(seconds: 15));
       if (!mounted) return;
       setState(() => user['is_blocked'] = !wasBlocked);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(wasBlocked ? 'User unblocked.' : 'User blocked.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(wasBlocked ? 'User unblocked.' : 'User blocked.')));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text(
-                  'Could not update this user. Check authorization and retry.')),
+            content: Text('Could not update this user. Check authorization and retry.'),
+          ),
         );
       }
     } finally {
@@ -156,10 +147,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                   Icons.lock_outline_rounded,
                   'Sign in required',
                   'Sign in to continue.',
-                  FilledButton(
-                    onPressed: () => context.go('/auth'),
-                    child: const Text('Sign in'),
-                  ),
+                  FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
                 )
               : (!_authorized && _error == null)
                   ? _empty(
@@ -186,7 +174,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                              'Showing the latest ${_users.length} profiles; changes are saved through the existing profile policy.'),
+                            'Showing the latest ${_users.length} profiles; changes are saved through the existing profile policy.',
+                          ),
                           const SizedBox(height: 12),
                           TextField(
                             controller: _search,
@@ -207,18 +196,12 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                             const SizedBox(height: 12),
                             MaterialBanner(
                               content: Text(_error!),
-                              actions: [
-                                TextButton(
-                                    onPressed: _load,
-                                    child: const Text('Retry'))
-                              ],
+                              actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
                             ),
                           ],
                           const SizedBox(height: 12),
                           if (_filtered.isEmpty && _error == null)
-                            const Card(
-                                child: ListTile(
-                                    title: Text('No matching users.'))),
+                            const Card(child: ListTile(title: Text('No matching users.'))),
                           ..._filtered.map((user) {
                             final id = '${user['id'] ?? ''}';
                             final blocked = AdminUsersPolicy.isBlocked(user);
@@ -227,31 +210,30 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                               child: ListTile(
                                 leading: CircleAvatar(
                                   child: Text(
-                                      '${user['username'] ?? '?'}'.isEmpty
-                                          ? '?'
-                                          : '${user['username'] ?? '?'}'[0]
-                                              .toUpperCase()),
+                                    '${user['username'] ?? '?'}'.isEmpty
+                                        ? '?'
+                                        : '${user['username'] ?? '?'}'[0].toUpperCase(),
+                                  ),
                                 ),
-                                title: Text('@${user['username'] ?? 'unknown'}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
+                                title: Text(
+                                  '@${user['username'] ?? 'unknown'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 subtitle: Text(
-                                    '${user['email'] ?? 'No email'}\n${user['follower_count'] ?? 0} followers · ${blocked ? 'Blocked' : 'Active'}'),
+                                  '${user['email'] ?? 'No email'}\n${user['follower_count'] ?? 0} followers · ${blocked ? 'Blocked' : 'Active'}',
+                                ),
                                 isThreeLine: true,
                                 trailing: IconButton(
-                                  tooltip:
-                                      blocked ? 'Unblock user' : 'Block user',
-                                  onPressed: _busy.contains(id)
-                                      ? null
-                                      : () => _toggleBlock(user),
+                                  tooltip: blocked ? 'Unblock user' : 'Block user',
+                                  onPressed: _busy.contains(id) ? null : () => _toggleBlock(user),
                                   icon: _busy.contains(id)
                                       ? const SizedBox.square(
                                           dimension: 20,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2))
-                                      : Icon(blocked
-                                          ? Icons.lock_open_rounded
-                                          : Icons.block_rounded),
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : Icon(
+                                          blocked ? Icons.lock_open_rounded : Icons.block_rounded),
                                 ),
                               ),
                             );
@@ -262,8 +244,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 
-  Widget _empty(BuildContext context, IconData icon, String title, String body,
-          Widget action) =>
+  Widget _empty(BuildContext context, IconData icon, String title, String body, Widget action) =>
       Center(
         child: Padding(
           padding: const EdgeInsets.all(28),

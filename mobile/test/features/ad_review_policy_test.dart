@@ -2,25 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:testagram/features/ads/ad_review_policy.dart';
 
 void main() {
-  test(
-      'review decisions require authorization, no active request, and pending status',
-      () {
-    expect(
-        AdReviewPolicy.canReview(
-            authorized: true, busy: false, status: 'pending'),
-        isTrue);
-    expect(
-        AdReviewPolicy.canReview(
-            authorized: false, busy: false, status: 'pending'),
-        isFalse);
-    expect(
-        AdReviewPolicy.canReview(
-            authorized: true, busy: true, status: 'pending'),
-        isFalse);
-    expect(
-        AdReviewPolicy.canReview(
-            authorized: true, busy: false, status: 'approved'),
-        isFalse);
+  test('review decisions require authorization, no active request, and pending status', () {
+    expect(AdReviewPolicy.canReview(authorized: true, busy: false, status: 'pending'), isTrue);
+    expect(AdReviewPolicy.canReview(authorized: false, busy: false, status: 'pending'), isFalse);
+    expect(AdReviewPolicy.canReview(authorized: true, busy: true, status: 'pending'), isFalse);
+    expect(AdReviewPolicy.canReview(authorized: true, busy: false, status: 'approved'), isFalse);
   });
 
   test('rejection requires a bounded non-empty reason', () {

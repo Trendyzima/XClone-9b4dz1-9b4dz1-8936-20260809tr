@@ -5,11 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PostDetailPage extends StatefulWidget {
-  const PostDetailPage({
-    super.key,
-    required this.postId,
-    this.repliesOnly = false,
-  });
+  const PostDetailPage({super.key, required this.postId, this.repliesOnly = false});
 
   final String postId;
   final bool repliesOnly;
@@ -74,8 +70,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ? null
           : await _db
               .from('profiles')
-              .select(
-                  'id,username,display_name,avatar_url,verified,verified_tier')
+              .select('id,username,display_name,avatar_url,verified,verified_tier')
               .eq('id', authorId)
               .maybeSingle()
               .timeout(const Duration(seconds: 12));
@@ -86,9 +81,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           .order('created_at', ascending: true)
           .limit(100)
           .timeout(const Duration(seconds: 15));
-      final replies = replyRows
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
+      final replies = replyRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
       final replyUserIds = replies
           .map((row) => '${row['user_id'] ?? ''}')
           .where((id) => id.isNotEmpty)
@@ -102,8 +95,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
               .inFilter('id', replyUserIds)
               .timeout(const Duration(seconds: 12));
       final replyProfilesById = <String, Map<String, dynamic>>{
-        for (final row in replyProfiles)
-          '${row['id']}': Map<String, dynamic>.from(row as Map),
+        for (final row in replyProfiles) '${row['id']}': Map<String, dynamic>.from(row as Map),
       };
       for (final reply in replies) {
         reply['profile'] = replyProfilesById['${reply['user_id']}'];
@@ -155,8 +147,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       setState(() {
         _post = {
           ...Map<String, dynamic>.from(post),
-          'profile':
-              profile == null ? null : Map<String, dynamic>.from(profile),
+          'profile': profile == null ? null : Map<String, dynamic>.from(profile),
         };
         _replies = replies;
         _liked = liked;
@@ -165,9 +156,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
       });
     } catch (error) {
       if (mounted && generation == _generation) {
-        setState(() => _error = error is StateError
-            ? error.message.toString()
-            : 'This post could not load. Check your connection and retry.');
+        setState(
+          () => _error = error is StateError
+              ? error.message.toString()
+              : 'This post could not load. Check your connection and retry.',
+        );
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -187,8 +180,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     final previous = _liked;
     setState(() {
       _liked = !previous;
-      post['likes_count'] =
-          ((post['likes_count'] as num?)?.toInt() ?? 0) + (previous ? -1 : 1);
+      post['likes_count'] = ((post['likes_count'] as num?)?.toInt() ?? 0) + (previous ? -1 : 1);
     });
     try {
       if (previous) {
@@ -199,17 +191,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
             .eq('post_id', widget.postId)
             .eq('emoji', '❤️');
       } else {
-        await _db.from('post_reactions').upsert(
-          {'user_id': uid, 'post_id': widget.postId, 'emoji': '❤️'},
-          onConflict: 'post_id,user_id',
-        );
+        await _db.from('post_reactions').upsert({
+          'user_id': uid,
+          'post_id': widget.postId,
+          'emoji': '❤️',
+        }, onConflict: 'post_id,user_id');
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           _liked = previous;
-          post['likes_count'] = ((post['likes_count'] as num?)?.toInt() ?? 0) +
-              (previous ? 1 : -1);
+          post['likes_count'] = ((post['likes_count'] as num?)?.toInt() ?? 0) + (previous ? 1 : -1);
         });
         _showMessage('Could not update like. Please retry.');
       }
@@ -230,15 +222,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
     });
     try {
       if (previous) {
-        await _db
-            .from('bookmarks')
-            .delete()
-            .eq('user_id', uid)
-            .eq('post_id', widget.postId);
+        await _db.from('bookmarks').delete().eq('user_id', uid).eq('post_id', widget.postId);
       } else {
-        await _db
-            .from('bookmarks')
-            .insert({'user_id': uid, 'post_id': widget.postId});
+        await _db.from('bookmarks').insert({'user_id': uid, 'post_id': widget.postId});
       }
     } catch (_) {
       if (mounted) {
@@ -262,28 +248,20 @@ class _PostDetailPageState extends State<PostDetailPage> {
     setState(() {
       _busy = true;
       _reposted = !previous;
-      post['reposts_count'] =
-          ((post['reposts_count'] as num?)?.toInt() ?? 0) + (previous ? -1 : 1);
+      post['reposts_count'] = ((post['reposts_count'] as num?)?.toInt() ?? 0) + (previous ? -1 : 1);
     });
     try {
       if (previous) {
-        await _db
-            .from('reposts')
-            .delete()
-            .eq('user_id', uid)
-            .eq('post_id', widget.postId);
+        await _db.from('reposts').delete().eq('user_id', uid).eq('post_id', widget.postId);
       } else {
-        await _db
-            .from('reposts')
-            .insert({'user_id': uid, 'post_id': widget.postId});
+        await _db.from('reposts').insert({'user_id': uid, 'post_id': widget.postId});
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           _reposted = previous;
           post['reposts_count'] =
-              ((post['reposts_count'] as num?)?.toInt() ?? 0) +
-                  (previous ? 1 : -1);
+              ((post['reposts_count'] as num?)?.toInt() ?? 0) + (previous ? 1 : -1);
         });
         _showMessage('Could not update repost. Please retry.');
       }
@@ -302,11 +280,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (body.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      await _db.from('replies').insert({
-        'post_id': widget.postId,
-        'user_id': uid,
-        'content': body,
-      }).timeout(const Duration(seconds: 15));
+      await _db
+          .from('replies')
+          .insert({'post_id': widget.postId, 'user_id': uid, 'content': body}).timeout(
+              const Duration(seconds: 15));
       _reply.clear();
       await _load();
     } catch (_) {
@@ -317,25 +294,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Future<void> _sharePost() async {
-    final body =
-        _post?['content']?.toString() ?? 'Check out this post on Testagram';
-    await Share.share('$body\nhttps://testagram.site/post/${widget.postId}',
-        subject: 'Testagram post');
+    final body = _post?['content']?.toString() ?? 'Check out this post on Testagram';
+    await Share.share(
+      '$body\nhttps://testagram.site/post/${widget.postId}',
+      subject: 'Testagram post',
+    );
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _initial(String value) =>
-      value.trim().isEmpty ? 'T' : value.trim()[0].toUpperCase();
+  String _initial(String value) => value.trim().isEmpty ? 'T' : value.trim()[0].toUpperCase();
 
   Future<void> _openMedia(String raw) async {
     final uri = Uri.tryParse(raw);
-    if (uri == null ||
-        !{'https', 'http'}.contains(uri.scheme) ||
-        uri.host.isEmpty) {
+    if (uri == null || !{'https', 'http'}.contains(uri.scheme) || uri.host.isEmpty) {
       _showMessage('This media link is invalid.');
       return;
     }
@@ -347,18 +321,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget build(BuildContext context) {
     final post = _post;
     final profile = post?['profile'] as Map<String, dynamic>? ?? {};
-    final name =
-        '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+    final name = '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
     final avatar = '${profile['avatar_url'] ?? ''}';
     final body = '${post?['content'] ?? post?['body'] ?? ''}';
     final image = '${post?['image_url'] ?? ''}';
     final video = '${post?['video_url'] ?? ''}';
     final mediaUrls = post?['media_urls'];
     final media = mediaUrls is List
-        ? mediaUrls
-            .map((value) => '$value')
-            .where((value) => value.startsWith('https://'))
-            .toList()
+        ? mediaUrls.map((value) => '$value').where((value) => value.startsWith('https://')).toList()
         : <String>[];
 
     return RefreshIndicator(
@@ -366,20 +336,24 @@ class _PostDetailPageState extends State<PostDetailPage> {
       child: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          Row(children: [
-            IconButton(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.arrow_back_rounded),
-              tooltip: 'Back to feed',
-            ),
-            Expanded(
-              child: Text(widget.repliesOnly ? 'Post replies' : 'Post',
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => context.go('/'),
+                icon: const Icon(Icons.arrow_back_rounded),
+                tooltip: 'Back to feed',
+              ),
+              Expanded(
+                child: Text(
+                  widget.repliesOnly ? 'Post replies' : 'Post',
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w900)),
-            ),
-          ]),
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
           if (_loading)
             const Padding(
               padding: EdgeInsets.all(24),
@@ -414,49 +388,48 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      CircleAvatar(
-                        backgroundImage: avatar.startsWith('https://')
-                            ? NetworkImage(avatar)
-                            : null,
-                        child: avatar.startsWith('https://')
-                            ? null
-                            : Text(_initial(name)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800)),
-                            if ('${profile['username'] ?? ''}'.isNotEmpty)
-                              Text('@${profile['username']}',
-                                  style: Theme.of(context).textTheme.bodySmall),
-                          ],
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundImage:
+                              avatar.startsWith('https://') ? NetworkImage(avatar) : null,
+                          child: avatar.startsWith('https://') ? null : Text(_initial(name)),
                         ),
-                      ),
-                      if (profile['verified'] == true)
-                        const Icon(Icons.verified_rounded, color: Colors.blue),
-                    ]),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                              if ('${profile['username'] ?? ''}'.isNotEmpty)
+                                Text(
+                                  '@${profile['username']}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (profile['verified'] == true)
+                          const Icon(Icons.verified_rounded, color: Colors.blue),
+                      ],
+                    ),
                     if (body.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 14),
-                        child: SelectableText(body,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.copyWith(height: 1.5)),
+                        child: SelectableText(
+                          body,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5),
+                        ),
                       ),
                     if (image.startsWith('https://'))
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: Image.network(image,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const SizedBox.shrink()),
+                        child: Image.network(
+                          image,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
                       ),
                     if (video.startsWith('https://'))
                       Padding(
@@ -467,14 +440,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           label: const Text('Open video'),
                         ),
                       ),
-                    ...media.map((url) => Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: OutlinedButton.icon(
-                            onPressed: () => _openMedia(url),
-                            icon: const Icon(Icons.perm_media_outlined),
-                            label: const Text('Open attached media'),
-                          ),
-                        )),
+                    ...media.map(
+                      (url) => Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openMedia(url),
+                          icon: const Icon(Icons.perm_media_outlined),
+                          label: const Text('Open attached media'),
+                        ),
+                      ),
+                    ),
                     const Divider(height: 28),
                     Wrap(
                       spacing: 6,
@@ -484,32 +459,28 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         TextButton.icon(
                           onPressed: _toggleLike,
                           icon: Icon(
-                              _liked ? Icons.favorite : Icons.favorite_border,
-                              color: _liked ? Colors.red : null),
+                            _liked ? Icons.favorite : Icons.favorite_border,
+                            color: _liked ? Colors.red : null,
+                          ),
                           label: Text('${post['likes_count'] ?? 0}'),
                         ),
                         TextButton.icon(
-                          onPressed: () =>
-                              context.push('/post/${widget.postId}/replies'),
+                          onPressed: () => context.push('/post/${widget.postId}/replies'),
                           icon: const Icon(Icons.mode_comment_outlined),
-                          label: Text(
-                              '${post['replies_count'] ?? _replies.length}'),
+                          label: Text('${post['replies_count'] ?? _replies.length}'),
                         ),
                         TextButton.icon(
                           onPressed: _toggleRepost,
-                          icon: Icon(Icons.repeat_rounded,
-                              color: _reposted
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null),
+                          icon: Icon(
+                            Icons.repeat_rounded,
+                            color: _reposted ? Theme.of(context).colorScheme.primary : null,
+                          ),
                           label: Text('${post['reposts_count'] ?? 0}'),
                         ),
                         IconButton(
-                          tooltip:
-                              _bookmarked ? 'Remove bookmark' : 'Save post',
+                          tooltip: _bookmarked ? 'Remove bookmark' : 'Save post',
                           onPressed: _toggleBookmark,
-                          icon: Icon(_bookmarked
-                              ? Icons.bookmark
-                              : Icons.bookmark_border),
+                          icon: Icon(_bookmarked ? Icons.bookmark : Icons.bookmark_border),
                         ),
                         IconButton(
                           tooltip: 'Share post',
@@ -523,11 +494,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Replies (${_replies.length})',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Replies (${_replies.length})',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 8),
             if (_uid != null)
               Card(
@@ -554,8 +524,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2))
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
                               : const Icon(Icons.send_rounded),
                           label: Text(_sending ? 'Sending…' : 'Reply'),
                         ),
@@ -586,15 +556,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 margin: const EdgeInsets.only(top: 6),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundImage: replyAvatar.startsWith('https://')
-                        ? NetworkImage(replyAvatar)
-                        : null,
-                    child: replyAvatar.startsWith('https://')
-                        ? null
-                        : Text(_initial(replyName)),
+                    backgroundImage:
+                        replyAvatar.startsWith('https://') ? NetworkImage(replyAvatar) : null,
+                    child: replyAvatar.startsWith('https://') ? null : Text(_initial(replyName)),
                   ),
-                  title: Text(replyName,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  title: Text(replyName, style: const TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 5),
                     child: Text('${reply['content'] ?? ''}'),

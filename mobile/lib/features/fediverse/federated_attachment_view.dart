@@ -16,8 +16,7 @@ class FederatedAttachmentView extends StatefulWidget {
   final String? altText;
 
   @override
-  State<FederatedAttachmentView> createState() =>
-      _FederatedAttachmentViewState();
+  State<FederatedAttachmentView> createState() => _FederatedAttachmentViewState();
 }
 
 class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
@@ -29,8 +28,7 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
       widget.mediaType == 'video' ||
       widget.mediaType == 'application/vnd.apple.mpegurl';
 
-  bool get _isAudio =>
-      widget.mediaType.startsWith('audio/') || widget.mediaType == 'audio';
+  bool get _isAudio => widget.mediaType.startsWith('audio/') || widget.mediaType == 'audio';
 
   bool _mediaRequested = false;
 
@@ -44,8 +42,7 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
   @override
   void didUpdateWidget(covariant FederatedAttachmentView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url ||
-        oldWidget.mediaType != widget.mediaType) {
+    if (oldWidget.url != widget.url || oldWidget.mediaType != widget.mediaType) {
       _disposePlayer();
       _mediaRequested = false;
     }
@@ -57,8 +54,7 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
     if (uri == null || uri.scheme != 'https') return;
     final controller = VideoPlayerController.networkUrl(uri);
     _controller = controller;
-    _initialization =
-        controller.initialize().timeout(const Duration(seconds: 20)).then((_) {
+    _initialization = controller.initialize().timeout(const Duration(seconds: 20)).then((_) {
       if (mounted) setState(() {});
     }).catchError((Object _) {
       if (mounted) setState(() {});
@@ -96,9 +92,7 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
               child: Row(
                 children: [
                   Icon(
-                    _isVideo
-                        ? Icons.play_circle_outline_rounded
-                        : Icons.audio_file_rounded,
+                    _isVideo ? Icons.play_circle_outline_rounded : Icons.audio_file_rounded,
                     size: 36,
                   ),
                   const SizedBox(width: 12),
@@ -136,15 +130,13 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
       return FutureBuilder<void>(
         future: initialization,
         builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done ||
-              !controller.value.isInitialized) {
+          if (snapshot.connectionState != ConnectionState.done || !controller.value.isInitialized) {
             if (snapshot.hasError) return _unavailable(context);
             return SizedBox(
               height: 190,
               child: Center(
-                child: snapshot.hasError
-                    ? _unavailable(context)
-                    : const CircularProgressIndicator(),
+                child:
+                    snapshot.hasError ? _unavailable(context) : const CircularProgressIndicator(),
               ),
             );
           }
@@ -181,9 +173,7 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
                       tooltip: controller.value.isPlaying ? 'Pause' : 'Play',
                       onPressed: () {
                         setState(() {
-                          controller.value.isPlaying
-                              ? controller.pause()
-                              : controller.play();
+                          controller.value.isPlaying ? controller.pause() : controller.play();
                         });
                       },
                       icon: Icon(
@@ -224,11 +214,8 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
             child: Center(child: CircularProgressIndicator()),
           ),
           errorWidget: (_, __, ___) => _unavailable(context),
-          imageBuilder: (context, imageProvider) => Image(
-            image: imageProvider,
-            fit: BoxFit.contain,
-            semanticLabel: widget.altText,
-          ),
+          imageBuilder: (context, imageProvider) =>
+              Image(image: imageProvider, fit: BoxFit.contain, semanticLabel: widget.altText),
         ),
       ),
     );

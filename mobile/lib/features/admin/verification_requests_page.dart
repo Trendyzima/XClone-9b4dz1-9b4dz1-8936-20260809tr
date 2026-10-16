@@ -8,8 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class VerificationRequestsPage extends StatefulWidget {
   const VerificationRequestsPage({super.key});
   @override
-  State<VerificationRequestsPage> createState() =>
-      _VerificationRequestsPageState();
+  State<VerificationRequestsPage> createState() => _VerificationRequestsPageState();
 }
 
 class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
@@ -52,9 +51,7 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
       return;
     }
     try {
-      final result = await db
-          .rpc('testagram_is_owner')
-          .timeout(const Duration(seconds: 12));
+      final result = await db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12));
       if (result != true) {
         if (mounted && run == generation) {
           setState(() {
@@ -66,16 +63,11 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
       }
       final data = await db
           .from('verification_requests')
-          .select(
-            'id,user_id,tier,status,evidence,reviewed_by,reviewed_at,created_at,updated_at',
-          )
+          .select('id,user_id,tier,status,evidence,reviewed_by,reviewed_at,created_at,updated_at')
           .order('created_at', ascending: false)
           .limit(200)
           .timeout(const Duration(seconds: 20));
-      final parsed = data
-          .whereType<Map>()
-          .map((r) => Map<String, dynamic>.from(r))
-          .toList();
+      final parsed = data.whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
       if (!mounted || run != generation) return;
       setState(() {
         owner = true;
@@ -110,10 +102,7 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
             decoration: const InputDecoration(labelText: 'Reason (required)'),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
                 if (c.text.trim().isNotEmpty) {
@@ -155,9 +144,7 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Review failed. Check database migration, authorization, and retry.',
-            ),
+            content: Text('Review failed. Check database migration, authorization, and retry.'),
           ),
         );
       }
@@ -168,18 +155,11 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = rows
-        .where((r) => filter == 'all' || '${r['status']}' == filter)
-        .toList();
+    final filtered = rows.where((r) => filter == 'all' || '${r['status']}' == filter).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Verification Requests'),
-        actions: [
-          IconButton(
-            onPressed: loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
+        actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
       ),
       body: loading && rows.isEmpty
           ? const Center(child: CircularProgressIndicator())
@@ -187,10 +167,7 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
               ? _gate(
                   'Sign in required',
                   'Sign in to continue.',
-                  FilledButton(
-                    onPressed: () => context.go('/auth'),
-                    child: const Text('Sign in'),
-                  ),
+                  FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
                 )
               : !owner && error == null
                   ? _gate(
@@ -206,10 +183,8 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
-                          Text(
-                            'Verification requests',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
+                          Text('Verification requests',
+                              style: Theme.of(context).textTheme.headlineSmall),
                           const SizedBox(height: 6),
                           const Text(
                             'Reviews update the recorded request status and audit metadata. Approval does not grant a badge or subscription unless a separate entitlement flow confirms it.',
@@ -217,41 +192,27 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
                           const SizedBox(height: 12),
                           SegmentedButton<String>(
                             segments: const [
-                              ButtonSegment(
-                                  value: 'pending', label: Text('Pending')),
-                              ButtonSegment(
-                                  value: 'approved', label: Text('Approved')),
-                              ButtonSegment(
-                                  value: 'rejected', label: Text('Rejected')),
+                              ButtonSegment(value: 'pending', label: Text('Pending')),
+                              ButtonSegment(value: 'approved', label: Text('Approved')),
+                              ButtonSegment(value: 'rejected', label: Text('Rejected')),
                               ButtonSegment(value: 'all', label: Text('All')),
                             ],
                             selected: {filter},
-                            onSelectionChanged: (v) =>
-                                setState(() => filter = v.first),
+                            onSelectionChanged: (v) => setState(() => filter = v.first),
                           ),
                           if (error != null) ...[
                             const SizedBox(height: 12),
                             MaterialBanner(
                               content: Text(error!),
-                              actions: [
-                                TextButton(
-                                  onPressed: _load,
-                                  child: const Text('Retry'),
-                                ),
-                              ],
+                              actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
                             ),
                           ],
                           const SizedBox(height: 12),
                           if (filtered.isEmpty && error == null)
-                            const Card(
-                              child: ListTile(
-                                title: Text('No requests in this filter.'),
-                              ),
-                            ),
+                            const Card(child: ListTile(title: Text('No requests in this filter.'))),
                           ...filtered.map((row) {
                             final evidence = row['evidence'] is Map
-                                ? Map<String, dynamic>.from(
-                                    row['evidence'] as Map)
+                                ? Map<String, dynamic>.from(row['evidence'] as Map)
                                 : <String, dynamic>{};
                             return Card(
                               child: Padding(
@@ -264,31 +225,25 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
                                         Expanded(
                                           child: Text(
                                             '${row['tier'] ?? 'standard'} tier',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium,
+                                            style: Theme.of(context).textTheme.titleMedium,
                                           ),
                                         ),
-                                        Chip(
-                                          label: Text(
-                                              '${row['status'] ?? 'pending'}'),
-                                        ),
+                                        Chip(label: Text('${row['status'] ?? 'pending'}')),
                                       ],
                                     ),
                                     SelectableText('Request: ${row['id']}'),
-                                    SelectableText(
-                                        'User ID: ${row['user_id']}'),
+                                    SelectableText('User ID: ${row['user_id']}'),
                                     Text(
                                       'Submitted: ${row['created_at'] ?? 'unknown'}',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                      style: Theme.of(context).textTheme.bodySmall,
                                     ),
                                     if (evidence.isNotEmpty)
                                       const ListTile(
                                         dense: true,
                                         leading: Icon(Icons.lock_outline),
                                         title: Text(
-                                            'Evidence metadata attached; contents hidden in this review list.'),
+                                          'Evidence metadata attached; contents hidden in this review list.',
+                                        ),
                                       ),
                                     if ('${row['status']}' == 'pending')
                                       Wrap(
@@ -299,8 +254,7 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
                                                 ? () => _decide(row, 'approved')
                                                 : null,
                                             icon: const Icon(Icons.check),
-                                            label:
-                                                const Text('Approve request'),
+                                            label: const Text('Approve request'),
                                           ),
                                           OutlinedButton.icon(
                                             onPressed: busyId == null

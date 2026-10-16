@@ -20,6 +20,7 @@ on:
       - 'scripts/validate-appeals-reports-contract.mjs'
       - 'scripts/validate-unified-search-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
+      - 'scripts/validate-flutter-sdk-pin.mjs'
       - '.github/workflows/flutter-clients.yml'
   push:
     branches: [main]
@@ -40,6 +41,7 @@ on:
       - 'scripts/validate-appeals-reports-contract.mjs'
       - 'scripts/validate-unified-search-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
+      - 'scripts/validate-flutter-sdk-pin.mjs'
       - 'docs/flutter-migration-release-gates.md'
       - '.github/workflows/flutter-clients.yml'
   workflow_dispatch:
@@ -88,8 +90,10 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
+          flutter-version: '3.47.0'
           cache: true
+      - name: Verify Flutter CI SDK satisfies the lockfile
+        run: node scripts/validate-flutter-sdk-pin.mjs
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
@@ -112,7 +116,8 @@ jobs:
           done
       - name: Enforce formatting
         working-directory: mobile
-        run: dart format --output=none --set-exit-if-changed lib test
+        # Keep formatter width explicit; Flutter dependency resolution may normalize analysis_options.yaml.
+        run: dart format --page-width=100 --output=none --set-exit-if-changed lib test
       - name: Validate Flutter IPTV preload and cache contract
         run: node scripts/validate-flutter-iptv-cache.mjs
       - name: Analyze Flutter source

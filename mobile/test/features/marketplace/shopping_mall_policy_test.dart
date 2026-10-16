@@ -73,10 +73,7 @@ void main() {
     test('rejects unsafe or non-HTTPS URLs', () {
       expect(MallPolicy.safeImageUrl('http://cdn.example.com/p.jpg'), isNull);
       expect(MallPolicy.safeImageUrl('javascript:alert(1)'), isNull);
-      expect(
-        MallPolicy.safeImageUrl('https://user:pass@cdn.example.com/p.jpg'),
-        isNull,
-      );
+      expect(MallPolicy.safeImageUrl('https://user:pass@cdn.example.com/p.jpg'), isNull);
       expect(MallPolicy.safeImageUrl('https://127.0.0.1/private.jpg'), isNull);
       expect(MallPolicy.safeImageUrl('/relative/path.jpg'), isNull);
     });

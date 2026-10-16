@@ -15,8 +15,7 @@ class TestagramSessionStorage extends LocalStorage {
 
   static const _key = 'testagram-flutter-session-v1';
   final FlutterSecureStorage _secure;
-  final SharedPreferencesLocalStorage _web =
-      SharedPreferencesLocalStorage(persistSessionKey: _key);
+  final SharedPreferencesLocalStorage _web = SharedPreferencesLocalStorage(persistSessionKey: _key);
 
   Future<String?> _read() async {
     if (kIsWeb) return _web.accessToken();
@@ -60,8 +59,7 @@ class TestagramSessionStorage extends LocalStorage {
   Future<void> persistSession(String persistSessionString) async {
     final normalized = SessionPersistencePolicy.normalize(persistSessionString);
     if (normalized == null) {
-      throw const FormatException(
-          'Refusing to persist an invalid auth session.');
+      throw const FormatException('Refusing to persist an invalid auth session.');
     }
     await _write(normalized);
   }

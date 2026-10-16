@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../migration_batch_policy.dart';
 
 class InterestsPage extends StatefulWidget {
@@ -13,55 +14,19 @@ class _InterestsPageState extends State<InterestsPage> {
   static const _categories = <(String, List<String>)>[
     (
       'Tech & Science',
-      [
-        'technology',
-        'ai',
-        'programming',
-        'science',
-        'space',
-        'physics',
-        'crypto',
-        'web3',
-      ],
+      ['technology', 'ai', 'programming', 'science', 'space', 'physics', 'crypto', 'web3'],
     ),
     (
       'Arts & Culture',
-      [
-        'art',
-        'music',
-        'photography',
-        'film',
-        'design',
-        'fashion',
-        'books',
-        'poetry',
-      ],
+      ['art', 'music', 'photography', 'film', 'design', 'fashion', 'books', 'poetry'],
     ),
     (
       'Sports & Fitness',
-      [
-        'football',
-        'basketball',
-        'fitness',
-        'running',
-        'cycling',
-        'tennis',
-        'gaming',
-        'esports',
-      ],
+      ['football', 'basketball', 'fitness', 'running', 'cycling', 'tennis', 'gaming', 'esports'],
     ),
     (
       'Lifestyle',
-      [
-        'food',
-        'travel',
-        'health',
-        'nature',
-        'cooking',
-        'pets',
-        'mindfulness',
-        'sustainability',
-      ],
+      ['food', 'travel', 'health', 'nature', 'cooking', 'pets', 'mindfulness', 'sustainability'],
     ),
     (
       'Business & Finance',
@@ -131,9 +96,7 @@ class _InterestsPageState extends State<InterestsPage> {
       if (mounted) setState(() => _selected = tags);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error = 'Could not load saved interests. Retry before saving.',
-        );
+        setState(() => _error = 'Could not load saved interests. Retry before saving.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -142,9 +105,7 @@ class _InterestsPageState extends State<InterestsPage> {
 
   Future<void> _save() async {
     if (!MigrationBatchPolicy.hasEnoughInterests(_selected)) {
-      setState(
-        () => _error = 'Choose at least 3 interests to personalize your feed.',
-      );
+      setState(() => _error = 'Choose at least 3 interests to personalize your feed.');
       return;
     }
     setState(() {
@@ -152,22 +113,20 @@ class _InterestsPageState extends State<InterestsPage> {
       _error = null;
     });
     try {
-      final result = await _db.rpc('save_user_interests', params: {
-        'p_tags': _selected.toList()
-      }).timeout(const Duration(seconds: 20));
+      final result = await _db.rpc('save_user_interests',
+          params: {'p_tags': _selected.toList()}).timeout(const Duration(seconds: 20));
       if (result is! num || result < 3) {
         throw StateError('The server did not confirm all selected interests.');
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved ${result.toInt()} interests.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Saved ${result.toInt()} interests.')));
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Interests could not be saved. Your previous preferences remain unchanged.',
+          () =>
+              _error = 'Interests could not be saved. Your previous preferences remain unchanged.',
         );
       }
     } finally {
@@ -180,10 +139,7 @@ class _InterestsPageState extends State<InterestsPage> {
         appBar: AppBar(
           title: const Text('Your interests'),
           actions: [
-            IconButton(
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-            ),
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
           ],
         ),
         body: _loading
@@ -208,9 +164,7 @@ class _InterestsPageState extends State<InterestsPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
                         _error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
                       ),
                     ),
                   Expanded(
@@ -224,11 +178,7 @@ class _InterestsPageState extends State<InterestsPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    category.$1,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
+                                  Text(category.$1, style: Theme.of(context).textTheme.titleMedium),
                                   const SizedBox(height: 8),
                                   Wrap(
                                     spacing: 8,
@@ -256,18 +206,14 @@ class _InterestsPageState extends State<InterestsPage> {
                                       onPressed: _saving
                                           ? null
                                           : () => setState(() {
-                                                final all = category.$2.every(
-                                                  _selected.contains,
-                                                );
+                                                final all = category.$2.every(_selected.contains);
                                                 if (all) {
-                                                  _selected
-                                                      .removeAll(category.$2);
+                                                  _selected.removeAll(category.$2);
                                                 } else {
                                                   _selected.addAll(category.$2);
                                                 }
                                               }),
-                                      child:
-                                          const Text('Select / clear category'),
+                                      child: const Text('Select / clear category'),
                                     ),
                                   ),
                                 ],
@@ -289,8 +235,7 @@ class _InterestsPageState extends State<InterestsPage> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.check),
                           label: const Text('Save interests'),

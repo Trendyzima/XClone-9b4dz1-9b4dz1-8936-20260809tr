@@ -5,8 +5,7 @@ class AppConfig {
   const AppConfig._();
 
   static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  static const supabasePublishableKey =
-      String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  static const supabasePublishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
   static const siteUrl = String.fromEnvironment(
     'TESTAGRAM_SITE_URL',
     defaultValue: 'https://testagram.site',
@@ -17,8 +16,6 @@ class AppConfig {
 
   static bool _validUrl(String value) {
     final uri = Uri.tryParse(value);
-    return uri != null &&
-        (uri.scheme == 'https' || uri.scheme == 'http') &&
-        uri.host.isNotEmpty;
+    return uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
   }
 }

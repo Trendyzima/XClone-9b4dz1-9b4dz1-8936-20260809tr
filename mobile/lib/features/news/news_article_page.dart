@@ -45,10 +45,10 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
       final endpoint = Uri.parse(AppConfig.supabaseUrl)
           .resolve('/functions/v1/testagram-rss-feed')
           .replace(queryParameters: {'id': widget.articleId});
-      final response = await http.get(endpoint, headers: {
-        'Accept': 'application/json',
-        'apikey': AppConfig.supabasePublishableKey,
-      }).timeout(const Duration(seconds: 15));
+      final response = await http.get(
+        endpoint,
+        headers: {'Accept': 'application/json', 'apikey': AppConfig.supabasePublishableKey},
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('The publisher feed returned ${response.statusCode}.');
       }
@@ -66,9 +66,11 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
       if (mounted && generation == _generation) setState(() => _item = item);
     } catch (error) {
       if (mounted && generation == _generation) {
-        setState(() => _error = error is StateError
-            ? error.message
-            : 'The story could not load. Check your connection and retry.');
+        setState(
+          () => _error = error is StateError
+              ? error.message
+              : 'The story could not load. Check your connection and retry.',
+        );
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -81,17 +83,16 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
     final uri = Uri.tryParse(raw ?? '');
     if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('This story has no valid HTTPS publisher link.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This story has no valid HTTPS publisher link.')),
+        );
       }
       return;
     }
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not open the publisher link.'),
-      ));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open the publisher link.')));
     }
   }
 
@@ -143,8 +144,7 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Story unavailable',
-                        style: TextStyle(fontWeight: FontWeight.w800)),
+                    const Text('Story unavailable', style: TextStyle(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     Text(_error!),
                     Align(
@@ -183,11 +183,13 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                             const Icon(Icons.newspaper_rounded, size: 18),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(source,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelLarge
-                                      ?.copyWith(fontWeight: FontWeight.w800)),
+                              child: Text(
+                                source,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
                             ),
                             IconButton(
                               tooltip: 'Share story',
@@ -227,10 +229,7 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                                   'in its RSS feed.',
                                 ].join(' ')
                               : excerpt,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyLarge
-                              ?.copyWith(height: 1.55),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
                         ),
                         const SizedBox(height: 18),
                         const Divider(),

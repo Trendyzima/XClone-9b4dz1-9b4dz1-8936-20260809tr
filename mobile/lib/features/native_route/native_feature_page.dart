@@ -42,16 +42,11 @@ class NativeFeaturePage extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             shrinkWrap: true,
             children: [
-              Icon(Icons.widgets_outlined,
-                  size: 42, color: theme.colorScheme.primary),
+              Icon(Icons.widgets_outlined, size: 42, color: theme.colorScheme.primary),
               const SizedBox(height: 16),
-              Text(title,
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center),
+              Text(title, style: theme.textTheme.headlineMedium, textAlign: TextAlign.center),
               const SizedBox(height: 8),
-              Text(routePath,
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center),
+              Text(routePath, style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
               const SizedBox(height: 20),
               Card(
                 child: Padding(
@@ -59,8 +54,7 @@ class NativeFeaturePage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Native Flutter route',
-                          style: theme.textTheme.titleMedium),
+                      Text('Native Flutter route', style: theme.textTheme.titleMedium),
                       const SizedBox(height: 8),
                       const Text(
                         'This URL now resolves inside the Flutter application. '
@@ -69,8 +63,7 @@ class NativeFeaturePage extends StatelessWidget {
                       ),
                       if (parameters.isNotEmpty) ...[
                         const SizedBox(height: 16),
-                        Text('Route parameters',
-                            style: theme.textTheme.titleSmall),
+                        Text('Route parameters', style: theme.textTheme.titleSmall),
                         const SizedBox(height: 8),
                         for (final entry in parameters)
                           ListTile(

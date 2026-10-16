@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../migration_batch_policy.dart';
 
 class PremiumPage extends StatefulWidget {
@@ -22,9 +23,7 @@ class _PremiumPageState extends State<PremiumPage> {
     super.initState();
     _refresh();
     if (widget.returnToken != null && widget.returnToken!.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _capture(widget.returnToken!),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _capture(widget.returnToken!));
     }
   }
 
@@ -39,9 +38,7 @@ class _PremiumPageState extends State<PremiumPage> {
       return;
     }
     try {
-      final result = await _db
-          .rpc('get_my_premium_status')
-          .timeout(const Duration(seconds: 15));
+      final result = await _db.rpc('get_my_premium_status').timeout(const Duration(seconds: 15));
       if (result is! Map) throw StateError('Invalid Premium status response');
       if (mounted) {
         setState(() {
@@ -52,8 +49,7 @@ class _PremiumPageState extends State<PremiumPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Premium status could not be verified. Retry before making a payment.',
+          () => _error = 'Premium status could not be verified. Retry before making a payment.',
         );
       }
     } finally {
@@ -74,10 +70,7 @@ class _PremiumPageState extends State<PremiumPage> {
       final result = await _db.functions.invoke('premium-paypal-create-order',
           body: {'plan': _plan}).timeout(const Duration(seconds: 25));
       final data = result.data;
-      if (result.status < 200 ||
-          result.status >= 300 ||
-          data is! Map ||
-          data['error'] != null) {
+      if (result.status < 200 || result.status >= 300 || data is! Map || data['error'] != null) {
         throw StateError(
           data is Map
               ? '${data['error'] ?? 'Checkout could not be started'}'
@@ -88,19 +81,15 @@ class _PremiumPageState extends State<PremiumPage> {
       if (!MigrationBatchPolicy.isValidPremiumApprovalUrl(url)) {
         throw StateError('Secure payment approval URL was not returned.');
       }
-      final launched = await launchUrl(
-        url!,
-        mode: LaunchMode.externalApplication,
-      );
+      final launched = await launchUrl(url!, mode: LaunchMode.externalApplication);
       if (!launched) {
         throw StateError('Could not open the secure payment page.');
       }
     } catch (e) {
       if (mounted) {
         setState(
-          () => _error = e is StateError
-              ? e.message
-              : 'Could not start secure checkout. Please retry.',
+          () => _error =
+              e is StateError ? e.message : 'Could not start secure checkout. Please retry.',
         );
       }
     } finally {
@@ -117,13 +106,9 @@ class _PremiumPageState extends State<PremiumPage> {
       final result = await _db.functions.invoke('premium-paypal-capture-order',
           body: {'orderId': orderId}).timeout(const Duration(seconds: 30));
       final data = result.data;
-      if (result.status < 200 ||
-          result.status >= 300 ||
-          data is Map && data['error'] != null) {
+      if (result.status < 200 || result.status >= 300 || data is Map && data['error'] != null) {
         throw StateError(
-          data is Map
-              ? '${data['error'] ?? 'Payment capture failed'}'
-              : 'Payment capture failed.',
+          data is Map ? '${data['error'] ?? 'Payment capture failed'}' : 'Payment capture failed.',
         );
       }
       await _refresh();
@@ -144,14 +129,9 @@ class _PremiumPageState extends State<PremiumPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel Premium?'),
-        content: const Text(
-          'Benefits may remain active until the current period ends.',
-        ),
+        content: const Text('Benefits may remain active until the current period ends.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Cancel subscription'),
@@ -165,19 +145,15 @@ class _PremiumPageState extends State<PremiumPage> {
       _error = null;
     });
     try {
-      final result = await _db
-          .rpc('cancel_premium_subscription')
-          .timeout(const Duration(seconds: 15));
+      final result =
+          await _db.rpc('cancel_premium_subscription').timeout(const Duration(seconds: 15));
       if (result != true) {
         throw StateError('No active subscription was cancelled.');
       }
       await _refresh();
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Subscription could not be cancelled. Refresh status and retry.',
-        );
+        setState(() => _error = 'Subscription could not be cancelled. Refresh status and retry.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -191,10 +167,7 @@ class _PremiumPageState extends State<PremiumPage> {
       appBar: AppBar(
         title: const Text('Testagram Premium'),
         actions: [
-          IconButton(
-            onPressed: _loading ? null : _refresh,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loading ? null : _refresh, icon: const Icon(Icons.refresh)),
         ],
       ),
       body: _loading
@@ -231,25 +204,18 @@ class _PremiumPageState extends State<PremiumPage> {
                       child: ListTile(
                         leading: const Icon(Icons.error_outline),
                         title: Text(_error!),
-                        trailing: IconButton(
-                          onPressed: _refresh,
-                          icon: const Icon(Icons.refresh),
-                        ),
+                        trailing: IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
                       ),
                     ),
                   if (!active) ...[
                     SegmentedButton<String>(
                       segments: const [
-                        ButtonSegment(
-                            value: 'monthly',
-                            label: Text('Monthly · USD 4.99')),
-                        ButtonSegment(
-                            value: 'annual', label: Text('Annual · USD 39.99')),
+                        ButtonSegment(value: 'monthly', label: Text('Monthly · USD 4.99')),
+                        ButtonSegment(value: 'annual', label: Text('Annual · USD 39.99')),
                       ],
                       selected: {_plan},
-                      onSelectionChanged: _busy
-                          ? null
-                          : (value) => setState(() => _plan = value.first),
+                      onSelectionChanged:
+                          _busy ? null : (value) => setState(() => _plan = value.first),
                     ),
                     const SizedBox(height: 12),
                     FilledButton.icon(
@@ -261,9 +227,7 @@ class _PremiumPageState extends State<PremiumPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.lock_outline),
-                      label: Text(
-                        _busy ? 'Working…' : 'Continue to secure checkout',
-                      ),
+                      label: Text(_busy ? 'Working…' : 'Continue to secure checkout'),
                     ),
                   ] else
                     OutlinedButton.icon(

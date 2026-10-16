@@ -74,8 +74,7 @@ class WalletTransactionReadModel {
 
   bool get isIncoming =>
       direction == 'in' ||
-      (direction == null &&
-          (type == 'deposit' || type == 'earnings' || type == 'credit'));
+      (direction == null && (type == 'deposit' || type == 'earnings' || type == 'credit'));
 }
 
 bool isValidWalletPin(String pin) => RegExp(r'^\d{4,6}$').hasMatch(pin);
@@ -85,9 +84,6 @@ String formatWalletAmount(double amount, String currency) {
   final fixed = amount.abs().toStringAsFixed(2);
   final parts = fixed.split('.');
   final whole = parts.first;
-  final grouped = whole.replaceAllMapped(
-    RegExp(r'\B(?=(\d{3})+(?!\d))'),
-    (_) => ',',
-  );
+  final grouped = whole.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
   return '$safeCurrency $grouped.${parts.last}';
 }

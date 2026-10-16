@@ -46,10 +46,8 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
           'Sign in with an authorized owner account to access platform reports.',
         );
       }
-      final owner = await _db
-              .rpc('testagram_is_owner')
-              .timeout(const Duration(seconds: 12)) ==
-          true;
+      final owner =
+          await _db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12)) == true;
       if (!owner) {
         if (mounted && generation == _generation) {
           setState(() {
@@ -60,10 +58,8 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
         }
         return;
       }
-      final raw = await _db.rpc(
-        'testagram_list_platform_reports',
-        params: {'p_status': _filter, 'p_limit': 100},
-      ).timeout(const Duration(seconds: 20));
+      final raw = await _db.rpc('testagram_list_platform_reports',
+          params: {'p_status': _filter, 'p_limit': 100}).timeout(const Duration(seconds: 20));
       final rows = raw is List
           ? raw.whereType<Map>().map(Map<String, dynamic>.from).toList()
           : <Map<String, dynamic>>[];
@@ -134,16 +130,11 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
       await _load();
     } on PostgrestException catch (error) {
       if (mounted) {
-        setState(
-          () => _error = 'Decision rejected by the server: ${error.message}',
-        );
+        setState(() => _error = 'Decision rejected by the server: ${error.message}');
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              _error = 'Could not update this report. Refresh before retrying.',
-        );
+        setState(() => _error = 'Could not update this report. Refresh before retrying.');
       }
     } finally {
       if (mounted) setState(() => _busy.remove(id));
@@ -180,22 +171,16 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _filter,
+                    initialValue: _filter,
                     decoration: const InputDecoration(
                       labelText: 'Report status',
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'open', child: Text('Open queue')),
-                      DropdownMenuItem(
-                          value: 'resolved', child: Text('Resolved')),
-                      DropdownMenuItem(
-                        value: 'dismissed',
-                        child: Text('Dismissed'),
-                      ),
-                      DropdownMenuItem(
-                          value: 'all', child: Text('All reports')),
+                      DropdownMenuItem(value: 'open', child: Text('Open queue')),
+                      DropdownMenuItem(value: 'resolved', child: Text('Resolved')),
+                      DropdownMenuItem(value: 'dismissed', child: Text('Dismissed')),
+                      DropdownMenuItem(value: 'all', child: Text('All reports')),
                     ],
                     onChanged: _loading
                         ? null
@@ -233,8 +218,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                         const Icon(Icons.warning_amber),
                         const SizedBox(width: 8),
                         Expanded(child: Text(_error!)),
-                        TextButton(
-                            onPressed: _load, child: const Text('Retry')),
+                        TextButton(onPressed: _load, child: const Text('Retry')),
                       ],
                     ),
                   ),
@@ -244,8 +228,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : !_authorized
-                      ? const Center(
-                          child: Text('Owner authorization required.'))
+                      ? const Center(child: Text('Owner authorization required.'))
                       : _reports.isEmpty
                           ? const Center(
                               child: Padding(
@@ -268,8 +251,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                     child: Padding(
                                       padding: const EdgeInsets.all(14),
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
@@ -279,32 +261,21 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .titleMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                      ),
+                                                      ?.copyWith(fontWeight: FontWeight.w800),
                                                 ),
                                               ),
-                                              Chip(
-                                                label: Text(
-                                                  '${report['status'] ?? 'open'}',
-                                                ),
-                                              ),
+                                              Chip(label: Text('${report['status'] ?? 'open'}')),
                                             ],
                                           ),
                                           Text(
                                             'Reported ${_date(report['created_at'])}',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelSmall,
+                                            style: Theme.of(context).textTheme.labelSmall,
                                           ),
                                           const SizedBox(height: 10),
                                           Text(
-                                            'Reported by: @${report['reporter_username'] ?? 'unknown'}',
-                                          ),
+                                              'Reported by: @${report['reporter_username'] ?? 'unknown'}'),
                                           Text(
-                                            'Post author: @${report['post_author_username'] ?? 'unknown'}',
-                                          ),
+                                              'Post author: @${report['post_author_username'] ?? 'unknown'}'),
                                           const SizedBox(height: 8),
                                           Container(
                                             width: double.infinity,
@@ -313,8 +284,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                               color: Theme.of(context)
                                                   .colorScheme
                                                   .surfaceContainerHighest,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Text(
                                               '${report['post_content'] ?? '[Post content unavailable]'}',
@@ -322,15 +292,10 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          if ('${report['details'] ?? ''}'
-                                              .trim()
-                                              .isNotEmpty)
+                                          if ('${report['details'] ?? ''}'.trim().isNotEmpty)
                                             Padding(
-                                              padding:
-                                                  const EdgeInsets.only(top: 8),
-                                              child: Text(
-                                                'Reporter details: ${report['details']}',
-                                              ),
+                                              padding: const EdgeInsets.only(top: 8),
+                                              child: Text('Reporter details: ${report['details']}'),
                                             ),
                                           if (open) ...[
                                             const SizedBox(height: 10),
@@ -340,12 +305,9 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                                   child: OutlinedButton.icon(
                                                     onPressed: busy
                                                         ? null
-                                                        : () => _decide(report,
-                                                            'dismissed'),
-                                                    icon:
-                                                        const Icon(Icons.close),
-                                                    label:
-                                                        const Text('Dismiss'),
+                                                        : () => _decide(report, 'dismissed'),
+                                                    icon: const Icon(Icons.close),
+                                                    label: const Text('Dismiss'),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -353,21 +315,16 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                                   child: FilledButton.icon(
                                                     onPressed: busy
                                                         ? null
-                                                        : () => _decide(
-                                                            report, 'resolved'),
+                                                        : () => _decide(report, 'resolved'),
                                                     icon: busy
                                                         ? const SizedBox(
                                                             width: 16,
                                                             height: 16,
-                                                            child:
-                                                                CircularProgressIndicator(
-                                                              strokeWidth: 2,
-                                                            ),
+                                                            child: CircularProgressIndicator(
+                                                                strokeWidth: 2),
                                                           )
-                                                        : const Icon(
-                                                            Icons.done),
-                                                    label:
-                                                        const Text('Resolve'),
+                                                        : const Icon(Icons.done),
+                                                    label: const Text('Resolve'),
                                                   ),
                                                 ),
                                               ],

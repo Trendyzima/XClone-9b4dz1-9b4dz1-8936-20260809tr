@@ -8,12 +8,10 @@ class IdentityVerificationReviewPage extends StatefulWidget {
   const IdentityVerificationReviewPage({super.key});
 
   @override
-  State<IdentityVerificationReviewPage> createState() =>
-      _IdentityVerificationReviewPageState();
+  State<IdentityVerificationReviewPage> createState() => _IdentityVerificationReviewPageState();
 }
 
-class _IdentityVerificationReviewPageState
-    extends State<IdentityVerificationReviewPage> {
+class _IdentityVerificationReviewPageState extends State<IdentityVerificationReviewPage> {
   final db = Supabase.instance.client;
   List<Map<String, dynamic>> rows = const [];
   bool loading = true;
@@ -50,9 +48,7 @@ class _IdentityVerificationReviewPageState
       return;
     }
     try {
-      final owner = await db
-          .rpc('testagram_is_owner')
-          .timeout(const Duration(seconds: 12));
+      final owner = await db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12));
       if (owner != true) {
         if (mounted && run == generation) {
           setState(() {
@@ -66,10 +62,8 @@ class _IdentityVerificationReviewPageState
       final result = await db
           .rpc('list_identity_verifications_for_owner')
           .timeout(const Duration(seconds: 20));
-      final parsed = (result as List)
-          .whereType<Map>()
-          .map((r) => Map<String, dynamic>.from(r))
-          .toList();
+      final parsed =
+          (result as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
       if (!mounted || run != generation) return;
       setState(() {
         authorized = true;
@@ -78,8 +72,7 @@ class _IdentityVerificationReviewPageState
     } catch (_) {
       if (mounted && run == generation) {
         setState(
-          () => error =
-              'Identity review queue unavailable. Confirm owner authorization and retry.',
+          () => error = 'Identity review queue unavailable. Confirm owner authorization and retry.',
         );
       }
     } finally {
@@ -96,11 +89,7 @@ class _IdentityVerificationReviewPageState
       final value = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text(
-            decision == 'blocked'
-                ? 'Block verification'
-                : 'Reject verification',
-          ),
+          title: Text(decision == 'blocked' ? 'Block verification' : 'Reject verification'),
           content: TextField(
             controller: controller,
             maxLines: 3,
@@ -111,10 +100,7 @@ class _IdentityVerificationReviewPageState
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
                 if (controller.text.trim().isNotEmpty) {
@@ -144,18 +130,15 @@ class _IdentityVerificationReviewPageState
         throw StateError('Review was not accepted.');
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Identity verification $decision.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Identity verification $decision.')));
       }
       await _load();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Review failed. The server rejected the action or is unavailable.',
-            ),
+            content: Text('Review failed. The server rejected the action or is unavailable.'),
           ),
         );
       }
@@ -166,9 +149,7 @@ class _IdentityVerificationReviewPageState
 
   @override
   Widget build(BuildContext context) {
-    final filtered = rows
-        .where((r) => filter == 'all' || '${r['status']}' == filter)
-        .toList();
+    final filtered = rows.where((r) => filter == 'all' || '${r['status']}' == filter).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Identity Verification'),
@@ -186,10 +167,7 @@ class _IdentityVerificationReviewPageState
               ? _gate(
                   'Sign in required',
                   'Sign in to continue.',
-                  FilledButton(
-                    onPressed: () => context.go('/auth'),
-                    child: const Text('Sign in'),
-                  ),
+                  FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
                 )
               : !authorized && error == null
                   ? _gate(
@@ -205,10 +183,8 @@ class _IdentityVerificationReviewPageState
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
-                          Text(
-                            'Identity review queue',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
+                          Text('Identity review queue',
+                              style: Theme.of(context).textTheme.headlineSmall),
                           const SizedBox(height: 6),
                           const Text(
                             'Only masked metadata is shown. Identity documents and full ID numbers are never displayed here.',
@@ -216,43 +192,27 @@ class _IdentityVerificationReviewPageState
                           const SizedBox(height: 12),
                           SegmentedButton<String>(
                             segments: const [
-                              ButtonSegment(
-                                value: 'submitted',
-                                label: Text('Submitted'),
-                              ),
-                              ButtonSegment(
-                                value: 'under_review',
-                                label: Text('In review'),
-                              ),
-                              ButtonSegment(
-                                  value: 'approved', label: Text('Approved')),
-                              ButtonSegment(
-                                  value: 'rejected', label: Text('Rejected')),
+                              ButtonSegment(value: 'submitted', label: Text('Submitted')),
+                              ButtonSegment(value: 'under_review', label: Text('In review')),
+                              ButtonSegment(value: 'approved', label: Text('Approved')),
+                              ButtonSegment(value: 'rejected', label: Text('Rejected')),
                               ButtonSegment(value: 'all', label: Text('All')),
                             ],
                             selected: {filter},
-                            onSelectionChanged: (v) =>
-                                setState(() => filter = v.first),
+                            onSelectionChanged: (v) => setState(() => filter = v.first),
                           ),
                           if (error != null) ...[
                             const SizedBox(height: 12),
                             MaterialBanner(
                               content: Text(error!),
-                              actions: [
-                                TextButton(
-                                  onPressed: _load,
-                                  child: const Text('Retry'),
-                                ),
-                              ],
+                              actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
                             ),
                           ],
                           const SizedBox(height: 12),
                           if (filtered.isEmpty && error == null)
                             const Card(
                               child: ListTile(
-                                title: Text(
-                                  'No identity verification records in this filter.',
-                                ),
+                                title: Text('No identity verification records in this filter.'),
                               ),
                             ),
                           ...filtered.map(
@@ -267,35 +227,24 @@ class _IdentityVerificationReviewPageState
                                         Expanded(
                                           child: Text(
                                             '@${row['username'] ?? 'unknown'}',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium,
+                                            style: Theme.of(context).textTheme.titleMedium,
                                           ),
                                         ),
-                                        Chip(
-                                          label: Text(
-                                              '${row['status'] ?? 'unknown'}'),
-                                        ),
+                                        Chip(label: Text('${row['status'] ?? 'unknown'}')),
                                       ],
                                     ),
                                     Text(
-                                      '${row['display_name'] ?? ''}  •  ${row['country_code'] ?? '—'}',
-                                    ),
+                                        '${row['display_name'] ?? ''}  •  ${row['country_code'] ?? '—'}'),
                                     Text(
                                       'ID ending ${row['id_number_last4'] ?? '••••'}  •  ${row['id_type'] ?? 'unknown'}',
                                     ),
                                     Text(
                                       'Submitted: ${row['submitted_at'] ?? 'unknown'}',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                      style: Theme.of(context).textTheme.bodySmall,
                                     ),
                                     if (row['rejection_reason'] != null)
-                                      Text(
-                                          'Review note: ${row['rejection_reason']}'),
-                                    if ([
-                                      'submitted',
-                                      'under_review',
-                                    ].contains('${row['status']}'))
+                                      Text('Review note: ${row['rejection_reason']}'),
+                                    if (['submitted', 'under_review'].contains('${row['status']}'))
                                       Wrap(
                                         spacing: 8,
                                         children: [

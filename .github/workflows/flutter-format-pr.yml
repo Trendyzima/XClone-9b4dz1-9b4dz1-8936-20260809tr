@@ -1,0 +1,66 @@
+name: Format Flutter PR branch
+
+on:
+  push:
+    branches:
+      - fix/flutter-sdk-lock-and-parity-baseline
+    paths:
+      - 'mobile/lib/**'
+      - 'mobile/test/**'
+      - '.github/workflows/flutter-format-pr.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flutter-format-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  format:
+    name: Apply Dart formatter to Flutter sources
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Merge latest base branch before formatting
+        shell: bash
+        run: |
+          git fetch origin +main:refs/remotes/origin/main
+          git merge --no-edit origin/main
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+      - name: Verify checked-out revision and SDK
+        run: |
+          git log -1 --format='formatter input commit: %H%n%s'
+          flutter --version
+          dart --version
+      - name: Resolve Flutter dependencies using the same CI preparation
+        working-directory: mobile
+        run: flutter pub get
+      - name: Format Flutter sources and tests
+        working-directory: mobile
+        run: |
+          dart format --page-width=100 lib test
+          dart format --page-width=100 --output=none --set-exit-if-changed lib test
+      - name: Commit formatter changes if needed
+        shell: bash
+        run: |
+          if git diff --quiet -- mobile/lib mobile/test; then
+            echo "Dart formatter found no changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile/lib mobile/test
+          git commit -m "style(flutter): apply Dart formatter"
+          git push origin HEAD:"${GITHUB_REF_NAME}"

@@ -52,14 +52,10 @@ class _AppealsPageState extends State<AppealsPage> {
     });
     try {
       final results = await Future.wait<dynamic>([
-        _db
-            .rpc('testagram_list_my_moderation_appeals')
-            .timeout(const Duration(seconds: 15)),
+        _db.rpc('testagram_list_my_moderation_appeals').timeout(const Duration(seconds: 15)),
         _db
             .from('user_bans')
-            .select(
-              'id,ban_type,reason,strike_count,duration_hours,expires_at,banned_at',
-            )
+            .select('id,ban_type,reason,strike_count,duration_hours,expires_at,banned_at')
             .eq('user_id', user.id)
             .eq('is_active', true)
             .order('banned_at', ascending: false)
@@ -68,14 +64,9 @@ class _AppealsPageState extends State<AppealsPage> {
             .timeout(const Duration(seconds: 15)),
       ]);
       final rows = results[0] is List
-          ? (results[0] as List)
-              .whereType<Map>()
-              .map(Map<String, dynamic>.from)
-              .toList()
+          ? (results[0] as List).whereType<Map>().map(Map<String, dynamic>.from).toList()
           : <Map<String, dynamic>>[];
-      final ban = results[1] is Map
-          ? Map<String, dynamic>.from(results[1] as Map)
-          : null;
+      final ban = results[1] is Map ? Map<String, dynamic>.from(results[1] as Map) : null;
       if (!mounted || generation != _generation) {
         return;
       }
@@ -86,8 +77,7 @@ class _AppealsPageState extends State<AppealsPage> {
     } catch (_) {
       if (mounted && generation == _generation) {
         setState(
-          () => _error =
-              'Appeal history could not be loaded. Check your connection and retry.',
+          () => _error = 'Appeal history could not be loaded. Check your connection and retry.',
         );
       }
     } finally {
@@ -112,17 +102,13 @@ class _AppealsPageState extends State<AppealsPage> {
       _error = null;
     });
     try {
-      await _db.rpc(
-        'testagram_submit_moderation_appeal',
-        params: {'p_reason': reason},
-      ).timeout(const Duration(seconds: 20));
+      await _db.rpc('testagram_submit_moderation_appeal',
+          params: {'p_reason': reason}).timeout(const Duration(seconds: 20));
       if (!mounted) return;
       _reason.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Appeal submitted. A reviewer will respond in your platform inbox.',
-          ),
+          content: Text('Appeal submitted. A reviewer will respond in your platform inbox.'),
         ),
       );
       await _load(manual: true);
@@ -136,10 +122,7 @@ class _AppealsPageState extends State<AppealsPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Appeal submission failed. Retry when your connection is stable.',
-        );
+        setState(() => _error = 'Appeal submission failed. Retry when your connection is stable.');
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -233,12 +216,8 @@ class _AppealsPageState extends State<AppealsPage> {
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          'Type: ${_activeBan!['ban_type'] ?? 'Account restriction'}',
-                        ),
-                        Text(
-                          'Reason: ${_activeBan!['reason'] ?? 'Policy enforcement'}',
-                        ),
+                        Text('Type: ${_activeBan!['ban_type'] ?? 'Account restriction'}'),
+                        Text('Reason: ${_activeBan!['reason'] ?? 'Policy enforcement'}'),
                         if (_activeBan!['expires_at'] != null)
                           Text('Expires: ${_date(_activeBan!['expires_at'])}'),
                       ],
@@ -272,34 +251,27 @@ class _AppealsPageState extends State<AppealsPage> {
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
-                        Text(
-                          '${_reason.text.trim().length}/800 · At least 20 characters',
-                        ),
+                        Text('${_reason.text.trim().length}/800 · At least 20 characters'),
                         const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
-                            onPressed:
-                                !ModerationWorkflowPolicy.canSubmitAppeal(
+                            onPressed: !ModerationWorkflowPolicy.canSubmitAppeal(
                               authenticated: true,
                               submitting: _submitting,
                               hasPendingAppeal: pending,
                               reason: _reason.text,
                             )
-                                    ? null
-                                    : _submit,
+                                ? null
+                                : _submit,
                             icon: _submitting
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   )
                                 : const Icon(Icons.send_outlined),
-                            label: Text(
-                              _submitting ? 'Submitting…' : 'Submit appeal',
-                            ),
+                            label: Text(_submitting ? 'Submitting…' : 'Submit appeal'),
                           ),
                         ),
                       ],
@@ -319,18 +291,13 @@ class _AppealsPageState extends State<AppealsPage> {
               const SizedBox(height: 18),
               Text(
                 'Appeal history',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style:
+                    Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               if (_loading && _appeals.isEmpty)
                 const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
+                  child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()),
                 )
               else if (_error != null && _appeals.isEmpty)
                 Card(
@@ -375,10 +342,7 @@ class _AppealsPageState extends State<AppealsPage> {
                               Expanded(
                                 child: Text(
                                   status.toUpperCase(),
-                                  style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                                  style: TextStyle(color: color, fontWeight: FontWeight.w900),
                                 ),
                               ),
                               Text(
@@ -389,9 +353,7 @@ class _AppealsPageState extends State<AppealsPage> {
                           ),
                           const SizedBox(height: 8),
                           Text('${appeal['reason'] ?? ''}'),
-                          if ('${appeal['regulator_note'] ?? ''}'
-                              .trim()
-                              .isNotEmpty) ...[
+                          if ('${appeal['regulator_note'] ?? ''}'.trim().isNotEmpty) ...[
                             const Divider(),
                             const Text(
                               'Reviewer response',
@@ -413,10 +375,7 @@ class _AppealsPageState extends State<AppealsPage> {
             if (_error != null && _appeals.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
+                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
           ],
         ),

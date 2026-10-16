@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../migration_batch_policy.dart';
 
 class SellerStorefrontPage extends StatefulWidget {
@@ -51,9 +52,7 @@ class _SellerStorefrontPageState extends State<SellerStorefrontPage> {
       }
       final products = await _db
           .from('products')
-          .select(
-            'id,seller_id,name,description,price_minor,currency,status,created_at',
-          )
+          .select('id,seller_id,name,description,price_minor,currency,status,created_at')
           .eq('seller_id', seller['id'])
           .eq('status', 'active')
           .order('created_at', ascending: false)
@@ -62,35 +61,29 @@ class _SellerStorefrontPageState extends State<SellerStorefrontPage> {
       if (mounted) {
         setState(() {
           _seller = Map<String, dynamic>.from(seller);
-          _products =
-              products.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+          _products = products.map((r) => Map<String, dynamic>.from(r as Map)).toList();
         });
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Storefront is unavailable. Check connection and try again.',
-        );
+        setState(() => _error = 'Storefront is unavailable. Check connection and try again.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  String _price(Map<String, dynamic> p) =>
-      MigrationBatchPolicy.formatMinorPrice(p['price_minor'],
-          currency: '${p['currency'] ?? 'KES'}');
+  String _price(Map<String, dynamic> p) => MigrationBatchPolicy.formatMinorPrice(
+        p['price_minor'],
+        currency: '${p['currency'] ?? 'KES'}',
+      );
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           title: Text('${widget.username} store'),
           actions: [
-            IconButton(
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-            ),
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
           ],
         ),
         body: _loading
@@ -108,11 +101,9 @@ class _SellerStorefrontPageState extends State<SellerStorefrontPage> {
                             children: [
                               CircleAvatar(
                                 radius: 30,
-                                backgroundImage:
-                                    _seller!['avatar_url'] is String
-                                        ? NetworkImage(
-                                            _seller!['avatar_url'] as String)
-                                        : null,
+                                backgroundImage: _seller!['avatar_url'] is String
+                                    ? NetworkImage(_seller!['avatar_url'] as String)
+                                    : null,
                                 child: _seller!['avatar_url'] is String
                                     ? null
                                     : const Icon(Icons.store),
@@ -124,13 +115,10 @@ class _SellerStorefrontPageState extends State<SellerStorefrontPage> {
                                   children: [
                                     Text(
                                       '${_seller!['display_name'] ?? _seller!['username']}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge,
+                                      style: Theme.of(context).textTheme.titleLarge,
                                     ),
                                     Text('@${_seller!['username']}'),
-                                    if (_seller!['bio'] is String)
-                                      Text('${_seller!['bio']}'),
+                                    if (_seller!['bio'] is String) Text('${_seller!['bio']}'),
                                   ],
                                 ),
                               ),
@@ -140,19 +128,14 @@ class _SellerStorefrontPageState extends State<SellerStorefrontPage> {
                       ),
                     if (_error != null)
                       Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.info_outline),
-                          title: Text(_error!),
-                        ),
+                        child:
+                            ListTile(leading: const Icon(Icons.info_outline), title: Text(_error!)),
                       ),
-                    Text('Products',
-                        style: Theme.of(context).textTheme.titleLarge),
+                    Text('Products', style: Theme.of(context).textTheme.titleLarge),
                     if (_products.isEmpty && _error == null)
                       const Padding(
                         padding: EdgeInsets.all(24),
-                        child: Text(
-                          'This seller has no active products right now.',
-                        ),
+                        child: Text('This seller has no active products right now.'),
                       ),
                     for (final p in _products)
                       Card(
@@ -164,10 +147,7 @@ class _SellerStorefrontPageState extends State<SellerStorefrontPage> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: Text(
-                            _price(p),
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
+                          trailing: Text(_price(p), style: Theme.of(context).textTheme.titleSmall),
                         ),
                       ),
                   ],
