@@ -14,6 +14,9 @@ const cors = {
 };
 
 const timeoutMs = 2500;
+const maxBatchSize = 100;
+const maxProbeConcurrency = 12;
+const databaseWriteTimeoutMs = 8000;
 const GITHUB_ISSUER = "https://token.actions.githubusercontent.com";
 const GITHUB_AUDIENCE = "testagram-tv-health";
 const GITHUB_REPOSITORY = "Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr";
@@ -92,7 +95,11 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const channels = Array.isArray(body.channels) ? body.channels : [];
-  const batch = channels.slice(0, Number(body.limit || 500));
+  const requestedLimit = Number(body.limit || maxBatchSize);
+  const safeLimit = Number.isFinite(requestedLimit)
+    ? Math.max(1, Math.min(maxBatchSize, Math.floor(requestedLimit)))
+    : maxBatchSize;
+  const batch = channels.slice(0, safeLimit);
   const results: any[] = [];
   let cursor = 0;
 
@@ -105,18 +112,20 @@ Deno.serve(async (req) => {
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(64, batch.length || 1) }, worker));
+  await Promise.all(Array.from({ length: Math.min(maxProbeConcurrency, batch.length || 1) }, worker));
 
   const now = new Date().toISOString();
+  const channelsById = new Map(batch.map((channel: any) => [String(channel.id), channel]));
   const rows = results.map((r) => {
-    const ch = batch.find((x: any) => String(x.id) === r.channel_id);
+    const ch = channelsById.get(r.channel_id) as any;
     return ch
       ? {
           channel_id: r.channel_id,
           url: String(ch.url),
           is_online: r.ok,
           last_checked_at: now,
-          last_online_at: r.ok ? now : null,
+          // Omit this column for offline checks so an outage does not erase the last known success.
+          last_online_at: r.ok ? now : undefined,
           consecutive_failures: r.ok ? 0 : 1,
           consecutive_successes: r.ok ? 1 : 0,
           latency_ms: r.latency,
@@ -134,8 +143,19 @@ Deno.serve(async (req) => {
   if (uniqueRows.length) {
     const { error } = await supabase
       .from("tv_channel_health")
-      .upsert(uniqueRows, { onConflict: "channel_id" });
-    if (error) throw error;
+      .upsert(uniqueRows, { onConflict: "channel_id" })
+      .abortSignal(AbortSignal.timeout(databaseWriteTimeoutMs));
+    if (error) {
+      console.error("tv_channel_health persistence failed", {
+        code: error.code || "unknown",
+        message: error.message,
+      });
+      return new Response(JSON.stringify({
+        error: "Channel health persistence temporarily unavailable",
+        code: error.code || "database_write_failed",
+        checked: results.length,
+      }), { status: 503, headers: cors });
+    }
   }
 
   return new Response(JSON.stringify({
