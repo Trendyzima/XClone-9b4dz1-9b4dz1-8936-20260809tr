@@ -131,7 +131,7 @@ Deno.serve(async (request) => {
     };
 
     let customFeed:any=null;
-    if(feedId && userId){ const fr=await admin.from("federated_custom_discovery_feeds").select("id,user_id,query,mode").eq("id",feedId).eq("user_id",userId).maybeSingle().abortSignal(AbortSignal.timeout(4000)); if(fr.error)throw fr.error; customFeed=fr.data||null; }
+    if(feedId && userId){ const fr=await admin.from("federated_custom_discovery_feeds").select("id,user_id,query,mode").eq("id",feedId).eq("user_id",userId).limit(1).abortSignal(AbortSignal.timeout(4000)); if(fr.error)throw fr.error; customFeed=fr.data?.[0]||null; }
     // Federation Gate verification marker: custom-feed state is initialized before matching.
     const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
 
