@@ -53,10 +53,14 @@ requireText(visibilityRepair, /instance_id is not null[\s\S]*raw_object->>'visib
   'Visibility repair must backfill only explicitly visible upstream status values and must not infer public visibility from missing metadata.');
 requireText(supabaseConfig, /\[functions\.federated-feed\]\s*verify_jwt = false/,
   'Public homepage federation must be callable anonymously; the handler still validates optional user JWTs before private personalization.');
+requireText(federatedFeed, /decodeFeedCursor[\s\S]*suggestedItems\.length > limit[\s\S]*publishedAt: oldest\.published_at/,
+  'Public Fediverse pagination must retain a stable keyset cursor and continue when anonymous discovery has more pages.');
 requireText(federatedFeed, /\.in\("visibility", \["public", "unlisted"\]\)/,
   'Federated home discovery must continue to exclude followers-only and direct messages.');
 requireText(videoPlayer, /loader: VirtualCdnLoader as any/,
   'HLS video playback must use the Virtual CDN fragment loader.');
+requireText(postCard, /typedVideoAttachment[\s\S]*mediaType[\s\S]*video\//,
+  'Fediverse videos must be recognized by attachment MIME metadata even when media URLs have no file extension.');
 requireText(postCard, /<UniversalVideoPlayer[\s\S]*active=\{videoInView && !showVideoAd\}[\s\S]*muted[\s\S]*preload=\{videoNearView \? 'auto' : 'metadata'\}/,
   'Home feed video cards must autoplay muted only when visible and preload nearby media.');
 requireText(home, /FederatedHashtagDiscovery surface="home"/,
