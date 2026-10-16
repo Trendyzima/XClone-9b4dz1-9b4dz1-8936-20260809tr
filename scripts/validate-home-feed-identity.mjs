@@ -104,7 +104,7 @@ requireText(postCard, /<UniversalVideoPlayer[\s\S]*active=\{videoInView && !show
   'Home feed video cards must autoplay muted only when visible and preload nearby media.');
 requireText(home, /FederatedHashtagDiscovery surface="home"/,
   'The infinite home surface must retain hashtag discovery alongside posts.');
-requireText(home, /<ComposePost onSuccess=\{\(\)=>load\(tab\)\}\/\>[\s\S]*i===5&&\(tab==='all'\|\|tab==='explore'\)[\s\S]*<FederatedHashtagDiscovery surface="home" \/>/,
+requireText(home, /<ComposePost onSuccess=\{\(\)=>load\(tab\)\}\/>[\s\S]*i===5&&\(tab==='all'\|\|tab==='explore'\)[\s\S]*<FederatedHashtagDiscovery surface="home" \/>/,
   'The primary composer and first timeline posts must appear before secondary discovery rails on Home.');
 
 requireText(home, /i===5[\s\S]*<TrendingVideosSection variant="compact" \/>[\s\S]*<SyndicatedNewsRail \/>[\s\S]*<CommunitySpotlightStrip \/>/,
