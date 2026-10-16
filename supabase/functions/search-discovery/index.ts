@@ -105,10 +105,10 @@ async function remoteDiscover(db: any, rawQuery: string, kind: string, limit: nu
   const isMention = q.startsWith("@");
   const exactHandle = token.includes("@") ? token : "";
   const domainsForHandle = exactHandle ? [exactHandle.split("@").pop()!] : [];
-  const { data: actorMatches } = await db.from("federated_actors").select("domain,actor_uri,username").ilike("username", `%${token.split("@")[0]}%`).limit(30);
+  const { data: actorMatches } = await db.from("federated_actors").select("domain,actor_uri,username").ilike("username", `%${token.split("@")[0]}%`).limit(30).abortSignal(AbortSignal.timeout(3500));
   const actorDomains = (actorMatches ?? []).map((r: any) => String(r.domain ?? "")).filter(Boolean);
   const nowIso = new Date().toISOString();
-  const { data: instances } = await db.from("federated_instances").select("domain,software,public_timeline_available,last_success_at,backoff_until").not("domain","is",null).or(`backoff_until.is.null,backoff_until.lt.${nowIso}`).order("last_success_at",{ascending:false,nullsFirst:false}).limit(80);
+  const { data: instances } = await db.from("federated_instances").select("domain,software,public_timeline_available,last_success_at,backoff_until").not("domain","is",null).or(`backoff_until.is.null,backoff_until.lt.${nowIso}`).order("last_success_at",{ascending:false,nullsFirst:false}).limit(80).abortSignal(AbortSignal.timeout(3500));
   const candidates = new Map<string, any>();
   for (const row of instances ?? []) {
     const domain = String(row.domain ?? "").toLowerCase().trim();
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
       const token = q.replace(/^[@#]/, "");
 
       if (kind === "instances") {
-        const { data, error } = await db.from("federated_actors").select("domain").not("domain", "is", null).ilike("domain", `%${token}%`).limit(2000);
+        const { data, error } = await db.from("federated_actors").select("domain").not("domain", "is", null).ilike("domain", `%${token}%`).limit(2000).abortSignal(AbortSignal.timeout(5000));
         if (error) throw error;
         const counts = new Map<string, number>();
         for (const row of data ?? []) counts.set(String(row.domain), (counts.get(String(row.domain)) ?? 0) + 1);
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
         let request = db.from("federated_objects").select("id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,quote_count,object_type,url,in_reply_to_uri,sensitive,content_warning").is("deleted_at", null).order("published_at", { ascending: false });
         if (kind === "media") request = request.not("attachments", "is", null);
         if (kind === "conversations") request = request.not("in_reply_to_uri", "is", null);
-        const { data, error } = await request.range(offset, offset + limit);
+        const { data, error } = await request.range(offset, offset + limit).abortSignal(AbortSignal.timeout(6000));
         if (error) throw error;
         let items = data ?? [];
         if (kind === "mentions") items = items.filter((row: any) => Array.isArray(row.tags) && row.tags.some((tag: any) => String(tag?.type ?? "").toLowerCase() === "mention" && (!token || String(tag?.name ?? tag?.href ?? "").toLowerCase().includes(token.toLowerCase()))));
@@ -206,15 +206,27 @@ Deno.serve(async (req) => {
       }
 
       const [usersRes, postsRes, hashtagsRes, communitiesRes, fedUsersRes, fedPostsRes] = await Promise.all([
-        db.from("profiles").select("id,username,display_name,avatar_url,bio,verified").or(`username.ilike.%${token}%,display_name.ilike.%${token}%`).order("verified", { ascending: false }).order("username", { ascending: true }).range(0, mode === "suggest" ? 7 : 29),
-        mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("posts").select("id,author_id,user_id,body,content,created_at,updated_at,media_url,media_type").is("deleted_at", null).or(`body.ilike.%${token}%,content.ilike.%${token}%`).order("created_at", { ascending: false }).range(offset, offset + limit - 1),
-        mode === "suggest" ? db.from("hashtags").select("id,tag,usage_count,post_count,federated_post_count").ilike("tag", `${token}%`).order("usage_count", { ascending: false }).order("federated_post_count", { ascending: false }).limit(8) : db.from("hashtags").select("id,tag,usage_count,post_count,federated_post_count").ilike("tag", `%${token}%`).order("usage_count", { ascending: false }).order("federated_post_count", { ascending: false }).range(0, 29),
-        mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("communities").select("id,name,slug,display_name,description,avatar_url,member_count,post_count").or(`name.ilike.%${token}%,display_name.ilike.%${token}%,description.ilike.%${token}%`).order("member_count", { ascending: false }).range(0, 19),
-        db.from("federated_actors").select("id,username,domain,actor_uri,display_name,avatar_url,bio").or(`username.ilike.%${token}%,domain.ilike.%${token}%,display_name.ilike.%${token}%`).limit(mode === "suggest" ? 8 : 30),
-        mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("federated_objects").select("id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url").is("deleted_at", null).or(`content.ilike.%${token}%,summary.ilike.%${token}%`).order("published_at", { ascending: false }).range(offset, offset + limit - 1),
+        db.from("profiles").select("id,username,display_name,avatar_url,bio,verified").or(`username.ilike.%${token}%,display_name.ilike.%${token}%`).order("verified", { ascending: false }).order("username", { ascending: true }).range(0, mode === "suggest" ? 7 : 29).abortSignal(AbortSignal.timeout(6000)),
+        mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("posts").select("id,author_id,user_id,body,content,created_at,updated_at,media_url,media_type").is("deleted_at", null).or(`body.ilike.%${token}%,content.ilike.%${token}%`).order("created_at", { ascending: false }).range(offset, offset + limit - 1).abortSignal(AbortSignal.timeout(6000)),
+        mode === "suggest" ? db.from("hashtags").select("id,tag,usage_count,post_count,federated_post_count").ilike("tag", `${token}%`).order("usage_count", { ascending: false }).order("federated_post_count", { ascending: false }).limit(8).abortSignal(AbortSignal.timeout(5000)) : db.from("hashtags").select("id,tag,usage_count,post_count,federated_post_count").ilike("tag", `%${token}%`).order("usage_count", { ascending: false }).order("federated_post_count", { ascending: false }).range(0, 29).abortSignal(AbortSignal.timeout(6000)),
+        mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("communities").select("id,name,slug,display_name,description,avatar_url,member_count,post_count").or(`name.ilike.%${token}%,display_name.ilike.%${token}%,description.ilike.%${token}%`).order("member_count", { ascending: false }).range(0, 19).abortSignal(AbortSignal.timeout(6000)),
+        db.from("federated_actors").select("id,username,domain,actor_uri,display_name,avatar_url,bio").or(`username.ilike.%${token}%,domain.ilike.%${token}%,display_name.ilike.%${token}%`).limit(mode === "suggest" ? 8 : 30).abortSignal(AbortSignal.timeout(6000)),
+        mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("federated_objects").select("id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url").is("deleted_at", null).or(`content.ilike.%${token}%,summary.ilike.%${token}%`).order("published_at", { ascending: false }).range(offset, offset + limit - 1).abortSignal(AbortSignal.timeout(6000)),
       ]);
-      const firstError = [usersRes, postsRes, hashtagsRes, communitiesRes, fedUsersRes, fedPostsRes].find((r: any) => r?.error)?.error;
-      if (firstError) throw firstError;
+      // Search is a fan-out across independent local and federated sources.
+      // A single slow table must not turn otherwise useful results into a total
+      // search failure. Bound every database branch above, retain successful
+      // lanes, and expose which lanes degraded for diagnostics.
+      const sourceResults = [
+        ["people", usersRes], ["posts", postsRes], ["hashtags", hashtagsRes],
+        ["communities", communitiesRes], ["fediverse_people", fedUsersRes], ["fediverse_posts", fedPostsRes],
+      ] as const;
+      const degradedSources = sourceResults
+        .filter(([, result]: any) => result?.error)
+        .map(([name]) => name);
+      for (const [name, result] of sourceResults as any) {
+        if (result?.error) console.warn("[search-discovery] source degraded", name, result.error);
+      }
       const remote = await remoteDiscover(discoveryDb, q, kind, limit);
       const remoteUsers = remote.users;
       const remotePosts = remote.posts;
@@ -231,7 +243,7 @@ Deno.serve(async (req) => {
         : kind === "hashtags"
           ? mergedHashtags.length > offset + limit
           : posts.length === limit;
-      return json({ ok: true, data: { users: [...(usersRes.data ?? []), ...fedUsers], hashtags: mergedHashtags, posts, communities: communitiesRes.data ?? [], items, next_cursor: hasMore ? encodeCursor(offset + limit) : null }, error: null, request_id: requestId }, 200, requestId);
+      return json({ ok: true, data: { users: [...(usersRes.data ?? []), ...fedUsers], hashtags: mergedHashtags, posts, communities: communitiesRes.data ?? [], items, next_cursor: hasMore ? encodeCursor(offset + limit) : null }, error: null, degraded_sources: degradedSources, request_id: requestId }, 200, requestId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Search failed"; return json({ ok: false, data: null, error: { code: message === "INVALID_QUERY" ? "INVALID_QUERY" : "SEARCH_FAILED", message }, request_id: requestId }, message === "INVALID_QUERY" ? 400 : 500, requestId);
     }

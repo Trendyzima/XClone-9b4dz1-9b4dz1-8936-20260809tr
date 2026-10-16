@@ -351,7 +351,8 @@ export default async function handler(request: RequestLike) {
         .is('community_id', null)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
-        .limit(sourceLimit);
+        .limit(sourceLimit)
+        .abortSignal(AbortSignal.timeout(5000));
       if (cursor.post) fallbackPostsQuery = fallbackPostsQuery.lt('created_at', cursor.post);
       const fallbackPosts = await fallbackPostsQuery;
       if (!fallbackPosts.error) {
@@ -362,7 +363,8 @@ export default async function handler(request: RequestLike) {
         if (authorIds.length) {
           const profileResult = await admin.from('profiles')
             .select('id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at')
-            .in('id', authorIds);
+            .in('id', authorIds)
+            .abortSignal(AbortSignal.timeout(5000));
           if (!profileResult.error) for (const profile of profileResult.data || []) profileMap.set(String(profile.id), profile);
         }
         (postsResult as any).data = (fallbackPosts.data || []).map((post: any) => ({
@@ -388,6 +390,7 @@ export default async function handler(request: RequestLike) {
       ? await admin.from('posts')
         .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .in('id', recommendedIds).is('community_id', null).is('deleted_at', null).limit(sourceLimit)
+          .abortSignal(AbortSignal.timeout(5000))
       : { data: [], error: null };
     if (cursor.post && recommendedResult.data) {
       (recommendedResult as any).data = recommendedResult.data.filter((post: any) => String(post.created_at || '') < cursor.post!);
@@ -409,7 +412,7 @@ export default async function handler(request: RequestLike) {
       ? await admin.rpc('get_credit_boost_bonuses', {
           p_source_ids: creditBoostPostIds,
           p_profile_ids: creditBoostProfileIds,
-        })
+        }).abortSignal(AbortSignal.timeout(5000))
       : { data: [], error: null };
     if (creditBoostError) console.warn('[home-feed] credits boosts', creditBoostError);
     const creditBoostByKey = new Map<string, number>();
@@ -428,7 +431,8 @@ export default async function handler(request: RequestLike) {
         .from('polls')
         .select('id,post_id,question,description,status,ends_at,allow_multiple,visibility')
         .in('post_id', feedPostIds)
-        .eq('visibility', 'public');
+        .eq('visibility', 'public')
+        .abortSignal(AbortSignal.timeout(4000));
       if (pollError) console.warn('[home-feed] polls', pollError);
       for (const poll of (pollRows || [])) {
         if (poll?.post_id) pollByPostId.set(String(poll.post_id), poll);
@@ -464,6 +468,7 @@ export default async function handler(request: RequestLike) {
           .in('id', followingHashtagPostIds.slice(0, sourceLimit * 2))
           .is('community_id', null).is('deleted_at', null)
           .order('created_at', { ascending: false }).limit(sourceLimit)
+          .abortSignal(AbortSignal.timeout(5000))
       : null;
     if (cursor.post) followedHashtagQuery = followedHashtagQuery?.lt('created_at', cursor.post) ?? null;
     const followedHashtagPosts = followedHashtagQuery
@@ -511,49 +516,9 @@ export default async function handler(request: RequestLike) {
     ];
     const discovery = [...recommendations, ...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
 
-    // Credit boosts are an organic-ranking signal, not a separate ad lane.
-    // The canonical credit boost ledger owns eligibility, caps, idempotency and spend.
-    // Home only consumes the server-calculated bonus.
-    let creditBoostBonusRows: any[] = [];
-    if (SUPABASE_SERVICE_ROLE_KEY) {
-      const localCandidates = [...followed, ...discovery].filter((item: any) =>
-        item?.type === 'post' || item?.type === 'poll'
-      );
-      const sourceIds = [...new Set(localCandidates
-        .map((item: any) => String(item.data?.id || ''))
-        .filter((id: string) => /^[0-9a-f-]{36}$/i.test(id)))];
-      const profileIds = [...new Set(localCandidates
-        .map((item: any) => String(item.data?.author_id || item.data?.user_id || item.data?.owner_id || ''))
-        .filter((id: string) => /^[0-9a-f-]{36}$/i.test(id)))];
-      if (sourceIds.length || profileIds.length) {
-        const { data, error } = await admin.rpc('get_credit_boost_bonuses', {
-          p_source_ids: sourceIds,
-          p_profile_ids: profileIds,
-        });
-        if (!error) {
-          creditBoostBonusRows = data || [];
-          const bySource = new Map<string, number>();
-          const byProfile = new Map<string, number>();
-          for (const row of creditBoostBonusRows) {
-            const key = String(row.source_id || '');
-            if (row.source_type === 'profile') byProfile.set(key, Number(row.bonus || 0));
-            else bySource.set(key, Number(row.bonus || 0));
-          }
-          const annotate = (item: any) => {
-            if (!item?.data) return item;
-            const sourceId = String(item.data.id || '');
-            const profileId = String(item.data.author_id || item.data.user_id || item.data.owner_id || '');
-            const bonus = (bySource.get(sourceId) || 0) + (byProfile.get(profileId) || 0);
-            return bonus > 0 ? { ...item, data: { ...item.data, credit_boost_bonus: bonus } } : item;
-          };
-          for (let i = 0; i < followed.length; i += 1) followed[i] = annotate(followed[i]);
-          for (let i = 0; i < discovery.length; i += 1) discovery[i] = annotate(discovery[i]);
-        } else {
-          console.warn('[home-feed] credit boost ranking degraded', error);
-        }
-      }
-    }
-
+    // The earlier bounded RPC already applied authoritative credit_boost_score
+    // values to these candidates. Do not call the same ledger RPC a second time.
+    
     const items = injectFollowing(discovery, followed, Number.MAX_SAFE_INTEGER);
     const fedCandidateCount = fed.length;
     const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;
@@ -608,7 +573,7 @@ export default async function handler(request: RequestLike) {
         federatedCandidatesRendered: renderedFederatedCount,
         federationQueryLatencyMs: federationLatencyMs,
         federationError: fedResult?._meta?.error ?? null,
-        activeCreditBoostBonusesApplied: creditBoostBonusRows.length,
+        activeCreditBoostBonusesApplied: Array.isArray(creditBoostRows) ? creditBoostRows.length : 0,
       },
     }, 200, request);
   } catch (error) {
