@@ -64,7 +64,7 @@ jobs:
 
       - name: Enforce Dart formatting
         working-directory: mobile
-        run: dart format --output=none --set-exit-if-changed lib test
+        run: dart format --page-width=100 --output=none --set-exit-if-changed lib test
 
       - name: Analyze Flutter source
         working-directory: mobile
