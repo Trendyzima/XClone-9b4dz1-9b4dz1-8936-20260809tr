@@ -143,10 +143,15 @@ async function syncDomain(instance:any){
 
 async function recordFailure(instance:any,domain:string,msg:string,status:number|null,cls:string,attempts:number,next:Date){
   const now=new Date().toISOString();
-  await db.from("federated_instances").update({
-    last_failure_at:now,last_error:msg,failure_class:cls,public_timeline_available:cls==="public_timeline_unavailable"?false:null,
+  const instanceUpdate:any={
+    last_failure_at:now,last_error:msg,failure_class:cls,
     consecutive_failures:attempts,backoff_until:next.toISOString(),next_sync_at:next.toISOString(),updated_at:now
-  }).eq("id",instance.id);
+  };
+  // A timeout or remote 5xx does not prove a public timeline is unavailable.
+  // Preserve the known-good flag so transient failures do not demote healthy
+  // sources into the low-priority discovery queue.
+  if(cls==="public_timeline_unavailable")instanceUpdate.public_timeline_available=false;
+  await db.from("federated_instances").update(instanceUpdate).eq("id",instance.id);
   await db.from("fediverse_instance_sync_state").upsert({
     domain,last_attempt_at:now,last_error:msg,duration_ms:Date.now()-Number(instance._startedAt||Date.now()),updated_at:now
   },{onConflict:"domain"});
