@@ -432,15 +432,25 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   };
 
   const rawMedia = (post as any).media_urls ?? (post as any).mediaUrls ?? (post as any).attachments ?? [];
-  const mediaUrls: string[] = Array.isArray(rawMedia)
-    ? rawMedia.map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl)).filter(Boolean)
-    : [];
+  const mediaEntries: any[] = Array.isArray(rawMedia) ? rawMedia : [];
+  const mediaUrls: string[] = mediaEntries
+    .map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl ?? item?.href))
+    .filter(Boolean);
   const resolvedImageUrls = mediaUrls.length
-    ? mediaUrls.filter((url: string) => !/\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url))
+    ? mediaUrls.filter((url: string) => !/\.(mp4|webm|mov|m4v|ogv|m3u8)(?:[?#].*)?$/i.test(url))
     : ((post as any).image_url ? [String((post as any).image_url)] : []);
+  const typedVideoAttachment = mediaEntries.find((item: any) =>
+    item && typeof item === 'object' && (
+      String(item.type ?? '').toLowerCase() === 'video' ||
+      String(item.mediaType ?? item.media_type ?? item.mime_type ?? item.mimeType ?? '').toLowerCase().startsWith('video/')
+    )
+  );
+  const typedVideoUrl = typedVideoAttachment
+    ? String(typedVideoAttachment.url ?? typedVideoAttachment.media_url ?? typedVideoAttachment.mediaUrl ?? typedVideoAttachment.href ?? '')
+    : '';
   const rawVideoUrl = (post as any).video_url
     ? String((post as any).video_url)
-    : mediaUrls.find((url: string) => /\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url));
+    : (typedVideoUrl || mediaUrls.find((url: string) => /\.(mp4|webm|mov|m4v|ogv|m3u8)(?:[?#].*)?$/i.test(url)));
   const resolvedVideoUrl = rawVideoUrl ? (mediaCandidates(rawVideoUrl)[0] || rawVideoUrl) : '';
   const hasVideo = Boolean((post as any).is_video || resolvedVideoUrl);
 
