@@ -81,18 +81,20 @@ Deno.serve(async (request) => {
         admin.from("federated_follow_relationships")
           .select("remote_actor_uri")
           .eq("local_user_id", userId)
-          .in("state", ["pending", "accepted", "active"]),
+          .in("state", ["pending", "accepted", "active"])
+          .abortSignal(AbortSignal.timeout(4500)),
         admin.from("hashtag_follows")
           .select("hashtag_id")
-          .eq("user_id", userId),
+          .eq("user_id", userId)
+          .abortSignal(AbortSignal.timeout(4500)),
         Promise.all([
-          admin.from("fediverse_domain_blocks").select("domain").eq("user_id", userId),
-          admin.from("fediverse_content_filters").select("phrase,action,expires_at").eq("user_id", userId)
+          admin.from("fediverse_domain_blocks").select("domain").eq("user_id", userId).abortSignal(AbortSignal.timeout(4000)),
+          admin.from("fediverse_content_filters").select("phrase,action,expires_at").eq("user_id", userId).abortSignal(AbortSignal.timeout(4000))
         ])
       ]);
 
-      if (relationshipResult.error) throw relationshipResult.error;
-      if (hashtagFollowResult.error) throw hashtagFollowResult.error;
+      if (relationshipResult.error) console.warn("[federated-feed] follow graph degraded", relationshipResult.error);
+      if (hashtagFollowResult.error) console.warn("[federated-feed] hashtag follows degraded", hashtagFollowResult.error);
 
       followedActorUris = [...new Set((relationshipResult.data || [])
         .map((r: any) => String(r.remote_actor_uri || "").trim())
@@ -113,7 +115,7 @@ Deno.serve(async (request) => {
         const { data: followedHashtags, error: hashtagError } = await admin
           .from("hashtags")
           .select("id,tag")
-          .in("id", followedHashtagIds);
+          .in("id", followedHashtagIds).abortSignal(AbortSignal.timeout(4000));
         if (hashtagError) throw hashtagError;
         followedHashtagTags = (followedHashtags || [])
           .map((r: any) => String(r.tag || "").replace(/^#/, "").trim().toLowerCase())
@@ -129,7 +131,7 @@ Deno.serve(async (request) => {
     };
 
     let customFeed:any=null;
-    if(feedId && userId){ const fr=await admin.from("federated_custom_discovery_feeds").select("id,user_id,query,mode").eq("id",feedId).eq("user_id",userId).maybeSingle(); if(fr.error)throw fr.error; customFeed=fr.data||null; }
+    if(feedId && userId){ const fr=await admin.from("federated_custom_discovery_feeds").select("id,user_id,query,mode").eq("id",feedId).eq("user_id",userId).maybeSingle().abortSignal(AbortSignal.timeout(4000)); if(fr.error)throw fr.error; customFeed=fr.data||null; }
     // Federation Gate verification marker: custom-feed state is initialized before matching.
     const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
 
@@ -169,7 +171,7 @@ Deno.serve(async (request) => {
         .from("federated_actors")
         .select("id,actor_uri,username,domain,display_name,bio,avatar_url,raw_actor")
         .in("actor_uri", uniqueUris)
-        .limit(Math.min(uniqueUris.length, 100));
+        .limit(Math.min(uniqueUris.length, 100)).abortSignal(AbortSignal.timeout(4000));
       if (error) throw error;
       for (const row of data ?? []) {
         const profile = {
@@ -200,7 +202,11 @@ Deno.serve(async (request) => {
         return [item.actor_uri, rawUri].filter(Boolean).map(String);
       }))].slice(0, 100);
 
-      await loadStoredActorProfiles(actorUris);
+      try {
+        await loadStoredActorProfiles(actorUris);
+      } catch (error) {
+        console.warn("[federated-feed] actor profile hydration degraded", error);
+      }
 
       return items.map((item: any) => {
         const raw = item.raw_object?.attributedTo;
@@ -223,7 +229,7 @@ Deno.serve(async (request) => {
         .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false })
-        .limit(limit + 1);
+        .limit(limit + 1).abortSignal(AbortSignal.timeout(5000));
       return applyFeedCursor(query, before);
     };
 
@@ -235,7 +241,7 @@ Deno.serve(async (request) => {
             .eq("user_id", userId)
             .in("visibility", ["followers", "direct"])
             .order("created_at", { ascending: false })
-            .limit(500);
+            .limit(500).abortSignal(AbortSignal.timeout(4500));
           if (recipientError) throw recipientError;
           const objectUris = [...new Set((recipientRows || [])
             .map((row: any) => String(row.object_uri || "").trim())
@@ -252,7 +258,7 @@ Deno.serve(async (request) => {
             .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit);
-          privateQuery = applyFeedCursor(privateQuery, before);
+          privateQuery = applyFeedCursor(privateQuery, before).abortSignal(AbortSignal.timeout(4500));
           const { data, error } = await privateQuery;
           if (error) throw error;
           return (data || [])
@@ -263,7 +269,10 @@ Deno.serve(async (request) => {
               feed_source: "private_delivery",
               remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
             }));
-        })()
+        })().catch((error) => {
+          console.warn("[federated-feed] private-recipient lane degraded", error);
+          return [];
+        })
       : Promise.resolve([]);
 
     const followedActorPromise = followedActorUris.length
@@ -279,7 +288,7 @@ Deno.serve(async (request) => {
             .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit);
-          followedQuery = applyFeedCursor(followedQuery, before);
+          followedQuery = applyFeedCursor(followedQuery, before).abortSignal(AbortSignal.timeout(4500));
           const { data, error } = await followedQuery;
           if (error) throw error;
           return (data || []).filter(moderationAllowed).filter(feedMatches).map((item: any) => ({
@@ -287,7 +296,10 @@ Deno.serve(async (request) => {
             feed_source: "following_actor",
             remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
           }));
-        })()
+        })().catch((error) => {
+          console.warn("[federated-feed] followed-actor lane degraded", error);
+          return [];
+        })
       : Promise.resolve([]);
 
     const followedHashtagPromise = followedHashtagIds.length
@@ -296,7 +308,7 @@ Deno.serve(async (request) => {
             .from("federated_hashtag_mentions")
             .select("object_id,hashtag_id")
             .in("hashtag_id", followedHashtagIds)
-            .limit(Math.min(200, Math.max(50, limit * 12)));
+            .limit(Math.min(200, Math.max(50, limit * 12))).abortSignal(AbortSignal.timeout(4500));
           if (mentionError) throw mentionError;
 
           const objectIds = [...new Set((mentions || []).map((m: any) => String(m.object_id || "")).filter(Boolean))];
@@ -313,7 +325,7 @@ Deno.serve(async (request) => {
             .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit * 3);
-          const cursorBoundHashtagObjects = applyFeedCursor(hashtagObjectsQuery, before);
+          const cursorBoundHashtagObjects = applyFeedCursor(hashtagObjectsQuery, before).abortSignal(AbortSignal.timeout(4500));
           const { data: hashtagPage, error: hashtagObjectsError } = await cursorBoundHashtagObjects;
 
           if (hashtagObjectsError) throw hashtagObjectsError;
@@ -342,7 +354,10 @@ Deno.serve(async (request) => {
                 remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
               };
             });
-        })()
+        })().catch((error) => {
+          console.warn("[federated-feed] followed-hashtag lane degraded", error);
+          return [];
+        })
       : Promise.resolve([]);
 
     const [followedActorItems, followedHashtagItems, privateRecipientItems] = await Promise.all([
@@ -359,16 +374,19 @@ Deno.serve(async (request) => {
     if (suggestedNeeded > 0) {
       const suggestedQuery = buildQuery();
       const { data, error } = await suggestedQuery;
-      if (error) throw error;
-      const followedSet = new Set(hydratedActorAliases);
-      suggestedItems = (data || [])
-        .filter((item: any) => !followedSet.has(String(item.actor_uri || "")) && !followedObjectIds.has(String(item.id || "")) && moderationAllowed(item) && feedMatches(item))
-        .slice(0, suggestedNeeded)
-        .map((item: any) => ({
-          ...item,
-          feed_source: "suggested",
-          remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
-        }));
+      if (error) {
+        console.warn("[federated-feed] public discovery lane degraded", error);
+      } else {
+        const followedSet = new Set(hydratedActorAliases);
+        suggestedItems = (data || [])
+          .filter((item: any) => !followedSet.has(String(item.actor_uri || "")) && !followedObjectIds.has(String(item.id || "")) && moderationAllowed(item) && feedMatches(item))
+          .slice(0, suggestedNeeded)
+          .map((item: any) => ({
+            ...item,
+            feed_source: "suggested",
+            remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
+          }));
+      }
     }
 
     const composeFederatedTimeline = (followed: any[], suggested: any[], max: number) => {
