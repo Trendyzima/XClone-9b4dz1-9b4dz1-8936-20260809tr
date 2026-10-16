@@ -28,10 +28,8 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
     (sum, row) => sum + PodcastAnalyticsPolicy.asCount(row['listener_count']),
   );
 
-  int get _duration => _recordings.fold<int>(
-    0,
-    (sum, row) => sum + PodcastAnalyticsPolicy.asCount(row['duration']),
-  );
+  int get _duration =>
+      _recordings.fold<int>(0, (sum, row) => sum + PodcastAnalyticsPolicy.asCount(row['duration']));
 
   @override
   void initState() {
@@ -64,11 +62,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
     try {
       var owner = false;
       try {
-        owner =
-            await _db
-                .rpc('testagram_is_owner')
-                .timeout(const Duration(seconds: 10)) ==
-            true;
+        owner = await _db.rpc('testagram_is_owner').timeout(const Duration(seconds: 10)) == true;
       } catch (_) {
         // Non-owner users are still evaluated using their explicit feature lock.
       }
@@ -123,10 +117,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
 
       var tipsEarned = 0.0;
       try {
-        final since = DateTime.now()
-            .toUtc()
-            .subtract(const Duration(days: 30))
-            .toIso8601String();
+        final since = DateTime.now().toUtc().subtract(const Duration(days: 30)).toIso8601String();
         final tips = await _db
             .from('tips')
             .select('amount')
@@ -136,8 +127,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
             .timeout(const Duration(seconds: 15));
         tipsEarned = tips.fold<double>(
           0,
-          (sum, row) =>
-              sum + PodcastAnalyticsPolicy.asAmount((row as Map)['amount']),
+          (sum, row) => sum + PodcastAnalyticsPolicy.asAmount((row as Map)['amount']),
         );
       } catch (_) {
         // Analytics remain useful if tip visibility is restricted by RLS.
@@ -204,9 +194,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
                 children: [
                   Text(
                     'Your podcast performance',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -217,12 +205,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
                     const SizedBox(height: 12),
                     MaterialBanner(
                       content: Text(_error!),
-                      actions: [
-                        TextButton(
-                          onPressed: _load,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+                      actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -234,24 +217,14 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
                     mainAxisSpacing: 10,
                     childAspectRatio: 1.7,
                     children: [
-                      _metric(
-                        context,
-                        'Listeners',
-                        '$_listeners',
-                        Icons.headphones_rounded,
-                      ),
+                      _metric(context, 'Listeners', '$_listeners', Icons.headphones_rounded),
                       _metric(
                         context,
                         'Total duration',
                         PodcastAnalyticsPolicy.formatDuration(_duration),
                         Icons.schedule_rounded,
                       ),
-                      _metric(
-                        context,
-                        'Episodes',
-                        '${_recordings.length}',
-                        Icons.podcasts_rounded,
-                      ),
+                      _metric(context, 'Episodes', '${_recordings.length}', Icons.podcasts_rounded),
                       _metric(
                         context,
                         'Tips · 30 days',
@@ -263,43 +236,28 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
                   const SizedBox(height: 22),
                   Text(
                     'Top recordings',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 8),
                   if (_recordings.isEmpty && _error == null)
                     const Card(
                       child: Padding(
                         padding: EdgeInsets.all(22),
-                        child: Text(
-                          'No recordings found for this account yet.',
-                        ),
+                        child: Text('No recordings found for this account yet.'),
                       ),
                     ),
                   ..._recordings.map((recording) {
                     final space = recording['spaces'] is Map
                         ? Map<String, dynamic>.from(recording['spaces'] as Map)
                         : <String, dynamic>{};
-                    final title =
-                        '${recording['title'] ?? space['title'] ?? 'Untitled recording'}';
-                    final listeners = PodcastAnalyticsPolicy.asCount(
-                      recording['listener_count'],
-                    );
-                    final created = DateTime.tryParse(
-                      '${recording['created_at'] ?? ''}',
-                    );
+                    final title = '${recording['title'] ?? space['title'] ?? 'Untitled recording'}';
+                    final listeners = PodcastAnalyticsPolicy.asCount(recording['listener_count']);
+                    final created = DateTime.tryParse('${recording['created_at'] ?? ''}');
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.podcasts_rounded),
-                        ),
-                        title: Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        leading: const CircleAvatar(child: Icon(Icons.podcasts_rounded)),
+                        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
                         subtitle: Text(
                           '${space['category'] ?? 'Podcast'} · ${PodcastAnalyticsPolicy.formatDuration(recording['duration'])}${created == null ? '' : ' · ${created.toLocal().toString().substring(0, 10)}'}',
                         ),
@@ -313,10 +271,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            Text(
-                              'listeners',
-                              style: theme.textTheme.labelSmall,
-                            ),
+                            Text('listeners', style: theme.textTheme.labelSmall),
                           ],
                         ),
                       ),
@@ -328,12 +283,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
     );
   }
 
-  Widget _metric(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-  ) => Card(
+  Widget _metric(BuildContext context, String label, String value, IconData icon) => Card(
     child: Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -344,8 +294,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
           const SizedBox(height: 6),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           Text(
             label,

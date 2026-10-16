@@ -46,10 +46,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
           .invoke('testagram-ads/admin', body: {'action': 'list'})
           .timeout(const Duration(seconds: 20));
       final data = response.data;
-      if (response.status < 200 ||
-          response.status >= 300 ||
-          data is! Map ||
-          data['ok'] != true) {
+      if (response.status < 200 || response.status >= 300 || data is! Map || data['ok'] != true) {
         throw StateError(
           data is Map
               ? '${data['error'] ?? 'You are not authorized to manage ad delivery.'}'
@@ -96,18 +93,11 @@ class _AdConfigPageState extends State<AdConfigPage> {
       final response = await _db.functions
           .invoke(
             'testagram-ads/admin',
-            body: {
-              'action': 'toggle_campaign',
-              'campaign_id': id,
-              'status': next,
-            },
+            body: {'action': 'toggle_campaign', 'campaign_id': id, 'status': next},
           )
           .timeout(const Duration(seconds: 20));
       final data = response.data;
-      if (response.status < 200 ||
-          response.status >= 300 ||
-          data is! Map ||
-          data['ok'] != true) {
+      if (response.status < 200 || response.status >= 300 || data is! Map || data['ok'] != true) {
         throw StateError(
           data is Map
               ? '${data['error'] ?? 'Campaign status update failed.'}'
@@ -115,17 +105,14 @@ class _AdConfigPageState extends State<AdConfigPage> {
         );
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Campaign $next')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Campaign $next')));
       await _load();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              error is StateError
-                  ? error.message
-                  : 'Campaign status update failed. Retry.',
+              error is StateError ? error.message : 'Campaign status update failed. Retry.',
             ),
           ),
         );
@@ -144,18 +131,11 @@ class _AdConfigPageState extends State<AdConfigPage> {
       final response = await _db.functions
           .invoke(
             'testagram-ads/admin',
-            body: {
-              'action': 'toggle_slot',
-              'slot_id': id,
-              'enabled': slot['enabled'] != true,
-            },
+            body: {'action': 'toggle_slot', 'slot_id': id, 'enabled': slot['enabled'] != true},
           )
           .timeout(const Duration(seconds: 20));
       final data = response.data;
-      if (response.status < 200 ||
-          response.status >= 300 ||
-          data is! Map ||
-          data['ok'] != true) {
+      if (response.status < 200 || response.status >= 300 || data is! Map || data['ok'] != true) {
         throw StateError(
           data is Map
               ? '${data['error'] ?? 'Placement update failed.'}'
@@ -164,22 +144,14 @@ class _AdConfigPageState extends State<AdConfigPage> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Placement ${slot['enabled'] == true ? 'disabled' : 'enabled'}',
-          ),
-        ),
+        SnackBar(content: Text('Placement ${slot['enabled'] == true ? 'disabled' : 'enabled'}')),
       );
       await _load();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              error is StateError
-                  ? error.message
-                  : 'Placement update failed. Retry.',
-            ),
+            content: Text(error is StateError ? error.message : 'Placement update failed. Retry.'),
           ),
         );
       }
@@ -228,9 +200,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
                 children: [
                   Text(
                     'Delivery control',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -250,19 +220,13 @@ class _AdConfigPageState extends State<AdConfigPage> {
                       _summary(
                         theme,
                         'Active',
-                        _campaigns
-                            .where((c) => c['status'] == 'active')
-                            .length
-                            .toString(),
+                        _campaigns.where((c) => c['status'] == 'active').length.toString(),
                         Icons.play_circle_outline,
                       ),
                       _summary(
                         theme,
                         'Enabled placements',
-                        _slots
-                            .where((s) => s['enabled'] == true)
-                            .length
-                            .toString(),
+                        _slots.where((s) => s['enabled'] == true).length.toString(),
                         Icons.view_agenda_outlined,
                       ),
                       _summary(
@@ -276,12 +240,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          'Campaigns',
-                          style: theme.textTheme.titleLarge,
-                        ),
-                      ),
+                      Expanded(child: Text('Campaigns', style: theme.textTheme.titleLarge)),
                       TextButton.icon(
                         onPressed: () => context.go('/create-ad'),
                         icon: const Icon(Icons.add),
@@ -302,17 +261,11 @@ class _AdConfigPageState extends State<AdConfigPage> {
                     final canResume = status != 'active' && paid == 'funded';
                     return Card(
                       child: ListTile(
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.campaign_outlined),
-                        ),
-                        title: Text(
-                          '${campaign['name'] ?? campaign['headline'] ?? 'Campaign'}',
-                        ),
+                        leading: const CircleAvatar(child: Icon(Icons.campaign_outlined)),
+                        title: Text('${campaign['name'] ?? campaign['headline'] ?? 'Campaign'}'),
                         subtitle: Text('Status: $status · Payment: $paid'),
                         trailing: IconButton(
-                          tooltip: status == 'active'
-                              ? 'Pause campaign'
-                              : 'Activate campaign',
+                          tooltip: status == 'active' ? 'Pause campaign' : 'Activate campaign',
                           onPressed: busy || (status != 'active' && !canResume)
                               ? null
                               : () => _toggleCampaign(campaign),
@@ -320,9 +273,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : Icon(
                                   status == 'active'
@@ -352,9 +303,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
                       child: SwitchListTile(
                         value: enabled,
                         onChanged: busy ? null : (_) => _toggleSlot(slot),
-                        title: Text(
-                          '${slot['code'] ?? slot['location'] ?? 'Ad placement'}',
-                        ),
+                        title: Text('${slot['code'] ?? slot['location'] ?? 'Ad placement'}'),
                         subtitle: Text(
                           '${slot['kind'] ?? slot['placement_type'] ?? 'Placement'} · ${enabled ? 'Enabled' : 'Disabled'}',
                         ),
@@ -362,9 +311,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.view_agenda_outlined),
                       ),
@@ -376,27 +323,24 @@ class _AdConfigPageState extends State<AdConfigPage> {
     );
   }
 
-  Widget _summary(ThemeData theme, String label, String value, IconData icon) =>
-      SizedBox(
-        width: 155,
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: theme.colorScheme.primary),
-                const SizedBox(height: 8),
-                Text(
-                  value,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(label, style: theme.textTheme.bodySmall),
-              ],
+  Widget _summary(ThemeData theme, String label, String value, IconData icon) => SizedBox(
+    width: 155,
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: theme.colorScheme.primary),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
-          ),
+            Text(label, style: theme.textTheme.bodySmall),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }

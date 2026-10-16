@@ -53,9 +53,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
     try {
       final response = await _client.rpc('get_my_wallet').maybeSingle();
       if (response == null) throw StateError('Wallet is not provisioned.');
-      final wallet = WalletReadModel.fromJson(
-        Map<String, dynamic>.from(response),
-      );
+      final wallet = WalletReadModel.fromJson(Map<String, dynamic>.from(response));
       final securityResponse = await _client.rpc('get_my_wallet_security');
       final security = Map<String, dynamic>.from(securityResponse as Map);
       if (security['pin_set'] != true) {
@@ -97,10 +95,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
       final result = await _client
           .from('profiles')
           .select('id,username,avatar_url,verified')
-          .ilike(
-            'username',
-            '%${query.trim().replaceAll('%', '').replaceAll('_', '')}%',
-          )
+          .ilike('username', '%${query.trim().replaceAll('%', '').replaceAll('_', '')}%')
           .neq('id', _client.auth.currentUser!.id)
           .limit(8);
       if (!mounted) return;
@@ -144,16 +139,11 @@ class _WalletSendPageState extends State<WalletSendPage> {
       return;
     }
     if (amount == null) {
-      setState(
-        () => _error =
-            'Enter a valid positive amount with no more than 2 decimal places.',
-      );
+      setState(() => _error = 'Enter a valid positive amount with no more than 2 decimal places.');
       return;
     }
     if (_wallet == null || amount > _wallet!.balance) {
-      setState(
-        () => _error = 'The amount exceeds your currently available balance.',
-      );
+      setState(() => _error = 'The amount exceeds your currently available balance.');
       return;
     }
     if (!isValidWalletPin(pin)) {
@@ -193,9 +183,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
         params: {
           'p_to_user_id': recipient['id'],
           'p_amount': amount,
-          'p_note': _noteController.text.trim().isEmpty
-              ? null
-              : _noteController.text.trim(),
+          'p_note': _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
           'p_pin': pin,
           'p_idempotency_key': _pendingIdempotencyKey ??= _idempotencyKey(),
         },
@@ -214,13 +202,9 @@ class _WalletSendPageState extends State<WalletSendPage> {
           );
         }
         if (code == 'INSUFFICIENT_FUNDS') {
-          throw StateError(
-            'Your available balance is insufficient for this transfer.',
-          );
+          throw StateError('Your available balance is insufficient for this transfer.');
         }
-        throw StateError(
-          'Transfer was rejected ($code). No success was recorded.',
-        );
+        throw StateError('Transfer was rejected ($code). No success was recorded.');
       }
       final reference = (result['reference'] ?? '').toString();
       if (!mounted) return;
@@ -262,9 +246,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
             Expanded(
               child: Text(
                 'Send money',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             IconButton(
@@ -277,10 +259,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
         const SizedBox(height: 8),
         if (_loading)
           const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(),
-            ),
+            child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()),
           )
         else ...[
           if (_wallet != null)
@@ -288,18 +267,12 @@ class _WalletSendPageState extends State<WalletSendPage> {
               child: ListTile(
                 leading: const Icon(Icons.account_balance_wallet_outlined),
                 title: const Text('Available balance'),
-                subtitle: Text(
-                  formatWalletAmount(_wallet!.balance, _wallet!.currency),
-                ),
+                subtitle: Text(formatWalletAmount(_wallet!.balance, _wallet!.currency)),
                 trailing: const Icon(Icons.lock_outline),
               ),
             ),
           if (_error != null)
-            _message(
-              _error!,
-              theme.colorScheme.errorContainer,
-              theme.colorScheme.onErrorContainer,
-            ),
+            _message(_error!, theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
           if (_needsPin)
             FilledButton.icon(
               onPressed: () => context.go('/wallet/security'),
@@ -315,9 +288,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
           const SizedBox(height: 8),
           Text(
             'Recipient',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -351,9 +322,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
                 title: Text('@${_recipient!['username'] ?? 'user'}'),
                 subtitle: const Text('Selected recipient'),
                 trailing: IconButton(
-                  onPressed: _sending
-                      ? null
-                      : () => setState(() => _recipient = null),
+                  onPressed: _sending ? null : () => setState(() => _recipient = null),
                   icon: const Icon(Icons.close),
                 ),
               ),
@@ -362,9 +331,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
             ..._users.map(
               (user) => Card(
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person_outline),
-                  ),
+                  leading: const CircleAvatar(child: Icon(Icons.person_outline)),
                   title: Text('@${user['username'] ?? 'user'}'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _sending

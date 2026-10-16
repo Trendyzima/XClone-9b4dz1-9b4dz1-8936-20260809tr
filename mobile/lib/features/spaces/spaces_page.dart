@@ -75,9 +75,7 @@ class _SpacesPageState extends State<SpacesPage> {
         if (mounted) {
           setState(() {
             _detail = {...Map<String, dynamic>.from(row), 'host': host};
-            _recordings = recordings
-                .map((r) => Map<String, dynamic>.from(r as Map))
-                .toList();
+            _recordings = recordings.map((r) => Map<String, dynamic>.from(r as Map)).toList();
           });
         }
         return;
@@ -93,9 +91,7 @@ class _SpacesPageState extends State<SpacesPage> {
             .timeout(const Duration(seconds: 15));
         if (mounted) {
           setState(
-            () => _recordings = rows
-                .map((r) => Map<String, dynamic>.from(r as Map))
-                .toList(),
+            () => _recordings = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList(),
           );
         }
       } else {
@@ -111,15 +107,10 @@ class _SpacesPageState extends State<SpacesPage> {
           query = query.eq('is_live', false);
         }
         final rows = await query
-            .order(
-              _tab == 'Live' ? 'started_at' : 'scheduled_for',
-              ascending: _tab != 'Live',
-            )
+            .order(_tab == 'Live' ? 'started_at' : 'scheduled_for', ascending: _tab != 'Live')
             .limit(50)
             .timeout(const Duration(seconds: 15));
-        final spaces = rows
-            .map((r) => Map<String, dynamic>.from(r as Map))
-            .toList();
+        final spaces = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
         final hosts = spaces.map((s) => '${s['host_id']}').toSet().toList();
         final profiles = hosts.isEmpty
             ? <dynamic>[]
@@ -127,10 +118,7 @@ class _SpacesPageState extends State<SpacesPage> {
                   .from('profiles')
                   .select('id,username,display_name,avatar_url,verified')
                   .inFilter('id', hosts);
-        final byId = {
-          for (final p in profiles)
-            '${p['id']}': Map<String, dynamic>.from(p as Map),
-        };
+        final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
         for (final space in spaces) {
           space['host'] = byId['${space['host_id']}'];
         }
@@ -138,10 +126,7 @@ class _SpacesPageState extends State<SpacesPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Spaces could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Spaces could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -191,10 +176,7 @@ class _SpacesPageState extends State<SpacesPage> {
                   items: const [
                     DropdownMenuItem(value: 'general', child: Text('General')),
                     DropdownMenuItem(value: 'music', child: Text('Music')),
-                    DropdownMenuItem(
-                      value: 'education',
-                      child: Text('Education'),
-                    ),
+                    DropdownMenuItem(value: 'education', child: Text('Education')),
                     DropdownMenuItem(value: 'news', child: Text('News')),
                     DropdownMenuItem(value: 'gaming', child: Text('Gaming')),
                   ],
@@ -223,9 +205,7 @@ class _SpacesPageState extends State<SpacesPage> {
                     onPressed: () async {
                       final date = await showDatePicker(
                         context: ctx,
-                        initialDate: DateTime.now().add(
-                          const Duration(days: 1),
-                        ),
+                        initialDate: DateTime.now().add(const Duration(days: 1)),
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
@@ -257,10 +237,7 @@ class _SpacesPageState extends State<SpacesPage> {
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Prepare room'),
@@ -282,9 +259,8 @@ class _SpacesPageState extends State<SpacesPage> {
       return;
     }
     if (title.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A space title is required.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('A space title is required.')));
       title.dispose();
       description.dispose();
       topic.dispose();
@@ -293,9 +269,7 @@ class _SpacesPageState extends State<SpacesPage> {
     setState(() => _creating = true);
     try {
       final capability = await _db.rpc('get_audio_space_host_capability');
-      if (capability is List &&
-          capability.isNotEmpty &&
-          capability.first['can_host'] != true) {
+      if (capability is List && capability.isNotEmpty && capability.first['can_host'] != true) {
         throw StateError('SPACE_HOST_NOT_ELIGIBLE');
       }
       final row = await _db.rpc(
@@ -313,9 +287,7 @@ class _SpacesPageState extends State<SpacesPage> {
           'p_listener_requests_enabled': true,
         },
       );
-      final map = row is Map
-          ? Map<String, dynamic>.from(row)
-          : <String, dynamic>{};
+      final map = row is Map ? Map<String, dynamic>.from(row) : <String, dynamic>{};
       await _load();
       if (mounted && map['id'] != null) context.go('/spaces/${map['id']}');
       if (mounted) {
@@ -350,19 +322,15 @@ class _SpacesPageState extends State<SpacesPage> {
   Future<void> _openRecording(Map<String, dynamic> recording) async {
     final raw = '${recording['video_url'] ?? recording['audio_url'] ?? ''}';
     final uri = Uri.tryParse(raw);
-    if (uri == null ||
-        !{'https', 'http'}.contains(uri.scheme) ||
-        uri.host.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recording URL is unavailable.')),
-      );
+    if (uri == null || !{'https', 'http'}.contains(uri.scheme) || uri.host.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Recording URL is unavailable.')));
       return;
     }
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open this recording.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open this recording.')));
     }
   }
 
@@ -421,10 +389,7 @@ class _SpacesPageState extends State<SpacesPage> {
                 ],
               ),
             ),
-          if (!_loading &&
-              _tab != 'Recordings' &&
-              _spaces.isEmpty &&
-              _error == null)
+          if (!_loading && _tab != 'Recordings' && _spaces.isEmpty && _error == null)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Center(
@@ -435,10 +400,7 @@ class _SpacesPageState extends State<SpacesPage> {
                 ),
               ),
             ),
-          if (!_loading &&
-              _tab == 'Recordings' &&
-              _recordings.isEmpty &&
-              _error == null)
+          if (!_loading && _tab == 'Recordings' && _recordings.isEmpty && _error == null)
             const Padding(
               padding: EdgeInsets.all(24),
               child: Center(child: Text('No recordings are available.')),
@@ -467,9 +429,7 @@ class _SpacesPageState extends State<SpacesPage> {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundImage: avatar.startsWith('http')
-                        ? NetworkImage(avatar)
-                        : null,
+                    backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
                     child: avatar.startsWith('http')
                         ? null
                         : const Icon(Icons.person_outline_rounded),
@@ -481,10 +441,7 @@ class _SpacesPageState extends State<SpacesPage> {
                       children: [
                         Text(
                           title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                         ),
                         Text(
                           '@${host['username'] ?? 'host'}',
@@ -502,19 +459,12 @@ class _SpacesPageState extends State<SpacesPage> {
               if ('${s['topic'] ?? ''}'.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    '${s['topic']}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
+                  child: Text('${s['topic']}', style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               if ('${s['description'] ?? ''}'.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    '${s['description']}',
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: Text('${s['description']}', maxLines: 3, overflow: TextOverflow.ellipsis),
                 ),
               const SizedBox(height: 8),
               Text(
@@ -609,9 +559,7 @@ class _SpacesPageState extends State<SpacesPage> {
                       child: Text('Topic: ${s['topic']}'),
                     ),
                   const SizedBox(height: 10),
-                  Text(
-                    '${s['listener_count'] ?? 0} listeners · ${s['category'] ?? 'general'}',
-                  ),
+                  Text('${s['listener_count'] ?? 0} listeners · ${s['category'] ?? 'general'}'),
                   const SizedBox(height: 8),
                   Text(
                     s['is_live'] == true
@@ -628,10 +576,7 @@ class _SpacesPageState extends State<SpacesPage> {
                       padding: EdgeInsets.only(top: 8),
                       child: Text(
                         'Do not rely on this screen to listen or speak until the media gate is cleared.',
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w800),
                       ),
                     ),
                 ],

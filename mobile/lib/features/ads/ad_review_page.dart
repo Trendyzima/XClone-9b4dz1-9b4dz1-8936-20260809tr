@@ -39,8 +39,7 @@ class _AdReviewPageState extends State<AdReviewPage> {
     super.dispose();
   }
 
-  TextEditingController _noteFor(String id) =>
-      _notes.putIfAbsent(id, TextEditingController.new);
+  TextEditingController _noteFor(String id) => _notes.putIfAbsent(id, TextEditingController.new);
 
   Future<void> _load() async {
     final generation = ++_generation;
@@ -63,14 +62,11 @@ class _AdReviewPageState extends State<AdReviewPage> {
       final governance = await _db
           .rpc('testagram_get_governance')
           .timeout(const Duration(seconds: 12));
-      final state = governance is Map
-          ? Map<String, dynamic>.from(governance)
-          : <String, dynamic>{};
+      final state = governance is Map ? Map<String, dynamic>.from(governance) : <String, dynamic>{};
       final permissions = state['permissions'] is List
           ? (state['permissions'] as List).map((v) => '$v').toSet()
           : <String>{};
-      final allowed =
-          state['is_owner'] == true || permissions.contains('platform.ads');
+      final allowed = state['is_owner'] == true || permissions.contains('platform.ads');
       if (!allowed) {
         if (mounted && generation == _generation) {
           setState(() {
@@ -81,16 +77,10 @@ class _AdReviewPageState extends State<AdReviewPage> {
         return;
       }
       final result = await _db
-          .rpc(
-            'testagram_admin_list_ad_review_queue',
-            params: {'p_status': _filter},
-          )
+          .rpc('testagram_admin_list_ad_review_queue', params: {'p_status': _filter})
           .timeout(const Duration(seconds: 15));
       final rows = result is List
-          ? result
-                .whereType<Map>()
-                .map((row) => Map<String, dynamic>.from(row))
-                .toList()
+          ? result.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList()
           : <Map<String, dynamic>>[];
       if (!mounted || generation != _generation) return;
       setState(() {
@@ -102,8 +92,7 @@ class _AdReviewPageState extends State<AdReviewPage> {
       if (mounted && generation == _generation) {
         setState(() {
           _loading = false;
-          _error =
-              'Ad review queue could not load. Verify your role and retry.';
+          _error = 'Ad review queue could not load. Verify your role and retry.';
         });
       }
     }
@@ -128,11 +117,9 @@ class _AdReviewPageState extends State<AdReviewPage> {
       return;
     }
     if (decision == 'rejected' && !AdReviewPolicy.canReject(note)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a rejection reason (1–500 characters).'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a rejection reason (1–500 characters).')));
       return;
     }
     if (decision != 'approved' && decision != 'rejected') {
@@ -153,9 +140,7 @@ class _AdReviewPageState extends State<AdReviewPage> {
             },
           )
           .timeout(const Duration(seconds: 20));
-      final resultMap = result is Map
-          ? Map<String, dynamic>.from(result)
-          : <String, dynamic>{};
+      final resultMap = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
       if (mounted) {
         final campaignStatus = '${resultMap['campaign_status'] ?? 'updated'}';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -184,9 +169,7 @@ class _AdReviewPageState extends State<AdReviewPage> {
 
   Future<void> _openCreative(String value) async {
     final uri = Uri.tryParse(value);
-    if (uri == null ||
-        (uri.scheme != 'https' && uri.scheme != 'http') ||
-        uri.host.isEmpty) {
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http') || uri.host.isEmpty) {
       return;
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -253,9 +236,7 @@ class _AdReviewPageState extends State<AdReviewPage> {
                     children: [
                       for (final filter in AdReviewPolicy.filters)
                         ChoiceChip(
-                          label: Text(
-                            filter[0].toUpperCase() + filter.substring(1),
-                          ),
+                          label: Text(filter[0].toUpperCase() + filter.substring(1)),
                           selected: _filter == filter,
                           onSelected: (_) => _changeFilter(filter),
                         ),
@@ -351,16 +332,12 @@ class _AdReviewPageState extends State<AdReviewPage> {
                 spacing: 8,
                 children: [
                   FilledButton.icon(
-                    onPressed: _busyId == null
-                        ? () => _review(campaign, 'approved')
-                        : null,
+                    onPressed: _busyId == null ? () => _review(campaign, 'approved') : null,
                     icon: const Icon(Icons.check_circle_outline),
                     label: const Text('Approve'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _busyId == null
-                        ? () => _review(campaign, 'rejected')
-                        : null,
+                    onPressed: _busyId == null ? () => _review(campaign, 'rejected') : null,
                     icon: const Icon(Icons.block),
                     label: const Text('Reject'),
                   ),

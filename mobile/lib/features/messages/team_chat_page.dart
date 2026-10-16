@@ -29,8 +29,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
   Map<String, dynamic>? _replyTo;
   int _generation = 0;
 
-  bool get _canModerate =>
-      TeamChatPolicy.canModerate(isOwner: _isOwner, isRegulator: _isRegulator);
+  bool get _canModerate => TeamChatPolicy.canModerate(isOwner: _isOwner, isRegulator: _isRegulator);
   String? get _userId => _db.auth.currentUser?.id;
 
   @override
@@ -168,9 +167,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
             'message': replyLabel,
             'department':
                 _job?['department'] ??
-                (_isOwner
-                    ? 'System Owner'
-                    : (_isRegulator ? 'Regulator' : null)),
+                (_isOwner ? 'System Owner' : (_isRegulator ? 'Regulator' : null)),
             'reply_to_id': replyId,
           })
           .timeout(const Duration(seconds: 15));
@@ -181,9 +178,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message was not sent. Check your access and retry.'),
-          ),
+          const SnackBar(content: Text('Message was not sent. Check your access and retry.')),
         );
       }
     } finally {
@@ -199,14 +194,8 @@ class _TeamChatPageState extends State<TeamChatPage> {
         title: const Text('Delete team message?'),
         content: const Text('This removes the message from the staff channel.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
         ],
       ),
     );
@@ -220,9 +209,8 @@ class _TeamChatPageState extends State<TeamChatPage> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Message could not be deleted.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Message could not be deleted.')));
       }
     }
   }
@@ -261,10 +249,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
               Icons.cloud_off_outlined,
               'Team chat unavailable',
               _error!,
-              action: FilledButton.tonal(
-                onPressed: _load,
-                child: const Text('Retry'),
-              ),
+              action: FilledButton.tonal(onPressed: _load, child: const Text('Retry')),
             )
           : !_isEmployee
           ? _notice(
@@ -300,9 +285,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
                 if (_error != null)
                   MaterialBanner(
                     content: Text(_error!),
-                    actions: [
-                      TextButton(onPressed: _load, child: const Text('Retry')),
-                    ],
+                    actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
                   ),
                 Expanded(
                   child: RefreshIndicator(
@@ -312,11 +295,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
                             controller: _scroll,
                             children: const [
                               SizedBox(height: 100),
-                              Center(
-                                child: Text(
-                                  'No team messages yet. Start the conversation.',
-                                ),
-                              ),
+                              Center(child: Text('No team messages yet. Start the conversation.')),
                             ],
                           )
                         : ListView.builder(
@@ -326,51 +305,35 @@ class _TeamChatPageState extends State<TeamChatPage> {
                             itemBuilder: (context, index) {
                               final message = _messages[index];
                               final profile = message['user_profiles'] is Map
-                                  ? Map<String, dynamic>.from(
-                                      message['user_profiles'] as Map,
-                                    )
+                                  ? Map<String, dynamic>.from(message['user_profiles'] as Map)
                                   : <String, dynamic>{};
                               final authorId = '${message['user_id'] ?? ''}';
                               final own = authorId == userId;
                               final name =
                                   '${profile['username'] ?? (own ? 'You' : 'Team member')}';
-                              final created = DateTime.tryParse(
-                                '${message['created_at'] ?? ''}',
-                              );
+                              final created = DateTime.tryParse('${message['created_at'] ?? ''}');
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
                                           CircleAvatar(
                                             radius: 15,
-                                            child: Text(
-                                              name.isEmpty
-                                                  ? '?'
-                                                  : name[0].toUpperCase(),
-                                            ),
+                                            child: Text(name.isEmpty ? '?' : name[0].toUpperCase()),
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(
-                                                  name,
-                                                  style: theme
-                                                      .textTheme
-                                                      .labelLarge,
-                                                ),
+                                                Text(name, style: theme.textTheme.labelLarge),
                                                 Text(
                                                   '${message['department'] ?? 'Team'}${created == null ? '' : ' · ${created.toLocal().toString().substring(0, 16)}'}',
-                                                  style:
-                                                      theme.textTheme.bodySmall,
+                                                  style: theme.textTheme.bodySmall,
                                                 ),
                                               ],
                                             ),
@@ -379,29 +342,20 @@ class _TeamChatPageState extends State<TeamChatPage> {
                                             IconButton(
                                               tooltip: 'Delete message',
                                               onPressed: () => _delete(message),
-                                              icon: const Icon(
-                                                Icons.delete_outline_rounded,
-                                              ),
+                                              icon: const Icon(Icons.delete_outline_rounded),
                                             ),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
-                                      SelectableText(
-                                        '${message['message'] ?? ''}',
-                                      ),
+                                      SelectableText('${message['message'] ?? ''}'),
                                       Align(
                                         alignment: Alignment.centerRight,
                                         child: TextButton.icon(
                                           onPressed: () => setState(
-                                            () => _replyTo = {
-                                              'id': message['id'],
-                                              'username': name,
-                                            },
+                                            () =>
+                                                _replyTo = {'id': message['id'], 'username': name},
                                           ),
-                                          icon: const Icon(
-                                            Icons.reply_rounded,
-                                            size: 18,
-                                          ),
+                                          icon: const Icon(Icons.reply_rounded, size: 18),
                                           label: const Text('Reply'),
                                         ),
                                       ),
@@ -452,9 +406,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
                           icon: _sending
                               ? const SizedBox.square(
                                   dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.send_rounded),
                         ),

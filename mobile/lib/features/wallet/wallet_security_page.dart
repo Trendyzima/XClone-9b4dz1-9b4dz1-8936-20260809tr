@@ -73,10 +73,7 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
       _notice = null;
     });
     try {
-      final result = await _client.rpc(
-        'set_wallet_pin',
-        params: {'p_pin': pin},
-      );
+      final result = await _client.rpc('set_wallet_pin', params: {'p_pin': pin});
       final response = Map<String, dynamic>.from(result as Map);
       if (response['success'] != true) {
         throw StateError('The server did not confirm the PIN update.');
@@ -106,9 +103,7 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
       children: [
         Text(
           'Wallet security',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
         const Text(
@@ -117,10 +112,7 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
         const SizedBox(height: 16),
         if (_loading)
           const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(),
-            ),
+            child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()),
           )
         else ...[
           Card(
@@ -131,9 +123,7 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
               ),
               title: const Text('Wallet PIN'),
               subtitle: Text(
-                _pinSet
-                    ? 'A server-side PIN is configured.'
-                    : 'Set a PIN before sending money.',
+                _pinSet ? 'A server-side PIN is configured.' : 'Set a PIN before sending money.',
               ),
               trailing: Icon(
                 _pinSet ? Icons.check_circle : Icons.warning_amber,
@@ -155,9 +145,7 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
           const SizedBox(height: 16),
           Text(
             _pinSet ? 'Set a new PIN' : 'Create wallet PIN',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -184,11 +172,7 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
           ),
           const SizedBox(height: 12),
           if (_error != null)
-            _message(
-              _error!,
-              theme.colorScheme.errorContainer,
-              theme.colorScheme.onErrorContainer,
-            ),
+            _message(_error!, theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
           if (_notice != null)
             _message(
               _notice!,

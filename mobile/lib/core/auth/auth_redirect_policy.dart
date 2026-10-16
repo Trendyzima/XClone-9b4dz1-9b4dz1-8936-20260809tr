@@ -56,9 +56,7 @@ class AuthRedirectPolicy {
     if (candidate == null || candidate.isEmpty || !candidate.startsWith('/')) {
       return '/';
     }
-    if (candidate.startsWith('//') ||
-        candidate.contains('\\') ||
-        candidate.contains('\u0000')) {
+    if (candidate.startsWith('//') || candidate.contains('\\') || candidate.contains('\u0000')) {
       return '/';
     }
     final uri = Uri.tryParse(candidate);

@@ -4,18 +4,9 @@ import 'package:testagram/features/migration_batch_policy.dart';
 void main() {
   group('MigrationBatchPolicy', () {
     test('requires three unique interests', () {
-      expect(
-        MigrationBatchPolicy.hasEnoughInterests(['tech', 'music']),
-        isFalse,
-      );
-      expect(
-        MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'tech']),
-        isFalse,
-      );
-      expect(
-        MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'sport']),
-        isTrue,
-      );
+      expect(MigrationBatchPolicy.hasEnoughInterests(['tech', 'music']), isFalse);
+      expect(MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'tech']), isFalse);
+      expect(MigrationBatchPolicy.hasEnoughInterests(['tech', 'music', 'sport']), isTrue);
     });
 
     test('daily claim is available once per UTC calendar day', () {
@@ -48,21 +39,15 @@ void main() {
 
     test('Premium approval URLs must use HTTPS and include a host', () {
       expect(
-        MigrationBatchPolicy.isValidPremiumApprovalUrl(
-          Uri.parse('https://paypal.example/approve'),
-        ),
+        MigrationBatchPolicy.isValidPremiumApprovalUrl(Uri.parse('https://paypal.example/approve')),
         isTrue,
       );
       expect(
-        MigrationBatchPolicy.isValidPremiumApprovalUrl(
-          Uri.parse('http://paypal.example/approve'),
-        ),
+        MigrationBatchPolicy.isValidPremiumApprovalUrl(Uri.parse('http://paypal.example/approve')),
         isFalse,
       );
       expect(
-        MigrationBatchPolicy.isValidPremiumApprovalUrl(
-          Uri.parse('https:///approve'),
-        ),
+        MigrationBatchPolicy.isValidPremiumApprovalUrl(Uri.parse('https:///approve')),
         isFalse,
       );
       expect(MigrationBatchPolicy.isValidPremiumApprovalUrl(null), isFalse);

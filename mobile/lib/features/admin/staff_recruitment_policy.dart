@@ -2,12 +2,7 @@
 class StaffRecruitmentPolicy {
   const StaffRecruitmentPolicy._();
 
-  static const reviewStatuses = <String>{
-    'reviewing',
-    'shortlisted',
-    'accepted',
-    'rejected',
-  };
+  static const reviewStatuses = <String>{'reviewing', 'shortlisted', 'accepted', 'rejected'};
 
   static bool canInvite(String status) => status == 'accepted';
 

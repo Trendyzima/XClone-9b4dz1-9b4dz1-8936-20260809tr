@@ -2,11 +2,7 @@
 class PostInteractionPolicy {
   const PostInteractionPolicy._();
 
-  static String resolvePostId({
-    String? pathPostId,
-    String? postUri,
-    String? postId,
-  }) {
+  static String resolvePostId({String? pathPostId, String? postUri, String? postId}) {
     for (final candidate in [pathPostId, postUri, postId]) {
       final value = candidate?.trim() ?? '';
       if (value.isNotEmpty) return value;
@@ -31,6 +27,5 @@ class PostInteractionPolicy {
     return null;
   }
 
-  static int boundedListLimit(int value, {int max = 100}) =>
-      value.clamp(1, max);
+  static int boundedListLimit(int value, {int max = 100}) => value.clamp(1, max);
 }

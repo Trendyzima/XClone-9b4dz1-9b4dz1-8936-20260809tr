@@ -56,11 +56,7 @@ class _ProfilePageState extends State<ProfilePage> {
         throw Exception('Sign in to view your own profile.');
       }
       final profile = widget.username == null
-          ? await _client
-                .from('profiles')
-                .select('*')
-                .eq('id', uid!)
-                .maybeSingle()
+          ? await _client.from('profiles').select('*').eq('id', uid!).maybeSingle()
           : await _client
                 .from('profiles')
                 .select('*')
@@ -90,12 +86,8 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final people = <Map<String, dynamic>>[];
       if (widget.section == 'followers' || widget.section == 'following') {
-        final relationColumn = widget.section == 'followers'
-            ? 'following_id'
-            : 'follower_id';
-        final personColumn = widget.section == 'followers'
-            ? 'follower_id'
-            : 'following_id';
+        final relationColumn = widget.section == 'followers' ? 'following_id' : 'follower_id';
+        final personColumn = widget.section == 'followers' ? 'follower_id' : 'following_id';
         final relationships = await _client
             .from('follows')
             .select('follower_id,following_id')
@@ -115,12 +107,9 @@ class _ProfilePageState extends State<ProfilePage> {
               .limit(1000)
               .timeout(const Duration(seconds: 15));
           final byId = <String, Map<String, dynamic>>{
-            for (final row in profiles)
-              '${row['id']}': Map<String, dynamic>.from(row as Map),
+            for (final row in profiles) '${row['id']}': Map<String, dynamic>.from(row as Map),
           };
-          people.addAll(
-            ids.map((id) => byId[id]).whereType<Map<String, dynamic>>(),
-          );
+          people.addAll(ids.map((id) => byId[id]).whereType<Map<String, dynamic>>());
         }
       }
       // Load each profile section from its canonical data source. Do not
@@ -186,15 +175,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 .isFilter('deleted_at', null)
                 .limit(30)
                 .timeout(const Duration(seconds: 15));
-            sectionItems =
-                likedPosts
-                    .map((row) => Map<String, dynamic>.from(row as Map))
-                    .toList()
-                  ..sort(
-                    (a, b) => '${b['created_at'] ?? ''}'.compareTo(
-                      '${a['created_at'] ?? ''}',
-                    ),
-                  );
+            sectionItems = likedPosts.map((row) => Map<String, dynamic>.from(row as Map)).toList()
+              ..sort((a, b) => '${b['created_at'] ?? ''}'.compareTo('${a['created_at'] ?? ''}'));
           }
           break;
         case 'media':
@@ -223,9 +205,7 @@ class _ProfilePageState extends State<ProfilePage> {
               .order('created_at', ascending: false)
               .limit(30)
               .timeout(const Duration(seconds: 15));
-          sectionRecords = recordings
-              .map((row) => Map<String, dynamic>.from(row as Map))
-              .toList();
+          sectionRecords = recordings.map((row) => Map<String, dynamic>.from(row as Map)).toList();
           sectionItems = [];
           break;
         case 'series':
@@ -236,9 +216,7 @@ class _ProfilePageState extends State<ProfilePage> {
               .order('created_at', ascending: false)
               .limit(20)
               .timeout(const Duration(seconds: 15));
-          sectionRecords = seriesRows
-              .map((row) => Map<String, dynamic>.from(row as Map))
-              .toList();
+          sectionRecords = seriesRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
           sectionItems = [];
           break;
         case 'tips':
@@ -250,12 +228,7 @@ class _ProfilePageState extends State<ProfilePage> {
               .limit(50)
               .timeout(const Duration(seconds: 15));
           final personIds = tipRows
-              .expand(
-                (row) => [
-                  '${row['from_user_id'] ?? ''}',
-                  '${row['to_user_id'] ?? ''}',
-                ],
-              )
+              .expand((row) => ['${row['from_user_id'] ?? ''}', '${row['to_user_id'] ?? ''}'])
               .where((id) => id.isNotEmpty)
               .toSet()
               .toList();
@@ -267,8 +240,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     .inFilter('id', personIds)
                     .timeout(const Duration(seconds: 15));
           final profilesById = <String, Map<String, dynamic>>{
-            for (final row in tipProfiles)
-              '${row['id']}': Map<String, dynamic>.from(row as Map),
+            for (final row in tipProfiles) '${row['id']}': Map<String, dynamic>.from(row as Map),
           };
           sectionRecords = tipRows.map((row) {
             final item = Map<String, dynamic>.from(row as Map);
@@ -286,9 +258,7 @@ class _ProfilePageState extends State<ProfilePage> {
               .order('created_at', ascending: false)
               .limit(50)
               .timeout(const Duration(seconds: 15));
-          sectionRecords = giftRows
-              .map((row) => Map<String, dynamic>.from(row as Map))
-              .toList();
+          sectionRecords = giftRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
           sectionItems = [];
           break;
         case 'analytics':
@@ -298,12 +268,8 @@ class _ProfilePageState extends State<ProfilePage> {
             break;
           }
           final now = DateTime.now().toUtc();
-          final sevenDaysAgo = now
-              .subtract(const Duration(days: 7))
-              .toIso8601String();
-          final thirtyDaysAgo = now
-              .subtract(const Duration(days: 30))
-              .toIso8601String();
+          final sevenDaysAgo = now.subtract(const Duration(days: 7)).toIso8601String();
+          final thirtyDaysAgo = now.subtract(const Duration(days: 30)).toIso8601String();
           try {
             final profileViews = await _client
                 .from('browsing_history')
@@ -337,11 +303,7 @@ class _ProfilePageState extends State<ProfilePage> {
             }
           }
           try {
-            final monthStart = DateTime.utc(
-              now.year,
-              now.month,
-              1,
-            ).toIso8601String();
+            final monthStart = DateTime.utc(now.year, now.month, 1).toIso8601String();
             final monthTips = await _client
                 .from('tips')
                 .select('amount')
@@ -351,8 +313,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 .timeout(const Duration(seconds: 15));
             tipsThisMonth = monthTips.fold<double>(
               0,
-              (sum, row) =>
-                  sum + (double.tryParse('${row['amount'] ?? 0}') ?? 0),
+              (sum, row) => sum + (double.tryParse('${row['amount'] ?? 0}') ?? 0),
             );
           } catch (_) {
             tipsThisMonth = 0;
@@ -375,9 +336,7 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _error = 'Unable to load this profile. Pull down to retry.',
-        );
+        setState(() => _error = 'Unable to load this profile. Pull down to retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -482,25 +441,17 @@ class _ProfilePageState extends State<ProfilePage> {
         }
         return _sectionRecords.map((item) {
           final rawSpace = item['spaces'];
-          final space = rawSpace is Map
-              ? Map<String, dynamic>.from(rawSpace)
-              : <String, dynamic>{};
-          final title =
-              '${space['title'] ?? item['title'] ?? 'Untitled episode'}';
+          final space = rawSpace is Map ? Map<String, dynamic>.from(rawSpace) : <String, dynamic>{};
+          final title = '${space['title'] ?? item['title'] ?? 'Untitled episode'}';
           final artwork = '${space['artwork_url'] ?? ''}';
           final duration = int.tryParse('${item['duration'] ?? 0}') ?? 0;
-          final listeners =
-              int.tryParse('${space['listener_count'] ?? 0}') ?? 0;
+          final listeners = int.tryParse('${space['listener_count'] ?? 0}') ?? 0;
           return Card(
             margin: const EdgeInsets.only(top: 8),
             child: ListTile(
               leading: CircleAvatar(
-                backgroundImage: artwork.startsWith('https://')
-                    ? NetworkImage(artwork)
-                    : null,
-                child: artwork.startsWith('https://')
-                    ? null
-                    : const Icon(Icons.headphones_rounded),
+                backgroundImage: artwork.startsWith('https://') ? NetworkImage(artwork) : null,
+                child: artwork.startsWith('https://') ? null : const Icon(Icons.headphones_rounded),
               ),
               title: Text(title),
               subtitle: Text(
@@ -526,8 +477,7 @@ class _ProfilePageState extends State<ProfilePage> {
         }
         return _sectionRecords.map((item) {
           final rawItems = item['post_series_items'];
-          final count =
-              rawItems is List && rawItems.isNotEmpty && rawItems.first is Map
+          final count = rawItems is List && rawItems.isNotEmpty && rawItems.first is Map
               ? int.tryParse('${rawItems.first['count'] ?? 0}') ?? 0
               : 0;
           final cover = '${item['cover_image_url'] ?? item['cover_url'] ?? ''}';
@@ -535,16 +485,12 @@ class _ProfilePageState extends State<ProfilePage> {
             margin: const EdgeInsets.only(top: 8),
             child: ListTile(
               leading: CircleAvatar(
-                backgroundImage: cover.startsWith('https://')
-                    ? NetworkImage(cover)
-                    : null,
+                backgroundImage: cover.startsWith('https://') ? NetworkImage(cover) : null,
                 child: cover.startsWith('https://')
                     ? null
                     : const Icon(Icons.library_books_rounded),
               ),
-              title: Text(
-                '${item['title'] ?? item['name'] ?? 'Untitled series'}',
-              ),
+              title: Text('${item['title'] ?? item['name'] ?? 'Untitled series'}'),
               subtitle: Text(
                 '${item['description'] ?? 'Serialized posts'} · $count items',
                 maxLines: 2,
@@ -565,18 +511,13 @@ class _ProfilePageState extends State<ProfilePage> {
         final profileId = '${_profile?['id'] ?? ''}';
         return _sectionRecords.map((item) {
           final received = '${item['to_user_id'] ?? ''}' == profileId;
-          final other =
-              (received ? item['sender'] : item['recipient'])
-                  as Map<String, dynamic>?;
-          final otherName =
-              '${other?['display_name'] ?? other?['username'] ?? 'Testagram user'}';
+          final other = (received ? item['sender'] : item['recipient']) as Map<String, dynamic>?;
+          final otherName = '${other?['display_name'] ?? other?['username'] ?? 'Testagram user'}';
           final amount = double.tryParse('${item['amount'] ?? 0}') ?? 0;
           return Card(
             margin: const EdgeInsets.only(top: 8),
             child: ListTile(
-              leading: const CircleAvatar(
-                child: Icon(Icons.volunteer_activism_rounded),
-              ),
+              leading: const CircleAvatar(child: Icon(Icons.volunteer_activism_rounded)),
               title: Text(received ? 'Tip received' : 'Tip sent'),
               subtitle: Text(
                 '${received ? 'From' : 'To'} $otherName · ${item['created_at'] ?? ''}',
@@ -614,9 +555,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ? Colors.amber.shade700
                     : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              title: Text(
-                received ? 'Premium gift received' : 'Premium gift sent',
-              ),
+              title: Text(received ? 'Premium gift received' : 'Premium gift sent'),
               subtitle: Text(
                 '$plan · $status · ${item['created_at'] ?? ''}',
                 maxLines: 2,
@@ -636,9 +575,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: ListTile(
                 leading: Icon(Icons.lock_outline_rounded),
                 title: Text('Analytics are private'),
-                subtitle: Text(
-                  'Only the profile owner can view these metrics.',
-                ),
+                subtitle: Text('Only the profile owner can view these metrics.'),
               ),
             ),
           ];
@@ -666,12 +603,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 '$_profileViews7d',
                 Icons.person_search_outlined,
               ),
-              _metricCard(
-                context,
-                'Published posts',
-                '${_posts.length}',
-                Icons.article_outlined,
-              ),
+              _metricCard(context, 'Published posts', '${_posts.length}', Icons.article_outlined),
               _metricCard(
                 context,
                 'Tips this month',
@@ -683,8 +615,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 16),
           Text(
             'Top posts by views',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           if (topPosts.isEmpty)
             const Padding(
@@ -714,12 +645,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Widget _metricCard(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-  ) => SizedBox(
+  Widget _metricCard(BuildContext context, String label, String value, IconData icon) => SizedBox(
     width: 155,
     child: Card(
       child: Padding(
@@ -731,8 +657,7 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 10),
             Text(
               value,
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
@@ -756,11 +681,7 @@ class _ProfilePageState extends State<ProfilePage> {
     });
     try {
       if (previous) {
-        await _client
-            .from('follows')
-            .delete()
-            .eq('follower_id', uid)
-            .eq('following_id', _targetId);
+        await _client.from('follows').delete().eq('follower_id', uid).eq('following_id', _targetId);
       } else {
         await _client.from('follows').insert({
           'follower_id': uid,
@@ -774,9 +695,8 @@ class _ProfilePageState extends State<ProfilePage> {
           _isFollowing = previous;
           _followers += previous ? 1 : -1;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Follow update failed: $error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Follow update failed: $error')));
       }
     } finally {
       if (mounted) setState(() => _followBusy = false);
@@ -788,9 +708,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (session == null) {
       throw Exception('Sign in again before uploading profile media.');
     }
-    final extension = file.name.contains('.')
-        ? file.name.split('.').last.toLowerCase()
-        : '';
+    final extension = file.name.contains('.') ? file.name.split('.').last.toLowerCase() : '';
     const mimeByExtension = <String, String>{
       'jpg': 'image/jpeg',
       'jpeg': 'image/jpeg',
@@ -812,8 +730,7 @@ class _ProfilePageState extends State<ProfilePage> {
             : 'Cover image must be a non-empty image no larger than 5 MB.',
       );
     }
-    final uri = Uri.parse(AppConfig.supabaseUrl)
-        .resolve('/functions/v1/profile-media-upload');
+    final uri = Uri.parse(AppConfig.supabaseUrl).resolve('/functions/v1/profile-media-upload');
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll({
         'apikey': AppConfig.supabasePublishableKey,
@@ -838,9 +755,7 @@ class _ProfilePageState extends State<ProfilePage> {
           : 'Profile media upload failed (HTTP ${response.statusCode}).';
       throw Exception(message);
     }
-    if (payload is! Map ||
-        payload['ok'] != true ||
-        payload['delivery_url'] is! String) {
+    if (payload is! Map || payload['ok'] != true || payload['delivery_url'] is! String) {
       throw Exception('The profile media service did not confirm the upload.');
     }
     return payload['delivery_url'] as String;
@@ -854,9 +769,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final website = TextEditingController(
       text: '${_profile?['website'] ?? _profile?['website_url'] ?? ''}',
     );
-    final location = TextEditingController(
-      text: '${_profile?['location'] ?? ''}',
-    );
+    final location = TextEditingController(text: '${_profile?['location'] ?? ''}');
     final picker = ImagePicker();
     XFile? avatarFile;
     XFile? coverFile;
@@ -876,9 +789,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   TextField(
                     controller: name,
                     maxLength: 80,
-                    decoration: const InputDecoration(
-                      labelText: 'Display name',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Display name'),
                   ),
                   TextField(
                     controller: bio,
@@ -917,13 +828,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (file != null) {
                                     if (await file.length() > 2 * 1024 * 1024) {
                                       if (dialogContext.mounted) {
-                                        ScaffoldMessenger.of(
-                                          dialogContext,
-                                        ).showSnackBar(
+                                        ScaffoldMessenger.of(dialogContext).showSnackBar(
                                           const SnackBar(
-                                            content: Text(
-                                              'Avatar must be 2 MB or smaller.',
-                                            ),
+                                            content: Text('Avatar must be 2 MB or smaller.'),
                                           ),
                                         );
                                       }
@@ -933,14 +840,13 @@ class _ProfilePageState extends State<ProfilePage> {
                                   }
                                 } catch (_) {
                                   if (dialogContext.mounted) {
-                                    ScaffoldMessenger.of(dialogContext)
-                                        .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Camera access failed. Check permission and retry.',
-                                            ),
-                                          ),
-                                        );
+                                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Camera access failed. Check permission and retry.',
+                                        ),
+                                      ),
+                                    );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -965,13 +871,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (file != null) {
                                     if (await file.length() > 2 * 1024 * 1024) {
                                       if (dialogContext.mounted) {
-                                        ScaffoldMessenger.of(
-                                          dialogContext,
-                                        ).showSnackBar(
+                                        ScaffoldMessenger.of(dialogContext).showSnackBar(
                                           const SnackBar(
-                                            content: Text(
-                                              'Avatar must be 2 MB or smaller.',
-                                            ),
+                                            content: Text('Avatar must be 2 MB or smaller.'),
                                           ),
                                         );
                                       }
@@ -981,14 +883,13 @@ class _ProfilePageState extends State<ProfilePage> {
                                   }
                                 } catch (_) {
                                   if (dialogContext.mounted) {
-                                    ScaffoldMessenger.of(dialogContext)
-                                        .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Photo selection failed. Check media permissions and retry.',
-                                            ),
-                                          ),
-                                        );
+                                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Photo selection failed. Check media permissions and retry.',
+                                        ),
+                                      ),
+                                    );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -1013,14 +914,11 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (file != null) {
                                     if (await file.length() > 5 * 1024 * 1024) {
                                       if (dialogContext.mounted) {
-                                        ScaffoldMessenger.of(dialogContext)
-                                            .showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Cover image must be 5 MB or smaller.',
-                                                ),
-                                              ),
-                                            );
+                                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Cover image must be 5 MB or smaller.'),
+                                          ),
+                                        );
                                       }
                                     } else {
                                       setDialogState(() => coverFile = file);
@@ -1028,14 +926,13 @@ class _ProfilePageState extends State<ProfilePage> {
                                   }
                                 } catch (_) {
                                   if (dialogContext.mounted) {
-                                    ScaffoldMessenger.of(dialogContext)
-                                        .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Cover selection failed. Check media permissions and retry.',
-                                            ),
-                                          ),
-                                        );
+                                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Cover selection failed. Check media permissions and retry.',
+                                        ),
+                                      ),
+                                    );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -1073,10 +970,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
             FilledButton(
               onPressed: picking
                   ? null
@@ -1153,8 +1047,7 @@ class _ProfilePageState extends State<ProfilePage> {
       child: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          if (_error != null)
-            Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
+          if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -1197,10 +1090,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   if ('${profile['bio'] ?? ''}'.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        '${profile['bio']}',
-                        textAlign: TextAlign.center,
-                      ),
+                      child: Text('${profile['bio']}', textAlign: TextAlign.center),
                     ),
                   const SizedBox(height: 16),
                   Row(
@@ -1239,12 +1129,10 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 12),
-          if (widget.section == 'followers' ||
-              widget.section == 'following') ...[
+          if (widget.section == 'followers' || widget.section == 'following') ...[
             Text(
               widget.section == 'followers' ? 'Followers' : 'Following',
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (_loading && _people.isEmpty)
               const Padding(
@@ -1267,8 +1155,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 margin: const EdgeInsets.only(top: 8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundImage:
-                        '${person['avatar_url'] ?? ''}'.startsWith('http')
+                    backgroundImage: '${person['avatar_url'] ?? ''}'.startsWith('http')
                         ? CachedNetworkImageProvider('${person['avatar_url']}')
                         : null,
                     child: '${person['avatar_url'] ?? ''}'.startsWith('http')
@@ -1281,25 +1168,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   subtitle: Text('@${person['username'] ?? 'testagram'}'),
                   onTap: '${person['username'] ?? ''}'.isEmpty
                       ? null
-                      : () => context.go(
-                          '/profile/${Uri.encodeComponent('${person['username']}')}',
-                        ),
+                      : () =>
+                            context.go('/profile/${Uri.encodeComponent('${person['username']}')}'),
                 ),
               ),
             ),
           ] else ...[
             Text(
               _sectionHeading,
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
-            if (const {
-              'podcasts',
-              'series',
-              'tips',
-              'gifts',
-              'analytics',
-            }.contains(widget.section))
+            if (const {'podcasts', 'series', 'tips', 'gifts', 'analytics'}.contains(widget.section))
               ..._buildSpecialSection(context)
             else ...[
               if (_loading && _posts.isEmpty)
@@ -1348,8 +1227,7 @@ class _Stat extends StatelessWidget {
     children: [
       Text(
         value,
-        style: Theme.of(context).textTheme.titleMedium
-            ?.copyWith(fontWeight: FontWeight.w800),
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
       ),
       Text(label, style: Theme.of(context).textTheme.bodySmall),
     ],

@@ -69,16 +69,12 @@ class _ExplorePageState extends State<ExplorePage> {
       final peopleQuery = viewerId == null
           ? _client
                 .from('profiles')
-                .select(
-                  'id,username,display_name,avatar_url,verified,verified_tier',
-                )
+                .select('id,username,display_name,avatar_url,verified,verified_tier')
                 .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
                 .limit(20)
           : _client
                 .from('profiles')
-                .select(
-                  'id,username,display_name,avatar_url,verified,verified_tier',
-                )
+                .select('id,username,display_name,avatar_url,verified,verified_tier')
                 .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
                 .neq('id', viewerId)
                 .limit(20);
@@ -118,20 +114,14 @@ class _ExplorePageState extends State<ExplorePage> {
       }
 
       if (posts.isNotEmpty) {
-        final ids = posts
-            .map((p) => '${p['author_id'] ?? p['user_id']}')
-            .toSet()
-            .toList();
+        final ids = posts.map((p) => '${p['author_id'] ?? p['user_id']}').toSet().toList();
         final profiles = await _client
             .from('profiles')
             .select('id,username,display_name')
             .inFilter('id', ids)
             .timeout(const Duration(seconds: 12));
         if (!mounted || generation != _searchGeneration) return;
-        final byId = {
-          for (final p in profiles)
-            '${p['id']}': Map<String, dynamic>.from(p as Map),
-        };
+        final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
         for (final post in posts) {
           post['profile'] = byId['${post['author_id'] ?? post['user_id']}'];
         }
@@ -168,11 +158,7 @@ class _ExplorePageState extends State<ExplorePage> {
     });
     try {
       if (wasFollowing) {
-        await _client
-            .from('follows')
-            .delete()
-            .eq('follower_id', viewerId)
-            .eq('following_id', id);
+        await _client.from('follows').delete().eq('follower_id', viewerId).eq('following_id', id);
       } else {
         await _client.from('follows').insert({
           'follower_id': viewerId,
@@ -185,18 +171,15 @@ class _ExplorePageState extends State<ExplorePage> {
         setState(() {
           wasFollowing ? _following.add(id) : _following.remove(id);
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Follow update failed: $error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Follow update failed: $error')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final visiblePeople = _resultFilter == 'Posts'
-        ? const <Map<String, dynamic>>[]
-        : _people;
+    final visiblePeople = _resultFilter == 'Posts' ? const <Map<String, dynamic>>[] : _people;
     final visiblePosts = _resultFilter == 'People'
         ? const <Map<String, dynamic>>[]
         : List<Map<String, dynamic>>.of(_posts);
@@ -221,8 +204,7 @@ class _ExplorePageState extends State<ExplorePage> {
       children: [
         Text(
           'Explore Testagram',
-          style: Theme.of(context).textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -256,14 +238,8 @@ class _ExplorePageState extends State<ExplorePage> {
                 isDense: true,
                 underline: const SizedBox.shrink(),
                 items: const [
-                  DropdownMenuItem(
-                    value: 'Recent',
-                    child: Text('Recent posts'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Most liked',
-                    child: Text('Most liked'),
-                  ),
+                  DropdownMenuItem(value: 'Recent', child: Text('Recent posts')),
+                  DropdownMenuItem(value: 'Most liked', child: Text('Most liked')),
                 ],
                 onChanged: (value) {
                   if (value != null) setState(() => _postSort = value);
@@ -272,19 +248,16 @@ class _ExplorePageState extends State<ExplorePage> {
           ],
         ),
         if (_loading) const LinearProgressIndicator(),
-        if (_error != null)
-          Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
+        if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
         if (visiblePeople.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(
             'People',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           ...visiblePeople.map((person) {
-            final name =
-                '${person['display_name'] ?? person['username'] ?? 'Testagram user'}';
+            final name = '${person['display_name'] ?? person['username'] ?? 'Testagram user'}';
             final avatar = '${person['avatar_url'] ?? ''}';
             final isFollowing = _following.contains('${person['id']}');
             return Card(
@@ -320,8 +293,7 @@ class _ExplorePageState extends State<ExplorePage> {
           const SizedBox(height: 14),
           Text(
             'Posts',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           ...visiblePosts.map(
@@ -361,9 +333,7 @@ class _ExplorePageState extends State<ExplorePage> {
         if (_search.text.trim().length < 2)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 28),
-            child: Center(
-              child: Text('Search for a username, person or topic.'),
-            ),
+            child: Center(child: Text('Search for a username, person or topic.')),
           ),
       ],
     );

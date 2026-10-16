@@ -119,9 +119,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
           ? <dynamic>[]
           : await _db
                 .from('profiles')
-                .select(
-                  'id,username,display_name,full_name,avatar_url,verified',
-                )
+                .select('id,username,display_name,full_name,avatar_url,verified')
                 .inFilter('id', ids);
       final profileById = <String, Map<String, dynamic>>{};
       for (final profile in profiles) {
@@ -144,8 +142,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error =
-              'Could not load ${_title.toLowerCase()}. Check your connection and try again.';
+          _error = 'Could not load ${_title.toLowerCase()}. Check your connection and try again.';
         });
       }
     }
@@ -190,19 +187,13 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
       if (existing == null) {
         await _db.from(table).insert({foreignKey: id, 'user_id': user.id});
       } else {
-        await _db
-            .from(table)
-            .delete()
-            .eq(foreignKey, id)
-            .eq('user_id', user.id);
+        await _db.from(table).delete().eq(foreignKey, id).eq('user_id', user.id);
       }
       await _load();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('That reaction could not be saved. Please retry.'),
-          ),
+          const SnackBar(content: Text('That reaction could not be saved. Please retry.')),
         );
       }
     } finally {
@@ -233,17 +224,12 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
       _composer.clear();
       await _load();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Quote posted.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Quote posted.')));
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Quote could not be posted. Check permissions and retry.',
-            ),
-          ),
+          const SnackBar(content: Text('Quote could not be posted. Check permissions and retry.')),
         );
       }
     } finally {
@@ -260,11 +246,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
       appBar: AppBar(
         title: Text(_title),
         actions: [
-          IconButton(
-            onPressed: _load,
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _load, tooltip: 'Refresh', icon: const Icon(Icons.refresh)),
         ],
       ),
       body: RefreshIndicator(
@@ -278,9 +260,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: theme.dividerColor),
-                    ),
+                    border: Border(bottom: BorderSide(color: theme.dividerColor)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,10 +269,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
                         children: [
                           const Icon(Icons.arrow_back, size: 16),
                           const SizedBox(width: 6),
-                          Text(
-                            'Open thread',
-                            style: theme.textTheme.labelMedium,
-                          ),
+                          Text('Open thread', style: theme.textTheme.labelMedium),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -334,9 +311,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.send),
                         label: const Text('Quote thread'),
@@ -357,10 +332,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
                   child: ListTile(
                     leading: const Icon(Icons.error_outline),
                     title: Text(_error!),
-                    trailing: IconButton(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh),
-                    ),
+                    trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                   ),
                 ),
               ),
@@ -398,18 +370,14 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
     final avatar = profile?['avatar_url'] as String?;
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage: avatar == null || avatar.isEmpty
-            ? null
-            : NetworkImage(avatar),
+        backgroundImage: avatar == null || avatar.isEmpty ? null : NetworkImage(avatar),
         child: avatar == null || avatar.isEmpty
             ? Text(name.isEmpty ? '?' : name.characters.first.toUpperCase())
             : null,
       ),
       title: Row(
         children: [
-          Expanded(
-            child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
+          Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis)),
           if (profile?['verified'] == true)
             const Padding(
               padding: EdgeInsets.only(left: 4),
@@ -424,11 +392,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
           if (item['content'] != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                '${item['content']}',
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: Text('${item['content']}', maxLines: 5, overflow: TextOverflow.ellipsis),
             ),
           if (item['created_at'] != null)
             Text('${item['created_at']}', style: theme.textTheme.labelSmall),
@@ -444,9 +408,7 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
               icon: const Icon(Icons.favorite_border),
             )
           : null,
-      onTap: username == null
-          ? null
-          : () => context.push('/${username.substring(1)}'),
+      onTap: username == null ? null : () => context.push('/${username.substring(1)}'),
       isThreeLine: item['content'] != null,
     );
   }

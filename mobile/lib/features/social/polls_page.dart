@@ -15,10 +15,7 @@ class _PollsPageState extends State<PollsPage> {
   List<Map<String, dynamic>> _polls = const [];
   final _question = TextEditingController();
   final _description = TextEditingController();
-  final List<TextEditingController> _options = [
-    TextEditingController(),
-    TextEditingController(),
-  ];
+  final List<TextEditingController> _options = [TextEditingController(), TextEditingController()];
   DateTime? _endsAt;
 
   @override
@@ -53,13 +50,8 @@ class _PollsPageState extends State<PollsPage> {
           .limit(40);
       final polls = <Map<String, dynamic>>[];
       for (final row in rows) {
-        final result = await _db.rpc(
-          'poll_results',
-          params: {'p_poll_id': row['id']},
-        );
-        final stats = result is Map
-            ? Map<String, dynamic>.from(result)
-            : <String, dynamic>{};
+        final result = await _db.rpc('poll_results', params: {'p_poll_id': row['id']});
+        final stats = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
         polls.add({
           ...Map<String, dynamic>.from(row),
           'options': (stats['options'] as List? ?? const [])
@@ -91,13 +83,8 @@ class _PollsPageState extends State<PollsPage> {
     if (_db.auth.currentUser == null || _busy) {
       return;
     }
-    final options = _options
-        .map((c) => c.text.trim())
-        .where((v) => v.isNotEmpty)
-        .toList();
-    if (_question.text.trim().length < 5 ||
-        options.length < 2 ||
-        options.length > 8) {
+    final options = _options.map((c) => c.text.trim()).where((v) => v.isNotEmpty).toList();
+    if (_question.text.trim().length < 5 || options.length < 2 || options.length > 8) {
       setState(
         () => _error = 'Enter a question of at least 5 characters and 2–8 non-empty options.',
       );
@@ -117,9 +104,7 @@ class _PollsPageState extends State<PollsPage> {
         params: {
           'p_question': _question.text.trim(),
           'p_options': options,
-          'p_description': _description.text.trim().isEmpty
-              ? null
-              : _description.text.trim(),
+          'p_description': _description.text.trim().isEmpty ? null : _description.text.trim(),
           'p_ends_at': _endsAt?.toUtc().toIso8601String(),
           'p_allow_multiple': false,
           'p_visibility': 'public',
@@ -142,9 +127,7 @@ class _PollsPageState extends State<PollsPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error = 'Poll could not be published. Confirm your session and try again.',
-        );
+        setState(() => _error = 'Poll could not be published. Confirm your session and try again.');
       }
     } finally {
       if (mounted) {
@@ -154,9 +137,7 @@ class _PollsPageState extends State<PollsPage> {
   }
 
   Future<void> _vote(Map<String, dynamic> poll, String optionId) async {
-    if (_db.auth.currentUser == null ||
-        _busy ||
-        '${poll['effective_status']}' != 'open') {
+    if (_db.auth.currentUser == null || _busy || '${poll['effective_status']}' != 'open') {
       return;
     }
     setState(() {
@@ -173,8 +154,7 @@ class _PollsPageState extends State<PollsPage> {
       );
       await _load();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Vote recorded.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vote recorded.')));
       }
     } catch (_) {
       if (mounted) {
@@ -202,20 +182,10 @@ class _PollsPageState extends State<PollsPage> {
     }
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(
-        _endsAt ?? now.add(const Duration(days: 1)),
-      ),
+      initialTime: TimeOfDay.fromDateTime(_endsAt ?? now.add(const Duration(days: 1))),
     );
     if (time != null && mounted) {
-      setState(
-        () => _endsAt = DateTime(
-          date.year,
-          date.month,
-          date.day,
-          time.hour,
-          time.minute,
-        ),
-      );
+      setState(() => _endsAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
     }
   }
 
@@ -229,14 +199,10 @@ class _PollsPageState extends State<PollsPage> {
         children: [
           Text(
             'Community polls',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Publish a question, cast a vote, and see server-calculated results.',
-          ),
+          const Text('Publish a question, cast a vote, and see server-calculated results.'),
           const SizedBox(height: 12),
           if (_db.auth.currentUser != null)
             Card(
@@ -247,9 +213,7 @@ class _PollsPageState extends State<PollsPage> {
                   children: [
                     Text(
                       'Create a poll',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -303,9 +267,7 @@ class _PollsPageState extends State<PollsPage> {
                       TextButton.icon(
                         onPressed: _busy
                             ? null
-                            : () => setState(
-                                () => _options.add(TextEditingController()),
-                              ),
+                            : () => setState(() => _options.add(TextEditingController())),
                         icon: const Icon(Icons.add),
                         label: const Text('Add option'),
                       ),
@@ -336,10 +298,7 @@ class _PollsPageState extends State<PollsPage> {
               child: ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (_loading) const LinearProgressIndicator(),
@@ -347,9 +306,7 @@ class _PollsPageState extends State<PollsPage> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(20),
-                child: Text(
-                  'No polls are available yet. Create the first community poll.',
-                ),
+                child: Text('No polls are available yet. Create the first community poll.'),
               ),
             ),
           for (final poll in _polls) _pollCard(poll, theme),
@@ -366,8 +323,7 @@ class _PollsPageState extends State<PollsPage> {
     final open =
         '${poll['effective_status']}' == 'open' &&
         (poll['ends_at'] == null ||
-            DateTime.tryParse('${poll['ends_at']}')?.isAfter(DateTime.now()) ==
-                true);
+            DateTime.tryParse('${poll['ends_at']}')?.isAfter(DateTime.now()) == true);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -377,9 +333,7 @@ class _PollsPageState extends State<PollsPage> {
           children: [
             Text(
               '${poll['question'] ?? 'Poll'}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             if ('${poll['description'] ?? ''}'.isNotEmpty)
               Padding(
@@ -391,9 +345,7 @@ class _PollsPageState extends State<PollsPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: OutlinedButton(
-                  onPressed: open && !_busy
-                      ? () => _vote(poll, '${option['id']}')
-                      : null,
+                  onPressed: open && !_busy ? () => _vote(poll, '${option['id']}') : null,
                   child: Row(
                     children: [
                       Expanded(child: Text('${option['label'] ?? ''}')),
@@ -410,11 +362,7 @@ class _PollsPageState extends State<PollsPage> {
                 const Spacer(),
                 Text(
                   open ? 'Voting open' : 'Closed',
-                  style: TextStyle(
-                    color: open
-                        ? Colors.green
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
+                  style: TextStyle(color: open ? Colors.green : theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),

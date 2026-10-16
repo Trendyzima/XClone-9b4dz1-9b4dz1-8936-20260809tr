@@ -2,11 +2,7 @@
 class FeedLoadPolicy {
   const FeedLoadPolicy._();
 
-  static bool shouldStart({
-    required bool loading,
-    required bool hasMore,
-    required bool reset,
-  }) {
+  static bool shouldStart({required bool loading, required bool hasMore, required bool reset}) {
     if (reset) return true;
     return !loading && hasMore;
   }
@@ -18,10 +14,7 @@ class FeedLoadPolicy {
   /// PostgREST keyset cursor for a descending (created_at, id) ordering.
   /// The ID tie-breaker prevents posts with identical timestamps from being
   /// repeated or skipped between pages.
-  static String? cursorFilter({
-    required String? createdAt,
-    required String? id,
-  }) {
+  static String? cursorFilter({required String? createdAt, required String? id}) {
     if (createdAt == null || createdAt.isEmpty || id == null || id.isEmpty) {
       return null;
     }
@@ -29,8 +22,6 @@ class FeedLoadPolicy {
         'and(created_at.eq.$createdAt,id.lt.$id)';
   }
 
-  static bool isCurrent({
-    required int requestGeneration,
-    required int currentGeneration,
-  }) => requestGeneration == currentGeneration;
+  static bool isCurrent({required int requestGeneration, required int currentGeneration}) =>
+      requestGeneration == currentGeneration;
 }

@@ -61,9 +61,7 @@ class _ProfileFeaturesPageState extends State<ProfileFeaturesPage> {
       if (mounted) setState(() => _settings = merged);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error = 'Could not load settings. Check access and retry.',
-        );
+        setState(() => _error = 'Could not load settings. Check access and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -89,8 +87,7 @@ class _ProfileFeaturesPageState extends State<ProfileFeaturesPage> {
       if (mounted) {
         setState(() {
           _settings = previous;
-          _error =
-              'Settings were not saved. Your previous values were restored.';
+          _error = 'Settings were not saved. Your previous values were restored.';
         });
       }
     } finally {
@@ -102,12 +99,7 @@ class _ProfileFeaturesPageState extends State<ProfileFeaturesPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Profile features'),
-      actions: [
-        IconButton(
-          onPressed: _loading ? null : _load,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
+      actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
     ),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
@@ -125,10 +117,7 @@ class _ProfileFeaturesPageState extends State<ProfileFeaturesPage> {
                     child: ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(_error!),
-                      trailing: IconButton(
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh),
-                      ),
+                      trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                     ),
                   ),
                 const SizedBox(height: 12),
@@ -136,9 +125,7 @@ class _ProfileFeaturesPageState extends State<ProfileFeaturesPage> {
                   (f) => Card(
                     child: SwitchListTile(
                       value: _settings[f.$1] ?? true,
-                      onChanged: _saving
-                          ? null
-                          : (value) => _toggle(f.$1, value),
+                      onChanged: _saving ? null : (value) => _toggle(f.$1, value),
                       title: Text(f.$2),
                       subtitle: Text(f.$3),
                       secondary: const Icon(Icons.tune),

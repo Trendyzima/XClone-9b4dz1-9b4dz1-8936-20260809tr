@@ -57,9 +57,7 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
       return;
     }
     try {
-      final result = await _db
-          .rpc('testagram_is_owner')
-          .timeout(const Duration(seconds: 12));
+      final result = await _db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12));
       if (!mounted || generation != _generation) return;
       setState(() {
         _owner = result == true;
@@ -82,10 +80,7 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
     final session = _db.auth.currentSession;
     if (!AppConfig.isConfigured || session == null) {
       if (mounted) {
-        setState(
-          () =>
-              _sitemapError = 'Supabase runtime configuration is unavailable.',
-        );
+        setState(() => _sitemapError = 'Supabase runtime configuration is unavailable.');
       }
       return;
     }
@@ -108,17 +103,14 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw StateError('Sitemap returned HTTP ${response.statusCode}.');
       }
-      final count = RegExp(r'<url>')
-          .allMatches(utf8.decode(response.bodyBytes))
-          .length;
+      final count = RegExp(r'<url>').allMatches(utf8.decode(response.bodyBytes)).length;
       if (mounted) {
         setState(() => _sitemapUrlCount = count);
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _sitemapError =
-              'Sitemap could not be fetched. Retry to check the live endpoint.',
+          () => _sitemapError = 'Sitemap could not be fetched. Retry to check the live endpoint.',
         );
       }
     } finally {
@@ -144,19 +136,11 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
 
   @override
   Widget build(BuildContext context) {
-    final indexable = seoRouteContracts
-        .where((route) => !route.noindex)
-        .toList();
-    final good = indexable
-        .where((route) => route.status == SeoRouteStatus.good)
-        .length;
-    final score = indexable.isEmpty
-        ? 0
-        : (good * 100 / indexable.length).round();
+    final indexable = seoRouteContracts.where((route) => !route.noindex).toList();
+    final good = indexable.where((route) => route.status == SeoRouteStatus.good).length;
+    final score = indexable.isEmpty ? 0 : (good * 100 / indexable.length).round();
     final filtered = seoRouteContracts.where((route) {
-      final matchesStatus =
-          _filter == 'all' ||
-          _statusLabel(route.status).toLowerCase() == _filter;
+      final matchesStatus = _filter == 'all' || _statusLabel(route.status).toLowerCase() == _filter;
       final query = _search.text.trim().toLowerCase();
       return matchesStatus &&
           (query.isEmpty ||
@@ -186,10 +170,7 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
                   children: [
                     Text(_error!),
                     const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: _authorize,
-                      child: const Text('Retry'),
-                    ),
+                    FilledButton(onPressed: _authorize, child: const Text('Retry')),
                   ],
                 ),
               ),
@@ -205,9 +186,7 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
                     SizedBox(height: 12),
                     Text('System owner access required.'),
                     SizedBox(height: 6),
-                    Text(
-                      'SEO diagnostics are restricted to the platform owner.',
-                    ),
+                    Text('SEO diagnostics are restricted to the platform owner.'),
                   ],
                 ),
               ),
@@ -230,9 +209,7 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
                               children: [
                                 Text(
                                   'Declared SEO coverage',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
+                                  style: Theme.of(context).textTheme.titleMedium,
                                 ),
                                 Text(
                                   '$score% of indexable manifest routes score good',
@@ -281,9 +258,7 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   )
                                 : const Icon(Icons.sync),
                           ),
@@ -312,9 +287,7 @@ class _SeoAuditPageState extends State<SeoAuditPage> {
                     children: [
                       for (final filter in ['all', 'good', 'warn', 'missing'])
                         ChoiceChip(
-                          label: Text(
-                            filter[0].toUpperCase() + filter.substring(1),
-                          ),
+                          label: Text(filter[0].toUpperCase() + filter.substring(1)),
                           selected: _filter == filter,
                           onSelected: (_) => setState(() => _filter = filter),
                         ),

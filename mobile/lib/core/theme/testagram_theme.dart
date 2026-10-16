@@ -35,9 +35,7 @@ class TestagramTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: isDark ? darkBackground : lightBackground,
       appBarTheme: AppBarTheme(
-        backgroundColor: (isDark ? darkBackground : lightBackground).withValues(
-          alpha: 0.78,
-        ),
+        backgroundColor: (isDark ? darkBackground : lightBackground).withValues(alpha: 0.78),
         foregroundColor: isDark ? Colors.white : const Color(0xFF0D0D0D),
         elevation: 0,
         centerTitle: false,
@@ -49,9 +47,7 @@ class TestagramTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: BorderSide(
-            color: (isDark ? darkBorder : lightBorder).withValues(alpha: 0.78),
-          ),
+          side: BorderSide(color: (isDark ? darkBorder : lightBorder).withValues(alpha: 0.78)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -63,9 +59,7 @@ class TestagramTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(13),
-          borderSide: BorderSide(
-            color: (isDark ? darkBorder : lightBorder).withValues(alpha: 0.8),
-          ),
+          borderSide: BorderSide(color: (isDark ? darkBorder : lightBorder).withValues(alpha: 0.8)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(13),
@@ -78,9 +72,7 @@ class TestagramTheme {
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontSize: 11,
-            fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w700
-                : FontWeight.w500,
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
       ),

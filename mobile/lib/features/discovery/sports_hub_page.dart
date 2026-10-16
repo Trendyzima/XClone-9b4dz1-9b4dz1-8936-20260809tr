@@ -66,11 +66,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
           .invoke(
             'testagram-sports',
             method: HttpMethod.get,
-            queryParameters: {
-              'kind': 'matches',
-              'sport': _sport,
-              'limit': '30',
-            },
+            queryParameters: {'kind': 'matches', 'sport': _sport, 'limit': '30'},
           )
           .timeout(const Duration(seconds: 12));
       final payload = response.data;
@@ -87,7 +83,8 @@ class _SportsHubPageState extends State<SportsHubPage> {
     } catch (_) {
       if (mounted && requestId == _scoresRequestId) {
         setState(
-          () => _scoresError = 'Scores could not be refreshed. Your last loaded scores are kept; please retry.',
+          () => _scoresError =
+              'Scores could not be refreshed. Your last loaded scores are kept; please retry.',
         );
       }
     } finally {
@@ -117,9 +114,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
           .timeout(const Duration(seconds: 15));
       final payload = response.data;
       if (response.status < 200 || response.status >= 300 || payload is! Map) {
-        throw const FormatException(
-          'Sports headlines are temporarily unavailable.',
-        );
+        throw const FormatException('Sports headlines are temporarily unavailable.');
       }
       final raw = payload['items'];
       final next = raw is List
@@ -131,8 +126,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
     } catch (_) {
       if (mounted && requestId == _storiesRequestId) {
         setState(
-          () => _storiesError =
-              'Sports headlines are temporarily unavailable. Please retry.',
+          () => _storiesError = 'Sports headlines are temporarily unavailable. Please retry.',
         );
       }
     } finally {
@@ -148,26 +142,18 @@ class _SportsHubPageState extends State<SportsHubPage> {
 
   List<Map<String, dynamic>> get _visibleMatches {
     final now = DateTime.now();
-    final live = _matches
-        .where((m) => SportsHubPolicy.isLive(SportsHubPolicy.status(m)))
-        .toList();
-    final upcoming =
-        _matches.where((m) => SportsHubPolicy.isUpcoming(m, now)).toList()
-          ..sort((a, b) => _date(a).compareTo(_date(b)));
+    final live = _matches.where((m) => SportsHubPolicy.isLive(SportsHubPolicy.status(m))).toList();
+    final upcoming = _matches.where((m) => SportsHubPolicy.isUpcoming(m, now)).toList()
+      ..sort((a, b) => _date(a).compareTo(_date(b)));
     final results =
-        _matches
-            .where((m) => SportsHubPolicy.isFinished(SportsHubPolicy.status(m)))
-            .toList()
+        _matches.where((m) => SportsHubPolicy.isFinished(SportsHubPolicy.status(m))).toList()
           ..sort((a, b) => _date(b).compareTo(_date(a)));
     if (_matchFilter == 'upcoming') return upcoming;
     if (_matchFilter == 'results') return results;
     return [
       ...live,
       ...upcoming,
-      ..._matches.where(
-        (m) =>
-            !live.contains(m) && !upcoming.contains(m) && !results.contains(m),
-      ),
+      ..._matches.where((m) => !live.contains(m) && !upcoming.contains(m) && !results.contains(m)),
       ...results,
     ];
   }
@@ -198,12 +184,9 @@ class _SportsHubPageState extends State<SportsHubPage> {
       return false;
     }
     final publisher = story['testagram_rss_source_profiles'];
-    final publisherName = publisher is Map
-        ? '${publisher['display_name'] ?? ''}'
-        : '';
-    final haystack =
-        '${story['title'] ?? ''} ${story['excerpt'] ?? ''} $publisherName'
-            .toLowerCase();
+    final publisherName = publisher is Map ? '${publisher['display_name'] ?? ''}' : '';
+    final haystack = '${story['title'] ?? ''} ${story['excerpt'] ?? ''} $publisherName'
+        .toLowerCase();
     return haystack.contains(_query.trim().toLowerCase());
   }).toList();
 
@@ -237,10 +220,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
                       SizedBox(width: 8),
                       Text(
                         'TESTAGRAM SPORTS',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
                       ),
                     ],
                   ),
@@ -292,14 +272,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(
-                child: _countCard(
-                  'Live now',
-                  liveCount,
-                  Icons.sensors,
-                  Colors.red,
-                ),
-              ),
+              Expanded(child: _countCard('Live now', liveCount, Icons.sensors, Colors.red)),
               const SizedBox(width: 8),
               Expanded(
                 child: _countCard(
@@ -311,12 +284,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _countCard(
-                  'Results',
-                  resultCount,
-                  Icons.check_circle_outline,
-                  Colors.green,
-                ),
+                child: _countCard('Results', resultCount, Icons.check_circle_outline, Colors.green),
               ),
             ],
           ),
@@ -341,10 +309,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
           const SizedBox(height: 10),
           if (_scoresLoading && _matches.isEmpty)
             const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
+              child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()),
             )
           else if (_scoresError != null && _matches.isEmpty)
             _errorPanel(_scoresError!, () => _loadScores(manual: true))
@@ -375,15 +340,9 @@ class _SportsHubPageState extends State<SportsHubPage> {
             ),
           ),
           const SizedBox(height: 24),
-          _sectionTitle(
-            context,
-            'Latest sports headlines',
-            Icons.newspaper_outlined,
-          ),
+          _sectionTitle(context, 'Latest sports headlines', Icons.newspaper_outlined),
           const SizedBox(height: 6),
-          const Text(
-            'Publisher-attributed stories, including coverage from Kenya.',
-          ),
+          const Text('Publisher-attributed stories, including coverage from Kenya.'),
           const SizedBox(height: 12),
           TextField(
             decoration: const InputDecoration(
@@ -412,10 +371,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
           const SizedBox(height: 10),
           if (_storiesLoading && _stories.isEmpty)
             const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
+              child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()),
             )
           else if (_storiesError != null && _stories.isEmpty)
             _errorPanel(_storiesError!, _loadStories)
@@ -443,47 +399,38 @@ class _SportsHubPageState extends State<SportsHubPage> {
     );
   }
 
-  Widget _countCard(String label, int count, IconData icon, Color color) =>
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: color, size: 19),
-              const SizedBox(height: 8),
-              Text(
-                '$count',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _sectionTitle(BuildContext context, String title, IconData icon) =>
-      Row(
+  Widget _countCard(String label, int count, IconData icon, Color color) => Card(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w900),
-            ),
+          Icon(icon, color: color, size: 19),
+          const SizedBox(height: 8),
+          Text('$count', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
-      );
+      ),
+    ),
+  );
+
+  Widget _sectionTitle(BuildContext context, String title, IconData icon) => Row(
+    children: [
+      Icon(icon, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+      ),
+    ],
+  );
 
   Widget _errorPanel(String message, Future<void> Function() retry) => Card(
     child: Padding(
@@ -545,10 +492,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
                     '${SportsHubPolicy.score(match, 'home').isEmpty ? '–' : SportsHubPolicy.score(match, 'home')} : ${SportsHubPolicy.score(match, 'away').isEmpty ? '–' : SportsHubPolicy.score(match, 'away')}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                   ),
                 ),
                 Expanded(
@@ -575,9 +519,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
     final publisher = source is Map
         ? '${source['display_name'] ?? 'Sports publisher'}'
         : 'Sports publisher';
-    final country = '${story['country_code'] ?? ''}' == 'KE'
-        ? 'Kenya sports'
-        : 'Sports news';
+    final country = '${story['country_code'] ?? ''}' == 'KE' ? 'Kenya sports' : 'Sports news';
     final uri = SportsHubPolicy.safeArticleUri(story['canonical_url']);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -598,8 +540,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
             const SizedBox(height: 6),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (excerpt.isNotEmpty) ...[
               const SizedBox(height: 6),
@@ -608,12 +549,7 @@ class _SportsHubPageState extends State<SportsHubPage> {
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    publisher,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
+                Expanded(child: Text(publisher, style: Theme.of(context).textTheme.bodySmall)),
                 if (uri != null)
                   TextButton.icon(
                     onPressed: () => _openArticle(uri),
@@ -631,9 +567,8 @@ class _SportsHubPageState extends State<SportsHubPage> {
   Future<void> _openArticle(Uri uri) async {
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open this publisher link.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open this publisher link.')));
     }
   }
 }

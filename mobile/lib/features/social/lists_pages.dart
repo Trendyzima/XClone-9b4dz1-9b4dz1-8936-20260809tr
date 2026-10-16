@@ -37,9 +37,7 @@ class _ListsPageState extends State<ListsPage> {
     try {
       final rows = await _db
           .from('lists')
-          .select(
-            'id,owner_id,name,description,is_private,member_count,updated_at',
-          )
+          .select('id,owner_id,name,description,is_private,member_count,updated_at')
           .order('updated_at', ascending: false)
           .limit(100);
       if (mounted) {
@@ -107,8 +105,7 @@ class _ListsPageState extends State<ListsPage> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () =>
-                  Navigator.pop(dialogContext, name.text.trim().isNotEmpty),
+              onPressed: () => Navigator.pop(dialogContext, name.text.trim().isNotEmpty),
               child: const Text('Create'),
             ),
           ],
@@ -130,9 +127,7 @@ class _ListsPageState extends State<ListsPage> {
           .insert({
             'owner_id': user.id,
             'name': name.text.trim(),
-            'description': description.text.trim().isEmpty
-                ? null
-                : description.text.trim(),
+            'description': description.text.trim().isEmpty ? null : description.text.trim(),
             'is_private': isPrivate,
           })
           .select('id')
@@ -145,10 +140,7 @@ class _ListsPageState extends State<ListsPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              _error = 'List was not created. Check your connection and retry.',
-        );
+        setState(() => _error = 'List was not created. Check your connection and retry.');
       }
     } finally {
       if (mounted) {
@@ -170,9 +162,7 @@ class _ListsPageState extends State<ListsPage> {
               Expanded(
                 child: Text(
                   'Your lists',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               FilledButton.icon(
@@ -191,10 +181,7 @@ class _ListsPageState extends State<ListsPage> {
               child: ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (!_loading && _error == null && _lists.isEmpty)
@@ -220,11 +207,7 @@ class _ListsPageState extends State<ListsPage> {
             Card(
               child: ListTile(
                 leading: CircleAvatar(
-                  child: Icon(
-                    item['is_private'] == true
-                        ? Icons.lock_outline
-                        : Icons.public,
-                  ),
+                  child: Icon(item['is_private'] == true ? Icons.lock_outline : Icons.public),
                 ),
                 title: Text('${item['name']}'),
                 subtitle: Text(
@@ -254,9 +237,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   String? _error;
   String _tab = 'posts';
   Map<String, dynamic>? _list;
-  List<Map<String, dynamic>> _members = const [],
-      _posts = const [],
-      _matches = const [];
+  List<Map<String, dynamic>> _members = const [], _posts = const [], _matches = const [];
   final _search = TextEditingController();
   bool get _isOwner => _list?['owner_id'] == _db.auth.currentUser?.id;
   @override
@@ -297,9 +278,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
           params: {'p_list_id': widget.listId, 'p_limit': 50, 'p_offset': 0},
         ),
       ]);
-      final list = result[0] == null
-          ? null
-          : Map<String, dynamic>.from(result[0] as Map);
+      final list = result[0] == null ? null : Map<String, dynamic>.from(result[0] as Map);
       final rows = (result[1] as List)
           .whereType<Map>()
           .map((r) => Map<String, dynamic>.from(r))
@@ -311,21 +290,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 .from('profiles')
                 .select('id,username,display_name,avatar_url,verified')
                 .inFilter('id', ids);
-      final byId = {
-        for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p),
-      };
+      final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p)};
       final timeline = result[2] is List ? result[2] as List : <dynamic>[];
       if (mounted) {
         setState(() {
           _list = list;
-          _members = ids
-              .map((id) => byId[id])
-              .whereType<Map<String, dynamic>>()
-              .toList();
-          _posts = timeline
-              .whereType<Map>()
-              .map((r) => Map<String, dynamic>.from(r))
-              .toList();
+          _members = ids.map((id) => byId[id]).whereType<Map<String, dynamic>>().toList();
+          _posts = timeline.whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
           _loading = false;
           if (list == null) {
             _error = 'List is unavailable or access is restricted.';
@@ -378,20 +349,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
-  Future<void> _changeMember(
-    Map<String, dynamic> member, {
-    required bool add,
-  }) async {
+  Future<void> _changeMember(Map<String, dynamic> member, {required bool add}) async {
     if (!_isOwner || _busy) {
       return;
     }
     setState(() => _busy = true);
     try {
       if (add) {
-        await _db.from('list_members').insert({
-          'list_id': widget.listId,
-          'user_id': member['id'],
-        });
+        await _db.from('list_members').insert({'list_id': widget.listId, 'user_id': member['id']});
       } else {
         await _db
             .from('list_members')
@@ -409,9 +374,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = add
-              ? 'Account could not be added.'
-              : 'Account could not be removed.',
+          () => _error = add ? 'Account could not be added.' : 'Account could not be removed.',
         );
       }
     } finally {
@@ -429,18 +392,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete this list?'),
-        content: const Text(
-          'The list and its membership records will be deleted.',
-        ),
+        content: const Text('The list and its membership records will be deleted.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
         ],
       ),
     );
@@ -477,10 +432,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
               child: ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (!_loading && _list != null) ...[
@@ -489,9 +441,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 Expanded(
                   child: Text(
                     '${_list!['name']}',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
                 if (_isOwner)
@@ -533,9 +483,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 const Card(
                   child: Padding(
                     padding: EdgeInsets.all(18),
-                    child: Text(
-                      'No posts in this list yet. Add members to populate the timeline.',
-                    ),
+                    child: Text('No posts in this list yet. Add members to populate the timeline.'),
                   ),
                 ),
               for (final post in _posts)
@@ -552,10 +500,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                         const SizedBox(height: 8),
                         Text('${post['body'] ?? post['content'] ?? ''}'),
                         const SizedBox(height: 6),
-                        Text(
-                          '${post['created_at'] ?? ''}',
-                          style: theme.textTheme.bodySmall,
-                        ),
+                        Text('${post['created_at'] ?? ''}', style: theme.textTheme.bodySmall),
                       ],
                     ),
                   ),
@@ -589,9 +534,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                             title: Text('@${user['username'] ?? 'unknown'}'),
                             subtitle: Text('${user['display_name'] ?? ''}'),
                             trailing: IconButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () => _changeMember(user, add: true),
+                              onPressed: _busy ? null : () => _changeMember(user, add: true),
                               icon: const Icon(Icons.person_add_alt_1),
                             ),
                           ),
@@ -610,19 +553,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 Card(
                   child: ListTile(
                     leading: CircleAvatar(
-                      child: Text(
-                        '${member['username'] ?? '?'}'
-                            .substring(0, 1)
-                            .toUpperCase(),
-                      ),
+                      child: Text('${member['username'] ?? '?'}'.substring(0, 1).toUpperCase()),
                     ),
                     title: Text('@${member['username'] ?? 'unknown'}'),
                     subtitle: Text('${member['display_name'] ?? ''}'),
                     trailing: _isOwner
                         ? IconButton(
-                            onPressed: _busy
-                                ? null
-                                : () => _changeMember(member, add: false),
+                            onPressed: _busy ? null : () => _changeMember(member, add: false),
                             tooltip: 'Remove member',
                             icon: const Icon(Icons.person_remove_outlined),
                           )

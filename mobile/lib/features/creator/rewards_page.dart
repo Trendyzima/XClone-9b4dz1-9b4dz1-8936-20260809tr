@@ -55,11 +55,7 @@ class _RewardsPageState extends State<RewardsPage> {
             .eq('user_id', user.id)
             .order('created_at', ascending: false)
             .limit(100),
-        _client
-            .from('user_wallets')
-            .select('credits')
-            .eq('user_id', user.id)
-            .maybeSingle(),
+        _client.from('user_wallets').select('credits').eq('user_id', user.id).maybeSingle(),
         _client
             .from('daily_rewards')
             .select('streak_day,last_claimed_at')
@@ -83,8 +79,7 @@ class _RewardsPageState extends State<RewardsPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error =
-            'Rewards could not be loaded. Check your connection and retry.';
+        _error = 'Rewards could not be loaded. Check your connection and retry.';
       });
     }
   }
@@ -97,26 +92,19 @@ class _RewardsPageState extends State<RewardsPage> {
     });
     try {
       final response = await _client.rpc('claim_daily_reward');
-      final data = response is List && response.isNotEmpty
-          ? response.first
-          : response;
+      final data = response is List && response.isNotEmpty ? response.first : response;
       if (data is Map && data['ok'] == false) {
         throw StateError('The daily reward was not accepted.');
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Daily reward claimed. Refreshing your balance…'),
-          ),
+          const SnackBar(content: Text('Daily reward claimed. Refreshing your balance…')),
         );
       }
       await _load();
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Reward claim was not confirmed. Refresh before trying again.',
-        );
+        setState(() => _error = 'Reward claim was not confirmed. Refresh before trying again.');
       }
     } finally {
       if (mounted) setState(() => _claiming = false);
@@ -128,8 +116,7 @@ class _RewardsPageState extends State<RewardsPage> {
     final theme = Theme.of(context);
     final total = _events.fold<int>(
       0,
-      (sum, event) =>
-          sum + (int.tryParse('${event['amount_minor'] ?? 0}') ?? 0),
+      (sum, event) => sum + (int.tryParse('${event['amount_minor'] ?? 0}') ?? 0),
     );
     return RefreshIndicator(
       onRefresh: _load,
@@ -138,9 +125,7 @@ class _RewardsPageState extends State<RewardsPage> {
         children: [
           Text(
             'Rewards & earnings',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 14),
           if (_loading) const LinearProgressIndicator(),
@@ -149,10 +134,7 @@ class _RewardsPageState extends State<RewardsPage> {
               child: ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           Card(
@@ -165,9 +147,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   const SizedBox(height: 6),
                   Text(
                     _loading ? '—' : _credits.toString(),
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 8),
                   Text('Daily streak: $_streak day${_streak == 1 ? '' : 's'}'),
@@ -175,9 +155,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: _loading || _claiming || !_canClaim
-                          ? null
-                          : _claim,
+                      onPressed: _loading || _claiming || !_canClaim ? null : _claim,
                       icon: _claiming
                           ? const SizedBox(
                               width: 18,
@@ -185,11 +163,7 @@ class _RewardsPageState extends State<RewardsPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.card_giftcard),
-                      label: Text(
-                        _canClaim
-                            ? 'Claim daily reward'
-                            : 'Already claimed today',
-                      ),
+                      label: Text(_canClaim ? 'Claim daily reward' : 'Already claimed today'),
                     ),
                   ),
                 ],
@@ -218,12 +192,8 @@ class _RewardsPageState extends State<RewardsPage> {
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.card_giftcard)),
                 title: Text('${event['reward_type'] ?? 'Reward'}'),
-                subtitle: Text(
-                  '${event['source'] ?? 'Testagram'} • ${event['created_at'] ?? ''}',
-                ),
-                trailing: Text(
-                  '${event['amount_minor'] ?? 0} ${event['currency'] ?? 'credits'}',
-                ),
+                subtitle: Text('${event['source'] ?? 'Testagram'} • ${event['created_at'] ?? ''}'),
+                trailing: Text('${event['amount_minor'] ?? 0} ${event['currency'] ?? 'credits'}'),
               ),
             ),
         ],

@@ -14,6 +14,5 @@ class AdminUsersPolicy {
     ].any((value) => '$value'.toLowerCase().contains(normalized));
   }
 
-  static bool isBlocked(Map<String, dynamic> user) =>
-      user['is_blocked'] == true;
+  static bool isBlocked(Map<String, dynamic> user) => user['is_blocked'] == true;
 }

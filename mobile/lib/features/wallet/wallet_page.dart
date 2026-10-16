@@ -52,18 +52,12 @@ class _WalletPageState extends State<WalletPage> {
       final walletJson = Map<String, dynamic>.from(walletResponse);
       final response = await _client
           .from('wallet_transactions')
-          .select(
-            'id,amount,type,status,reference,created_at,direction,provider_reference',
-          )
+          .select('id,amount,type,status,reference,created_at,direction,provider_reference')
           .eq('user_id', user.id)
           .order('created_at', ascending: false)
           .limit(100);
       final transactions = (response as List<dynamic>)
-          .map(
-            (row) => WalletTransactionReadModel.fromJson(
-              Map<String, dynamic>.from(row as Map),
-            ),
-          )
+          .map((row) => WalletTransactionReadModel.fromJson(Map<String, dynamic>.from(row as Map)))
           .toList(growable: false);
       if (!mounted) return;
       setState(() {
@@ -86,8 +80,7 @@ class _WalletPageState extends State<WalletPage> {
     if (message.contains('provisioned')) {
       return 'Your wallet is not available yet. Refresh or contact support if this continues.';
     }
-    if (message.contains('permission') ||
-        message.contains('row-level security')) {
+    if (message.contains('permission') || message.contains('row-level security')) {
       return 'Your account is not permitted to read this wallet data.';
     }
     return 'We could not load wallet data. Check your connection and try again.';
@@ -109,9 +102,7 @@ class _WalletPageState extends State<WalletPage> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        key: PageStorageKey<String>(
-          widget.showHistory ? 'wallet-history' : 'wallet-overview',
-        ),
+        key: PageStorageKey<String>(widget.showHistory ? 'wallet-history' : 'wallet-overview'),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
           Row(
@@ -119,9 +110,7 @@ class _WalletPageState extends State<WalletPage> {
               Expanded(
                 child: Text(
                   widget.showHistory ? 'Wallet history' : 'My wallet',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               IconButton(
@@ -146,9 +135,7 @@ class _WalletPageState extends State<WalletPage> {
               const SizedBox(height: 18),
               Text(
                 'Wallet actions',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
               _actionGrid(context),
@@ -158,9 +145,7 @@ class _WalletPageState extends State<WalletPage> {
                   Expanded(
                     child: Text(
                       'Recent activity',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   TextButton(
@@ -179,8 +164,7 @@ class _WalletPageState extends State<WalletPage> {
                   ButtonSegment(value: 'outgoing', label: Text('Outgoing')),
                 ],
                 selected: {_filter},
-                onSelectionChanged: (selection) =>
-                    setState(() => _filter = selection.first),
+                onSelectionChanged: (selection) => setState(() => _filter = selection.first),
               ),
               const SizedBox(height: 12),
             ],
@@ -193,9 +177,7 @@ class _WalletPageState extends State<WalletPage> {
             const SizedBox(height: 18),
             Text(
               'Balances and transaction records are loaded from authenticated wallet services. This screen never edits balances directly.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
           ],
         ],
@@ -235,10 +217,7 @@ class _WalletPageState extends State<WalletPage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.primary.withValues(alpha: 0.72),
-          ],
+          colors: [theme.colorScheme.primary, theme.colorScheme.primary.withValues(alpha: 0.72)],
         ),
       ),
       child: Column(
@@ -246,16 +225,10 @@ class _WalletPageState extends State<WalletPage> {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.account_balance_wallet_outlined,
-                color: Colors.white,
-              ),
+              const Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text(
-                  'Available balance',
-                  style: TextStyle(color: Colors.white70),
-                ),
+                child: Text('Available balance', style: TextStyle(color: Colors.white70)),
               ),
               Text(wallet.status, style: const TextStyle(color: Colors.white)),
             ],
@@ -286,54 +259,35 @@ class _WalletPageState extends State<WalletPage> {
     crossAxisSpacing: 10,
     childAspectRatio: 1.65,
     children: [
-      _statCard(
-        theme,
-        'Total deposited',
-        wallet.totalDeposited,
-        Icons.south_west,
-        Colors.green,
-      ),
-      _statCard(
-        theme,
-        'Total withdrawn',
-        wallet.totalWithdrawn,
-        Icons.north_east,
-        Colors.orange,
-      ),
+      _statCard(theme, 'Total deposited', wallet.totalDeposited, Icons.south_west, Colors.green),
+      _statCard(theme, 'Total withdrawn', wallet.totalWithdrawn, Icons.north_east, Colors.orange),
     ],
   );
 
-  Widget _statCard(
-    ThemeData theme,
-    String label,
-    double amount,
-    IconData icon,
-    Color color,
-  ) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(label, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              formatWalletAmount(amount, _wallet?.currency ?? 'KES'),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
+  Widget _statCard(ThemeData theme, String label, double amount, IconData icon, Color color) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(height: 8),
+              Text(label, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  formatWalletAmount(amount, _wallet?.currency ?? 'KES'),
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _actionGrid(BuildContext context) => GridView.count(
     crossAxisCount: MediaQuery.sizeOf(context).width > 600 ? 4 : 2,
@@ -350,12 +304,7 @@ class _WalletPageState extends State<WalletPage> {
     ],
   );
 
-  Widget _action(
-    BuildContext context,
-    String label,
-    IconData icon,
-    String path,
-  ) => Card(
+  Widget _action(BuildContext context, String label, IconData icon, String path) => Card(
     child: InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => context.go(path),
@@ -366,10 +315,7 @@ class _WalletPageState extends State<WalletPage> {
             Icon(icon),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
             const Icon(Icons.chevron_right, size: 18),
           ],
@@ -387,23 +333,14 @@ class _WalletPageState extends State<WalletPage> {
         .fold<double>(0, (sum, t) => sum + t.amount);
     return Row(
       children: [
-        Expanded(
-          child: _summaryChip(theme, 'Incoming', incoming, Colors.green),
-        ),
+        Expanded(child: _summaryChip(theme, 'Incoming', incoming, Colors.green)),
         const SizedBox(width: 10),
-        Expanded(
-          child: _summaryChip(theme, 'Outgoing', outgoing, Colors.orange),
-        ),
+        Expanded(child: _summaryChip(theme, 'Outgoing', outgoing, Colors.orange)),
       ],
     );
   }
 
-  Widget _summaryChip(
-    ThemeData theme,
-    String label,
-    double amount,
-    Color color,
-  ) => Card(
+  Widget _summaryChip(ThemeData theme, String label, double amount, Color color) => Card(
     child: Padding(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -413,10 +350,7 @@ class _WalletPageState extends State<WalletPage> {
           const SizedBox(height: 5),
           Text(
             formatWalletAmount(amount, _wallet?.currency ?? 'KES'),
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.titleSmall?.copyWith(color: color, fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -433,9 +367,7 @@ class _WalletPageState extends State<WalletPage> {
     return Card(
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: (incoming ? Colors.green : Colors.orange).withValues(
-            alpha: 0.12,
-          ),
+          backgroundColor: (incoming ? Colors.green : Colors.orange).withValues(alpha: 0.12),
           child: Icon(
             incoming ? Icons.south_west : Icons.north_east,
             color: incoming ? Colors.green : Colors.orange,
@@ -449,8 +381,7 @@ class _WalletPageState extends State<WalletPage> {
         subtitle: Text(
           [
             dateLabel,
-            if (item.reference != null && item.reference!.isNotEmpty)
-              'Ref: ${item.reference}',
+            if (item.reference != null && item.reference!.isNotEmpty) 'Ref: ${item.reference}',
             'Status: ${item.status}',
           ].join('\n'),
         ),
@@ -476,9 +407,7 @@ class _WalletPageState extends State<WalletPage> {
           const SizedBox(height: 10),
           Text(
             'No transactions yet',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           Text(

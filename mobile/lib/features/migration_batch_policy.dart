@@ -11,9 +11,7 @@ class MigrationBatchPolicy {
     if (lastClaimedAt == null) return true;
     final last = lastClaimedAt.toUtc();
     final current = (now ?? DateTime.now()).toUtc();
-    return last.year != current.year ||
-        last.month != current.month ||
-        last.day != current.day;
+    return last.year != current.year || last.month != current.month || last.day != current.day;
   }
 
   static String formatMinorPrice(dynamic value, {String currency = 'KES'}) {

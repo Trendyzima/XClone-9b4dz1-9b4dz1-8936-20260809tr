@@ -10,9 +10,7 @@ class MediaUploadPolicy {
 
   static String normalizeExtension(String filename, {required bool isVideo}) {
     final hasExtension = filename.contains('.') && !filename.endsWith('.');
-    final extension = hasExtension
-        ? filename.split('.').last.toLowerCase()
-        : '';
+    final extension = hasExtension ? filename.split('.').last.toLowerCase() : '';
     final allowed = isVideo ? videoExtensions : imageExtensions;
     if (!allowed.contains(extension)) {
       throw const FormatException(
@@ -29,23 +27,20 @@ class MediaUploadPolicy {
     final limit = isVideo ? videoMaxBytes : imageMaxBytes;
     if (bytes > limit) {
       throw FormatException(
-        isVideo
-            ? 'Videos must be 100 MB or smaller.'
-            : 'Images must be 20 MB or smaller.',
+        isVideo ? 'Videos must be 100 MB or smaller.' : 'Images must be 20 MB or smaller.',
       );
     }
   }
 
-  static String contentType(String extension) =>
-      switch (extension.toLowerCase()) {
-        'jpg' || 'jpeg' => 'image/jpeg',
-        'png' => 'image/png',
-        'webp' => 'image/webp',
-        'heic' => 'image/heic',
-        'heif' => 'image/heif',
-        'mov' => 'video/quicktime',
-        'webm' => 'video/webm',
-        'mp4' || 'm4v' => 'video/mp4',
-        _ => throw const FormatException('Unsupported media format.'),
-      };
+  static String contentType(String extension) => switch (extension.toLowerCase()) {
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'png' => 'image/png',
+    'webp' => 'image/webp',
+    'heic' => 'image/heic',
+    'heif' => 'image/heif',
+    'mov' => 'video/quicktime',
+    'webm' => 'video/webm',
+    'mp4' || 'm4v' => 'video/mp4',
+    _ => throw const FormatException('Unsupported media format.'),
+  };
 }

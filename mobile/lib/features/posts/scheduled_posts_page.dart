@@ -44,16 +44,13 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
           .limit(200)
           .timeout(const Duration(seconds: 20));
       if (mounted) {
-        setState(
-          () => _posts = rows
-              .map((r) => Map<String, dynamic>.from(r as Map))
-              .toList(),
-        );
+        setState(() => _posts = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Scheduled posts could not load. Check connection and permissions, then retry.',
+          () => _error =
+              'Scheduled posts could not load. Check connection and permissions, then retry.',
         );
       }
     } finally {
@@ -71,10 +68,7 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
           'This removes the scheduled item. It does not delete any already published post.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Cancel post'),
@@ -119,18 +113,11 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visible = _posts
-        .where((p) => '${p['status'] ?? 'scheduled'}' == _filter)
-        .toList();
+    final visible = _posts.where((p) => '${p['status'] ?? 'scheduled'}' == _filter).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scheduled posts'),
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
+        actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -141,29 +128,19 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
                 children: [
                   SegmentedButton<String>(
                     segments: const [
-                      ButtonSegment(
-                        value: 'scheduled',
-                        label: Text('Upcoming'),
-                      ),
-                      ButtonSegment(
-                        value: 'published',
-                        label: Text('Published'),
-                      ),
+                      ButtonSegment(value: 'scheduled', label: Text('Upcoming')),
+                      ButtonSegment(value: 'published', label: Text('Published')),
                       ButtonSegment(value: 'failed', label: Text('Failed')),
                     ],
                     selected: {_filter},
-                    onSelectionChanged: (s) =>
-                        setState(() => _filter = s.first),
+                    onSelectionChanged: (s) => setState(() => _filter = s.first),
                   ),
                   if (_error != null)
                     Card(
                       child: ListTile(
                         leading: const Icon(Icons.error_outline),
                         title: Text(_error!),
-                        trailing: IconButton(
-                          onPressed: _load,
-                          icon: const Icon(Icons.refresh),
-                        ),
+                        trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                       ),
                     ),
                   const SizedBox(height: 8),
@@ -171,9 +148,7 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
                     const Card(
                       child: Padding(
                         padding: EdgeInsets.all(24),
-                        child: Center(
-                          child: Text('No posts in this category.'),
-                        ),
+                        child: Center(child: Text('No posts in this category.')),
                       ),
                     ),
                   for (final post in visible)
@@ -187,11 +162,8 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${post['status'] ?? 'scheduled'}'
-                                        .toUpperCase(),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelLarge,
+                                    '${post['status'] ?? 'scheduled'}'.toUpperCase(),
+                                    style: Theme.of(context).textTheme.labelLarge,
                                   ),
                                 ),
                                 Text(_date(post['scheduled_for'])),
@@ -212,9 +184,7 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
                                       : () => _cancel(post),
                                   icon: const Icon(Icons.delete_outline),
                                   label: Text(
-                                    _deleting == '${post['id']}'
-                                        ? 'Cancelling…'
-                                        : 'Cancel',
+                                    _deleting == '${post['id']}' ? 'Cancelling…' : 'Cancel',
                                   ),
                                 ),
                               ),

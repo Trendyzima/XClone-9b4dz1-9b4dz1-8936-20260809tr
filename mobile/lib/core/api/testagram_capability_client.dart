@@ -33,8 +33,7 @@ class TestagramCapabilityClient {
       getAccessToken: () async => client.auth.currentSession?.accessToken,
       refreshAccessToken: () async {
         final refreshed = await client.auth.refreshSession();
-        return refreshed.session?.accessToken ??
-            client.auth.currentSession?.accessToken;
+        return refreshed.session?.accessToken ?? client.auth.currentSession?.accessToken;
       },
       httpClient: httpClient,
       timeout: timeout,
@@ -83,16 +82,12 @@ class TestagramCapabilityClient {
               endpoint,
               headers: <String, String>{
                 'apikey': publishableKey,
-                'Authorization':
-                    'Bearer ${token?.isNotEmpty == true ? token : publishableKey}',
+                'Authorization': 'Bearer ${token?.isNotEmpty == true ? token : publishableKey}',
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'X-Client-Info': 'testagram-flutter/1',
               },
-              body: jsonEncode(<String, Object?>{
-                'capability': capability,
-                'input': input,
-              }),
+              body: jsonEncode(<String, Object?>{'capability': capability, 'input': input}),
             )
             .timeout(timeout);
       } on TimeoutException {
@@ -182,11 +177,7 @@ class TestagramCapabilityClient {
 }
 
 class TestagramCapabilityException implements Exception {
-  const TestagramCapabilityException(
-    this.message, {
-    required this.code,
-    this.statusCode,
-  });
+  const TestagramCapabilityException(this.message, {required this.code, this.statusCode});
 
   final String message;
   final String code;

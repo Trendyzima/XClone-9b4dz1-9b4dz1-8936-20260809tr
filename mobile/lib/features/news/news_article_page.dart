@@ -48,10 +48,7 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
       final response = await http
           .get(
             endpoint,
-            headers: {
-              'Accept': 'application/json',
-              'apikey': AppConfig.supabasePublishableKey,
-            },
+            headers: {'Accept': 'application/json', 'apikey': AppConfig.supabasePublishableKey},
           )
           .timeout(const Duration(seconds: 15));
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -89,18 +86,15 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
     if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This story has no valid HTTPS publisher link.'),
-          ),
+          const SnackBar(content: Text('This story has no valid HTTPS publisher link.')),
         );
       }
       return;
     }
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open the publisher link.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open the publisher link.')));
     }
   }
 
@@ -150,10 +144,7 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Story unavailable',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
+                    const Text('Story unavailable', style: TextStyle(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     Text(_error!),
                     Align(
@@ -234,8 +225,7 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                                   'in its RSS feed.',
                                 ].join(' ')
                               : excerpt,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(height: 1.55),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
                         ),
                         const SizedBox(height: 18),
                         const Divider(),

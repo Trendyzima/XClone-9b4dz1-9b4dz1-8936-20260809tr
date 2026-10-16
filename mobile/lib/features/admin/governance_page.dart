@@ -116,14 +116,10 @@ class _GovernancePageState extends State<GovernancePage> {
     });
     try {
       final result = await db.rpc(
-        pinExists
-            ? 'testagram_verify_admin_dashboard_pin'
-            : 'testagram_set_admin_dashboard_pin',
+        pinExists ? 'testagram_verify_admin_dashboard_pin' : 'testagram_set_admin_dashboard_pin',
         params: {'p_pin': pin.text.trim()},
       );
-      final data = result is Map
-          ? Map<String, dynamic>.from(result)
-          : <String, dynamic>{};
+      final data = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
       if (data['success'] != true) {
         if (data['code'] == 'PIN_NOT_SET') {
           setState(() => pinExists = false);
@@ -162,9 +158,7 @@ class _GovernancePageState extends State<GovernancePage> {
       final canAudit = owner || permissions.contains('governance.audit.read');
       final requests = <Future<dynamic>>[db.rpc('testagram_list_admins')];
       if (canAudit) {
-        requests.add(
-          db.rpc('testagram_governance_audit', params: {'p_limit': 100}),
-        );
+        requests.add(db.rpc('testagram_governance_audit', params: {'p_limit': 100}));
       }
       final result = await Future.wait<dynamic>(requests);
       if (!mounted) return;
@@ -174,10 +168,7 @@ class _GovernancePageState extends State<GovernancePage> {
             .map((r) => Map<String, dynamic>.from(r))
             .toList();
         audit = canAudit && result.length > 1
-            ? (result[1] as List)
-                  .whereType<Map>()
-                  .map((r) => Map<String, dynamic>.from(r))
-                  .toList()
+            ? (result[1] as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList()
             : const [];
       });
     } catch (_) {
@@ -215,10 +206,7 @@ class _GovernancePageState extends State<GovernancePage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              error = 'Only the system owner can search governance candidates.',
-        );
+        setState(() => error = 'Only the system owner can search governance candidates.');
       }
     } finally {
       if (mounted) setState(() => working = false);
@@ -243,8 +231,7 @@ class _GovernancePageState extends State<GovernancePage> {
       );
       if (mounted) {
         setState(() {
-          notice =
-              'Governance invitation issued to @${user['username'] ?? 'member'}.';
+          notice = 'Governance invitation issued to @${user['username'] ?? 'member'}.';
           matches = const [];
           query.clear();
         });
@@ -283,9 +270,7 @@ class _GovernancePageState extends State<GovernancePage> {
       await loadData();
     } catch (_) {
       if (mounted) {
-        setState(
-          () => error = 'Administrator status change was not confirmed.',
-        );
+        setState(() => error = 'Administrator status change was not confirmed.');
       }
     } finally {
       if (mounted) setState(() => working = false);
@@ -302,9 +287,7 @@ class _GovernancePageState extends State<GovernancePage> {
         children: [
           Text(
             'Admin & governance',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -317,10 +300,7 @@ class _GovernancePageState extends State<GovernancePage> {
               child: ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(error!),
-                trailing: IconButton(
-                  onPressed: loadGovernance,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: loadGovernance, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (notice != null)
@@ -338,10 +318,7 @@ class _GovernancePageState extends State<GovernancePage> {
                   children: [
                     Icon(Icons.lock_outline, size: 40),
                     SizedBox(height: 10),
-                    Text(
-                      'Governance is locked',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
+                    Text('Governance is locked', style: TextStyle(fontWeight: FontWeight.w800)),
                     SizedBox(height: 6),
                     Text(
                       'The system owner must appoint this account before administrative access is activated.',
@@ -355,17 +332,11 @@ class _GovernancePageState extends State<GovernancePage> {
             Card(
               child: ListTile(
                 leading: Icon(
-                  owner
-                      ? Icons.workspace_premium
-                      : Icons.admin_panel_settings_outlined,
+                  owner ? Icons.workspace_premium : Icons.admin_panel_settings_outlined,
                 ),
-                title: Text(
-                  owner ? 'Testagram System Owner' : (role ?? 'Administrator'),
-                ),
+                title: Text(owner ? 'Testagram System Owner' : (role ?? 'Administrator')),
                 subtitle: Text(
-                  owner
-                      ? 'Full governance authority'
-                      : 'Assigned role • ${status ?? 'active'}',
+                  owner ? 'Full governance authority' : 'Assigned role • ${status ?? 'active'}',
                 ),
                 trailing: const Icon(Icons.verified_user_outlined),
               ),
@@ -373,16 +344,8 @@ class _GovernancePageState extends State<GovernancePage> {
             if (owner) _appointmentCard(),
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    'Administrators',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                ),
-                IconButton(
-                  onPressed: working ? null : loadData,
-                  icon: const Icon(Icons.refresh),
-                ),
+                Expanded(child: Text('Administrators', style: theme.textTheme.titleLarge)),
+                IconButton(onPressed: working ? null : loadData, icon: const Icon(Icons.refresh)),
               ],
             ),
             if (admins.isEmpty)
@@ -429,12 +392,8 @@ class _GovernancePageState extends State<GovernancePage> {
           const Icon(Icons.key_outlined, size: 36),
           const SizedBox(height: 8),
           Text(
-            pinExists
-                ? 'Administrator PIN required'
-                : 'Set your administrator PIN',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            pinExists ? 'Administrator PIN required' : 'Set your administrator PIN',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           Text(
@@ -457,11 +416,7 @@ class _GovernancePageState extends State<GovernancePage> {
             width: double.infinity,
             child: FilledButton(
               onPressed: working ? null : submitPin,
-              child: Text(
-                working
-                    ? 'Verifying…'
-                    : (pinExists ? 'Unlock workspace' : 'Set PIN'),
-              ),
+              child: Text(working ? 'Verifying…' : (pinExists ? 'Unlock workspace' : 'Set PIN')),
             ),
           ),
         ],
@@ -500,9 +455,7 @@ class _GovernancePageState extends State<GovernancePage> {
               border: OutlineInputBorder(),
             ),
             items: roles.entries
-                .map(
-                  (r) => DropdownMenuItem(value: r.key, child: Text(r.value)),
-                )
+                .map((r) => DropdownMenuItem(value: r.key, child: Text(r.value)))
                 .toList(),
             onChanged: working
                 ? null
@@ -540,9 +493,7 @@ class _GovernancePageState extends State<GovernancePage> {
     final username = '${item['username'] ?? '?'}';
     return Card(
       child: ListTile(
-        leading: CircleAvatar(
-          child: Text(username.isEmpty ? '?' : username[0].toUpperCase()),
-        ),
+        leading: CircleAvatar(child: Text(username.isEmpty ? '?' : username[0].toUpperCase())),
         title: Text('@$username'),
         subtitle: Text(
           '${roles['${item['role_name']}'] ?? item['role_name']} • ${item['status'] ?? 'unknown'}\nAppointed ${item['appointed_at'] ?? '—'}',

@@ -9,11 +9,7 @@ void main() {
     });
 
     test('search matches username, email, and user id case-insensitively', () {
-      const user = {
-        'id': 'abc-123',
-        'username': 'Trendy',
-        'email': 't@example.com',
-      };
+      const user = {'id': 'abc-123', 'username': 'Trendy', 'email': 't@example.com'};
       expect(AdminUsersPolicy.matchesSearch(user, 'trend'), isTrue);
       expect(AdminUsersPolicy.matchesSearch(user, 'EXAMPLE.COM'), isTrue);
       expect(AdminUsersPolicy.matchesSearch(user, 'ABC-'), isTrue);

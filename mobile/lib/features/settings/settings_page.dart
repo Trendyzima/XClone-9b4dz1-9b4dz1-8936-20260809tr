@@ -30,13 +30,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _openSite([String path = '']) async {
     final base = AppConfig.siteUrl.replaceFirst(RegExp(r'/$'), '');
     final uri = Uri.parse('$base$path');
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
-        mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open Testagram in your browser.'),
-        ),
-      );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open Testagram in your browser.')));
     }
   }
 
@@ -46,15 +42,11 @@ class _SettingsPageState extends State<SettingsPage> {
       _error = null;
     });
     try {
-      await Supabase.instance.client.auth.signOut().timeout(
-        const Duration(seconds: 10),
-      );
+      await Supabase.instance.client.auth.signOut().timeout(const Duration(seconds: 10));
       if (mounted) context.go('/auth');
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error = 'Sign-out could not complete. Retry when connected.',
-        );
+        setState(() => _error = 'Sign-out could not complete. Retry when connected.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -85,11 +77,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ListTile(
                 leading: const Icon(Icons.account_circle_outlined),
                 title: const Text('Signed-in account'),
-                subtitle: Text(
-                  user?.email ??
-                      user?.phone ??
-                      'Authenticated Testagram account',
-                ),
+                subtitle: Text(user?.email ?? user?.phone ?? 'Authenticated Testagram account'),
               ),
               const Divider(height: 1),
               _item(
@@ -298,18 +286,10 @@ class _SettingsPageState extends State<SettingsPage> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
+            child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         const SizedBox(height: 16),
-        Center(
-          child: Text(
-            'Testagram · Flutter',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
+        Center(child: Text('Testagram · Flutter', style: Theme.of(context).textTheme.bodySmall)),
       ],
     );
   }

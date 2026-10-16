@@ -7,11 +7,7 @@ import 'post_interaction_policy.dart';
 enum PostInteractionKind { likes, replies, reposts, quotes, quoteLikes }
 
 class PostInteractionPage extends StatefulWidget {
-  const PostInteractionPage({
-    required this.postId,
-    required this.kind,
-    super.key,
-  });
+  const PostInteractionPage({required this.postId, required this.kind, super.key});
 
   final String postId;
   final PostInteractionKind kind;
@@ -95,9 +91,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             .eq('uri', widget.postId)
             .maybeSingle()
             .timeout(const Duration(seconds: 15));
-        if (root == null ||
-            root['deleted_at'] != null ||
-            root['tombstone'] == true) {
+        if (root == null || root['deleted_at'] != null || root['tombstone'] == true) {
           throw StateError('This federated post is unavailable.');
         }
         dynamic remoteData;
@@ -118,9 +112,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
           case PostInteractionKind.quotes:
             remoteData = await _db
                 .from('federated_objects')
-                .select(
-                  'uri,actor_uri,content,summary,published_at,quote_uri,deleted_at,tombstone',
-                )
+                .select('uri,actor_uri,content,summary,published_at,quote_uri,deleted_at,tombstone')
                 .eq('quote_uri', widget.postId)
                 .isFilter('deleted_at', null)
                 .eq('tombstone', false)
@@ -177,9 +169,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
               'content': row['content'],
               'summary': null,
               'published_at': row['created_at'],
-              'quote_uri': widget.kind == PostInteractionKind.quotes
-                  ? row['object_uri']
-                  : null,
+              'quote_uri': widget.kind == PostInteractionKind.quotes ? row['object_uri'] : null,
               'in_reply_to_uri': widget.kind == PostInteractionKind.replies
                   ? row['object_uri']
                   : null,
@@ -201,8 +191,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                   .inFilter('actor_uri', actorUris)
                   .timeout(const Duration(seconds: 12));
         final actorByUri = <String, Map<String, dynamic>>{
-          for (final actor in actors)
-            '${actor['actor_uri']}': Map<String, dynamic>.from(actor),
+          for (final actor in actors) '${actor['actor_uri']}': Map<String, dynamic>.from(actor),
         };
         for (final row in remoteRows) {
           row['profile'] ??= actorByUri['${row['actor_uri']}'];
@@ -271,12 +260,9 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             .order('created_at', ascending: false)
             .limit(PostInteractionPolicy.boundedListLimit(100))
             .timeout(const Duration(seconds: 15));
-        final quotes = quoteRows
-            .map((row) => Map<String, dynamic>.from(row))
-            .toList();
+        final quotes = quoteRows.map((row) => Map<String, dynamic>.from(row)).toList();
         quoteContentById = {
-          for (final quote in quotes)
-            '${quote['id']}': '${quote['content'] ?? ''}',
+          for (final quote in quotes) '${quote['id']}': '${quote['content'] ?? ''}',
         };
         if (widget.kind == PostInteractionKind.quotes) {
           rows = quotes;
@@ -314,8 +300,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                 .inFilter('id', userIds)
                 .timeout(const Duration(seconds: 12));
       final profileById = <String, Map<String, dynamic>>{
-        for (final profile in profiles)
-          '${profile['id']}': Map<String, dynamic>.from(profile),
+        for (final profile in profiles) '${profile['id']}': Map<String, dynamic>.from(profile),
       };
       final enriched = rows.map((row) {
         final userId = '${row['author_id'] ?? row['user_id'] ?? ''}';
@@ -347,8 +332,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
       return;
     }
     final content = _replyText.text.trim();
-    if (PostInteractionPolicy.validateComposerText(content) != null ||
-        _sendingReply) {
+    if (PostInteractionPolicy.validateComposerText(content) != null || _sendingReply) {
       return;
     }
     setState(() {
@@ -392,7 +376,9 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e is StateError ? e.message.toString() : 'Reply could not be sent. Check your connection and permissions, then retry.';
+          _error = e is StateError
+              ? e.message.toString()
+              : 'Reply could not be sent. Check your connection and permissions, then retry.';
         });
       }
     } finally {
@@ -412,8 +398,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
         ),
       ),
       bottomNavigationBar:
-          widget.kind == PostInteractionKind.replies &&
-              _db.auth.currentUser != null
+          widget.kind == PostInteractionKind.replies && _db.auth.currentUser != null
           ? SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -440,10 +425,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                       tooltip: 'Send reply',
                       onPressed:
                           _sendingReply ||
-                              PostInteractionPolicy.validateComposerText(
-                                    _replyText.text,
-                                  ) !=
-                                  null
+                              PostInteractionPolicy.validateComposerText(_replyText.text) != null
                           ? null
                           : _sendReply,
                       icon: _sendingReply
@@ -492,10 +474,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Original post',
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
+                            Text('Original post', style: Theme.of(context).textTheme.labelLarge),
                             const SizedBox(height: 6),
                             SelectableText(
                               '${_rootPost!['content'] ?? _rootPost!['summary'] ?? ''}',
@@ -527,10 +506,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                   if (_items.isEmpty && _notice == null)
                     Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'No ${_title.toLowerCase()} yet.',
-                        textAlign: TextAlign.center,
-                      ),
+                      child: Text('No ${_title.toLowerCase()} yet.', textAlign: TextAlign.center),
                     ),
                   ..._items.map((item) {
                     final profile = item['profile'] as Map<String, dynamic>?;
@@ -550,35 +526,21 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                     return Card(
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundImage: avatar.startsWith('http')
-                              ? NetworkImage(avatar)
-                              : null,
+                          backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
                           child: avatar.startsWith('http')
                               ? null
-                              : Text(
-                                  name.isEmpty ? 'T' : name[0].toUpperCase(),
-                                ),
+                              : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
                         ),
-                        title: Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (username.isNotEmpty) Text('@$username'),
-                            Text(
-                              detail,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            Text(detail, maxLines: 3, overflow: TextOverflow.ellipsis),
                           ],
                         ),
                         isThreeLine: username.isNotEmpty,
-                        onTap: username.isEmpty
-                            ? null
-                            : () => context.push('/profile/$username'),
+                        onTap: username.isEmpty ? null : () => context.push('/profile/$username'),
                       ),
                     );
                   }),

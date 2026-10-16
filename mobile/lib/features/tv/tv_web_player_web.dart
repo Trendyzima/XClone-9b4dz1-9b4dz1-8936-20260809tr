@@ -35,12 +35,7 @@ extension type _HlsInstance(JSObject _) implements JSObject {
 }
 
 class TvWebPlayer extends StatefulWidget {
-  const TvWebPlayer({
-    required this.url,
-    this.onError,
-    this.onPlaybackReady,
-    super.key,
-  });
+  const TvWebPlayer({required this.url, this.onError, this.onPlaybackReady, super.key});
 
   final String url;
   final ValueChanged<String>? onError;
@@ -64,9 +59,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
   void initState() {
     super.initState();
     // ignore: prefer_interpolation_to_compose_strings
-    _viewType =
-        'testagram-tv-player-' +
-        DateTime.now().microsecondsSinceEpoch.toString();
+    _viewType = 'testagram-tv-player-' + DateTime.now().microsecondsSinceEpoch.toString();
     ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final video = web.HTMLVideoElement()
         ..controls = true
@@ -83,9 +76,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       video.addEventListener(
         'error',
         ((web.Event event) {
-          _reportError(
-            'This stream failed to load in the browser. Try another channel or retry.',
-          );
+          _reportError('This stream failed to load in the browser. Try another channel or retry.');
         }).toJS,
       );
       video.addEventListener(
@@ -147,11 +138,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
     return loaded;
   }
 
-  Future<void> _attach(
-    web.HTMLVideoElement video,
-    String url,
-    int generation,
-  ) async {
+  Future<void> _attach(web.HTMLVideoElement video, String url, int generation) async {
     _destroyHls();
     _error = null;
     _recoveryAttempts = 0;
@@ -163,12 +150,8 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
     final parsed = Uri.tryParse(url);
     final upstream = parsed?.queryParameters['url'] ?? url;
     final lower = upstream.toLowerCase();
-    final isHls =
-        lower.contains('.m3u8') ||
-        lower.contains('.m3u') ||
-        lower.contains('format=m3u');
-    if (!isHls ||
-        video.canPlayType('application/vnd.apple.mpegurl').isNotEmpty) {
+    final isHls = lower.contains('.m3u8') || lower.contains('.m3u') || lower.contains('format=m3u');
+    if (!isHls || video.canPlayType('application/vnd.apple.mpegurl').isNotEmpty) {
       video.src = url;
       try {
         await video.play().toDart;
@@ -181,16 +164,12 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
     final loaded = await _ensureHls();
     if (!mounted || generation != _generation) return;
     if (!loaded) {
-      _reportError(
-        'HLS playback support could not load. Check your connection and retry.',
-      );
+      _reportError('HLS playback support could not load. Check your connection and retry.');
       return;
     }
     final constructor = _hlsConstructor;
     if (constructor == null || !_hlsIsSupported().toDart) {
-      _reportError(
-        'This browser cannot play HLS. Try a supported browser or another channel.',
-      );
+      _reportError('This browser cannot play HLS. Try a supported browser or another channel.');
       return;
     }
     try {
@@ -201,9 +180,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       } catch (_) {
         // Cache availability is an optimization, never a playback requirement.
       }
-      final instance = _HlsInstance(
-        constructor.callAsConstructorVarArgs<JSObject>(const []),
-      );
+      final instance = _HlsInstance(constructor.callAsConstructorVarArgs<JSObject>(const []));
       _hls = instance;
       instance.loadSource(url);
       instance.attachMedia(video);
@@ -293,10 +270,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
             ),
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(
-                _error!,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
+              child: Text(_error!, style: const TextStyle(color: Colors.white, fontSize: 12)),
             ),
           ),
         ),

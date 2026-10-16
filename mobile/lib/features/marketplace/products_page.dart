@@ -61,9 +61,7 @@ class _ProductsPageState extends State<ProductsPage> {
           .order(orderColumn, ascending: _sort == 'Price: low to high')
           .limit(widget.productId == null ? 60 : 1)
           .timeout(const Duration(seconds: 15));
-      final products = rows
-          .map((r) => Map<String, dynamic>.from(r as Map))
-          .toList();
+      final products = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
       if (_uid != null && products.isNotEmpty) {
         final saved = await _db
             .from('wishlists')
@@ -75,10 +73,7 @@ class _ProductsPageState extends State<ProductsPage> {
       if (mounted) setState(() => _products = products);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Marketplace could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Marketplace could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -101,11 +96,7 @@ class _ProductsPageState extends State<ProductsPage> {
     });
     try {
       if (wasSaved) {
-        await _db
-            .from('wishlists')
-            .delete()
-            .eq('user_id', uid)
-            .eq('product_id', id);
+        await _db.from('wishlists').delete().eq('user_id', uid).eq('product_id', id);
       } else {
         await _db.from('wishlists').insert({'user_id': uid, 'product_id': id});
       }
@@ -114,11 +105,8 @@ class _ProductsPageState extends State<ProductsPage> {
         setState(() {
           wasSaved ? _wishlisted.add(id) : _wishlisted.remove(id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Wishlist update failed. Please retry.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Wishlist update failed. Please retry.')));
       }
     }
   }
@@ -142,9 +130,7 @@ class _ProductsPageState extends State<ProductsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Total is calculated and validated by the server before wallet debit.',
-                ),
+                const Text('Total is calculated and validated by the server before wallet debit.'),
                 TextField(
                   controller: quantity,
                   keyboardType: TextInputType.number,
@@ -155,10 +141,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   value: delivery,
                   decoration: const InputDecoration(labelText: 'Delivery'),
                   items: [
-                    const DropdownMenuItem(
-                      value: 'pickup',
-                      child: Text('Pickup'),
-                    ),
+                    const DropdownMenuItem(value: 'pickup', child: Text('Pickup')),
                     const DropdownMenuItem(
                       value: 'seller_delivery',
                       child: Text('Seller delivery'),
@@ -177,24 +160,17 @@ class _ProductsPageState extends State<ProductsPage> {
                   TextField(
                     controller: address,
                     maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Delivery address',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Delivery address'),
                   ),
                 TextField(
                   controller: note,
-                  decoration: const InputDecoration(
-                    labelText: 'Delivery note (optional)',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Delivery note (optional)'),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, {
                 'quantity': int.tryParse(quantity.text),
@@ -214,16 +190,13 @@ class _ProductsPageState extends State<ProductsPage> {
     if (result == null || !mounted) return;
     final qty = result['quantity'] as int?;
     if (qty == null || qty < 1 || qty > 100) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quantity must be between 1 and 100.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Quantity must be between 1 and 100.')));
       return;
     }
-    if (result['delivery'] != 'pickup' &&
-        (result['address'] as String).isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A delivery address is required.')),
-      );
+    if (result['delivery'] != 'pickup' && (result['address'] as String).isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('A delivery address is required.')));
       return;
     }
     setState(() => _working = true);
@@ -233,29 +206,21 @@ class _ProductsPageState extends State<ProductsPage> {
         params: {
           'p_product_id': '${product['id']}',
           'p_quantity': qty,
-          'p_idempotency_key':
-              '$uid-${product['id']}-${DateTime.now().microsecondsSinceEpoch}',
+          'p_idempotency_key': '$uid-${product['id']}-${DateTime.now().microsecondsSinceEpoch}',
           'p_delivery_mode': result['delivery'],
-          'p_delivery_address': (result['address'] as String).isEmpty
-              ? null
-              : result['address'],
-          'p_delivery_note': (result['note'] as String).isEmpty
-              ? null
-              : result['note'],
+          'p_delivery_address': (result['address'] as String).isEmpty ? null : result['address'],
+          'p_delivery_note': (result['note'] as String).isEmpty ? null : result['note'],
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Order placed securely. Order reference: $orderId'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Order placed securely. Order reference: $orderId')));
         await _load();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(_purchaseError('$e'))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_purchaseError('$e'))));
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -336,14 +301,8 @@ class _ProductsPageState extends State<ProductsPage> {
               items: const [
                 DropdownMenuItem(value: 'Popular', child: Text('Best selling')),
                 DropdownMenuItem(value: 'Newest', child: Text('Newest')),
-                DropdownMenuItem(
-                  value: 'Price: low to high',
-                  child: Text('Price: low to high'),
-                ),
-                DropdownMenuItem(
-                  value: 'Price: high to low',
-                  child: Text('Price: high to low'),
-                ),
+                DropdownMenuItem(value: 'Price: low to high', child: Text('Price: low to high')),
+                DropdownMenuItem(value: 'Price: high to low', child: Text('Price: high to low')),
               ],
               onChanged: (v) {
                 if (v != null) {
@@ -371,16 +330,13 @@ class _ProductsPageState extends State<ProductsPage> {
           if (!_loading && _products.isEmpty && _error == null)
             const Padding(
               padding: EdgeInsets.all(24),
-              child: Center(
-                child: Text('No products are available right now.'),
-              ),
+              child: Center(child: Text('No products are available right now.')),
             ),
           ..._products.map((p) {
             final id = '${p['id']}';
             final image = '${p['media_url'] ?? ''}';
             final currency = '${p['currency'] ?? 'KES'}';
-            final amount =
-                (int.tryParse('${p['price_minor'] ?? 0}') ?? 0) / 100;
+            final amount = (int.tryParse('${p['price_minor'] ?? 0}') ?? 0) / 100;
             final available = _available(p);
             return Card(
               margin: const EdgeInsets.only(top: 10),
@@ -396,17 +352,13 @@ class _ProductsPageState extends State<ProductsPage> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
                         height: 100,
-                        child: Center(
-                          child: Icon(Icons.inventory_2_outlined, size: 42),
-                        ),
+                        child: Center(child: Icon(Icons.inventory_2_outlined, size: 42)),
                       ),
                     )
                   else
                     SizedBox(
                       height: detail ? 180 : 110,
-                      child: const Center(
-                        child: Icon(Icons.inventory_2_outlined, size: 42),
-                      ),
+                      child: const Center(child: Icon(Icons.inventory_2_outlined, size: 42)),
                     ),
                   Padding(
                     padding: const EdgeInsets.all(14),
@@ -435,16 +387,12 @@ class _ProductsPageState extends State<ProductsPage> {
                             child: Text(
                               '${p['description']}',
                               maxLines: detail ? 20 : 3,
-                              overflow: detail
-                                  ? TextOverflow.visible
-                                  : TextOverflow.ellipsis,
+                              overflow: detail ? TextOverflow.visible : TextOverflow.ellipsis,
                             ),
                           ),
                         const SizedBox(height: 8),
                         Text(
-                          available > 0
-                              ? '$available available'
-                              : 'Out of stock',
+                          available > 0 ? '$available available' : 'Out of stock',
                           style: TextStyle(
                             color: available > 0 ? Colors.green : Colors.red,
                             fontWeight: FontWeight.w700,
@@ -464,23 +412,15 @@ class _ProductsPageState extends State<ProductsPage> {
                                   : 'Save to wishlist',
                               onPressed: () => _toggleWishlist(p),
                               icon: Icon(
-                                _wishlisted.contains(id)
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: _wishlisted.contains(id)
-                                    ? Colors.pink
-                                    : null,
+                                _wishlisted.contains(id) ? Icons.favorite : Icons.favorite_border,
+                                color: _wishlisted.contains(id) ? Colors.pink : null,
                               ),
                             ),
                             if (detail)
                               FilledButton.icon(
-                                onPressed: _working || available < 1
-                                    ? null
-                                    : () => _purchase(p),
+                                onPressed: _working || available < 1 ? null : () => _purchase(p),
                                 icon: const Icon(Icons.shopping_bag_outlined),
-                                label: Text(
-                                  _working ? 'Processing…' : 'Buy securely',
-                                ),
+                                label: Text(_working ? 'Processing…' : 'Buy securely'),
                               ),
                           ],
                         ),

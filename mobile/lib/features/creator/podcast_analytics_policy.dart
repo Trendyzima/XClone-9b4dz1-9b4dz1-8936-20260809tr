@@ -3,8 +3,7 @@
 class PodcastAnalyticsPolicy {
   const PodcastAnalyticsPolicy._();
 
-  static bool isLocked(dynamic record) =>
-      record is Map && record['is_locked'] == true;
+  static bool isLocked(dynamic record) => record is Map && record['is_locked'] == true;
 
   static int asCount(dynamic value) => int.tryParse('$value') ?? 0;
 

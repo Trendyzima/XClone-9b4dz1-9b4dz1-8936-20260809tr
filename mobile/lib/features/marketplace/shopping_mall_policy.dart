@@ -53,25 +53,9 @@ class MallPolicy {
       'perfume',
       'personal care',
     ]),
-    MallCategory('handmade', 'Handmade', '🧶', [
-      'handmade',
-      'craft',
-      'artisan',
-      'knit',
-      'woven',
-    ]),
-    MallCategory('art', 'Art & Decor', '🎨', [
-      'art',
-      'painting',
-      'print',
-      'decor',
-    ]),
-    MallCategory('books', 'Books', '📚', [
-      'book',
-      'novel',
-      'textbook',
-      'journal',
-    ]),
+    MallCategory('handmade', 'Handmade', '🧶', ['handmade', 'craft', 'artisan', 'knit', 'woven']),
+    MallCategory('art', 'Art & Decor', '🎨', ['art', 'painting', 'print', 'decor']),
+    MallCategory('books', 'Books', '📚', ['book', 'novel', 'textbook', 'journal']),
     MallCategory('food', 'Food & Grocery', '🥑', [
       'food',
       'grocery',
@@ -83,10 +67,8 @@ class MallPolicy {
     MallCategory('other', 'More', '✨', []),
   ];
 
-  static MallCategory category(String id) => categories.firstWhere(
-    (item) => item.id == id,
-    orElse: () => categories.first,
-  );
+  static MallCategory category(String id) =>
+      categories.firstWhere((item) => item.id == id, orElse: () => categories.first);
 
   static bool matchesCategory({
     required String selectedId,
@@ -103,8 +85,7 @@ class MallPolicy {
           .where((item) => !{'all', 'other'}.contains(item.id))
           .any((item) => item.keywords.any(haystack.contains));
     }
-    return selected.keywords.any(haystack.contains) ||
-        categoryValue.toLowerCase() == selectedId;
+    return selected.keywords.any(haystack.contains) || categoryValue.toLowerCase() == selectedId;
   }
 
   static String? safeImageUrl(Object? value) {

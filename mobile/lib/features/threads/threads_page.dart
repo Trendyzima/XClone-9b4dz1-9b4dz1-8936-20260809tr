@@ -62,10 +62,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
       final viewer = _uid;
       List<String> following = [];
       if (_tab == 'Following' && viewer != null) {
-        final rows = await _db
-            .from('follows')
-            .select('following_id')
-            .eq('follower_id', viewer);
+        final rows = await _db.from('follows').select('following_id').eq('follower_id', viewer);
         following = rows.map((r) => '${r['following_id']}').toList();
       }
       final base = _db
@@ -73,20 +70,15 @@ class _ThreadsPageState extends State<ThreadsPage> {
           .select(
             'id,owner_id,title,body,visibility,created_at,deleted_at,likes_count,reposts_count,replies_count,media_urls',
           );
-      final response =
-          _tab == 'Following' && (viewer == null || following.isEmpty)
+      final response = _tab == 'Following' && (viewer == null || following.isEmpty)
           ? <dynamic>[]
-          : await (_tab == 'Following'
-                    ? base.inFilter('owner_id', following)
-                    : base)
+          : await (_tab == 'Following' ? base.inFilter('owner_id', following) : base)
                 .isFilter('deleted_at', null)
                 .eq('visibility', 'public')
                 .order('created_at', ascending: false)
                 .range(start, start + 19)
                 .timeout(const Duration(seconds: 15));
-      final rows = response
-          .map((r) => Map<String, dynamic>.from(r as Map))
-          .toList();
+      final rows = response.map((r) => Map<String, dynamic>.from(r as Map)).toList();
       final ownerIds = rows.map((r) => '${r['owner_id']}').toSet().toList();
       final profiles = ownerIds.isEmpty
           ? <dynamic>[]
@@ -94,10 +86,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
                 .from('profiles')
                 .select('id,username,display_name,avatar_url,verified')
                 .inFilter('id', ownerIds);
-      final byId = {
-        for (final p in profiles)
-          '${p['id']}': Map<String, dynamic>.from(p as Map),
-      };
+      final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
       for (final row in rows) {
         row['profile'] = byId['${row['owner_id']}'];
       }
@@ -124,10 +113,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
       });
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Threads could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Threads could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -143,11 +129,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
     if (body.isEmpty || _publishing) return;
     setState(() => _publishing = true);
     try {
-      await _db.from('threads').insert({
-        'owner_id': _uid,
-        'body': body,
-        'visibility': 'public',
-      });
+      await _db.from('threads').insert({'owner_id': _uid, 'body': body, 'visibility': 'public'});
       _composer.clear();
       await _load(reset: true);
       if (mounted) {
@@ -156,11 +138,8 @@ class _ThreadsPageState extends State<ThreadsPage> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not publish thread. Please retry.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Could not publish thread. Please retry.')));
       }
     } finally {
       if (mounted) setState(() => _publishing = false);
@@ -191,9 +170,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
           wasSet ? set.add(id) : set.remove(id);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Action failed. Your feed was restored; retry.'),
-          ),
+          const SnackBar(content: Text('Action failed. Your feed was restored; retry.')),
         );
       }
     }
@@ -210,8 +187,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
           child: Text(
             'Threads',
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         Padding(
@@ -271,18 +247,14 @@ class _ThreadsPageState extends State<ThreadsPage> {
             child: Column(
               children: [
                 Text(_error!),
-                TextButton(
-                  onPressed: () => _load(reset: true),
-                  child: const Text('Retry'),
-                ),
+                TextButton(onPressed: () => _load(reset: true), child: const Text('Retry')),
               ],
             ),
           ),
         ..._items.map((t) {
           final id = '${t['id']}';
           final p = (t['profile'] as Map<String, dynamic>?) ?? {};
-          final name =
-              '${p['display_name'] ?? p['username'] ?? 'Testagram user'}';
+          final name = '${p['display_name'] ?? p['username'] ?? 'Testagram user'}';
           final media = t['media_urls'];
           return Card(
             margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
@@ -295,22 +267,13 @@ class _ThreadsPageState extends State<ThreadsPage> {
                   children: [
                     Row(
                       children: [
-                        CircleAvatar(
-                          child: Text(
-                            name.isEmpty ? 'T' : name[0].toUpperCase(),
-                          ),
-                        ),
+                        CircleAvatar(child: Text(name.isEmpty ? 'T' : name[0].toUpperCase())),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
+                              Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
                               Text(
                                 '@${p['username'] ?? 'user'}',
                                 style: Theme.of(context).textTheme.bodySmall,
@@ -330,10 +293,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
                         padding: const EdgeInsets.only(top: 10),
                         child: Text(
                           '${t['title']}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                         ),
                       ),
                     Padding(
@@ -347,12 +307,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
                           spacing: 8,
                           children: media
                               .take(4)
-                              .map(
-                                (m) => const Icon(
-                                  Icons.attach_file_rounded,
-                                  size: 18,
-                                ),
-                              )
+                              .map((m) => const Icon(Icons.attach_file_rounded, size: 18))
                               .toList(),
                         ),
                       ),
@@ -377,11 +332,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
                           tooltip: 'Like',
                           onPressed: () => _toggle(id, true),
                           color: _liked.contains(id) ? Colors.pink : null,
-                          icon: Icon(
-                            _liked.contains(id)
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                          ),
+                          icon: Icon(_liked.contains(id) ? Icons.favorite : Icons.favorite_border),
                         ),
                         Text('${t['likes_count'] ?? 0}'),
                       ],
@@ -400,9 +351,7 @@ class _ThreadsPageState extends State<ThreadsPage> {
         if (!_loading && _items.isEmpty && _error == null)
           const Padding(
             padding: EdgeInsets.all(28),
-            child: Center(
-              child: Text('No threads yet. Start the first conversation.'),
-            ),
+            child: Center(child: Text('No threads yet. Start the first conversation.')),
           ),
         if (!_loading && _hasMore && _items.isNotEmpty)
           Center(

@@ -26,8 +26,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
       ) as Map<String, dynamic>;
       final exp = payload['exp'];
       if (exp is num) {
-        return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000)
-            .toLocal();
+        return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000).toLocal();
       }
     } catch (_) {
       return null;
@@ -42,19 +41,14 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          allDevices ? 'Sign out all devices?' : 'Sign out this device?',
-        ),
+        title: Text(allDevices ? 'Sign out all devices?' : 'Sign out this device?'),
         content: Text(
           allDevices
               ? 'This invalidates the account sessions supported by the authentication provider. You will need to sign in again.'
               : 'You will be signed out on this device.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Sign out'),
@@ -70,18 +64,13 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
       _error = null;
     });
     try {
-      await _db.auth.signOut(
-        scope: allDevices ? SignOutScope.global : SignOutScope.local,
-      );
+      await _db.auth.signOut(scope: allDevices ? SignOutScope.global : SignOutScope.local);
       if (mounted) {
         context.go('/auth');
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Sign-out was not confirmed. Check your connection and retry.',
-        );
+        setState(() => _error = 'Sign-out was not confirmed. Check your connection and retry.');
       }
     } finally {
       if (mounted) {
@@ -101,9 +90,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
       children: [
         Text(
           'Active sessions',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
         const Text(
@@ -112,10 +99,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
         const SizedBox(height: 12),
         if (_error != null)
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.error_outline),
-              title: Text(_error!),
-            ),
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text(_error!)),
           ),
         if (session == null || user == null)
           const Card(
@@ -139,19 +123,14 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
                       Expanded(
                         child: Text(
                           'Current session',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                         ),
                       ),
                       const Chip(label: Text('Active')),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _detail(
-                    'Account',
-                    user.email ?? user.phone ?? 'Signed-in account',
-                  ),
+                  _detail('Account', user.email ?? user.phone ?? 'Signed-in account'),
                   _detail(
                     'User ID',
                     '${user.id.substring(0, user.id.length < 8 ? user.id.length : 8)}…',
@@ -160,10 +139,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
                     'Account created',
                     user.createdAt.isEmpty ? 'Unavailable' : user.createdAt,
                   ),
-                  _detail(
-                    'Session expiry',
-                    expiry?.toString() ?? 'Provider-managed / unavailable',
-                  ),
+                  _detail('Session expiry', expiry?.toString() ?? 'Provider-managed / unavailable'),
                   const SizedBox(height: 8),
                   const Text(
                     'This screen can revoke the current session and request a provider-level global sign-out. It does not claim to enumerate every device session.',
@@ -174,17 +150,13 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
           ),
         const SizedBox(height: 8),
         FilledButton.icon(
-          onPressed: _busy || session == null
-              ? null
-              : () => _signOut(allDevices: false),
+          onPressed: _busy || session == null ? null : () => _signOut(allDevices: false),
           icon: const Icon(Icons.logout),
           label: Text(_busy ? 'Signing out…' : 'Sign out this device'),
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: _busy || session == null
-              ? null
-              : () => _signOut(allDevices: true),
+          onPressed: _busy || session == null ? null : () => _signOut(allDevices: true),
           icon: const Icon(Icons.devices_outlined),
           label: const Text('Sign out all devices'),
         ),
@@ -199,10 +171,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
       children: [
         SizedBox(
           width: 120,
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
+          child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
         ),
         Expanded(child: SelectableText(value)),
       ],

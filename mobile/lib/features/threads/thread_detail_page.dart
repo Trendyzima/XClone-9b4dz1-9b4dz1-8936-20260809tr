@@ -3,11 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ThreadDetailPage extends StatefulWidget {
-  const ThreadDetailPage({
-    super.key,
-    required this.threadId,
-    this.repliesOnly = false,
-  });
+  const ThreadDetailPage({super.key, required this.threadId, this.repliesOnly = false});
   final String threadId;
   final bool repliesOnly;
   @override
@@ -69,10 +65,7 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
                 .from('profiles')
                 .select('id,username,display_name,avatar_url')
                 .inFilter('id', ids);
-      final byId = {
-        for (final p in profiles)
-          '${p['id']}': Map<String, dynamic>.from(p as Map),
-      };
+      final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
       final uid = _uid;
       final likeRows = uid == null
           ? <dynamic>[]
@@ -105,7 +98,8 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'This thread could not be loaded. It may have been removed or is unavailable.',
+          () => _error =
+              'This thread could not be loaded. It may have been removed or is unavailable.',
         );
       }
     } finally {
@@ -132,11 +126,8 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Reply could not be sent. Please retry.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Reply could not be sent. Please retry.')));
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -151,16 +142,9 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
     }
     try {
       if (active) {
-        await _db
-            .from(table)
-            .delete()
-            .eq('thread_id', widget.threadId)
-            .eq('user_id', uid);
+        await _db.from(table).delete().eq('thread_id', widget.threadId).eq('user_id', uid);
       } else {
-        await _db.from(table).insert({
-          'thread_id': widget.threadId,
-          'user_id': uid,
-        });
+        await _db.from(table).insert({'thread_id': widget.threadId, 'user_id': uid});
       }
       if (table == 'thread_likes') {
         setState(() => _liked = !active);
@@ -170,9 +154,8 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Action failed. Please retry.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Action failed. Please retry.')));
       }
     }
   }
@@ -238,9 +221,7 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
                           children: [
                             Text(
                               '${_thread!['profile']?['display_name'] ?? _thread!['profile']?['username'] ?? 'Testagram user'}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
+                              style: const TextStyle(fontWeight: FontWeight.w800),
                             ),
                             Text(
                               '@${_thread!['profile']?['username'] ?? 'user'}',
@@ -256,10 +237,7 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
                       padding: const EdgeInsets.only(top: 12),
                       child: Text(
                         '${_thread!['title']}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
                       ),
                     ),
                   Padding(
@@ -280,9 +258,7 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
                       TextButton.icon(
                         onPressed: () => _toggle('thread_reposts', _reposted),
                         icon: const Icon(Icons.repeat_rounded),
-                        label: Text(
-                          '${_thread!['reposts_count'] ?? 0} Reposts',
-                        ),
+                        label: Text('${_thread!['reposts_count'] ?? 0} Reposts'),
                       ),
                       const Spacer(),
                       Text('${_replies.length} replies'),
@@ -295,8 +271,7 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
           const SizedBox(height: 12),
           Text(
             'Join the conversation',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           Card(
             child: Padding(
@@ -336,9 +311,7 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
               margin: const EdgeInsets.only(top: 8),
               child: ListTile(
                 leading: CircleAvatar(
-                  child: Text(
-                    _initial('${p['display_name'] ?? p['username'] ?? 'T'}'),
-                  ),
+                  child: Text(_initial('${p['display_name'] ?? p['username'] ?? 'T'}')),
                 ),
                 title: Text(
                   '${p['display_name'] ?? p['username'] ?? 'Testagram user'}',

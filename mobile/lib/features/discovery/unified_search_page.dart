@@ -10,11 +10,7 @@ import '../../core/api/testagram_capability_client.dart';
 import 'unified_search_policy.dart';
 
 class UnifiedSearchPage extends StatefulWidget {
-  const UnifiedSearchPage({
-    super.key,
-    this.initialQuery = '',
-    this.initialTab = 'Top',
-  });
+  const UnifiedSearchPage({super.key, this.initialQuery = '', this.initialTab = 'Top'});
 
   final String initialQuery;
   final String initialTab;
@@ -51,9 +47,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     _scrollController.addListener(_onScroll);
     _controller.text = widget.initialQuery;
     _query = widget.initialQuery;
-    _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab)
-        ? widget.initialTab
-        : 'Top';
+    _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab) ? widget.initialTab : 'Top';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDiscovery();
       if (_query.trim().isNotEmpty) _search();
@@ -70,13 +64,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       final response = await _db
           .rpc(
             'testagram_search_unified',
-            params: {
-              'p_q': '',
-              'p_kind': 'all',
-              'p_limit': 8,
-              'p_offset': 0,
-              'p_sort': 'latest',
-            },
+            params: {'p_q': '', 'p_kind': 'all', 'p_limit': 8, 'p_offset': 0, 'p_sort': 'latest'},
           )
           .timeout(const Duration(seconds: 18));
       if (!mounted) return;
@@ -99,9 +87,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             .timeout(const Duration(seconds: 12));
         if (!mounted) return;
         setState(() {
-          _discoveryResults = UnifiedSearchPolicy.normalize({
-            'posts': response,
-          });
+          _discoveryResults = UnifiedSearchPolicy.normalize({'posts': response});
           _discoveryError = null;
         });
       } catch (fallbackError) {
@@ -128,10 +114,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients ||
-        _loading ||
-        _loadingMore ||
-        !_hasMore) {
+    if (!_scrollController.hasClients || _loading || _loadingMore || !_hasMore) {
       return;
     }
     if (_scrollController.position.extentAfter < 420) {
@@ -167,8 +150,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         setState(() {
           _query = query;
           _loading = false;
-          _error =
-              'Your session has expired. Sign in again to search Testagram.';
+          _error = 'Your session has expired. Sign in again to search Testagram.';
           _notice = null;
           _results = UnifiedSearchPolicy.normalize(null);
           _hasMore = false;
@@ -208,9 +190,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       if (!mounted || generation != _requestGeneration) return;
       final normalized = UnifiedSearchPolicy.normalize(response);
       setState(() {
-        _results = append
-            ? UnifiedSearchPolicy.mergePage(_results, normalized)
-            : normalized;
+        _results = append ? UnifiedSearchPolicy.mergePage(_results, normalized) : normalized;
         _offset = int.tryParse('${normalized['next_cursor']}') ?? 0;
         _hasMore = normalized['next_cursor'] != null;
       });
@@ -225,9 +205,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       if (authFailure && retryAuth) {
         try {
           await _db.auth.refreshSession().timeout(const Duration(seconds: 12));
-          if (_db.auth.currentSession != null &&
-              mounted &&
-              generation == _requestGeneration) {
+          if (_db.auth.currentSession != null && mounted && generation == _requestGeneration) {
             return _search(retryAuth: false, append: append);
           }
         } catch (_) {
@@ -273,11 +251,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       try {
         return await client.call<Map<String, dynamic>>(
           capability,
-          input: <String, Object?>{
-            'q': term,
-            'limit': 40,
-            if (mediaOnly) 'media_only': true,
-          },
+          input: <String, Object?>{'q': term, 'limit': 40, if (mediaOnly) 'media_only': true},
         );
       } catch (_) {
         return null;
@@ -330,9 +304,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     if (_query.isNotEmpty) _search();
   }
 
-  List<Map<String, dynamic>> _rowsForCurrentTab({
-    Map<String, dynamic>? source,
-  }) {
+  List<Map<String, dynamic>> _rowsForCurrentTab({Map<String, dynamic>? source}) {
     final data = source ?? _results;
     if (_tab != 'Top') {
       final group = UnifiedSearchPolicy.groupForTab(_tab);
@@ -375,8 +347,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       'fediverse',
       'instances',
     ]) {
-      for (final row
-          in (data[group] as List<Map<String, dynamic>>?) ?? const []) {
+      for (final row in (data[group] as List<Map<String, dynamic>>?) ?? const []) {
         final canonical =
             row['uri'] ??
             row['remote_status_uri'] ??
@@ -448,9 +419,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                       },
                       icon: const Icon(Icons.close_rounded),
                     ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(28)),
             ),
           ),
         ),
@@ -462,10 +431,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             children: [
               for (final tab in UnifiedSearchPolicy.kinds.keys)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 3,
-                    vertical: 5,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 5),
                   child: ChoiceChip(
                     label: Text(tab),
                     selected: _tab == tab,
@@ -475,25 +441,14 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             ],
           ),
         ),
-        if (const {
-          'Top',
-          'Latest',
-          'Posts',
-          'Media',
-          'Fediverse',
-        }.contains(_tab))
+        if (const {'Top', 'Latest', 'Posts', 'Media', 'Fediverse'}.contains(_tab))
           SizedBox(
             height: 42,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
-                for (final sort in const [
-                  'Relevance',
-                  'Latest',
-                  'Most liked',
-                  'Most viewed',
-                ])
+                for (final sort in const ['Relevance', 'Latest', 'Most liked', 'Most viewed'])
                   Padding(
                     padding: const EdgeInsets.only(right: 6, top: 3, bottom: 3),
                     child: ChoiceChip(
@@ -514,10 +469,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
             padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                _notice!,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              child: Text(_notice!, style: Theme.of(context).textTheme.bodySmall),
             ),
           ),
         if (_error != null)
@@ -534,10 +486,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                         const Icon(Icons.cloud_off_outlined),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            _error!,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                          child: Text(_error!, style: const TextStyle(fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
@@ -570,25 +519,18 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                     )
                   else if (discoveryRows.isEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 40,
-                        horizontal: 18,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 18),
                       child: Column(
                         children: [
                           const Icon(Icons.travel_explore_rounded, size: 42),
                           const SizedBox(height: 10),
                           const Text(
                             'Discover Testagram',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            _discoveryError ??
-                                'New posts and topics will appear here.',
+                            _discoveryError ?? 'New posts and topics will appear here.',
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
@@ -605,10 +547,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                       padding: EdgeInsets.fromLTRB(4, 8, 4, 12),
                       child: Text(
                         'Discover on Testagram',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                       ),
                     ),
                     ...discoveryRows.map(_resultCard),
@@ -621,10 +560,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                     )
                   else if (_error == null && rows.isEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 32,
-                        horizontal: 18,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 18),
                       child: Column(
                         children: [
                           const Icon(Icons.search_off_rounded, size: 42),
@@ -649,10 +585,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                       padding: EdgeInsets.fromLTRB(4, 20, 4, 10),
                       child: Text(
                         'Discover more',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                       ),
                     ),
                     ...additionalDiscoveryRows.map(_resultCard),
@@ -693,18 +626,13 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         'summary',
         'title',
       ], fallback: 'Post'),
-      'threads' => UnifiedSearchPolicy.firstText(row, [
-        'title',
-        'body',
-      ], fallback: 'Thread'),
+      'threads' => UnifiedSearchPolicy.firstText(row, ['title', 'body'], fallback: 'Thread'),
       'communities' => UnifiedSearchPolicy.firstText(row, [
         'display_name',
         'name',
         'slug',
       ], fallback: 'Community'),
-      'replies' => UnifiedSearchPolicy.firstText(row, [
-        'content',
-      ], fallback: 'Reply'),
+      'replies' => UnifiedSearchPolicy.firstText(row, ['content'], fallback: 'Reply'),
       'fediverse' => UnifiedSearchPolicy.firstText(row, [
         'content',
         'summary',
@@ -727,8 +655,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
       'threads' =>
         '${row['profiles'] is Map ? (row['profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
-      'communities' =>
-        '${row['member_count'] ?? 0} members · ${row['post_count'] ?? 0} posts',
+      'communities' => '${row['member_count'] ?? 0} members · ${row['post_count'] ?? 0} posts',
       'replies' =>
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
       'instances' =>
@@ -821,26 +748,18 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   void _openResult(String group, Map<String, dynamic> row) {
     switch (group) {
       case 'users':
-        final username = '${row['username'] ?? ''}'.replaceFirst(
-          RegExp(r'^@'),
-          '',
-        );
+        final username = '${row['username'] ?? ''}'.replaceFirst(RegExp(r'^@'), '');
         if (row['origin'] == 'fediverse' || row['actor_uri'] != null) {
           final actor = '${row['actor_uri'] ?? ''}';
           if (actor.startsWith('https://') || actor.startsWith('http://')) {
-            context.go(
-              '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}',
-            );
+            context.go('/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}');
           }
         } else if (username.isNotEmpty) {
           context.go('/profile/${Uri.encodeComponent(username)}');
         }
         break;
       case 'hashtags':
-        final tag = '${row['tag'] ?? row['name'] ?? ''}'.replaceFirst(
-          RegExp(r'^#'),
-          '',
-        );
+        final tag = '${row['tag'] ?? row['name'] ?? ''}'.replaceFirst(RegExp(r'^#'), '');
         if (tag.isNotEmpty) context.go('/hashtag/${Uri.encodeComponent(tag)}');
         break;
       case 'posts':
@@ -879,8 +798,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         break;
       case 'fediverse':
         final objectUrl = '${row['url'] ?? row['uri'] ?? ''}';
-        if (objectUrl.startsWith('http://') ||
-            objectUrl.startsWith('https://')) {
+        if (objectUrl.startsWith('http://') || objectUrl.startsWith('https://')) {
           unawaited(_openExternalUrl(objectUrl));
           break;
         }
@@ -888,9 +806,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         final actor =
             '${row['actor_uri'] ?? (remoteAccount is Map ? remoteAccount['actor_uri'] : null) ?? ''}';
         if (actor.startsWith('http://') || actor.startsWith('https://')) {
-          context.go(
-            '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}',
-          );
+          context.go('/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}');
         }
         break;
       default:

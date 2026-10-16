@@ -23,9 +23,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   String? _error;
   int _generation = 0;
 
-  List<Map<String, dynamic>> get _filtered => _users
-      .where((user) => AdminUsersPolicy.matchesSearch(user, _search.text))
-      .toList();
+  List<Map<String, dynamic>> get _filtered =>
+      _users.where((user) => AdminUsersPolicy.matchesSearch(user, _search.text)).toList();
 
   @override
   void initState() {
@@ -62,10 +61,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     });
     try {
       final owner =
-          await _db
-              .rpc('testagram_is_owner')
-              .timeout(const Duration(seconds: 12)) ==
-          true;
+          await _db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12)) == true;
       if (!AdminUsersPolicy.canAccess(isOwner: owner)) {
         if (mounted && generation == _generation) {
           setState(() {
@@ -81,10 +77,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           .order('created_at', ascending: false)
           .limit(200)
           .timeout(const Duration(seconds: 20));
-      final users = rows
-          .whereType<Map>()
-          .map((row) => Map<String, dynamic>.from(row))
-          .toList();
+      final users = rows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
       if (!mounted || generation != _generation) return;
       setState(() {
         _authorized = true;
@@ -116,18 +109,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           .timeout(const Duration(seconds: 15));
       if (!mounted) return;
       setState(() => user['is_blocked'] = !wasBlocked);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(wasBlocked ? 'User unblocked.' : 'User blocked.'),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(wasBlocked ? 'User unblocked.' : 'User blocked.')));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Could not update this user. Check authorization and retry.',
-            ),
+            content: Text('Could not update this user. Check authorization and retry.'),
           ),
         );
       }
@@ -159,10 +147,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
               Icons.lock_outline_rounded,
               'Sign in required',
               'Sign in to continue.',
-              FilledButton(
-                onPressed: () => context.go('/auth'),
-                child: const Text('Sign in'),
-              ),
+              FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
             )
           : (!_authorized && _error == null)
           ? _empty(
@@ -209,19 +194,12 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                     const SizedBox(height: 12),
                     MaterialBanner(
                       content: Text(_error!),
-                      actions: [
-                        TextButton(
-                          onPressed: _load,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+                      actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
                     ),
                   ],
                   const SizedBox(height: 12),
                   if (_filtered.isEmpty && _error == null)
-                    const Card(
-                      child: ListTile(title: Text('No matching users.')),
-                    ),
+                    const Card(child: ListTile(title: Text('No matching users.'))),
                   ..._filtered.map((user) {
                     final id = '${user['id'] ?? ''}';
                     final blocked = AdminUsersPolicy.isBlocked(user);
@@ -246,21 +224,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                         isThreeLine: true,
                         trailing: IconButton(
                           tooltip: blocked ? 'Unblock user' : 'Block user',
-                          onPressed: _busy.contains(id)
-                              ? null
-                              : () => _toggleBlock(user),
+                          onPressed: _busy.contains(id) ? null : () => _toggleBlock(user),
                           icon: _busy.contains(id)
                               ? const SizedBox.square(
                                   dimension: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : Icon(
-                                  blocked
-                                      ? Icons.lock_open_rounded
-                                      : Icons.block_rounded,
-                                ),
+                              : Icon(blocked ? Icons.lock_open_rounded : Icons.block_rounded),
                         ),
                       ),
                     );
@@ -271,27 +241,22 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 
-  Widget _empty(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String body,
-    Widget action,
-  ) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 52),
-          const SizedBox(height: 14),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(body, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          action,
-        ],
-      ),
-    ),
-  );
+  Widget _empty(BuildContext context, IconData icon, String title, String body, Widget action) =>
+      Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 52),
+              const SizedBox(height: 14),
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(body, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              action,
+            ],
+          ),
+        ),
+      );
 }

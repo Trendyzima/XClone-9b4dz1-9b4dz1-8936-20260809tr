@@ -60,16 +60,15 @@ class _MessagesPageState extends State<MessagesPage> {
           code: 'INVALID_RESPONSE',
         );
       }
-      final values = rows
-          .whereType<Map>()
-          .map((row) => Map<String, dynamic>.from(row))
-          .toList();
+      final values = rows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
       if (!mounted || generation != _loadGeneration) return;
       setState(() => _conversations = values);
     } catch (error) {
       if (mounted && generation == _loadGeneration) {
         setState(
-          () => _error = error is TestagramCapabilityException ? error.message : 'Your encrypted conversation list could not be loaded. Retry when online.',
+          () => _error = error is TestagramCapabilityException
+              ? error.message
+              : 'Your encrypted conversation list could not be loaded. Retry when online.',
         );
       }
     } finally {
@@ -87,8 +86,7 @@ class _MessagesPageState extends State<MessagesPage> {
       children: [
         Text(
           'Messages',
-          style: Theme.of(context).textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
         const Text(
@@ -126,11 +124,7 @@ class _MessagesPageState extends State<MessagesPage> {
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
               leading: CircleAvatar(
-                child: Icon(
-                  kind == 'group'
-                      ? Icons.groups_rounded
-                      : Icons.lock_outline_rounded,
-                ),
+                child: Icon(kind == 'group' ? Icons.groups_rounded : Icons.lock_outline_rounded),
               ),
               title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: const Text(

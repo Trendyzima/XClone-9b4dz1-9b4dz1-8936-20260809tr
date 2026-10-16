@@ -22,10 +22,7 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
   int generation = 0;
 
   String get section {
-    final parts = widget.routePath
-        .split('/')
-        .where((p) => p.isNotEmpty)
-        .toList();
+    final parts = widget.routePath.split('/').where((p) => p.isNotEmpty).toList();
     return parts.isEmpty ? 'regulator' : parts.last;
   }
 
@@ -101,9 +98,7 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
             .map((r) => Map<String, dynamic>.from(r))
             .toList();
       } else if (section == 'employees') {
-        final result = await db
-            .rpc('testagram_list_admins')
-            .timeout(const Duration(seconds: 20));
+        final result = await db.rpc('testagram_list_admins').timeout(const Duration(seconds: 20));
         nextRows = (result as List)
             .whereType<Map>()
             .map((r) => Map<String, dynamic>.from(r))
@@ -115,10 +110,7 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
             .order('credits', ascending: false)
             .limit(100)
             .timeout(const Duration(seconds: 20));
-        nextRows = result
-            .whereType<Map>()
-            .map((r) => Map<String, dynamic>.from(r))
-            .toList();
+        nextRows = result.whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
       } else if (section == 'features') {
         // This page displays the authenticated owner's explicit permission keys,
         // not a fabricated platform feature-flag table.
@@ -173,12 +165,10 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
       Text(title, style: theme.textTheme.headlineSmall),
       const SizedBox(height: 6),
       Text(switch (section) {
-        'audit' =>
-          'Recent governance actions returned by the audited server RPC.',
+        'audit' => 'Recent governance actions returned by the audited server RPC.',
         'employees' => 'Active governance administrator assignments; this is not the separate employee payroll roster.',
         'features' => 'Explicit permission keys assigned to the current owner/admin session.',
-        'wallets' =>
-          'Read-only wallet credits from the owner-restricted data view.',
+        'wallets' => 'Read-only wallet credits from the owner-restricted data view.',
         _ => 'Live counts from the current database. These are not estimated revenue or inferred engagement metrics.',
       }),
     ];
@@ -212,10 +202,7 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
                             style: theme.textTheme.labelSmall,
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            '${entry.value}',
-                            style: theme.textTheme.headlineMedium,
-                          ),
+                          Text('${entry.value}', style: theme.textTheme.headlineMedium),
                         ],
                       ),
                     ),
@@ -271,10 +258,7 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: row.entries
-                    .where(
-                      (entry) =>
-                          !{'metadata', 'avatar_url'}.contains(entry.key),
-                    )
+                    .where((entry) => !{'metadata', 'avatar_url'}.contains(entry.key))
                     .take(10)
                     .map(
                       (entry) => Padding(
@@ -293,15 +277,8 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
         ),
       );
     }
-    if (rows.isEmpty &&
-        counts.isEmpty &&
-        permissions.isEmpty &&
-        error == null) {
-      body.add(
-        const Card(
-          child: ListTile(title: Text('No records returned for this section.')),
-        ),
-      );
+    if (rows.isEmpty && counts.isEmpty && permissions.isEmpty && error == null) {
+      body.add(const Card(child: ListTile(title: Text('No records returned for this section.'))));
     }
     final signedOut = db.auth.currentUser == null;
     final denied = !owner && error == null;
@@ -322,10 +299,7 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
           ? _gate(
               'Sign in required',
               'Sign in to continue.',
-              FilledButton(
-                onPressed: () => context.go('/auth'),
-                child: const Text('Sign in'),
-              ),
+              FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
             )
           : denied
           ? _gate(
@@ -338,10 +312,7 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
             )
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: body,
-              ),
+              child: ListView(padding: const EdgeInsets.all(16), children: body),
             ),
     );
   }
@@ -368,12 +339,10 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
 class IdentityVerificationStatusPage extends StatefulWidget {
   const IdentityVerificationStatusPage({super.key});
   @override
-  State<IdentityVerificationStatusPage> createState() =>
-      _IdentityVerificationStatusPageState();
+  State<IdentityVerificationStatusPage> createState() => _IdentityVerificationStatusPageState();
 }
 
-class _IdentityVerificationStatusPageState
-    extends State<IdentityVerificationStatusPage> {
+class _IdentityVerificationStatusPageState extends State<IdentityVerificationStatusPage> {
   final db = Supabase.instance.client;
   bool loading = true;
   String? status;
@@ -399,16 +368,13 @@ class _IdentityVerificationStatusPageState
           .rpc('get_my_identity_verification_status')
           .timeout(const Duration(seconds: 12));
       if (mounted) {
-        setState(
-          () => status = result is Map
-              ? '${result['status'] ?? 'pending'}'
-              : 'pending',
-        );
+        setState(() => status = result is Map ? '${result['status'] ?? 'pending'}' : 'pending');
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => error = 'Identity status is unavailable. Retry after the identity service is healthy.',
+          () => error =
+              'Identity status is unavailable. Retry after the identity service is healthy.',
         );
       }
     } finally {
@@ -420,12 +386,7 @@ class _IdentityVerificationStatusPageState
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Identity Verification'),
-      actions: [
-        IconButton(
-          onPressed: loading ? null : _load,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
+      actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
     ),
     body: Center(
       child: Padding(
@@ -448,10 +409,7 @@ class _IdentityVerificationStatusPageState
                   ),
                   const SizedBox(height: 16),
                   if (error != null)
-                    FilledButton.tonal(
-                      onPressed: _load,
-                      child: const Text('Retry'),
-                    ),
+                    FilledButton.tonal(onPressed: _load, child: const Text('Retry')),
                 ],
               ),
       ),

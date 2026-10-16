@@ -23,11 +23,7 @@ class TestagramShell extends StatelessWidget {
     _Destination('/tv', 'World TV', Icons.live_tv_rounded),
     _Destination('/explore', 'Explore', Icons.tag_rounded),
     _Destination('/threads', 'Threads', Icons.forum_outlined),
-    _Destination(
-      '/notifications',
-      'Notifications',
-      Icons.notifications_none_rounded,
-    ),
+    _Destination('/notifications', 'Notifications', Icons.notifications_none_rounded),
     _Destination('/messages', 'Messages', Icons.mail_outline_rounded),
     _Destination('/spaces', 'Live Spaces', Icons.graphic_eq_rounded),
     _Destination('/communities', 'Communities', Icons.groups_2_outlined),
@@ -49,18 +45,11 @@ class TestagramShell extends StatelessWidget {
               title: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset(
-                    'assets/branding/testagram-icon.webp',
-                    width: 30,
-                    height: 30,
-                  ),
+                  Image.asset('assets/branding/testagram-icon.webp', width: 30, height: 30),
                   const SizedBox(width: 9),
                   const Text(
                     'Testagram',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.4),
                   ),
                 ],
               ),
@@ -70,10 +59,7 @@ class TestagramShell extends StatelessWidget {
                   onPressed: () => context.go('/messages'),
                   icon: const Icon(Icons.chat_bubble_outline_rounded),
                 ),
-                _AppearanceMenu(
-                  themeMode: themeMode,
-                  onThemeChanged: onThemeChanged,
-                ),
+                _AppearanceMenu(themeMode: themeMode, onThemeChanged: onThemeChanged),
                 IconButton(
                   tooltip: 'Settings',
                   onPressed: () => context.go('/settings'),
@@ -101,18 +87,19 @@ class TestagramShell extends StatelessWidget {
                   constraints: const BoxConstraints(maxWidth: 720),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: (dark ? TestagramTheme.darkSurface : Colors.white)
-                          .withValues(alpha: 0.91),
+                      color: (dark ? TestagramTheme.darkSurface : Colors.white).withValues(
+                        alpha: 0.91,
+                      ),
                       border: Border.symmetric(
                         vertical: BorderSide(
-                          color: Theme.of(context).dividerColor
-                              .withValues(alpha: 0.72),
+                          color: Theme.of(context).dividerColor.withValues(alpha: 0.72),
                         ),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: (dark ? Colors.black : TestagramTheme.green)
-                              .withValues(alpha: dark ? 0.15 : 0.035),
+                          color: (dark ? Colors.black : TestagramTheme.green).withValues(
+                            alpha: dark ? 0.15 : 0.035,
+                          ),
                           blurRadius: 32,
                           spreadRadius: 0,
                         ),
@@ -124,8 +111,7 @@ class TestagramShell extends StatelessWidget {
               ),
             ),
             if (showRightRail) const SizedBox(width: 20),
-            if (showRightRail)
-              const SizedBox(width: 292, child: _RightContextRail()),
+            if (showRightRail) const SizedBox(width: 292, child: _RightContextRail()),
           ],
         ),
       ),
@@ -133,16 +119,12 @@ class TestagramShell extends StatelessWidget {
           ? null
           : NavigationBar(
               selectedIndex: _mobileSelectedIndex(location),
-              onDestinationSelected: (index) =>
-                  context.go(_mobileDestinations[index].path),
+              onDestinationSelected: (index) => context.go(_mobileDestinations[index].path),
               destinations: _mobileDestinations
                   .map(
                     (item) => NavigationDestination(
                       icon: Icon(item.icon),
-                      selectedIcon: Icon(
-                        item.icon,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                      selectedIcon: Icon(item.icon, color: Theme.of(context).colorScheme.primary),
                       label: item.label,
                     ),
                   )
@@ -161,8 +143,7 @@ class TestagramShell extends StatelessWidget {
 
   int _mobileSelectedIndex(String path) {
     final index = _mobileDestinations.indexWhere(
-      (item) =>
-          item.path == path || (item.path != '/' && path.startsWith(item.path)),
+      (item) => item.path == path || (item.path != '/' && path.startsWith(item.path)),
     );
     return index < 0 ? 0 : index;
   }
@@ -184,9 +165,7 @@ class _DesktopNavigation extends StatelessWidget {
     final color = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(color: Theme.of(context).dividerColor),
-        ),
+        border: Border(right: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       child: SafeArea(
         child: Column(
@@ -196,11 +175,7 @@ class _DesktopNavigation extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 18, 12, 22),
               child: Row(
                 children: [
-                  Image.asset(
-                    'assets/branding/testagram-icon.webp',
-                    width: 34,
-                    height: 34,
-                  ),
+                  Image.asset('assets/branding/testagram-icon.webp', width: 34, height: 34),
                   const SizedBox(width: 10),
                   const Flexible(
                     child: Text(
@@ -247,11 +222,7 @@ class _DesktopNavigation extends StatelessWidget {
                     selected: location.startsWith('/bookmarks'),
                   ),
                   _NavItem(
-                    item: const _Destination(
-                      '/settings',
-                      'Settings',
-                      Icons.settings_outlined,
-                    ),
+                    item: const _Destination('/settings', 'Settings', Icons.settings_outlined),
                     selected: location.startsWith('/settings'),
                   ),
                   const SizedBox(height: 18),
@@ -261,10 +232,7 @@ class _DesktopNavigation extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.workspace_premium_rounded,
-                            color: color.primary,
-                          ),
+                          Icon(Icons.workspace_premium_rounded, color: color.primary),
                           const SizedBox(height: 8),
                           const Text(
                             'Upgrade to Premium',
@@ -296,10 +264,7 @@ class _DesktopNavigation extends StatelessWidget {
               child: Row(
                 children: [
                   const Expanded(
-                    child: Text(
-                      'Appearance',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                    child: Text('Appearance', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                   PopupMenuButton<ThemeMode>(
                     tooltip: 'Change appearance',
@@ -307,18 +272,9 @@ class _DesktopNavigation extends StatelessWidget {
                     onSelected: onThemeChanged,
                     icon: const Icon(Icons.contrast_rounded),
                     itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: ThemeMode.system,
-                        child: Text('System appearance'),
-                      ),
-                      PopupMenuItem(
-                        value: ThemeMode.light,
-                        child: Text('Light appearance'),
-                      ),
-                      PopupMenuItem(
-                        value: ThemeMode.dark,
-                        child: Text('Dark appearance'),
-                      ),
+                      PopupMenuItem(value: ThemeMode.system, child: Text('System appearance')),
+                      PopupMenuItem(value: ThemeMode.light, child: Text('Light appearance')),
+                      PopupMenuItem(value: ThemeMode.dark, child: Text('Dark appearance')),
                     ],
                   ),
                 ],
@@ -343,9 +299,7 @@ class _NavItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
-        color: selected
-            ? theme.colorScheme.primary.withValues(alpha: 0.11)
-            : Colors.transparent,
+        color: selected ? theme.colorScheme.primary.withValues(alpha: 0.11) : Colors.transparent,
         borderRadius: BorderRadius.circular(13),
         child: InkWell(
           borderRadius: BorderRadius.circular(13),
@@ -366,9 +320,7 @@ class _NavItem extends StatelessWidget {
                 Icon(
                   item.icon,
                   size: 21,
-                  color: selected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface,
+                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
                 ),
                 const SizedBox(width: 13),
                 Expanded(
@@ -445,11 +397,7 @@ class _RightSearch extends StatelessWidget {
 }
 
 class _RightRailCard extends StatelessWidget {
-  const _RightRailCard({
-    required this.title,
-    required this.icon,
-    required this.rows,
-  });
+  const _RightRailCard({required this.title, required this.icon, required this.rows});
 
   final String title;
   final IconData icon;
@@ -465,19 +413,9 @@ class _RightRailCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
               ],
             ),
             const SizedBox(height: 10),
@@ -487,10 +425,7 @@ class _RightRailCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      row.$1,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                    Text(row.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 2),
                     Text(row.$2, style: Theme.of(context).textTheme.bodySmall),
                   ],
@@ -520,10 +455,7 @@ class _RightRailFooter extends StatelessWidget {
 }
 
 class _AppearanceMenu extends StatelessWidget {
-  const _AppearanceMenu({
-    required this.themeMode,
-    required this.onThemeChanged,
-  });
+  const _AppearanceMenu({required this.themeMode, required this.onThemeChanged});
 
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeChanged;

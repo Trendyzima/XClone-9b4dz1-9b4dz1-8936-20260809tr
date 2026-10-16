@@ -55,16 +55,11 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
           .order('id', ascending: true)
           .range(offset, offset + pageSize - 1)
           .timeout(const Duration(seconds: 20));
-      final page = rows
-          .whereType<Map>()
-          .map((row) => Map<String, dynamic>.from(row))
-          .toList();
+      final page = rows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
       all.addAll(page);
       if (page.length < pageSize) return all;
     }
-    throw StateError(
-      'The selected range is too large to load safely. Narrow the range.',
-    );
+    throw StateError('The selected range is too large to load safely. Narrow the range.');
   }
 
   Future<void> _load() async {
@@ -179,10 +174,7 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(
-              'Recorded delivery metrics',
-              style: theme.textTheme.headlineSmall,
-            ),
+            Text('Recorded delivery metrics', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 6),
             Text(
               'Spend is the sum of recorded billable micros. No estimated CPM/CPC revenue is shown.',
@@ -233,11 +225,7 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _summaryCard(
-                    'Impressions',
-                    _number(totalImpressions),
-                    Icons.visibility_outlined,
-                  ),
+                  _summaryCard('Impressions', _number(totalImpressions), Icons.visibility_outlined),
                   _summaryCard('Clicks', _number(totalClicks), Icons.ads_click),
                   _summaryCard(
                     'CTR',
@@ -252,18 +240,13 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
                 ],
               ),
               const SizedBox(height: 18),
-              Text(
-                'Performance by placement',
-                style: theme.textTheme.titleLarge,
-              ),
+              Text('Performance by placement', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               if (_metrics.isEmpty)
                 const Card(
                   child: Padding(
                     padding: EdgeInsets.all(18),
-                    child: Text(
-                      'No enabled placements or recorded impressions in this period.',
-                    ),
+                    child: Text('No enabled placements or recorded impressions in this period.'),
                   ),
                 ),
               ..._metrics.map(
@@ -276,10 +259,7 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                '${row['code']}',
-                                style: theme.textTheme.titleMedium,
-                              ),
+                              child: Text('${row['code']}', style: theme.textTheme.titleMedium),
                             ),
                             Chip(label: Text('${row['kind']}')),
                           ],
@@ -291,12 +271,8 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
                           children: [
                             Text('Impressions: ${_number(row['impressions'])}'),
                             Text('Clicks: ${_number(row['clicks'])}'),
-                            Text(
-                              'CTR: ${(row['ctr'] as num).toStringAsFixed(2)}%',
-                            ),
-                            Text(
-                              'Recorded spend: ${_moneyMicros(row['spend_micros'])}',
-                            ),
+                            Text('CTR: ${(row['ctr'] as num).toStringAsFixed(2)}%'),
+                            Text('Recorded spend: ${_moneyMicros(row['spend_micros'])}'),
                           ],
                         ),
                       ],

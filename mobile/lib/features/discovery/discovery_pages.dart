@@ -34,10 +34,7 @@ class _HashtagsPageState extends State<HashtagsPage> {
     });
     try {
       if (widget.tag != null) {
-        final normalized = widget.tag!
-            .replaceFirst(RegExp(r'^#'), '')
-            .trim()
-            .toLowerCase();
+        final normalized = widget.tag!.replaceFirst(RegExp(r'^#'), '').trim().toLowerCase();
         final hashtag = await _db
             .from('hashtags')
             .select('id,tag,usage_count,created_at')
@@ -63,9 +60,7 @@ class _HashtagsPageState extends State<HashtagsPage> {
             ? <dynamic>[]
             : await _db
                   .from('posts')
-                  .select(
-                    'id,author_id,content,created_at,likes_count,views_count',
-                  )
+                  .select('id,author_id,content,created_at,likes_count,views_count')
                   .inFilter('id', ids)
                   .order('created_at', ascending: false);
         final authors = rows.map((r) => '${r['author_id']}').toSet().toList();
@@ -75,10 +70,7 @@ class _HashtagsPageState extends State<HashtagsPage> {
                   .from('profiles')
                   .select('id,username,display_name,avatar_url')
                   .inFilter('id', authors);
-        final byId = {
-          for (final p in profiles)
-            '${p['id']}': Map<String, dynamic>.from(p as Map),
-        };
+        final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
         final posts = rows.map((r) {
           final p = Map<String, dynamic>.from(r as Map);
           p['profile'] = byId['${p['author_id']}'];
@@ -92,9 +84,7 @@ class _HashtagsPageState extends State<HashtagsPage> {
         }
       } else {
         final q = _search.text.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
-        var query = _db
-            .from('hashtags')
-            .select('id,tag,usage_count,created_at');
+        var query = _db.from('hashtags').select('id,tag,usage_count,created_at');
         if (q.isNotEmpty) query = query.ilike('tag', '%$q%');
         final rows = await query
             .order('usage_count', ascending: false)
@@ -102,19 +92,14 @@ class _HashtagsPageState extends State<HashtagsPage> {
             .timeout(const Duration(seconds: 15));
         if (mounted) {
           setState(() {
-            _tags = rows
-                .map((r) => Map<String, dynamic>.from(r as Map))
-                .toList();
+            _tags = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
             _posts = [];
           });
         }
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Hashtags could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Hashtags could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -138,9 +123,7 @@ class _HashtagsPageState extends State<HashtagsPage> {
                 ),
               Expanded(
                 child: Text(
-                  detail
-                      ? '#${widget.tag!.replaceFirst(RegExp(r'^#'), '')}'
-                      : 'Hashtags',
+                  detail ? '#${widget.tag!.replaceFirst(RegExp(r'^#'), '')}' : 'Hashtags',
                   style: Theme.of(context).textTheme.headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
@@ -187,24 +170,17 @@ class _HashtagsPageState extends State<HashtagsPage> {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.tag_rounded)),
-                  title: Text(
-                    '#${t['tag']}',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
+                  title: Text('#${t['tag']}', style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text('${t['usage_count'] ?? 0} posts'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go(
-                    '/hashtag/${Uri.encodeComponent('${t['tag']}')}',
-                  ),
+                  onTap: () => context.go('/hashtag/${Uri.encodeComponent('${t['tag']}')}'),
                 ),
               ),
             ),
           if (detail && !_loading && _posts.isEmpty && _error == null)
             const Padding(
               padding: EdgeInsets.all(20),
-              child: Center(
-                child: Text('No public posts are linked to this hashtag yet.'),
-              ),
+              child: Center(child: Text('No public posts are linked to this hashtag yet.')),
             ),
           if (detail)
             ..._posts.map((p) {
@@ -214,9 +190,7 @@ class _HashtagsPageState extends State<HashtagsPage> {
                 child: ListTile(
                   leading: CircleAvatar(
                     child: Text(
-                      _initial(
-                        '${profile['display_name'] ?? profile['username'] ?? 'T'}',
-                      ),
+                      _initial('${profile['display_name'] ?? profile['username'] ?? 'T'}'),
                     ),
                   ),
                   title: Text(
@@ -274,11 +248,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
           .limit(50)
           .timeout(const Duration(seconds: 15));
       if (mounted) {
-        setState(
-          () => _creators = rows
-              .map((r) => Map<String, dynamic>.from(r as Map))
-              .toList(),
-        );
+        setState(() => _creators = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
       }
     } catch (_) {
       if (mounted) {
@@ -297,8 +267,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
       children: [
         Text(
           'Leaderboard',
-          style: Theme.of(context).textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w900),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 4),
         const Text('Creators ranked by their current follower counts.'),
@@ -329,16 +298,11 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                 width: 58,
                 child: Row(
                   children: [
-                    Text(
-                      '#${index + 1}',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
+                    Text('#${index + 1}', style: const TextStyle(fontWeight: FontWeight.w900)),
                     const SizedBox(width: 5),
                     CircleAvatar(
                       radius: 18,
-                      backgroundImage: avatar.startsWith('http')
-                          ? NetworkImage(avatar)
-                          : null,
+                      backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
                       child: avatar.startsWith('http')
                           ? null
                           : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
@@ -346,10 +310,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                   ],
                 ),
               ),
-              title: Text(
-                name,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
+              title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
               subtitle: Text('@${c['username'] ?? 'creator'}'),
               trailing: Text('${c['follower_count'] ?? 0} followers'),
               onTap: () => context.go('/profile/${c['username']}'),

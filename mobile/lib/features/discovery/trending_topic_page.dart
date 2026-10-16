@@ -18,8 +18,7 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
   bool _following = false;
   bool _working = false;
   String? _error;
-  String get _tag =>
-      Uri.decodeComponent(widget.topic).replaceFirst(RegExp(r'^#'), '').trim();
+  String get _tag => Uri.decodeComponent(widget.topic).replaceFirst(RegExp(r'^#'), '').trim();
   @override
   void initState() {
     super.initState();
@@ -61,27 +60,19 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
             .maybeSingle();
         following = row != null;
       }
-      final since = DateTime.now()
-          .toUtc()
-          .subtract(const Duration(days: 7))
-          .toIso8601String();
+      final since = DateTime.now().toUtc().subtract(const Duration(days: 7)).toIso8601String();
       final posts = await _db
           .from('posts')
           .select(
             'id,user_id,content,image_url,video_url,media_urls,likes_count,reposts_count,replies_count,created_at,profiles!posts_user_id_fkey(username,display_name,avatar_url,verified_tier)',
           )
-          .ilike(
-            'content',
-            '%${_tag.replaceAll('%', r'\%').replaceAll('_', r'\_')}%',
-          )
+          .ilike('content', '%${_tag.replaceAll('%', r'\%').replaceAll('_', r'\_')}%')
           .gte('created_at', since)
           .isFilter('deleted_at', null)
           .order('likes_count', ascending: false)
           .limit(60)
           .timeout(const Duration(seconds: 20));
-      final items = posts
-          .map((r) => Map<String, dynamic>.from(r as Map))
-          .toList();
+      final items = posts.map((r) => Map<String, dynamic>.from(r as Map)).toList();
       items.sort(
         (a, b) => ((b['likes_count'] as num?)?.toInt() ?? 0).compareTo(
           (a['likes_count'] as num?)?.toInt() ?? 0,
@@ -90,19 +81,14 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
       if (mounted) {
         setState(() {
           _trend = trend;
-          _hashtag = hashtag == null
-              ? null
-              : Map<String, dynamic>.from(hashtag);
+          _hashtag = hashtag == null ? null : Map<String, dynamic>.from(hashtag);
           _posts = items;
           _following = following;
         });
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Trending topic could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Trending topic could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -117,9 +103,7 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
     }
     final hashtag = _hashtag;
     if (hashtag == null) {
-      setState(
-        () => _error = 'This topic has no registered hashtag to follow yet.',
-      );
+      setState(() => _error = 'This topic has no registered hashtag to follow yet.');
       return;
     }
     setState(() => _working = true);
@@ -131,10 +115,7 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
             .eq('user_id', user.id)
             .eq('hashtag_id', hashtag['id']);
       } else {
-        await _db.from('hashtag_follows').insert({
-          'user_id': user.id,
-          'hashtag_id': hashtag['id'],
-        });
+        await _db.from('hashtag_follows').insert({'user_id': user.id, 'hashtag_id': hashtag['id']});
       }
       if (mounted) setState(() => _following = !_following);
     } catch (_) {
@@ -150,12 +131,7 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Trending topic'),
-      actions: [
-        IconButton(
-          onPressed: _loading ? null : _load,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
+      actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
     ),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
@@ -170,10 +146,7 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '#$_tag',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
+                        Text('#$_tag', style: Theme.of(context).textTheme.headlineMedium),
                         const SizedBox(height: 8),
                         Text(
                           '${_trend?['category'] ?? 'Trending'} · ${_trend?['posts_count'] ?? _hashtag?['usage_count'] ?? 0} posts',
@@ -189,9 +162,7 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
                           child: OutlinedButton.icon(
                             onPressed: _working ? null : _toggleFollow,
                             icon: Icon(_following ? Icons.check : Icons.add),
-                            label: Text(
-                              _following ? 'Following' : 'Follow hashtag',
-                            ),
+                            label: Text(_following ? 'Following' : 'Follow hashtag'),
                           ),
                         ),
                       ],
@@ -203,16 +174,10 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
                     child: ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(_error!),
-                      trailing: IconButton(
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh),
-                      ),
+                      trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                     ),
                   ),
-                Text(
-                  'Recent posts',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                Text('Recent posts', style: Theme.of(context).textTheme.titleLarge),
                 if (_posts.isEmpty && _error == null)
                   const Padding(
                     padding: EdgeInsets.all(24),

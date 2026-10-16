@@ -74,10 +74,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
         }
       }
       if (target == null) {
-        setState(
-          () => _error =
-              'That post is unavailable or is not owned by this account.',
-        );
+        setState(() => _error = 'That post is unavailable or is not owned by this account.');
         return;
       }
       await _selectPost(target);
@@ -124,12 +121,8 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
         return;
       }
       setState(() {
-        _analytics = result[0] == null
-            ? null
-            : Map<String, dynamic>.from(result[0] as Map);
-        _earnings = (result[1] as List)
-            .map((r) => Map<String, dynamic>.from(r))
-            .toList();
+        _analytics = result[0] == null ? null : Map<String, dynamic>.from(result[0] as Map);
+        _earnings = (result[1] as List).map((r) => Map<String, dynamic>.from(r)).toList();
         _detailLoading = false;
       });
     } catch (_) {
@@ -156,10 +149,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
     final replies = _number(post?['replies_count']);
     final shares = _number(_analytics?['shares']);
     final engagement = _decimal(_analytics?['engagement_rate']);
-    final totalEarnings = _earnings.fold<double>(
-      0,
-      (sum, row) => sum + _decimal(row['amount']),
-    );
+    final totalEarnings = _earnings.fold<double>(0, (sum, row) => sum + _decimal(row['amount']));
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -167,9 +157,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
         children: [
           Text(
             'Post analytics',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -182,10 +170,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
               child: ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (!_loading && _posts.isEmpty && _error == null)
@@ -238,9 +223,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
                         '${post['content'] ?? 'Post'}',
                         maxLines: 4,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -296,9 +279,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.receipt_long_outlined),
-                  title: Text(
-                    '${row['source_type'] ?? 'Earning'} • ${row['status'] ?? 'unknown'}',
-                  ),
+                  title: Text('${row['source_type'] ?? 'Earning'} • ${row['status'] ?? 'unknown'}'),
                   subtitle: Text('${row['created_at'] ?? ''}'),
                   trailing: Text(
                     '${row['currency'] ?? 'KES'} ${_decimal(row['amount']).toStringAsFixed(2)}',
@@ -325,10 +306,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
               children: [
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -392,10 +370,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
       Map<String, int> recentCounts = {};
       if (ids.isNotEmpty) {
         try {
-          final since = DateTime.now()
-              .subtract(const Duration(days: 7))
-              .toUtc()
-              .toIso8601String();
+          final since = DateTime.now().subtract(const Duration(days: 7)).toUtc().toIso8601String();
           final views = await _db
               .from('story_views')
               .select('story_id,viewer_id,viewed_at')
@@ -416,9 +391,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
       setState(() {
         _stories = stories.map((story) {
           final raw = story['metadata'];
-          final metadata = raw is Map
-              ? Map<String, dynamic>.from(raw)
-              : <String, dynamic>{};
+          final metadata = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
           return {
             ...story,
             'views_total': int.tryParse('${metadata['views_count'] ?? 0}') ?? 0,
@@ -437,19 +410,14 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
     }
   }
 
-  int _sum(String key) => _stories.fold<int>(
-    0,
-    (sum, story) => sum + (int.tryParse('${story[key] ?? 0}') ?? 0),
-  );
+  int _sum(String key) =>
+      _stories.fold<int>(0, (sum, story) => sum + (int.tryParse('${story[key] ?? 0}') ?? 0));
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final active = _stories
         .where(
-          (s) =>
-              DateTime.tryParse('${s['expires_at'] ?? ''}')
-                  ?.isAfter(DateTime.now()) ==
-              true,
+          (s) => DateTime.tryParse('${s['expires_at'] ?? ''}')?.isAfter(DateTime.now()) == true,
         )
         .length;
     return RefreshIndicator(
@@ -459,9 +427,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
         children: [
           Text(
             'Story analytics',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -474,10 +440,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
               child: ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (!_loading && _stories.isEmpty && _error == null)
@@ -496,16 +459,8 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
               mainAxisSpacing: 8,
               crossAxisSpacing: 8,
               children: [
-                _metric(
-                  'Total views',
-                  '${_sum('views_total')}',
-                  Icons.visibility_outlined,
-                ),
-                _metric(
-                  'Stories posted',
-                  '${_stories.length}',
-                  Icons.auto_stories_outlined,
-                ),
+                _metric('Total views', '${_sum('views_total')}', Icons.visibility_outlined),
+                _metric('Stories posted', '${_stories.length}', Icons.auto_stories_outlined),
                 _metric('Active stories', '$active', Icons.timelapse),
                 _metric(
                   'Recent views (7d)',
@@ -545,10 +500,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
         children: [
           Icon(icon, size: 20),
           const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
           Text(label, style: const TextStyle(fontSize: 12)),
         ],
       ),

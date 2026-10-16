@@ -4,14 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Feature-specific wallet routes backed by the existing wallet schema/RPCs.
-enum WalletAuxiliaryMode {
-  analytics,
-  pocket,
-  receive,
-  referrals,
-  reminders,
-  scheduled,
-}
+enum WalletAuxiliaryMode { analytics, pocket, receive, referrals, reminders, scheduled }
 
 class WalletAuxiliaryPage extends StatefulWidget {
   const WalletAuxiliaryPage({required this.mode, super.key});
@@ -88,9 +81,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
                 .order('created_at', ascending: false)
                 .limit(100),
           ]);
-          _wallet = results[0] == null
-              ? null
-              : Map<String, dynamic>.from(results[0] as Map);
+          _wallet = results[0] == null ? null : Map<String, dynamic>.from(results[0] as Map);
           _rows = (results[1] as List)
               .whereType<Map>()
               .map((r) => Map<String, dynamic>.from(r))
@@ -103,9 +94,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
               .select('wallet_id,user_id,balance,currency,updated_at')
               .eq('user_id', user.id)
               .maybeSingle();
-          _pocketData = pocketResponse == null
-              ? null
-              : Map<String, dynamic>.from(pocketResponse);
+          _pocketData = pocketResponse == null ? null : Map<String, dynamic>.from(pocketResponse);
           break;
         case WalletAuxiliaryMode.receive:
           _wallet = await _db.rpc('get_my_wallet').maybeSingle();
@@ -162,8 +151,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error =
-            '$_titleText could not be loaded. Check your connection and retry.';
+        _error = '$_titleText could not be loaded. Check your connection and retry.';
       });
     }
   }
@@ -182,9 +170,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
   Future<void> _movePocket(String direction) async {
     final amount = _validAmount;
     if (amount == null) {
-      setState(
-        () => _error = 'Enter an amount greater than zero with at most two decimal places.',
-      );
+      setState(() => _error = 'Enter an amount greater than zero with at most two decimal places.');
       return;
     }
     setState(() {
@@ -193,10 +179,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       _notice = null;
     });
     try {
-      await _db.rpc(
-        'wallet_move_savings',
-        params: {'p_amount': amount, 'p_direction': direction},
-      );
+      await _db.rpc('wallet_move_savings', params: {'p_amount': amount, 'p_direction': direction});
       _amount.clear();
       if (mounted) {
         setState(
@@ -209,7 +192,8 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'The savings operation was not confirmed. Refresh your balances before retrying.',
+          () => _error =
+              'The savings operation was not confirmed. Refresh your balances before retrying.',
         );
       }
     } finally {
@@ -254,10 +238,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       await _load();
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Reminder could not be saved. No reminder was confirmed.',
-        );
+        setState(() => _error = 'Reminder could not be saved. No reminder was confirmed.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -315,14 +296,16 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       _note.clear();
       if (mounted) {
         setState(
-          () => _notice = 'Transfer scheduled. It will be processed by the server at the selected time.',
+          () => _notice =
+              'Transfer scheduled. It will be processed by the server at the selected time.',
         );
       }
       await _load();
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Transfer was not scheduled. Verify the recipient, balance and future date.',
+          () =>
+              _error = 'Transfer was not scheduled. Verify the recipient, balance and future date.',
         );
       }
     } finally {
@@ -332,19 +315,13 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
 
   Future<void> _cancelScheduled(String id) async {
     try {
-      final result = await _db.rpc(
-        'wallet_cancel_scheduled_transfer',
-        params: {'p_id': id},
-      );
+      final result = await _db.rpc('wallet_cancel_scheduled_transfer', params: {'p_id': id});
       if (result != true) throw StateError('Cancellation not confirmed');
       if (mounted) setState(() => _notice = 'Scheduled transfer cancelled.');
       await _load();
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Transfer cancellation was not confirmed. Refresh the list.',
-        );
+        setState(() => _error = 'Transfer cancellation was not confirmed. Refresh the list.');
       }
     }
   }
@@ -365,13 +342,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     );
     if (time == null || !mounted) return;
     setState(
-      () => _scheduledFor = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      ),
+      () => _scheduledFor = DateTime(date.year, date.month, date.day, time.hour, time.minute),
     );
   }
 
@@ -382,9 +353,8 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         'Receive money on Testagram${username == null ? '' : ' as @$username'}. Account reference: ${userId ?? ''}';
     await Clipboard.setData(ClipboardData(text: details));
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Receiving details copied')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Receiving details copied')));
     }
     await Share.share(details);
   }
@@ -399,9 +369,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         children: [
           Text(
             _titleText,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           if (_loading) const LinearProgressIndicator(),
@@ -410,10 +378,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
               child: ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (_notice != null)
@@ -423,18 +388,12 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
                 title: Text(_notice!),
               ),
             ),
-          if (!_loading && widget.mode == WalletAuxiliaryMode.analytics)
-            _analytics(theme),
-          if (!_loading && widget.mode == WalletAuxiliaryMode.pocket)
-            _pocketContent(theme),
-          if (!_loading && widget.mode == WalletAuxiliaryMode.receive)
-            _receive(theme),
-          if (!_loading && widget.mode == WalletAuxiliaryMode.referrals)
-            _referrals(theme),
-          if (!_loading && widget.mode == WalletAuxiliaryMode.reminders)
-            _reminders(theme),
-          if (!_loading && widget.mode == WalletAuxiliaryMode.scheduled)
-            _scheduled(theme),
+          if (!_loading && widget.mode == WalletAuxiliaryMode.analytics) _analytics(theme),
+          if (!_loading && widget.mode == WalletAuxiliaryMode.pocket) _pocketContent(theme),
+          if (!_loading && widget.mode == WalletAuxiliaryMode.receive) _receive(theme),
+          if (!_loading && widget.mode == WalletAuxiliaryMode.referrals) _referrals(theme),
+          if (!_loading && widget.mode == WalletAuxiliaryMode.reminders) _reminders(theme),
+          if (!_loading && widget.mode == WalletAuxiliaryMode.scheduled) _scheduled(theme),
         ],
       ),
     );
@@ -442,27 +401,11 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
 
   Widget _analytics(ThemeData theme) {
     final incoming = _rows
-        .where(
-          (r) =>
-              r['direction'] == 'in' ||
-              r['type'] == 'deposit' ||
-              r['type'] == 'credit',
-        )
-        .fold<double>(
-          0,
-          (s, r) => s + (double.tryParse('${r['amount'] ?? 0}') ?? 0),
-        );
+        .where((r) => r['direction'] == 'in' || r['type'] == 'deposit' || r['type'] == 'credit')
+        .fold<double>(0, (s, r) => s + (double.tryParse('${r['amount'] ?? 0}') ?? 0));
     final outgoing = _rows
-        .where(
-          (r) =>
-              r['direction'] == 'out' ||
-              r['type'] == 'withdrawal' ||
-              r['type'] == 'debit',
-        )
-        .fold<double>(
-          0,
-          (s, r) => s + (double.tryParse('${r['amount'] ?? 0}') ?? 0),
-        );
+        .where((r) => r['direction'] == 'out' || r['type'] == 'withdrawal' || r['type'] == 'debit')
+        .fold<double>(0, (s, r) => s + (double.tryParse('${r['amount'] ?? 0}') ?? 0));
     final currency = '${_wallet?['currency'] ?? 'KES'}';
     return Column(
       children: [
@@ -475,13 +418,9 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         ),
         Row(
           children: [
-            Expanded(
-              child: _metric('Incoming', incoming, currency, Icons.south_west),
-            ),
+            Expanded(child: _metric('Incoming', incoming, currency, Icons.south_west)),
             const SizedBox(width: 8),
-            Expanded(
-              child: _metric('Outgoing', outgoing, currency, Icons.north_east),
-            ),
+            Expanded(child: _metric('Outgoing', outgoing, currency, Icons.north_east)),
           ],
         ),
         const SizedBox(height: 12),
@@ -493,14 +432,10 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
                 ListTile(
                   dense: true,
                   leading: Icon(
-                    row['direction'] == 'in'
-                        ? Icons.arrow_downward
-                        : Icons.arrow_upward,
+                    row['direction'] == 'in' ? Icons.arrow_downward : Icons.arrow_upward,
                   ),
                   title: Text('${row['type'] ?? 'Transaction'}'),
-                  subtitle: Text(
-                    '${row['created_at'] ?? ''} • ${row['status'] ?? ''}',
-                  ),
+                  subtitle: Text('${row['created_at'] ?? ''} • ${row['status'] ?? ''}'),
                   trailing: Text('$currency ${row['amount'] ?? 0}'),
                 ),
             ],
@@ -510,24 +445,23 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     );
   }
 
-  Widget _metric(String title, double value, String currency, IconData icon) =>
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon),
-              const SizedBox(height: 8),
-              Text(title),
-              Text(
-                '$currency ${value.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ],
+  Widget _metric(String title, double value, String currency, IconData icon) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(height: 8),
+          Text(title),
+          Text(
+            '$currency ${value.toStringAsFixed(2)}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 
   Widget _pocketContent(ThemeData theme) => Column(
     children: [
@@ -535,9 +469,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         child: ListTile(
           leading: const Icon(Icons.savings_outlined),
           title: const Text('Pocket balance'),
-          subtitle: Text(
-            'Currency: ${_pocketData?['currency'] ?? _wallet?['currency'] ?? 'KES'}',
-          ),
+          subtitle: Text('Currency: ${_pocketData?['currency'] ?? _wallet?['currency'] ?? 'KES'}'),
           trailing: Text('${_pocketData?['balance'] ?? '0.00'}'),
         ),
       ),
@@ -570,9 +502,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         ],
       ),
       const SizedBox(height: 8),
-      const Text(
-        'All balance changes are validated and recorded by the server-side wallet RPC.',
-      ),
+      const Text('All balance changes are validated and recorded by the server-side wallet RPC.'),
     ],
   );
 
@@ -581,15 +511,9 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       padding: const EdgeInsets.all(18),
       child: Column(
         children: [
-          const CircleAvatar(
-            radius: 32,
-            child: Icon(Icons.call_received, size: 32),
-          ),
+          const CircleAvatar(radius: 32, child: Icon(Icons.call_received, size: 32)),
           const SizedBox(height: 12),
-          Text(
-            '@${_profile?['username'] ?? 'account'}',
-            style: theme.textTheme.titleLarge,
-          ),
+          Text('@${_profile?['username'] ?? 'account'}', style: theme.textTheme.titleLarge),
           const SizedBox(height: 8),
           const Text(
             'Share your Testagram account reference with the sender. Never share your wallet PIN or sign-in codes.',
@@ -613,9 +537,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         child: ListTile(
           leading: const Icon(Icons.card_giftcard),
           title: const Text('Wallet referral credits'),
-          subtitle: const Text(
-            'Credits are read from the authenticated wallet referral ledger.',
-          ),
+          subtitle: const Text('Credits are read from the authenticated wallet referral ledger.'),
           trailing: Text(
             '${_rows.fold<int>(0, (s, r) => s + (int.tryParse('${r['amount'] ?? 0}') ?? 0))}',
           ),
@@ -676,10 +598,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       Text('Your reminders', style: theme.textTheme.titleLarge),
       if (_rows.isEmpty)
         const Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('No reminders saved.'),
-          ),
+          child: Padding(padding: EdgeInsets.all(16), child: Text('No reminders saved.')),
         ),
       for (final row in _rows)
         Card(
@@ -717,10 +636,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       TextField(
         controller: _amount,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'Amount',
-          border: OutlineInputBorder(),
-        ),
+        decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
       ),
       const SizedBox(height: 8),
       TextField(
@@ -744,16 +660,10 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         ),
       ),
       const SizedBox(height: 12),
-      Text(
-        'Upcoming and previous transfers',
-        style: theme.textTheme.titleLarge,
-      ),
+      Text('Upcoming and previous transfers', style: theme.textTheme.titleLarge),
       if (_rows.isEmpty)
         const Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('No scheduled transfers.'),
-          ),
+          child: Padding(padding: EdgeInsets.all(16), child: Text('No scheduled transfers.')),
         ),
       for (final row in _rows)
         Card(
@@ -766,9 +676,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
             trailing: row['status'] == 'pending'
                 ? IconButton(
                     tooltip: 'Cancel transfer',
-                    onPressed: _busy
-                        ? null
-                        : () => _cancelScheduled('${row['id']}'),
+                    onPressed: _busy ? null : () => _cancelScheduled('${row['id']}'),
                     icon: const Icon(Icons.cancel_outlined),
                   )
                 : null,

@@ -72,17 +72,11 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
                 .from('profiles')
                 .select('id,username,display_name,avatar_url,verified')
                 .inFilter('id', ids.toList());
-      final byId = {
-        for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p),
-      };
+      final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p)};
       if (!mounted) return;
       setState(() {
-        _blocked = blockedRows
-            .map((r) => {...r, 'profile': byId['${r['blocked_id']}']})
-            .toList();
-        _muted = mutedRows
-            .map((r) => {...r, 'profile': byId['${r['muted_id']}']})
-            .toList();
+        _blocked = blockedRows.map((r) => {...r, 'profile': byId['${r['blocked_id']}']}).toList();
+        _muted = mutedRows.map((r) => {...r, 'profile': byId['${r['muted_id']}']}).toList();
         _loading = false;
       });
     } catch (_) {
@@ -110,24 +104,18 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
       if (!mounted) return;
       setState(() {
         if (_tab == 0) {
-          _blocked = _blocked
-              .where((r) => '${r['id']}' != '${row['id']}')
-              .toList();
+          _blocked = _blocked.where((r) => '${r['id']}' != '${row['id']}').toList();
         } else {
           _muted = _muted.where((r) => '${r['id']}' != '${row['id']}').toList();
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_tab == 0 ? 'Account unblocked.' : 'Account unmuted.'),
-        ),
+        SnackBar(content: Text(_tab == 0 ? 'Account unblocked.' : 'Account unmuted.')),
       );
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = _tab == 0
-              ? 'Account was not unblocked.'
-              : 'Account was not unmuted.',
+          () => _error = _tab == 0 ? 'Account was not unblocked.' : 'Account was not unmuted.',
         );
       }
     } finally {
@@ -146,9 +134,7 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
         children: [
           Text(
             'Blocked & muted accounts',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -157,20 +143,11 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
           const SizedBox(height: 14),
           SegmentedButton<int>(
             segments: const [
-              ButtonSegment(
-                value: 0,
-                label: Text('Blocked'),
-                icon: Icon(Icons.block),
-              ),
-              ButtonSegment(
-                value: 1,
-                label: Text('Muted'),
-                icon: Icon(Icons.volume_off_outlined),
-              ),
+              ButtonSegment(value: 0, label: Text('Blocked'), icon: Icon(Icons.block)),
+              ButtonSegment(value: 1, label: Text('Muted'), icon: Icon(Icons.volume_off_outlined)),
             ],
             selected: {_tab},
-            onSelectionChanged: (selected) =>
-                setState(() => _tab = selected.first),
+            onSelectionChanged: (selected) => setState(() => _tab = selected.first),
           ),
           const SizedBox(height: 12),
           if (_loading) const LinearProgressIndicator(),
@@ -179,10 +156,7 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
               child: ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(_error!),
-                trailing: IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
+                trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
               ),
             ),
           if (!_loading && rows.isEmpty)
@@ -191,16 +165,9 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
                 padding: const EdgeInsets.all(22),
                 child: Column(
                   children: [
-                    Icon(
-                      _tab == 0
-                          ? Icons.shield_outlined
-                          : Icons.volume_up_outlined,
-                      size: 40,
-                    ),
+                    Icon(_tab == 0 ? Icons.shield_outlined : Icons.volume_up_outlined, size: 40),
                     const SizedBox(height: 10),
-                    Text(
-                      _tab == 0 ? 'No blocked accounts' : 'No muted accounts',
-                    ),
+                    Text(_tab == 0 ? 'No blocked accounts' : 'No muted accounts'),
                     const SizedBox(height: 6),
                     const Text('Accounts you block or mute will appear here.'),
                   ],
@@ -232,13 +199,9 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
                 backgroundImage: NetworkImage(avatar),
                 onBackgroundImageError: (_, __) {},
               )
-            : CircleAvatar(
-                child: Text(username.isEmpty ? '?' : username[0].toUpperCase()),
-              ),
+            : CircleAvatar(child: Text(username.isEmpty ? '?' : username[0].toUpperCase())),
         title: Text('@$username'),
-        subtitle: Text(
-          '${profile['display_name'] ?? ''} • ${row['created_at'] ?? ''}',
-        ),
+        subtitle: Text('${profile['display_name'] ?? ''} • ${row['created_at'] ?? ''}'),
         trailing: TextButton(
           onPressed: _busy ? null : () => _remove(row),
           child: Text(_tab == 0 ? 'Unblock' : 'Unmute'),

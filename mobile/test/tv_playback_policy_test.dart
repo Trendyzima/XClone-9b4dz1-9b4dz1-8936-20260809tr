@@ -40,20 +40,17 @@ void main() {
       );
     });
 
-    test(
-      'recognizes an external YouTube playback action on either platform',
-      () {
-        expect(
-          tvHasPlaybackSurface(
-            isWeb: true,
-            webPlaybackUrl: null,
-            hasExternalPlaybackAction: true,
-            hasInitializedNativePlayer: false,
-          ),
-          isTrue,
-        );
-      },
-    );
+    test('recognizes an external YouTube playback action on either platform', () {
+      expect(
+        tvHasPlaybackSurface(
+          isWeb: true,
+          webPlaybackUrl: null,
+          hasExternalPlaybackAction: true,
+          hasInitializedNativePlayer: false,
+        ),
+        isTrue,
+      );
+    });
 
     test('recognizes an initialized native player', () {
       expect(
@@ -98,10 +95,7 @@ void main() {
 
     test('resumes only on foreground when playback was previously active', () {
       expect(
-        tvShouldResumeAfterLifecycle(
-          state: AppLifecycleState.resumed,
-          wasPlayingBeforePause: true,
-        ),
+        tvShouldResumeAfterLifecycle(state: AppLifecycleState.resumed, wasPlayingBeforePause: true),
         isTrue,
       );
       expect(
@@ -112,10 +106,7 @@ void main() {
         isFalse,
       );
       expect(
-        tvShouldResumeAfterLifecycle(
-          state: AppLifecycleState.paused,
-          wasPlayingBeforePause: true,
-        ),
+        tvShouldResumeAfterLifecycle(state: AppLifecycleState.paused, wasPlayingBeforePause: true),
         isFalse,
       );
     });

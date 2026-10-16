@@ -58,16 +58,11 @@ class _OrdersPageState extends State<OrdersPage> {
       if (!mounted) return;
       setState(() {
         _orders = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
-        _productNames = {
-          for (final p in products) '${p['id']}': '${p['name']}',
-        };
+        _productNames = {for (final p in products) '${p['id']}': '${p['name']}'};
       });
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Order history could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Order history could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -88,21 +83,14 @@ class _OrdersPageState extends State<OrdersPage> {
               const SizedBox(height: 12),
               const Text('Sign in to view your purchases and sales.'),
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => context.go('/auth'),
-                child: const Text('Sign in'),
-              ),
+              FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
             ],
           ),
         ),
       );
     }
     final visible = _orders
-        .where(
-          (o) => _tab == 'Purchases'
-              ? '${o['buyer_id']}' == uid
-              : '${o['seller_id']}' == uid,
-        )
+        .where((o) => _tab == 'Purchases' ? '${o['buyer_id']}' == uid : '${o['seller_id']}' == uid)
         .toList();
     return RefreshIndicator(
       onRefresh: _load,
@@ -185,9 +173,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         Expanded(
                           child: Text(
                             _productNames[productId] ??
-                                (productId.isEmpty
-                                    ? 'Order'
-                                    : 'Product $productId'),
+                                (productId.isEmpty ? 'Order' : 'Product $productId'),
                             style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
                         ),
@@ -197,10 +183,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         ),
                       ],
                     ),
-                    Text(
-                      'Order $id',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    Text('Order $id', style: Theme.of(context).textTheme.bodySmall),
                     const SizedBox(height: 8),
                     Text(
                       '$currency ${total.toStringAsFixed(2)} · Quantity ${o['quantity'] ?? 1}',
@@ -217,9 +200,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         const Icon(Icons.local_shipping_outlined, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            '${o['delivery_mode'] ?? 'Delivery'} · $deliveryStatus',
-                          ),
+                          child: Text('${o['delivery_mode'] ?? 'Delivery'} · $deliveryStatus'),
                         ),
                         if (productId.isNotEmpty)
                           TextButton(
@@ -228,8 +209,7 @@ class _OrdersPageState extends State<OrdersPage> {
                           ),
                       ],
                     ),
-                    if (_tab == 'Purchases' &&
-                        '${o['delivery_address'] ?? ''}'.isNotEmpty)
+                    if (_tab == 'Purchases' && '${o['delivery_address'] ?? ''}'.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(

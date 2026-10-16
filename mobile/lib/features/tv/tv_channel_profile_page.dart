@@ -104,24 +104,16 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.live_tv_rounded,
-                  size: 48,
-                  color: theme.colorScheme.outline,
-                ),
+                Icon(Icons.live_tv_rounded, size: 48, color: theme.colorScheme.outline),
                 const SizedBox(height: 12),
-                Text(
-                  _error ?? 'Channel not found.',
-                  textAlign: TextAlign.center,
-                ),
+                Text(_error ?? 'Channel not found.', textAlign: TextAlign.center),
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: () => context.go('/tv'),
                   icon: const Icon(Icons.explore_rounded),
                   label: const Text('Discover channels'),
                 ),
-                if (_error != null)
-                  TextButton(onPressed: _load, child: const Text('Retry')),
+                if (_error != null) TextButton(onPressed: _load, child: const Text('Retry')),
               ],
             ),
           ),
@@ -152,11 +144,7 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
               height: 170,
               width: double.infinity,
               child: bannerUrl.startsWith('https://')
-                  ? _networkImage(
-                      bannerUrl,
-                      height: 170,
-                      width: double.infinity,
-                    )
+                  ? _networkImage(bannerUrl, height: 170, width: double.infinity)
                   : Container(color: theme.colorScheme.surfaceContainerHighest),
             ),
             Padding(
@@ -175,19 +163,12 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                           clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             color: theme.colorScheme.surfaceContainerHighest,
-                            border: Border.all(
-                              color: theme.scaffoldBackgroundColor,
-                              width: 4,
-                            ),
+                            border: Border.all(color: theme.scaffoldBackgroundColor, width: 4),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: avatarUrl.startsWith('https://')
                               ? _networkImage(avatarUrl, width: 78, height: 78)
-                              : Icon(
-                                  isTv
-                                      ? Icons.live_tv_rounded
-                                      : Icons.mic_rounded,
-                                ),
+                              : Icon(isTv ? Icons.live_tv_rounded : Icons.mic_rounded),
                         ),
                         const Spacer(),
                         FilledButton.icon(
@@ -226,27 +207,15 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                           runSpacing: 10,
                           children: [
                             Chip(
-                              avatar: const Icon(
-                                Icons.people_alt_outlined,
-                                size: 18,
-                              ),
-                              label: Text(
-                                '${channel['follower_count'] ?? 0} followers',
-                              ),
+                              avatar: const Icon(Icons.people_alt_outlined, size: 18),
+                              label: Text('${channel['follower_count'] ?? 0} followers'),
                             ),
-                            Chip(
-                              label: Text(
-                                '${channel['channel_type'] ?? 'creator'} channel',
-                              ),
-                            ),
+                            Chip(label: Text('${channel['channel_type'] ?? 'creator'} channel')),
                             if ('${channel['category'] ?? ''}'.isNotEmpty)
                               Chip(label: Text('${channel['category']}')),
                             if (createdAt != null)
                               Chip(
-                                avatar: const Icon(
-                                  Icons.calendar_today_rounded,
-                                  size: 16,
-                                ),
+                                avatar: const Icon(Icons.calendar_today_rounded, size: 16),
                                 label: Text(
                                   'Created ${createdAt.toLocal().toString().split(' ').first}',
                                 ),
@@ -257,16 +226,10 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(
-                              backgroundImage:
-                                  '${owner['avatar_url'] ?? ''}'.startsWith(
-                                    'https://',
-                                  )
+                              backgroundImage: '${owner['avatar_url'] ?? ''}'.startsWith('https://')
                                   ? NetworkImage('${owner['avatar_url']}')
                                   : null,
-                              child:
-                                  '${owner['avatar_url'] ?? ''}'.startsWith(
-                                    'https://',
-                                  )
+                              child: '${owner['avatar_url'] ?? ''}'.startsWith('https://')
                                   ? null
                                   : const Icon(Icons.person_outline_rounded),
                             ),
@@ -278,9 +241,7 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                                 : Text('@${owner['username']}'),
                             onTap: owner['username'] == null
                                 ? null
-                                : () => context.go(
-                                    '/profile/${owner['username']}',
-                                  ),
+                                : () => context.go('/profile/${owner['username']}'),
                           ),
                         Card(
                           child: Padding(

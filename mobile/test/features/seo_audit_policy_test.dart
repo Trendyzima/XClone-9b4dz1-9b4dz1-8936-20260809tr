@@ -2,23 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:testagram/features/admin/seo_audit_policy.dart';
 
 void main() {
-  test(
-    'SEO manifest has broad route coverage and includes private noindex routes',
-    () {
-      expect(seoRouteContracts.length, greaterThanOrEqualTo(60));
-      expect(seoRouteContracts.any((route) => route.path == '/'), isTrue);
-      expect(
-        seoRouteContracts.any(
-          (route) => route.path == '/admin/seo' && route.noindex,
-        ),
-        isTrue,
-      );
-      expect(
-        seoRouteContracts.where((route) => route.noindex).isNotEmpty,
-        isTrue,
-      );
-    },
-  );
+  test('SEO manifest has broad route coverage and includes private noindex routes', () {
+    expect(seoRouteContracts.length, greaterThanOrEqualTo(60));
+    expect(seoRouteContracts.any((route) => route.path == '/'), isTrue);
+    expect(seoRouteContracts.any((route) => route.path == '/admin/seo' && route.noindex), isTrue);
+    expect(seoRouteContracts.where((route) => route.noindex).isNotEmpty, isTrue);
+  });
 
   test('SEO scoring never treats noindex routes as indexable good pages', () {
     const privateRoute = SeoRouteContract(

@@ -64,9 +64,7 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
             .eq('uri', widget.postId)
             .maybeSingle()
             .timeout(const Duration(seconds: 15));
-        if (row == null ||
-            row['deleted_at'] != null ||
-            row['tombstone'] == true) {
+        if (row == null || row['deleted_at'] != null || row['tombstone'] == true) {
           throw StateError('This federated post is unavailable.');
         }
       } else {
@@ -103,8 +101,7 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
       return;
     }
     final content = _text.text.trim();
-    if (PostInteractionPolicy.validateComposerText(content) != null ||
-        _sending) {
+    if (PostInteractionPolicy.validateComposerText(content) != null || _sending) {
       return;
     }
     setState(() {
@@ -139,12 +136,8 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
               },
             )
             .timeout(const Duration(seconds: 20));
-        if (result is! Map ||
-            result['created'] != true ||
-            result['post_id'] == null) {
-          throw StateError(
-            'The post service did not confirm the quote was created.',
-          );
+        if (result is! Map || result['created'] != true || result['post_id'] == null) {
+          throw StateError('The post service did not confirm the quote was created.');
         }
         if (!mounted) return;
         context.go('/post/${Uri.encodeComponent('${result['post_id']}')}');
@@ -159,7 +152,9 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
     } catch (e) {
       if (mounted) {
         setState(
-          () => _error = e is StateError ? e.message.toString() : 'Quote could not be published. Check your connection and permissions, then retry.',
+          () => _error = e is StateError
+              ? e.message.toString()
+              : 'Quote could not be published. Check your connection and permissions, then retry.',
         );
       }
     } finally {
@@ -178,10 +173,7 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
               padding: const EdgeInsets.all(16),
               children: [
                 if (_error != null) ...[
-                  Text(
-                    _error!,
-                    style: TextStyle(color: theme.colorScheme.error),
-                  ),
+                  Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _load,
@@ -202,9 +194,7 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
                             style: theme.textTheme.labelLarge,
                           ),
                           const SizedBox(height: 8),
-                          SelectableText(
-                            '${_post!['content'] ?? _post!['summary'] ?? ''}',
-                          ),
+                          SelectableText('${_post!['content'] ?? _post!['summary'] ?? ''}'),
                         ],
                       ),
                     ),
@@ -224,8 +214,7 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed:
-                      _post == null || _sending || _text.text.trim().isEmpty
+                  onPressed: _post == null || _sending || _text.text.trim().isEmpty
                       ? null
                       : _submit,
                   icon: _sending

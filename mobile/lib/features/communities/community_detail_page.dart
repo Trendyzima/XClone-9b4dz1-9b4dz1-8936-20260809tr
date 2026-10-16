@@ -46,9 +46,7 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       if (community == null) throw StateError('not found');
       final posts = await _db
           .from('posts')
-          .select(
-            'id,author_id,user_id,content,created_at,likes_count,community_id',
-          )
+          .select('id,author_id,user_id,content,created_at,likes_count,community_id')
           .eq('community_id', '${community['id']}')
           .order('created_at', ascending: false)
           .limit(30)
@@ -93,19 +91,13 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       _joined = joining;
     });
     try {
-      await _db.rpc(
-        joining ? 'join_community' : 'leave_community',
-        params: {'p_community_id': id},
-      );
+      await _db.rpc(joining ? 'join_community' : 'leave_community', params: {'p_community_id': id});
       await _load();
     } catch (_) {
       if (mounted) {
         setState(() => _joined = !joining);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Membership update failed. Please retry.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Membership update failed. Please retry.')));
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -119,9 +111,8 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       return;
     }
     if (!_joined) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Join this community before posting.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Join this community before posting.')));
       return;
     }
     final content = _composer.text.trim();
@@ -138,11 +129,9 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Post could not be published. Please retry.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post could not be published. Please retry.')));
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -210,9 +199,7 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
                   ),
                   Text('c/${_community!['name']}'),
                   const SizedBox(height: 8),
-                  Text(
-                    '${_community!['description'] ?? 'A Testagram community.'}',
-                  ),
+                  Text('${_community!['description'] ?? 'A Testagram community.'}'),
                   const SizedBox(height: 8),
                   Text(
                     '${_community!['member_count'] ?? 0} members · ${_community!['post_count'] ?? 0} posts',
@@ -221,9 +208,7 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
                   if (_uid != null)
                     FilledButton(
                       onPressed: _working ? null : _toggleMembership,
-                      child: Text(
-                        _joined ? 'Leave community' : 'Join community',
-                      ),
+                      child: Text(_joined ? 'Leave community' : 'Join community'),
                     ),
                 ],
               ),
@@ -260,8 +245,7 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
               'Community posts',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
           ),
           if (_posts.isEmpty)

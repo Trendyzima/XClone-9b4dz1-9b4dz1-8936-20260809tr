@@ -8,11 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
 class VideosPage extends StatefulWidget {
-  const VideosPage({
-    super.key,
-    this.shortsMode = false,
-    this.watchLaterOnly = false,
-  });
+  const VideosPage({super.key, this.shortsMode = false, this.watchLaterOnly = false});
   final bool shortsMode;
   final bool watchLaterOnly;
   @override
@@ -59,10 +55,7 @@ class _VideosPageState extends State<VideosPage> {
 
   Future<void> _persistSaved() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'testagram-watch-later:${_uid ?? 'guest'}',
-      jsonEncode(_saved.toList()),
-    );
+    await prefs.setString('testagram-watch-later:${_uid ?? 'guest'}', jsonEncode(_saved.toList()));
   }
 
   Future<void> _load({bool reset = false}) async {
@@ -114,10 +107,7 @@ class _VideosPageState extends State<VideosPage> {
                 .from('profiles')
                 .select('id,username,display_name,avatar_url,verified')
                 .inFilter('id', authorIds);
-      final byId = {
-        for (final p in profiles)
-          '${p['id']}': Map<String, dynamic>.from(p as Map),
-      };
+      final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
       for (final video in page) {
         video['profile'] = byId['${video['author_id'] ?? video['user_id']}'];
       }
@@ -143,10 +133,7 @@ class _VideosPageState extends State<VideosPage> {
       });
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Videos could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Videos could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -167,9 +154,7 @@ class _VideosPageState extends State<VideosPage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Watch Later could not be saved on this device.'),
-          ),
+          const SnackBar(content: Text('Watch Later could not be saved on this device.')),
         );
       }
     }
@@ -185,8 +170,7 @@ class _VideosPageState extends State<VideosPage> {
     final wasLiked = _liked.contains(id);
     setState(() {
       wasLiked ? _liked.remove(id) : _liked.add(id);
-      video['likes_count'] =
-          ((video['likes_count'] as num?)?.toInt() ?? 0) + (wasLiked ? -1 : 1);
+      video['likes_count'] = ((video['likes_count'] as num?)?.toInt() ?? 0) + (wasLiked ? -1 : 1);
     });
     try {
       if (wasLiked) {
@@ -208,12 +192,10 @@ class _VideosPageState extends State<VideosPage> {
         setState(() {
           wasLiked ? _liked.add(id) : _liked.remove(id);
           video['likes_count'] =
-              ((video['likes_count'] as num?)?.toInt() ?? 0) +
-              (wasLiked ? 1 : -1);
+              ((video['likes_count'] as num?)?.toInt() ?? 0) + (wasLiked ? 1 : -1);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Like failed. Please retry.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Like failed. Please retry.')));
       }
     }
   }
@@ -257,10 +239,7 @@ class _VideosPageState extends State<VideosPage> {
             child: Column(
               children: [
                 Text(_error!),
-                TextButton(
-                  onPressed: () => _load(reset: true),
-                  child: const Text('Retry'),
-                ),
+                TextButton(onPressed: () => _load(reset: true), child: const Text('Retry')),
               ],
             ),
           ),
@@ -273,10 +252,7 @@ class _VideosPageState extends State<VideosPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text('No videos found yet.'),
-                      TextButton(
-                        onPressed: () => _load(reset: true),
-                        child: const Text('Refresh'),
-                      ),
+                      TextButton(onPressed: () => _load(reset: true), child: const Text('Refresh')),
                     ],
                   ),
                 )
@@ -384,8 +360,7 @@ class _VideoCardState extends State<_VideoCard> {
   @override
   Widget build(BuildContext context) {
     final profile = (widget.video['profile'] as Map<String, dynamic>?) ?? {};
-    final name =
-        '${profile['display_name'] ?? profile['username'] ?? 'Testagram creator'}';
+    final name = '${profile['display_name'] ?? profile['username'] ?? 'Testagram creator'}';
     final controller = _controller;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
@@ -405,11 +380,7 @@ class _VideoCardState extends State<_VideoCard> {
                           ? const Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.video_library_outlined,
-                                  color: Colors.white70,
-                                  size: 42,
-                                ),
+                                Icon(Icons.video_library_outlined, color: Colors.white70, size: 42),
                                 SizedBox(height: 8),
                                 Text(
                                   'This video could not be played',
@@ -437,9 +408,7 @@ class _VideoCardState extends State<_VideoCard> {
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            shadows: [
-                              Shadow(blurRadius: 8, color: Colors.black),
-                            ],
+                            shadows: [Shadow(blurRadius: 8, color: Colors.black)],
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -449,9 +418,7 @@ class _VideoCardState extends State<_VideoCard> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            shadows: [
-                              Shadow(blurRadius: 8, color: Colors.black),
-                            ],
+                            shadows: [Shadow(blurRadius: 8, color: Colors.black)],
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -470,14 +437,8 @@ class _VideoCardState extends State<_VideoCard> {
                         IconButton(
                           tooltip: widget.liked ? 'Unlike' : 'Like',
                           onPressed: widget.onLike,
-                          color: widget.liked
-                              ? Colors.pinkAccent
-                              : Colors.white,
-                          icon: Icon(
-                            widget.liked
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                          ),
+                          color: widget.liked ? Colors.pinkAccent : Colors.white,
+                          icon: Icon(widget.liked ? Icons.favorite : Icons.favorite_border),
                         ),
                         Text(
                           '${widget.video['likes_count'] ?? 0}',
@@ -485,18 +446,10 @@ class _VideoCardState extends State<_VideoCard> {
                         ),
                         const SizedBox(height: 10),
                         IconButton(
-                          tooltip: widget.saved
-                              ? 'Remove from Watch Later'
-                              : 'Save to Watch Later',
+                          tooltip: widget.saved ? 'Remove from Watch Later' : 'Save to Watch Later',
                           onPressed: widget.onSave,
-                          color: widget.saved
-                              ? Colors.greenAccent
-                              : Colors.white,
-                          icon: Icon(
-                            widget.saved
-                                ? Icons.bookmark
-                                : Icons.bookmark_border,
-                          ),
+                          color: widget.saved ? Colors.greenAccent : Colors.white,
+                          icon: Icon(widget.saved ? Icons.bookmark : Icons.bookmark_border),
                         ),
                         IconButton(
                           tooltip: 'Share video',

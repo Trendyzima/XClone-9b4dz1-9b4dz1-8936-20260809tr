@@ -66,34 +66,19 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
             .eq('creator_id', uid)
             .order('created_at', ascending: false)
             .limit(60),
-        _db
-            .from('creator_preferences')
-            .select('monthly_tip_goal')
-            .eq('user_id', uid)
-            .maybeSingle(),
+        _db.from('creator_preferences').select('monthly_tip_goal').eq('user_id', uid).maybeSingle(),
       ]).timeout(const Duration(seconds: 20));
       if (!mounted) return;
       setState(() {
         _profile = Map<String, dynamic>.from((result[0] as Map?) ?? {});
-        _posts = (result[1] as List)
-            .map((r) => Map<String, dynamic>.from(r as Map))
-            .toList();
-        _earnings = (result[2] as List)
-            .map((r) => Map<String, dynamic>.from(r as Map))
-            .toList();
-        _goal =
-            double.tryParse(
-              '${(result[3] as Map?)?['monthly_tip_goal'] ?? 0}',
-            ) ??
-            0;
+        _posts = (result[1] as List).map((r) => Map<String, dynamic>.from(r as Map)).toList();
+        _earnings = (result[2] as List).map((r) => Map<String, dynamic>.from(r as Map)).toList();
+        _goal = double.tryParse('${(result[3] as Map?)?['monthly_tip_goal'] ?? 0}') ?? 0;
         _goalInput.text = _goal == 0 ? '' : _goal.toStringAsFixed(2);
       });
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Creator data could not load. Check your connection and retry.',
-        );
+        setState(() => _error = 'Creator data could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -102,18 +87,11 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
 
   double get _totalEarnings => _earnings
       .where((e) => e['status'] == 'paid')
-      .fold<double>(
-        0,
-        (sum, e) => sum + (double.tryParse('${e['amount']}') ?? 0),
-      );
-  int get _views => _posts.fold<int>(
-    0,
-    (sum, p) => sum + (int.tryParse('${p['views_count'] ?? 0}') ?? 0),
-  );
-  int get _likes => _posts.fold<int>(
-    0,
-    (sum, p) => sum + (int.tryParse('${p['likes_count'] ?? 0}') ?? 0),
-  );
+      .fold<double>(0, (sum, e) => sum + (double.tryParse('${e['amount']}') ?? 0));
+  int get _views =>
+      _posts.fold<int>(0, (sum, p) => sum + (int.tryParse('${p['views_count'] ?? 0}') ?? 0));
+  int get _likes =>
+      _posts.fold<int>(0, (sum, p) => sum + (int.tryParse('${p['likes_count'] ?? 0}') ?? 0));
 
   Future<void> _toggleMonetization(Map<String, dynamic> post) async {
     final uid = _uid;
@@ -125,17 +103,12 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
     final old = post['is_monetized'] == true;
     setState(() => post['is_monetized'] = !old);
     try {
-      await _db
-          .from('posts')
-          .update({'is_monetized': !old})
-          .eq('id', id)
-          .eq('user_id', uid);
+      await _db.from('posts').update({'is_monetized': !old}).eq('id', id).eq('user_id', uid);
     } catch (_) {
       if (mounted) {
         setState(() => post['is_monetized'] = old);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not update monetization.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Could not update monetization.')));
       }
     }
   }
@@ -145,9 +118,8 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
     if (uid == null) return;
     final value = double.tryParse(_goalInput.text.trim());
     if (value == null || value < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid non-negative goal.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Enter a valid non-negative goal.')));
       return;
     }
     setState(() => _saving = true);
@@ -164,9 +136,8 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save your goal.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Could not save your goal.')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -187,20 +158,14 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
               const SizedBox(height: 12),
               const Text('Creator Studio requires an account.'),
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => context.go('/auth'),
-                child: const Text('Sign in'),
-              ),
+              FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
             ],
           ),
         ),
       );
     }
-    final creatorName =
-        '${_profile['display_name'] ?? _profile['username'] ?? 'Creator'}';
-    final avatarLabel = creatorName.isEmpty
-        ? 'C'
-        : creatorName[0].toUpperCase();
+    final creatorName = '${_profile['display_name'] ?? _profile['username'] ?? 'Creator'}';
+    final avatarLabel = creatorName.isEmpty ? 'C' : creatorName[0].toUpperCase();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -208,8 +173,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
         children: [
           Text(
             'Creator Studio',
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
           Text(
@@ -232,9 +196,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                   label: Text(item.$2),
                   selected: tab == item.$1,
                   onSelected: (_) => context.go(
-                    item.$1 == 'overview'
-                        ? '/creator-studio'
-                        : '/creator-studio/${item.$1}',
+                    item.$1 == 'overview' ? '/creator-studio' : '/creator-studio/${item.$1}',
                   ),
                 ),
             ],
@@ -269,10 +231,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                         children: [
                           Text(
                             creatorName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 17,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
                           ),
                           Text(
                             '@${_profile['username'] ?? 'creator'} · ${_profile['follower_count'] ?? 0} followers',
@@ -311,10 +270,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                       const SizedBox(height: 6),
                       Text(
                         'Paid total: ${_totalEarnings.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 22,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
                       ),
                       const SizedBox(height: 8),
                       if (_earnings.isEmpty)
@@ -327,9 +283,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                                 contentPadding: EdgeInsets.zero,
                                 dense: true,
                                 leading: const Icon(Icons.payments_outlined),
-                                title: Text(
-                                  '${e['source'] ?? 'Creator earnings'}',
-                                ),
+                                title: Text('${e['source'] ?? 'Creator earnings'}'),
                                 subtitle: Text(
                                   '${e['created_at'] ?? ''} · ${e['status'] ?? 'pending'}',
                                 ),
@@ -359,10 +313,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                           Expanded(
                             child: TextField(
                               controller: _goalInput,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               decoration: const InputDecoration(
                                 prefixText: 'KES ',
                                 hintText: 'Set your goal',
@@ -471,8 +422,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
             const SizedBox(height: 6),
             Text(
               value,
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
           ],
         ),

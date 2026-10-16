@@ -44,18 +44,11 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
           .limit(100)
           .timeout(const Duration(seconds: 20));
       if (mounted) {
-        setState(
-          () => _series = rows
-              .map((r) => Map<String, dynamic>.from(r as Map))
-              .toList(),
-        );
+        setState(() => _series = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              _error = 'Your series could not load. Confirm access and retry.',
-        );
+        setState(() => _error = 'Your series could not load. Confirm access and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -81,21 +74,13 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
               controller: description,
               maxLength: 500,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-              ),
+              decoration: const InputDecoration(labelText: 'Description (optional)'),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Create'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Create')),
         ],
       ),
     );
@@ -117,18 +102,13 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
           .insert({
             'owner_id': user.id,
             'title': title.text.trim(),
-            'description': description.text.trim().isEmpty
-                ? null
-                : description.text.trim(),
+            'description': description.text.trim().isEmpty ? null : description.text.trim(),
           })
           .timeout(const Duration(seconds: 15));
       if (mounted) await _load();
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              _error = 'Series was not created. Check the title and try again.',
-        );
+        setState(() => _error = 'Series was not created. Check the title and try again.');
       }
     } finally {
       title.dispose();
@@ -151,11 +131,7 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
           .order('sort_order')
           .timeout(const Duration(seconds: 15));
       if (mounted) {
-        setState(
-          () => _posts = rows
-              .map((r) => Map<String, dynamic>.from(r as Map))
-              .toList(),
-        );
+        setState(() => _posts = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'Series episodes could not load.');
@@ -180,11 +156,7 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
               ),
               Expanded(
                 child: _posts.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No posts have been added to this series yet.',
-                        ),
-                      )
+                    ? const Center(child: Text('No posts have been added to this series yet.'))
                     : ListView(
                         children: [
                           for (final row in _posts)
@@ -216,14 +188,8 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
           'The series and its membership records will be removed; individual posts are not deleted.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
         ],
       ),
     );
@@ -243,9 +209,7 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error = 'Could not delete the series. Refresh and retry.',
-        );
+        setState(() => _error = 'Could not delete the series. Refresh and retry.');
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -256,12 +220,7 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Creator series'),
-      actions: [
-        IconButton(
-          onPressed: _loading ? null : _load,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
+      actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
     ),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: _working ? null : _create,
@@ -284,10 +243,7 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
                     child: ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(_error!),
-                      trailing: IconButton(
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh),
-                      ),
+                      trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                     ),
                   ),
                 if (_series.isEmpty && _error == null)
@@ -313,14 +269,8 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
                           }
                         },
                         itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'open',
-                            child: Text('View episodes'),
-                          ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Delete series'),
-                          ),
+                          PopupMenuItem(value: 'open', child: Text('View episodes')),
+                          PopupMenuItem(value: 'delete', child: Text('Delete series')),
                         ],
                       ),
                     ),

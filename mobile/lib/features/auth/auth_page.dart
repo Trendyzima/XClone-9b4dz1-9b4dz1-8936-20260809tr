@@ -40,9 +40,7 @@ class _AuthPageState extends State<AuthPage> {
     super.initState();
     final existing = _client.auth.currentUser;
     if (existing != null && !widget.recovery) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _checkLegalAndContinue(existing),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkLegalAndContinue(existing));
     }
   }
 
@@ -63,9 +61,7 @@ class _AuthPageState extends State<AuthPage> {
     if (RegExp(r'^0[17]\d{8}$').hasMatch(raw)) return '+254${raw.substring(1)}';
     if (RegExp(r'^254[17]\d{8}$').hasMatch(digits)) return '+$digits';
     if (RegExp(r'^[17]\d{8}$').hasMatch(digits)) return '+254$digits';
-    throw const AuthException(
-      'Enter a valid email address or Kenyan phone number.',
-    );
+    throw const AuthException('Enter a valid email address or Kenyan phone number.');
   }
 
   Future<void> _signIn() async {
@@ -89,9 +85,7 @@ class _AuthPageState extends State<AuthPage> {
               .timeout(const Duration(seconds: 15));
       final user = response.user;
       if (user == null) {
-        throw const AuthException(
-          'Sign-in returned no account. Please try again.',
-        );
+        throw const AuthException('Sign-in returned no account. Please try again.');
       }
       await _checkLegalAndContinue(user);
     } on AuthException catch (error) {
@@ -111,21 +105,13 @@ class _AuthPageState extends State<AuthPage> {
         role == 'super_admin' ||
         role == 'owner' ||
         (roles is List &&
-            roles.any(
-              (value) =>
-                  value == 'admin' ||
-                  value == 'super_admin' ||
-                  value == 'owner',
-            ));
+            roles.any((value) => value == 'admin' || value == 'super_admin' || value == 'owner'));
     // The Edge Function independently verifies the JWT and admin role. This
     // only requests the full one-time backfill when the signed-in user is an
     // admin; ordinary users provision their own actor and signing key.
     unawaited(
       _client.functions
-          .invoke(
-            'activitypub-keygen',
-            body: {if (shouldBackfillAll) 'generate_all_missing': true},
-          )
+          .invoke('activitypub-keygen', body: {if (shouldBackfillAll) 'generate_all_missing': true})
           .timeout(const Duration(seconds: 20))
           .then<void>((_) {}, onError: (Object _) {}),
     );
@@ -146,9 +132,7 @@ class _AuthPageState extends State<AuthPage> {
       final ageCutoff = DateTime(now.year - 18, now.month, now.day);
       if (birthDate != null && birthDate.isAfter(ageCutoff)) {
         await _client.auth.signOut();
-        throw const AuthException(
-          'Testagram is available only to users aged 18 or older.',
-        );
+        throw const AuthException('Testagram is available only to users aged 18 or older.');
       }
       final accepted =
           result != null &&
@@ -186,9 +170,7 @@ class _AuthPageState extends State<AuthPage> {
     final now = DateTime.now();
     final cutoff = DateTime(now.year - 18, now.month, now.day);
     if (dob.isAfter(cutoff)) {
-      setState(
-        () => _error = 'Testagram is available only to users aged 18 or older.',
-      );
+      setState(() => _error = 'Testagram is available only to users aged 18 or older.');
       return;
     }
     if (!_acceptTerms || !_acceptPrivacy || !_acceptContentPolicy) {
@@ -219,9 +201,7 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> _updatePassword() async {
     if (_newPassword.text.length < 8) {
-      setState(
-        () => _error = 'Use at least 8 characters for your new password.',
-      );
+      setState(() => _error = 'Use at least 8 characters for your new password.');
       return;
     }
     if (_newPassword.text != _confirmPassword.text) {
@@ -230,7 +210,8 @@ class _AuthPageState extends State<AuthPage> {
     }
     if (_client.auth.currentSession == null) {
       setState(
-        () => _error = 'This recovery link is no longer active. Request a new password recovery email.',
+        () => _error =
+            'This recovery link is no longer active. Request a new password recovery email.',
       );
       return;
     }
@@ -243,9 +224,8 @@ class _AuthPageState extends State<AuthPage> {
           .updateUser(UserAttributes(password: _newPassword.text))
           .timeout(const Duration(seconds: 12));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password updated successfully.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Password updated successfully.')));
         await _checkLegalAndContinue(_client.auth.currentUser!);
       }
     } catch (error) {
@@ -261,11 +241,8 @@ class _AuthPageState extends State<AuthPage> {
       mode: LaunchMode.externalApplication,
     );
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open the existing signup flow.'),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open the existing signup flow.')));
     }
   }
 
@@ -281,16 +258,10 @@ class _AuthPageState extends State<AuthPage> {
     });
     try {
       await _client.auth
-          .resetPasswordForEmail(
-            email,
-            redirectTo: '${AppConfig.siteUrl}/auth?reset=1',
-          )
+          .resetPasswordForEmail(email, redirectTo: '${AppConfig.siteUrl}/auth?reset=1')
           .timeout(const Duration(seconds: 12));
       if (mounted) {
-        setState(
-          () => _error =
-              'If the account exists, a password recovery email has been sent.',
-        );
+        setState(() => _error = 'If the account exists, a password recovery email has been sent.');
       }
     } catch (error) {
       if (mounted) setState(() => _error = _friendlyError(error));
@@ -301,8 +272,7 @@ class _AuthPageState extends State<AuthPage> {
 
   String _friendlyError(Object error) {
     final text = error.toString().replaceFirst('Exception: ', '');
-    if (text.contains('SocketException') ||
-        text.contains('Failed host lookup')) {
+    if (text.contains('SocketException') || text.contains('Failed host lookup')) {
       return 'Network unavailable. Check your connection and retry.';
     }
     if (text.contains('TimeoutException')) {
@@ -358,10 +328,7 @@ class _AuthPageState extends State<AuthPage> {
                             legalStep ? 'Finish account setup' : 'Welcome back',
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.5,
-                                ),
+                                ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -380,8 +347,7 @@ class _AuthPageState extends State<AuthPage> {
                                 labelText: 'New password',
                                 prefixIcon: Icon(Icons.lock_reset_rounded),
                               ),
-                              validator: (value) =>
-                                  value == null || value.length < 8
+                              validator: (value) => value == null || value.length < 8
                                   ? 'Use at least 8 characters.'
                                   : null,
                             ),
@@ -393,16 +359,13 @@ class _AuthPageState extends State<AuthPage> {
                                 labelText: 'Confirm new password',
                                 prefixIcon: Icon(Icons.lock_outline_rounded),
                               ),
-                              validator: (value) => value != _newPassword.text
-                                  ? 'The passwords do not match.'
-                                  : null,
+                              validator: (value) =>
+                                  value != _newPassword.text ? 'The passwords do not match.' : null,
                             ),
                             const SizedBox(height: 14),
                             FilledButton(
                               onPressed: _busy ? null : _updatePassword,
-                              child: Text(
-                                _busy ? 'Updating…' : 'Update password',
-                              ),
+                              child: Text(_busy ? 'Updating…' : 'Update password'),
                             ),
                             TextButton(
                               onPressed: _busy ? null : _resetPassword,
@@ -412,10 +375,7 @@ class _AuthPageState extends State<AuthPage> {
                             TextFormField(
                               controller: _email,
                               keyboardType: TextInputType.emailAddress,
-                              autofillHints: const [
-                                AutofillHints.username,
-                                AutofillHints.email,
-                              ],
+                              autofillHints: const [AutofillHints.username, AutofillHints.email],
                               decoration: const InputDecoration(
                                 labelText: 'Email or phone number',
                                 prefixIcon: Icon(Icons.mail_outline_rounded),
@@ -426,8 +386,7 @@ class _AuthPageState extends State<AuthPage> {
                                   return 'Enter your email or phone number.';
                                 }
                                 if (identifier.contains('@')) {
-                                  return RegExp(r'^\S+@\S+\.\S+$')
-                                          .hasMatch(identifier)
+                                  return RegExp(r'^\S+@\S+\.\S+$').hasMatch(identifier)
                                       ? null
                                       : 'Enter a valid email address.';
                                 }
@@ -446,13 +405,10 @@ class _AuthPageState extends State<AuthPage> {
                               autofillHints: const [AutofillHints.password],
                               decoration: InputDecoration(
                                 labelText: 'Password',
-                                prefixIcon: const Icon(
-                                  Icons.lock_outline_rounded,
-                                ),
+                                prefixIcon: const Icon(Icons.lock_outline_rounded),
                                 suffixIcon: IconButton(
-                                  onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword,
-                                  ),
+                                  onPressed: () =>
+                                      setState(() => _obscurePassword = !_obscurePassword),
                                   icon: Icon(
                                     _obscurePassword
                                         ? Icons.visibility_outlined
@@ -461,9 +417,7 @@ class _AuthPageState extends State<AuthPage> {
                                 ),
                               ),
                               validator: (value) =>
-                                  value == null || value.isEmpty
-                                  ? 'Enter your password.'
-                                  : null,
+                                  value == null || value.isEmpty ? 'Enter your password.' : null,
                               onFieldSubmitted: (_) => _signIn(),
                             ),
                             Align(
@@ -480,15 +434,11 @@ class _AuthPageState extends State<AuthPage> {
                                   ? const SizedBox(
                                       width: 18,
                                       height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
+                                      child: CircularProgressIndicator(strokeWidth: 2),
                                     )
                                   : const Icon(Icons.login_rounded),
                               label: Text(_busy ? 'Signing in…' : 'Sign in'),
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(50),
-                              ),
+                              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -516,36 +466,28 @@ class _AuthPageState extends State<AuthPage> {
                             CheckboxListTile(
                               contentPadding: EdgeInsets.zero,
                               value: _acceptTerms,
-                              onChanged: (value) =>
-                                  setState(() => _acceptTerms = value ?? false),
-                              title: const Text(
-                                'I accept the Terms of Service.',
-                              ),
+                              onChanged: (value) => setState(() => _acceptTerms = value ?? false),
+                              title: const Text('I accept the Terms of Service.'),
                               controlAffinity: ListTileControlAffinity.leading,
                             ),
                             CheckboxListTile(
                               contentPadding: EdgeInsets.zero,
                               value: _acceptPrivacy,
-                              onChanged: (value) => setState(
-                                () => _acceptPrivacy = value ?? false,
-                              ),
+                              onChanged: (value) => setState(() => _acceptPrivacy = value ?? false),
                               title: const Text('I accept the Privacy Policy.'),
                               controlAffinity: ListTileControlAffinity.leading,
                             ),
                             CheckboxListTile(
                               contentPadding: EdgeInsets.zero,
                               value: _acceptContentPolicy,
-                              onChanged: (value) => setState(
-                                () => _acceptContentPolicy = value ?? false,
-                              ),
+                              onChanged: (value) =>
+                                  setState(() => _acceptContentPolicy = value ?? false),
                               title: const Text('I accept the Content Policy.'),
                               controlAffinity: ListTileControlAffinity.leading,
                             ),
                             FilledButton(
                               onPressed: _busy ? null : _acceptLegal,
-                              child: Text(
-                                _busy ? 'Saving…' : 'Accept and continue',
-                              ),
+                              child: Text(_busy ? 'Saving…' : 'Accept and continue'),
                             ),
                             TextButton(
                               onPressed: _busy
@@ -553,9 +495,7 @@ class _AuthPageState extends State<AuthPage> {
                                   : () async {
                                       await _client.auth.signOut();
                                       if (mounted) {
-                                        setState(
-                                          () => _pendingLegalUser = null,
-                                        );
+                                        setState(() => _pendingLegalUser = null);
                                       }
                                     },
                               child: const Text('Sign out instead'),
@@ -566,17 +506,13 @@ class _AuthPageState extends State<AuthPage> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .errorContainer,
+                                color: Theme.of(context).colorScheme.errorContainer,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 _error!,
                                 style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onErrorContainer,
+                                  color: Theme.of(context).colorScheme.onErrorContainer,
                                 ),
                               ),
                             ),

@@ -78,11 +78,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
   double? get _converted {
     final amount = _amount;
     if (amount == null) return null;
-    return CurrencyConversion.convert(
-      amount: amount,
-      fromRate: _rates[_from],
-      toRate: _rates[_to],
-    );
+    return CurrencyConversion.convert(amount: amount, fromRate: _rates[_from], toRate: _rates[_to]);
   }
 
   Future<void> _loadRates() async {
@@ -114,9 +110,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
         }
       }
       if (!_currencies.keys.every(rates.containsKey)) {
-        throw const FormatException(
-          'One or more selected currencies are unavailable',
-        );
+        throw const FormatException('One or more selected currencies are unavailable');
       }
       final timestamp = payload['time_last_update_utc']?.toString();
       if (!mounted) return;
@@ -142,8 +136,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
     });
   }
 
-  String _format(double value) =>
-      value.toStringAsFixed(value.abs() >= 1000 ? 2 : 4);
+  String _format(double value) => value.toStringAsFixed(value.abs() >= 1000 ? 2 : 4);
 
   @override
   Widget build(BuildContext context) {
@@ -165,9 +158,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
         children: [
           Text(
             'Convert currencies',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -178,10 +169,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
             controller: _amountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Amount',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
           _currencyPicker(
@@ -216,9 +204,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
                   else if (converted != null)
                     Text(
                       '$_to ${_format(converted)}',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
                     )
                   else
                     Text(
@@ -243,10 +229,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
             MaterialBanner(
               content: Text(_error!),
               actions: [
-                TextButton(
-                  onPressed: _loading ? null : _loadRates,
-                  child: const Text('Retry'),
-                ),
+                TextButton(onPressed: _loading ? null : _loadRates, child: const Text('Retry')),
               ],
             ),
           ],
@@ -267,16 +250,10 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
     return DropdownButtonFormField<String>(
       value: value,
       isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
       items: [
         for (final entry in _currencies.entries)
-          DropdownMenuItem(
-            value: entry.key,
-            child: Text('${entry.key} — ${entry.value}'),
-          ),
+          DropdownMenuItem(value: entry.key, child: Text('${entry.key} — ${entry.value}')),
       ],
       onChanged: (next) {
         if (next != null) onChanged(next);

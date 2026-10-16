@@ -54,9 +54,7 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
       _error = null;
     });
     try {
-      final ownerResult = await _db
-          .rpc('testagram_is_owner')
-          .timeout(const Duration(seconds: 12));
+      final ownerResult = await _db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12));
       if (ownerResult != true) {
         if (mounted && generation == _generation) {
           setState(() {
@@ -71,10 +69,7 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
           .rpc('testagram_list_job_applications', params: {'p_status': null})
           .timeout(const Duration(seconds: 15));
       final rows = result is List
-          ? result
-                .whereType<Map>()
-                .map((row) => Map<String, dynamic>.from(row))
-                .toList()
+          ? result.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList()
           : <Map<String, dynamic>>[];
       if (mounted && generation == _generation) {
         setState(() {
@@ -107,17 +102,12 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
       await _db
           .rpc(
             'testagram_review_job_application',
-            params: {
-              'p_application_id': id,
-              'p_status': status,
-              'p_note': null,
-            },
+            params: {'p_application_id': id, 'p_status': status, 'p_note': null},
           )
           .timeout(const Duration(seconds: 15));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Application moved to $status.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Application moved to $status.')));
       }
       await _load();
     } catch (_) {
@@ -132,8 +122,7 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
   }
 
   Future<void> _invite(Map<String, dynamic> application) async {
-    if (!_owner ||
-        !StaffRecruitmentPolicy.canInvite('${application['status'] ?? ''}')) {
+    if (!_owner || !StaffRecruitmentPolicy.canInvite('${application['status'] ?? ''}')) {
       return;
     }
     final id = '${application['id'] ?? ''}';
@@ -153,25 +142,21 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
             params: {
               'p_user_id': userId,
               'p_role_name': roleName,
-              'p_note':
-                  'Owner-approved invitation following recruitment application $id',
+              'p_note': 'Owner-approved invitation following recruitment application $id',
             },
           )
           .timeout(const Duration(seconds: 15));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${StaffRecruitmentPolicy.displayName(application)} invited.',
-            ),
-          ),
+          SnackBar(content: Text('${StaffRecruitmentPolicy.displayName(application)} invited.')),
         );
       }
       await _load();
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Invitation was rejected. The server may require a fresh privileged owner session.',
+          () => _error =
+              'Invitation was rejected. The server may require a fresh privileged owner session.',
         );
       }
     } finally {
@@ -289,9 +274,7 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  StaffRecruitmentPolicy.displayName(
-                                    application,
-                                  ),
+                                  StaffRecruitmentPolicy.displayName(application),
                                   style: Theme.of(context).textTheme.titleSmall,
                                 ),
                                 Text(
@@ -315,21 +298,16 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final status
-                              in StaffRecruitmentPolicy.reviewStatuses)
+                          for (final status in StaffRecruitmentPolicy.reviewStatuses)
                             OutlinedButton(
                               onPressed: _busyId == null
                                   ? () => _review(application, status)
                                   : null,
                               child: Text(status),
                             ),
-                          if (StaffRecruitmentPolicy.canInvite(
-                            '${application['status'] ?? ''}',
-                          ))
+                          if (StaffRecruitmentPolicy.canInvite('${application['status'] ?? ''}'))
                             FilledButton.icon(
-                              onPressed: _busyId == null
-                                  ? () => _invite(application)
-                                  : null,
+                              onPressed: _busyId == null ? () => _invite(application) : null,
                               icon: const Icon(Icons.person_add_alt_1),
                               label: const Text('Invite & activate'),
                             ),

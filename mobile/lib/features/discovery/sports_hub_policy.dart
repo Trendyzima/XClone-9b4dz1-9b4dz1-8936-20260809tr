@@ -8,15 +8,7 @@ class SportsHubPolicy {
     if (value is String || value is num) return '$value';
     final map = _record(value);
     if (map == null) return '';
-    for (final key in [
-      'name',
-      'title',
-      'shortName',
-      'displayName',
-      'score',
-      'text',
-      'value',
-    ]) {
+    for (final key in ['name', 'title', 'shortName', 'displayName', 'score', 'text', 'value']) {
       final item = map[key];
       if (item is String || item is num) return '$item';
     }
@@ -39,9 +31,7 @@ class SportsHubPolicy {
           .whereType<Map<String, dynamic>>()
           .expand(
             (league) => league['matches'] is List
-                ? (league['matches'] as List)
-                      .map(_record)
-                      .whereType<Map<String, dynamic>>()
+                ? (league['matches'] as List).map(_record).whereType<Map<String, dynamic>>()
                 : const <Map<String, dynamic>>[],
           )
           .toList();
@@ -75,14 +65,7 @@ class SportsHubPolicy {
   }
 
   static String status(Map<String, dynamic> match) {
-    for (final key in [
-      'status',
-      'state',
-      'matchStatus',
-      'time',
-      'minute',
-      'date',
-    ]) {
+    for (final key in ['status', 'state', 'matchStatus', 'time', 'minute', 'date']) {
       final value = match[key];
       if (value != null && display(value).trim().isNotEmpty) {
         return display(value).trim();
