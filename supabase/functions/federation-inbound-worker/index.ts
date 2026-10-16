@@ -34,6 +34,16 @@ async function ensureInstances(){
   if(domains.length) await db.from("federated_instances").upsert(domains.map(domain=>({domain,base_url:`https://${domain}`,provider:"activitypub"})),{onConflict:"domain",ignoreDuplicates:true});
 }
 
+function normalizeTimelineVisibility(value:any):string{
+  const visibility=String(value||"").trim().toLowerCase();
+  if(visibility==="private")return "followers";
+  if(["public","unlisted","followers","direct"].includes(visibility))return visibility;
+  // This function only imports statuses from the remote instance's public
+  // timeline endpoint. Mastodon-compatible APIs may omit the field, so public
+  // is the safe endpoint-derived default; explicit private/direct values win.
+  return "public";
+}
+
 async function syncDomain(instance:any){
   const started=Date.now();
   const domain=cleanDomain(String(instance.domain));
@@ -79,7 +89,7 @@ async function syncDomain(instance:any){
       uri,object_type:"Note",actor_uri:actor,instance_id:instanceRow,url:s.url||uri,
       content:String(s.content||""),summary:s.spoiler_text||null,
       published_at:s.created_at||null,updated_at:s.edited_at||s.created_at||null,
-      sensitive:Boolean(s.sensitive),in_reply_to_uri:s.in_reply_to_id?String(s.in_reply_to_id):null,
+      sensitive:Boolean(s.sensitive),visibility:normalizeTimelineVisibility(s.visibility),in_reply_to_uri:s.in_reply_to_id?String(s.in_reply_to_id):null,
       quote_uri:s.quote_id?String(s.quote_id):null,attachments:Array.isArray(s.media_attachments)?s.media_attachments:[],
       tags:Array.isArray(s.tags)?s.tags:[],like_count:Number(s.favourites_count||0),
       announce_count:Number(s.reblogs_count||0),reply_count:Number(s.replies_count||0),
