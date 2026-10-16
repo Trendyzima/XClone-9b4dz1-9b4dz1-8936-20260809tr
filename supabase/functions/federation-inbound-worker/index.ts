@@ -175,24 +175,24 @@ Deno.serve(async(req)=>{
     const {data:publicInstances,error:publicError}=await db.from("federated_instances")
       .select("id,domain,base_url,consecutive_failures,next_sync_at")
       .eq("public_timeline_available",true)
-      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(80);
+      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(40);
     if(publicError)throw publicError;
-    const duePublic=dueNow(publicInstances).slice(0,80);
+    const duePublic=dueNow(publicInstances).slice(0,40);
     // Probe only a small number of unknown/unavailable instances per cycle.
     // Known public sources get the bulk of the capacity; unsupported instances
     // are rechecked daily rather than every two hours.
     const {data:otherInstances,error:otherError}=await db.from("federated_instances")
       .select("id,domain,base_url,consecutive_failures,next_sync_at")
       .or("public_timeline_available.is.false,public_timeline_available.is.null")
-      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(4);
+      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(2);
     if(otherError)throw otherError;
-    const dueOther=dueNow(otherInstances).slice(0,4);
+    const dueOther=dueNow(otherInstances).slice(0,2);
     const due=[...duePublic,...dueOther];
     const results:any[]=[];
-    // At most 84 instances per run, with bounded concurrency. The cron caller
+    // At most 42 instances per run, with bounded concurrency. The cron caller
     // now allows 120 seconds, enough for the eight-second remote HTTP deadline
     // across these batches without an unbounded burst against remote servers.
-    const concurrency=12;
+    const concurrency=6;
     for(let i=0;i<due.length;i+=concurrency){
       const batch=due.slice(i,i+concurrency);
       const settled=await Promise.all(batch.map(async(instance:any)=>{
@@ -205,6 +205,17 @@ Deno.serve(async(req)=>{
         }
       }));
       results.push(...settled);
+      const completedSuccesses=results.filter(r=>r.status===200);
+      const completedFailures=results.filter(r=>r.status!==200);
+      const progress=await db.from("fediverse_ingestion_runs").update({
+        domains_attempted:results.length,
+        domains_succeeded:completedSuccesses.length,
+        domains_failed:completedFailures.length,
+        objects_fetched:completedSuccesses.reduce((n,r)=>n+Number(r.fetched||0),0),
+        objects_upserted:completedSuccesses.reduce((n,r)=>n+Number(r.stored||0),0),
+        duration_ms:Date.now()-runStarted
+      }).eq("id",runId);
+      if(progress.error)console.warn("[federation-inbound] progress update failed",progress.error.message);
     }
     const succeeded=results.filter(r=>r.status===200);
     const failed=results.filter(r=>r.status!==200);
