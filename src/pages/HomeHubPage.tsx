@@ -30,6 +30,10 @@ const UserSuggestionsWidget = lazy(() => import('@/components/features/UserSugge
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'|'publisher'; data:any };
 
+function normalizeFederatedFeedItems(posts:any[]):Item[]{
+  return posts.map((p:any)=>({type:'fedpost' as const,data:{...p,id:p.id??p.uri,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published,user_profiles:p.user_profiles??p.remote_account??p.actor??p.account??p.author??{},media_urls:p.media_urls??p.mediaUrls??p.attachments??[],image_url:p.image_url??p.preview_image_url??p.thumbnail_url,video_url:p.video_url??p.videoUrl,is_video:Boolean(p.is_video||p.video_url||p.videoUrl),is_federated:true}}));
+}
+
 function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.MAX_SAFE_INTEGER): Item[] {
   const seen = new Set(existing.map(homeFeedItemIdentity).filter(Boolean));
   const out = [...existing];
@@ -169,7 +173,7 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
-  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined);
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined); const federatedCursorRef=useRef<string|null>(null); const federatedExhaustedRef=useRef(false);
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
@@ -195,7 +199,7 @@ export default function HomeHubPage(){
     if(target==='federated'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       if(!token) return [];
-      const params = new URLSearchParams({ limit: '12' });
+      const params = new URLSearchParams({ limit: '24' });
       if (cursorOverride) params.set('before', cursorOverride);
       const response = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + params.toString(), {
         headers: {
@@ -209,26 +213,12 @@ export default function HomeHubPage(){
       setNextCursor(payload?.pagination?.nextCursor ?? null);
       nextCursorRef.current = payload?.pagination?.nextCursor ?? null;
       setHasMore(Boolean(payload?.pagination?.hasMore) && fedItems.length > 0);
-      return fedItems.map((p:any)=>({
-        type:'fedpost' as const,
-        data:{
-          ...p,
-          id:p.id ?? p.uri,
-          content:p.content ?? p.text ?? '',
-          created_at:p.created_at ?? p.published_at ?? p.published,
-          user_profiles:p.user_profiles ?? p.remote_account ?? p.actor ?? p.account ?? p.author ?? {},
-          media_urls:p.media_urls ?? p.mediaUrls ?? p.attachments ?? [],
-          image_url:p.image_url ?? p.preview_image_url ?? p.thumbnail_url,
-          video_url:p.video_url ?? p.videoUrl,
-          is_video:Boolean(p.is_video || p.video_url || p.videoUrl),
-          is_federated:true,
-        },
-      }));
+      return normalizeFederatedFeedItems(fedItems);
     }
 
     if(target==='all'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const params = new URLSearchParams({ limit: '6', includeFederated: includeFederated ? '1' : '0' });
+      const params = new URLSearchParams({ limit: '24', includeFederated: includeFederated ? '1' : '0' });
       if (cursorOverride) params.set('before', cursorOverride);
 
       // The edge aggregator is the preferred source because it blends local,
@@ -245,9 +235,31 @@ export default function HomeHubPage(){
         if (response.ok) {
           const payload = await response.json();
           const next = Array.isArray(payload?.items) ? payload.items : [];
-          if (next.length > 0 || cursorOverride) {
+          let supplementalFederatedItems: Item[] = [];
+          // The aggregator remains the primary ranked source, while the direct
+          // federation timeline fills discovery gaps and protects the homepage
+          // from an aggregator that returns very few remote posts.
+          if (!cursorOverride && includeFederated && token) {
+            try {
+              const fedParams = new URLSearchParams({ limit: '24' });
+              const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
+                headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
+                cache: 'no-store',
+              });
+              if (fedResponse.ok) {
+                const fedPayload = await fedResponse.json();
+                const fedPosts = Array.isArray(fedPayload?.items) ? fedPayload.items : [];
+                supplementalFederatedItems = normalizeFederatedFeedItems(fedPosts);
+                federatedCursorRef.current = fedPayload?.pagination?.nextCursor ?? null;
+                federatedExhaustedRef.current = !Boolean(fedPayload?.pagination?.hasMore) || !federatedCursorRef.current;
+              }
+            } catch (federationError) {
+              console.warn('[home-hub] direct federated discovery temporarily unavailable', federationError);
+            }
+          }
+          if (next.length > 0 || cursorOverride || supplementalFederatedItems.length > 0) {
             setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
-            setHasMore(Boolean(payload?.hasMore) && next.length > 0);
+            setHasMore((Boolean(payload?.hasMore) && next.length > 0) || Boolean(federatedCursorRef.current));
 
             // A slow federation source must never erase already-rendered remote
             // posts from the Home cache. The aggregator reports degradation
@@ -263,7 +275,8 @@ export default function HomeHubPage(){
               return [...next, ...retainedFed].slice(0, 12) as Item[];
             }
 
-            return next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
+            const normalizedNext = next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
+            return appendUniqueFeedItems(normalizedNext, supplementalFederatedItems);
           }
         }
       } catch (error) {
@@ -298,15 +311,37 @@ export default function HomeHubPage(){
       if (postError) console.warn('[home-hub] direct post fallback', postError);
       if (threadError) console.warn('[home-hub] direct thread fallback', threadError);
 
-      const fallbackItems: Item[] = [
+      let fallbackItems: Item[] = [
         ...(postData ?? []).map((post:any)=>({type:'post' as const,data:post})),
         ...(threadData ?? []).map((thread:any)=>({type:'thread' as const,data:thread})),
       ].sort((a,b)=>Date.parse(String(b.data?.created_at??''))-Date.parse(String(a.data?.created_at??'')));
 
+      // The local fallback must not silently drop federation. Query the
+      // canonical stored Fediverse timeline independently when the mixed
+      // aggregator is unavailable, then continue with its own cursor.
+      if (includeFederated && token) {
+        try {
+          const fedParams = new URLSearchParams({ limit: '24' });
+          const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
+            headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
+            cache: 'no-store',
+          });
+          if (fedResponse.ok) {
+            const fedPayload = await fedResponse.json();
+            const fedPosts = Array.isArray(fedPayload?.items) ? fedPayload.items : [];
+            fallbackItems = appendUniqueFeedItems(fallbackItems, normalizeFederatedFeedItems(fedPosts));
+            federatedCursorRef.current = fedPayload?.pagination?.nextCursor ?? null;
+            federatedExhaustedRef.current = !Boolean(fedPayload?.pagination?.hasMore) || !federatedCursorRef.current;
+          }
+        } catch (federationError) {
+          console.warn('[home-hub] federated fallback temporarily unavailable', federationError);
+        }
+      }
+
       setNextCursor(null);
       nextCursorRef.current=null;
-      setHasMore(fallbackItems.length > 6);
-      return fallbackItems.slice(0, fallbackLimit);
+      setHasMore(fallbackItems.length > 6 || Boolean(federatedCursorRef.current));
+      return fallbackItems;
     }
 
     let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
@@ -366,7 +401,7 @@ export default function HomeHubPage(){
       // Background refresh reads the newest page, but its cursor must not replace
       // the continuation cursor for the already-loaded older pages.
       const continuationCursor=nextCursorRef.current;
-      const next=await fetchTab('all',0,null,background);
+      const next=await fetchTab('all',0,null,true);
       if(background){
         nextCursorRef.current=continuationCursor;
         setNextCursor(continuationCursor);
@@ -390,7 +425,7 @@ export default function HomeHubPage(){
         cacheCursorRef.current=nextCursorRef.current;
         setLoading(false);
       }
-      setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+      setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
       void hydratePublisherLayer(background ? nextCursorRef.current : null);
     }catch(e){console.error('[home-hub]',e);if(!background){
@@ -475,7 +510,7 @@ export default function HomeHubPage(){
           if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
           feedBufferOffsetRef.current=offset+page.length;
           setItems(prev=>appendUniqueFeedItems(prev,page));
-          setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+          setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
           return true;
         }
         if(nextCursorRef.current){
@@ -494,9 +529,42 @@ export default function HomeHubPage(){
             if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
             feedBufferOffsetRef.current=beforeLength+page.length;
             setItems(prev=>appendUniqueFeedItems(prev,page));
-            setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+            setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
             await persistBuffer();
             return true;
+          }
+        }
+        // When the mixed aggregator is exhausted, continue with the
+        // independent Fediverse cursor instead of ending the reader's session.
+        if (federatedCursorRef.current && !federatedExhaustedRef.current) {
+          const token = (await supabase.auth.getSession()).data.session?.access_token;
+          if (token) {
+            const fedParams = new URLSearchParams({ limit: '24', before: federatedCursorRef.current });
+            const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
+              headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
+              cache: 'no-store',
+            });
+            if (fedResponse.ok) {
+              const fedPayload = await fedResponse.json();
+              const fedPosts = Array.isArray(fedPayload?.items) ? fedPayload.items : [];
+              federatedCursorRef.current = fedPayload?.pagination?.nextCursor ?? null;
+              federatedExhaustedRef.current = !Boolean(fedPayload?.pagination?.hasMore) || !federatedCursorRef.current;
+              const fedItems = normalizeFederatedFeedItems(fedPosts);
+              const beforeLength = feedBufferRef.current.length;
+              feedBufferRef.current = appendUniqueFeedItems(feedBufferRef.current, fedItems);
+              const page = feedBufferRef.current.slice(beforeLength, beforeLength + 6);
+              if (page.length) {
+                feedBufferOffsetRef.current = beforeLength + page.length;
+                setItems(prev => appendUniqueFeedItems(prev, page));
+                setHasMore(Boolean(nextCursorRef.current) || Boolean(federatedCursorRef.current) || feedBufferOffsetRef.current < feedBufferRef.current.length);
+                await persistBuffer();
+                return true;
+              }
+              if (federatedCursorRef.current && !federatedExhaustedRef.current) {
+                setHasMore(true);
+                return true;
+              }
+            }
           }
         }
         cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);return false;
@@ -563,7 +631,7 @@ export default function HomeHubPage(){
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {loadMoreError&&<div className="px-4 py-3 text-center text-xs text-muted-foreground">{loadMoreError}<button onClick={()=>void loadMore()} className="ml-2 font-semibold text-primary underline">Retry</button></div>}
       {!loadingMore&&hasMore&&<button onClick={()=>void loadMore()} className="w-full border-t border-border py-4 text-sm font-semibold text-primary hover:bg-muted/30">Load more</button>}
-      {!loadingMore&&!hasMore&&<div className="py-10 text-center text-xs text-muted-foreground">You’re all caught up.</div>}</div>}
+      {/* The homepage intentionally has no terminal 'caught up' state. New batches are loaded as the reader scrolls. */}</div>}
   </div>;
 }
 
