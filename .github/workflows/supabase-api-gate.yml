@@ -99,13 +99,32 @@ jobs:
             exit 1
           fi
           printf '::add-mask::%s\n' "${SUPABASE_ANON_KEY}"
-          status="$(curl --silent --show-error --output /tmp/supabase-health.json --write-out '%{http_code}' \
+          response_headers="/tmp/supabase-health.headers"
+          set +e
+          status="$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
+            --dump-header "${response_headers}" \
+            --output /tmp/supabase-health.json --write-out '%{http_code}' \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
             "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1")"
+          curl_status=$?
+          set -e
+
+          if (( curl_status != 0 )); then
+            echo "::error::Supabase Data API transport failed (curl exit ${curl_status}); probe deadline is 20 seconds."
+            grep -iE '^(HTTP/|content-type:|sb-error-code:|x-request-id:|cf-ray:)' "${response_headers}" || true
+            head -c 1200 /tmp/supabase-health.json || true
+            exit 1
+          fi
+
           case "${status}" in
             200|206) echo "Supabase Data API: OK" ;;
-            *) echo "::error::Supabase Data API health check failed with HTTP ${status}."; exit 1 ;;
+            *)
+              echo "::error::Supabase Data API health check failed with HTTP ${status}."
+              grep -iE '^(HTTP/|content-type:|sb-error-code:|x-request-id:|cf-ray:)' "${response_headers}" || true
+              head -c 1200 /tmp/supabase-health.json || true
+              exit 1
+              ;;
           esac
 
       - name: Emit connection receipt
