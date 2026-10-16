@@ -33,6 +33,13 @@ requireText(home, /const next=await fetchTab\('all',0,null,true\)/,
   'The first For You request must include public Fediverse content instead of waiting for the background refresh.');
 requireText(home, /signal: AbortSignal\.timeout\(15000\)/,
   'A stalled home-feed aggregator must time out into the existing direct fallback rather than leaving first load pending indefinitely.');
+requireText(home, /const parsedFallbackOffset = cursorOverride\?\.startsWith\('fallback:'\)[\s\S]*range\(fallbackOffset, fallbackOffset \+ fallbackLimit - 1\)/,
+  'The direct Home fallback must paginate local posts and threads instead of repeatedly fetching page one.');
+requireText(home, /const fallbackCursor = hasMoreFallbackRows \? 'fallback:' \+ \(fallbackOffset \+ fallbackLimit\) : null[\s\S]*nextCursorRef\.current = fallbackCursor/,
+  'The Home fallback must publish a continuation cursor only while another local fallback page exists.');
+requireText(home, /cursorOverride\?\.startsWith\('fallback:'\) && federatedCursorRef\.current[\s\S]*fedParams\.set\('before', federatedCursorRef\.current\)/,
+  'Federated pagination must continue from its own cursor while the local Home fallback is active.');
+
 requireText(home, /new Set\(existing\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)\)/,
   'HomeHub page append must seed its deduplication set from canonical identities.');
 requireText(home, /previous\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)/,
@@ -68,8 +75,10 @@ requireText(federationWorker, /const concurrency=4;[\s\S]*const progress=await d
   'The inbound worker must use reduced concurrency and report per-batch progress so a slow run is diagnosable.');
 requireText(federationWorker, /for\(let offset=0;offset<rows\.length;offset\+=10\)[\s\S]*rows\.slice\(offset,offset\+10\)[\s\S]*database upsert failed/,
   'Federated objects must be written in small chunks to avoid statement timeouts from row-level indexing triggers.');
-requireText(federationWorker, /for\(let offset=0;offset<actorRows\.length;offset\+=10\)[\s\S]*actorRows\.slice\(offset,offset\+10\)/,
-  'Federated actor indexing must also use bounded writes.');
+requireText(federationWorker, /const uniqueActors = new Map<string, any>\(\)[\s\S]*uniqueActors\.get\(actorRow\.actor_uri\)[\s\S]*const deduplicatedActorRows = \[\.\.\.uniqueActors\.values\(\)\][\s\S]*deduplicatedActorRows\.slice\(offset,offset\+10\)/,
+  'Federated actor rows must be deduplicated by actor_uri before any ON CONFLICT batch to prevent SQLSTATE 21000.');
+requireText(federationWorker, /for\(let offset=0;offset<deduplicatedActorRows\.length;offset\+=10\)[\s\S]*deduplicatedActorRows\.slice\(offset,offset\+10\)/,
+  'Deduplicated federated actor writes must remain bounded in batches of ten.');
 requireText(ingestionBatchTuning, /schedule := '\*\/2 \* \* \* \*'/,
   'After bounded batches are in place, inbound Fediverse sync should be scheduled every two minutes.');
 requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'/,
@@ -95,6 +104,9 @@ requireText(postCard, /<UniversalVideoPlayer[\s\S]*active=\{videoInView && !show
   'Home feed video cards must autoplay muted only when visible and preload nearby media.');
 requireText(home, /FederatedHashtagDiscovery surface="home"/,
   'The infinite home surface must retain hashtag discovery alongside posts.');
+requireText(home, /<ComposePost onSuccess=\{\(\)=>load\(tab\)\}\/>[\s\S]*i===5&&\(tab==='all'\|\|tab==='explore'\)[\s\S]*<FederatedHashtagDiscovery surface="home" \/>/,
+  'The primary composer and first timeline posts must appear before secondary discovery rails on Home.');
+
 requireText(home, /i===5[\s\S]*<TrendingVideosSection variant="compact" \/>[\s\S]*<SyndicatedNewsRail \/>[\s\S]*<CommunitySpotlightStrip \/>/,
   'After the first six feed entries, Home must lazily interleave video discovery, syndicated news, and public communities without blocking the first posts.');
 requireText(home, /<FeedAdCard/,

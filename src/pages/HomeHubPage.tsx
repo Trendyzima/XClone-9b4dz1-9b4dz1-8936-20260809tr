@@ -288,28 +288,27 @@ export default function HomeHubPage(){
       }
 
       const fallbackLimit = 12;
-      let fallbackPosts = supabase.from('posts')
+      // The direct fallback has its own explicit offset cursor. Never interpret
+      // the aggregator's opaque cursor as an offset, but do continue fallback
+      // pages when the aggregator itself is unavailable.
+      const parsedFallbackOffset = cursorOverride?.startsWith('fallback:')
+        ? Number.parseInt(cursorOverride.slice('fallback:'.length), 10)
+        : 0;
+      const fallbackOffset = Number.isSafeInteger(parsedFallbackOffset) && parsedFallbackOffset >= 0
+        ? parsedFallbackOffset
+        : 0;
+      const fallbackPosts = supabase.from('posts')
         .select('*, '+profileSelect)
         .is('community_id', null)
         .is('deleted_at', null)
         .order('created_at', {ascending:false})
-        .range(0, fallbackLimit-1);
-      if (cursorOverride) {
-        // The aggregator cursor is opaque, so do not guess a created_at value
-        // from it. A fresh first page is safer than rendering an empty feed.
-        fallbackPosts = supabase.from('posts')
-          .select('*, '+profileSelect)
-          .is('community_id', null)
-          .is('deleted_at', null)
-          .order('created_at', {ascending:false})
-          .range(0, fallbackLimit-1);
-      }
+        .range(fallbackOffset, fallbackOffset + fallbackLimit - 1);
       const fallbackThreads = supabase.from('threads')
         .select('*')
         .eq('visibility','public')
         .is('deleted_at',null)
         .order('created_at',{ascending:false})
-        .range(0, fallbackLimit-1);
+        .range(fallbackOffset, fallbackOffset + fallbackLimit - 1);
       const [{data:postData,error:postError},{data:threadData,error:threadError}] =
         await Promise.all([fallbackPosts,fallbackThreads]);
       if (postError) console.warn('[home-hub] direct post fallback', postError);
@@ -326,6 +325,9 @@ export default function HomeHubPage(){
       if (includeFederated && token) {
         try {
           const fedParams = new URLSearchParams({ limit: '24' });
+          if (cursorOverride?.startsWith('fallback:') && federatedCursorRef.current) {
+            fedParams.set('before', federatedCursorRef.current);
+          }
           const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
             headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
             cache: 'no-store',
@@ -342,9 +344,12 @@ export default function HomeHubPage(){
         }
       }
 
-      setNextCursor(null);
-      nextCursorRef.current=null;
-      setHasMore(fallbackItems.length > 6 || Boolean(federatedCursorRef.current));
+      const hasMoreFallbackRows = (postData?.length ?? 0) >= fallbackLimit
+        || (threadData?.length ?? 0) >= fallbackLimit;
+      const fallbackCursor = hasMoreFallbackRows ? 'fallback:' + (fallbackOffset + fallbackLimit) : null;
+      setNextCursor(fallbackCursor);
+      nextCursorRef.current = fallbackCursor;
+      setHasMore(Boolean(fallbackCursor) || Boolean(federatedCursorRef.current));
       return fallbackItems;
     }
 
@@ -607,13 +612,7 @@ export default function HomeHubPage(){
     <div className="sticky top-14 z-30 bg-background/95 backdrop-blur border-b border-border"><div className="flex overflow-x-auto scrollbar-hide">
       {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={'min-w-[96px] px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap '+(tab===t.id?'border-primary text-foreground':'border-transparent text-muted-foreground hover:bg-muted/40')}>{t.label}</button>)}
     </div></div>
-    <div className="px-3 py-2 border-b border-border flex gap-2">
-      <button onClick={()=>navigate('/shop')} className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><ShoppingBag className="w-4 h-4 text-primary"/>Shopping Mall</button>
-      <button onClick={()=>navigate('/polls')} className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><BarChart3 className="w-4 h-4 text-primary"/>Community Polls</button>
-    </div>
-    <FederatedHashtagDiscovery surface="home" />
-    <NewsifyTrendingRail />
-    {(tab==='all'||tab==='explore'||tab==='media')&&<OrganicSportsStories surface="home" limit={4} compact />}
+    {/* Keep the primary action and timeline above secondary discovery modules, as on X. */}
     <ComposePost onSuccess={()=>load(tab)}/>
     {!loading&&newCount>0&&<button onClick={()=>{window.scrollTo({top:0,behavior:'smooth'});setNewCount(0)}} className="w-full py-2 bg-primary/5 text-xs font-semibold text-primary">{newCount} new post{newCount===1?'':'s'} · Tap to view</button>}
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
@@ -625,11 +624,19 @@ export default function HomeHubPage(){
           {(tab==='all'||tab==='following'||tab==='explore'||tab==='media')&&(i+1)%8===0&&<FeedAdCard key={'sponsored-'+(i+1)} />}
           {i===5&&(tab==='all'||tab==='explore')&&(
             <div className="space-y-3 py-3" aria-label="More things to discover">
+              <div className="flex gap-2 border-y border-border py-2">
+                <button onClick={()=>navigate('/shop')} className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><ShoppingBag className="w-4 h-4 text-primary"/>Shopping Mall</button>
+                <button onClick={()=>navigate('/polls')} className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><BarChart3 className="w-4 h-4 text-primary"/>Community Polls</button>
+              </div>
+              <FederatedHashtagDiscovery surface="home" />
+              <NewsifyTrendingRail />
+              <OrganicSportsStories surface="home" limit={4} compact />
               <Suspense fallback={null}><TrendingVideosSection variant="compact" /></Suspense>
               <Suspense fallback={null}><SyndicatedNewsRail /></Suspense>
               <Suspense fallback={null}><CommunitySpotlightStrip /></Suspense>
             </div>
           )}
+          {i===5&&tab==='media'&&<div className="py-3"><OrganicSportsStories surface="home" limit={4} compact /></div>}
         </div>
       ))}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}

@@ -153,8 +153,34 @@ async function syncDomain(instance:any){
       updated_at:successAt
     };
   }).filter(Boolean);
-  for(let offset=0;offset<actorRows.length;offset+=10){
-    const actorUpsert=await db.from("federated_actors").upsert(actorRows.slice(offset,offset+10),{onConflict:"actor_uri",ignoreDuplicates:false});
+
+  // A timeline commonly contains many statuses from the same account. Postgres
+  // rejects one ON CONFLICT DO UPDATE statement when its input contains the same
+  // actor_uri more than once (SQLSTATE 21000), even when the write is chunked.
+  // Keep the first row's freshest metadata and fill its optional fields from
+  // later rows before batching the unique actors.
+  const uniqueActors = new Map<string, any>();
+  for (const actorRow of actorRows) {
+    const current = uniqueActors.get(actorRow.actor_uri);
+    if (!current) {
+      uniqueActors.set(actorRow.actor_uri, actorRow);
+      continue;
+    }
+    uniqueActors.set(actorRow.actor_uri, {
+      ...actorRow,
+      ...current,
+      display_name: current.display_name && current.display_name !== current.username
+        ? current.display_name
+        : (actorRow.display_name || current.display_name),
+      bio: current.bio || actorRow.bio,
+      avatar_url: current.avatar_url || actorRow.avatar_url,
+      raw_actor: current.raw_actor || actorRow.raw_actor,
+    });
+  }
+  const deduplicatedActorRows = [...uniqueActors.values()];
+
+  for(let offset=0;offset<deduplicatedActorRows.length;offset+=10){
+    const actorUpsert=await db.from("federated_actors").upsert(deduplicatedActorRows.slice(offset,offset+10),{onConflict:"actor_uri",ignoreDuplicates:false});
     if(actorUpsert.error){
       console.warn("[federation-inbound] actor index update failed",actorUpsert.error.message);
       break;
