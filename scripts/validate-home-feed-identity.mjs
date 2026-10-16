@@ -53,6 +53,7 @@ requireText(visibilityRepair, /instance_id is not null[\s\S]*raw_object->>'visib
   'Visibility repair must backfill only explicitly visible upstream status values and must not infer public visibility from missing metadata.');
 requireText(supabaseConfig, /\[functions\.federated-feed\]\s*verify_jwt = false/,
   'Public homepage federation must be callable anonymously; the handler still validates optional user JWTs before private personalization.');
+if (/24 \\* 60 \\* 60 \\* 1000/.test(federatedFeed)) failures.push('Fediverse infinite scrolling must paginate the stored public history rather than stopping at a 24-hour window.');
 requireText(federatedFeed, /decodeFeedCursor[\s\S]*suggestedItems\.length > limit[\s\S]*publishedAt: oldest\.published_at/,
   'Public Fediverse pagination must retain a stable keyset cursor and continue when anonymous discovery has more pages.');
 requireText(federatedFeed, /\.in\("visibility", \["public", "unlisted"\]\)/,
