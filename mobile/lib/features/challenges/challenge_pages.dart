@@ -110,7 +110,7 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _sort,
+              initialValue: _sort,
               decoration: const InputDecoration(labelText: 'Sort by', border: OutlineInputBorder()),
               items: const [
                 DropdownMenuItem(value: 'entry_count', child: Text('Most popular')),
