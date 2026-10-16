@@ -15,15 +15,16 @@ const SEED = [
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 const cleanDomain=(v:string)=>v.toLowerCase().trim().replace(/^https?:\/\//,"").replace(/\/$/,"").split("/")[0];
 const classify=(status:number|null,error:string)=>{
-  if(status===401||status===403||status===422)return "public_timeline_unavailable";
+  if(status===400||status===401||status===403||status===404||status===405||status===406||status===410||status===422)return "public_timeline_unavailable";
   if(status===429)return "rate_limited";
   if(status!==null&&status>=500)return "remote_5xx";
   if(error.toLowerCase().includes("timeout")||error.toLowerCase().includes("abort"))return "timeout";
   return "network_or_contract";
 };
-const SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const SYNC_INTERVAL_MS = 30 * 60 * 1000;
+const UNAVAILABLE_RECHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const backoff=(failureClass:string,attempts:number,retryAfter?:string|null)=>{
-  if(failureClass==="public_timeline_unavailable")return SYNC_INTERVAL_MS;
+  if(failureClass==="public_timeline_unavailable")return UNAVAILABLE_RECHECK_INTERVAL_MS;
   if(failureClass==="rate_limited"){const n=Number(retryAfter);if(Number.isFinite(n)&&n>=0)return Math.min(Math.max(n*1000,60_000),SYNC_INTERVAL_MS);}
   return Math.min(SYNC_INTERVAL_MS,Math.max(60_000,30_000*Math.pow(2,Math.min(attempts,7))));
 };
@@ -32,6 +33,16 @@ async function ensureInstances(){
   const actorDomains=await db.from("federated_actors").select("domain").not("domain","is",null).limit(1000);
   const domains=[...new Set([...SEED,...(actorDomains.data||[]).map((x:any)=>cleanDomain(String(x.domain||""))).filter((x:string)=>x&&x.includes("."))])].slice(0,80);
   if(domains.length) await db.from("federated_instances").upsert(domains.map(domain=>({domain,base_url:`https://${domain}`,provider:"activitypub"})),{onConflict:"domain",ignoreDuplicates:true});
+}
+
+function normalizeTimelineVisibility(value:any):string{
+  const visibility=String(value||"").trim().toLowerCase();
+  if(visibility==="private")return "followers";
+  if(["public","unlisted","followers","direct"].includes(visibility))return visibility;
+  // This function only imports statuses from the remote instance's public
+  // timeline endpoint. Mastodon-compatible APIs may omit the field, so public
+  // is the safe endpoint-derived default; explicit private/direct values win.
+  return "public";
 }
 
 async function syncDomain(instance:any){
@@ -79,7 +90,7 @@ async function syncDomain(instance:any){
       uri,object_type:"Note",actor_uri:actor,instance_id:instanceRow,url:s.url||uri,
       content:String(s.content||""),summary:s.spoiler_text||null,
       published_at:s.created_at||null,updated_at:s.edited_at||s.created_at||null,
-      sensitive:Boolean(s.sensitive),in_reply_to_uri:s.in_reply_to_id?String(s.in_reply_to_id):null,
+      sensitive:Boolean(s.sensitive),visibility:normalizeTimelineVisibility(s.visibility),in_reply_to_uri:s.in_reply_to_id?String(s.in_reply_to_id):null,
       quote_uri:s.quote_id?String(s.quote_id):null,attachments:Array.isArray(s.media_attachments)?s.media_attachments:[],
       tags:Array.isArray(s.tags)?s.tags:[],like_count:Number(s.favourites_count||0),
       announce_count:Number(s.reblogs_count||0),reply_count:Number(s.replies_count||0),
@@ -132,10 +143,15 @@ async function syncDomain(instance:any){
 
 async function recordFailure(instance:any,domain:string,msg:string,status:number|null,cls:string,attempts:number,next:Date){
   const now=new Date().toISOString();
-  await db.from("federated_instances").update({
-    last_failure_at:now,last_error:msg,failure_class:cls,public_timeline_available:cls==="public_timeline_unavailable"?false:null,
+  const instanceUpdate:any={
+    last_failure_at:now,last_error:msg,failure_class:cls,
     consecutive_failures:attempts,backoff_until:next.toISOString(),next_sync_at:next.toISOString(),updated_at:now
-  }).eq("id",instance.id);
+  };
+  // A timeout or remote 5xx does not prove a public timeline is unavailable.
+  // Preserve the known-good flag so transient failures do not demote healthy
+  // sources into the low-priority discovery queue.
+  if(cls==="public_timeline_unavailable")instanceUpdate.public_timeline_available=false;
+  await db.from("federated_instances").update(instanceUpdate).eq("id",instance.id);
   await db.from("fediverse_instance_sync_state").upsert({
     domain,last_attempt_at:now,last_error:msg,duration_ms:Date.now()-Number(instance._startedAt||Date.now()),updated_at:now
   },{onConflict:"domain"});
@@ -151,17 +167,32 @@ Deno.serve(async(req)=>{
     if(run.error)throw run.error;
     runId=run.data.id;
     await ensureInstances();
-    const {data:instances,error}=await db.from("federated_instances")
-      .select("id,domain,base_url,consecutive_failures,next_sync_at")
-      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(80);
-    if(error)throw error;
     const now=Date.now();
-    const due=(instances||[]).filter((i:any)=>!i.next_sync_at||Date.parse(i.next_sync_at)<=now).slice(0,80);
+    const dueNow=(rows:any[])=> (rows||[]).filter((i:any)=>!i.next_sync_at||Date.parse(i.next_sync_at)<=now);
+    // Keep known-public instances ahead of the much larger discovered-instance
+    // backlog. Without this priority, thousands of unverified instances can
+    // starve healthy public timelines and make the home feed look stale.
+    const {data:publicInstances,error:publicError}=await db.from("federated_instances")
+      .select("id,domain,base_url,consecutive_failures,next_sync_at")
+      .eq("public_timeline_available",true)
+      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(24);
+    if(publicError)throw publicError;
+    const duePublic=dueNow(publicInstances).slice(0,24);
+    // Probe only a small number of unknown/unavailable instances per cycle.
+    // Known public sources get the bulk of the capacity; unsupported instances
+    // are rechecked daily rather than every two hours.
+    const {data:otherInstances,error:otherError}=await db.from("federated_instances")
+      .select("id,domain,base_url,consecutive_failures,next_sync_at")
+      .or("public_timeline_available.is.false,public_timeline_available.is.null")
+      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(2);
+    if(otherError)throw otherError;
+    const dueOther=dueNow(otherInstances).slice(0,2);
+    const due=[...duePublic,...dueOther];
     const results:any[]=[];
-    // Process the full due set in bounded parallel batches so an 80-instance
-    // federation can still complete within one two-hour cycle without creating
-    // an unbounded burst against remote servers.
-    const concurrency=8;
+    // At most 26 instances per run, with bounded concurrency. The cron caller
+    // now allows 120 seconds, enough for the eight-second remote HTTP deadline
+    // across these batches without an unbounded burst against remote servers.
+    const concurrency=6;
     for(let i=0;i<due.length;i+=concurrency){
       const batch=due.slice(i,i+concurrency);
       const settled=await Promise.all(batch.map(async(instance:any)=>{
@@ -174,6 +205,17 @@ Deno.serve(async(req)=>{
         }
       }));
       results.push(...settled);
+      const completedSuccesses=results.filter(r=>r.status===200);
+      const completedFailures=results.filter(r=>r.status!==200);
+      const progress=await db.from("fediverse_ingestion_runs").update({
+        domains_attempted:results.length,
+        domains_succeeded:completedSuccesses.length,
+        domains_failed:completedFailures.length,
+        objects_fetched:completedSuccesses.reduce((n,r)=>n+Number(r.fetched||0),0),
+        objects_upserted:completedSuccesses.reduce((n,r)=>n+Number(r.stored||0),0),
+        duration_ms:Date.now()-runStarted
+      }).eq("id",runId);
+      if(progress.error)console.warn("[federation-inbound] progress update failed",progress.error.message);
     }
     const succeeded=results.filter(r=>r.status===200);
     const failed=results.filter(r=>r.status!==200);

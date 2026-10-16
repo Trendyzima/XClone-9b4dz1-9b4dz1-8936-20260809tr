@@ -547,7 +547,19 @@ export default function HomeHubPage(){
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
     {loading?<div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
       items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
-      <div className="tg-home-feed-list">{items.map((item,i)=><div className="tg-home-feed-row" key={item.type+'-'+(item.data?.id??i)}><HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>{(tab==='all'||tab==='following'||tab==='explore'||tab==='media')&&(i+1)%8===0&&<FeedAdCard key={'sponsored-'+(i+1)} />}</div>)}
+      <div className="tg-home-feed-list">{items.map((item,i)=>(
+        <div className="tg-home-feed-row" key={item.type+'-'+(item.data?.id??i)}>
+          <HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>
+          {(tab==='all'||tab==='following'||tab==='explore'||tab==='media')&&(i+1)%8===0&&<FeedAdCard key={'sponsored-'+(i+1)} />}
+          {i===5&&(tab==='all'||tab==='explore')&&(
+            <div className="space-y-3 py-3" aria-label="More things to discover">
+              <Suspense fallback={null}><TrendingVideosSection variant="compact" /></Suspense>
+              <Suspense fallback={null}><SyndicatedNewsRail /></Suspense>
+              <Suspense fallback={null}><CommunitySpotlightStrip /></Suspense>
+            </div>
+          )}
+        </div>
+      ))}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {loadMoreError&&<div className="px-4 py-3 text-center text-xs text-muted-foreground">{loadMoreError}<button onClick={()=>void loadMore()} className="ml-2 font-semibold text-primary underline">Retry</button></div>}
       {!loadingMore&&hasMore&&<button onClick={()=>void loadMore()} className="w-full border-t border-border py-4 text-sm font-semibold text-primary hover:bg-muted/30">Load more</button>}

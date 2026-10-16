@@ -5435,6 +5435,21 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Limit each scheduled federation worker invocation to one five-job concurrency batch and repair retry counters inflated by abandoned claims."
+    },
+    "supabase/migrations/20261016101000_federated_public_timeline_visibility_repair.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Repairs only explicit upstream visibility values for ingested Fediverse statuses; preserves private/direct visibility and adds an index for public-feed cursor reads."
+    },
+    "supabase/migrations/20261016104000_fediverse_ingestion_cadence_and_queue_priority.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Schedules the bounded inbound Fediverse worker every five minutes and increases its pg_net timeout to 120 seconds to match the worker's bounded concurrency batch."
+    },
+    "supabase/migrations/20261016110000_fediverse_ingestion_batch_tuning.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Sets the inbound Fediverse worker to a two-minute cadence after the worker was bounded to 26 sources per run and emits per-batch progress telemetry."
     }
   }
 }

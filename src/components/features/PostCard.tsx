@@ -30,6 +30,7 @@ import { FediverseRichText } from './FediverseRichText';
 import { InlineRssSuggestion } from './InlineRssSuggestion';
 import { QuotedPostPreview } from './QuotedPostPreview';
 import { mediaCandidates, nextMediaCandidate } from '@/lib/mediaUrl';
+import { UniversalVideoPlayer } from './UniversalVideoPlayer';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
@@ -384,6 +385,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const pendingAdUntilPremiumCheckRef = useRef(false);
   const pendingAdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showVideoAd, setShowVideoAd] = useState(false);
+  const [videoInView, setVideoInView] = useState(false);
+  const [videoNearView, setVideoNearView] = useState(false);
 
   useEffect(() => {
     if (premiumLoading || !pendingAdUntilPremiumCheckRef.current) return;
@@ -429,17 +432,56 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   };
 
   const rawMedia = (post as any).media_urls ?? (post as any).mediaUrls ?? (post as any).attachments ?? [];
-  const mediaUrls: string[] = Array.isArray(rawMedia)
-    ? rawMedia.map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl)).filter(Boolean)
-    : [];
+  const mediaEntries: any[] = Array.isArray(rawMedia) ? rawMedia : [];
+  const mediaUrls: string[] = mediaEntries
+    .map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl ?? item?.href))
+    .filter(Boolean);
   const resolvedImageUrls = mediaUrls.length
-    ? mediaUrls.filter((url: string) => !/\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url))
+    ? mediaUrls.filter((url: string) => !/\.(mp4|webm|mov|m4v|ogv|m3u8)(?:[?#].*)?$/i.test(url))
     : ((post as any).image_url ? [String((post as any).image_url)] : []);
+  const typedVideoAttachment = mediaEntries.find((item: any) =>
+    item && typeof item === 'object' && (
+      String(item.type ?? '').toLowerCase() === 'video' ||
+      String(item.mediaType ?? item.media_type ?? item.mime_type ?? item.mimeType ?? '').toLowerCase().startsWith('video/')
+    )
+  );
+  const typedVideoUrl = typedVideoAttachment
+    ? String(typedVideoAttachment.url ?? typedVideoAttachment.media_url ?? typedVideoAttachment.mediaUrl ?? typedVideoAttachment.href ?? '')
+    : '';
   const rawVideoUrl = (post as any).video_url
     ? String((post as any).video_url)
-    : mediaUrls.find((url: string) => /\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url));
+    : (typedVideoUrl || mediaUrls.find((url: string) => /\.(mp4|webm|mov|m4v|ogv|m3u8)(?:[?#].*)?$/i.test(url)));
   const resolvedVideoUrl = rawVideoUrl ? (mediaCandidates(rawVideoUrl)[0] || rawVideoUrl) : '';
   const hasVideo = Boolean((post as any).is_video || resolvedVideoUrl);
+
+  // Feed videos only autoplay when substantially visible. A wider observer
+  // starts browser/HLS preloading before the reader reaches the card.
+  useEffect(() => {
+    const video = videoRef2.current;
+    if (!video || !hasVideo || !resolvedVideoUrl) {
+      setVideoInView(false);
+      setVideoNearView(false);
+      return;
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+      setVideoInView(true);
+      setVideoNearView(true);
+      return;
+    }
+    const nearObserver = new IntersectionObserver(([entry]) => {
+      setVideoNearView(Boolean(entry?.isIntersecting));
+    }, { rootMargin: '450px 0px', threshold: 0 });
+    const activeObserver = new IntersectionObserver(([entry]) => {
+      setVideoInView(Boolean(entry?.isIntersecting && (entry.intersectionRatio ?? 0) >= 0.6));
+    }, { threshold: [0, 0.6] });
+    nearObserver.observe(video);
+    activeObserver.observe(video);
+    return () => {
+      nearObserver.disconnect();
+      activeObserver.disconnect();
+      video.pause();
+    };
+  }, [post.id, hasVideo, resolvedVideoUrl]);
 
   const boostLabel = (post as any).is_credit_boosted
     ? 'Boosted Content'
@@ -789,14 +831,20 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                   <DollarSign className="w-3 h-3" />Monetized
                 </div>
               )}
-              <video
+              <UniversalVideoPlayer
                 ref={videoRef2}
+                src={resolvedVideoUrl}
+                active={videoInView && !showVideoAd}
+                muted
                 controls
-                className="w-full h-full max-h-[600px] object-contain"
                 playsInline
-                preload="metadata"
+                preload={videoNearView ? 'auto' : 'metadata'}
+                className="w-full h-full max-h-[600px] object-contain"
                 onPlay={handleVideoPlay}
                 onError={(event) => {
+                  // HLS playback uses MediaSource; replacing its blob src with a
+                  // direct URL bypasses the virtual CDN loader and HLS recovery.
+                  if (/\.m3u8(?:[?#]|$)/i.test(rawVideoUrl || resolvedVideoUrl)) return;
                   const source = event.currentTarget.currentSrc || event.currentTarget.src;
                   const next = nextMediaCandidate(rawVideoUrl || resolvedVideoUrl, source);
                   if (next && event.currentTarget.dataset.fallback !== next) {
@@ -806,12 +854,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                     void event.currentTarget.play().catch(() => {});
                   }
                 }}
-              >
-                <source src={resolvedVideoUrl} type="video/mp4" />
-                <source src={resolvedVideoUrl} type="video/webm" />
-                <source src={resolvedVideoUrl} type="video/ogg" />
-                Your browser does not support the video tag.
-              </video>
+              />
             </div>
           )}
 
