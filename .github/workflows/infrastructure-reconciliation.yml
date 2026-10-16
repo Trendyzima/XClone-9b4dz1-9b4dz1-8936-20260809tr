@@ -174,7 +174,7 @@ jobs:
           SQL
           then
             echo "::error::Authenticated PostgreSQL probe failed after IPv4 TCP connectivity was confirmed."
-            tail -n 12 /tmp/db-connect-test.txt | sed -E 's#(postgres(ql)?://[^:/@]+:)[^@]+@#\\1***@#g'
+            tail -n 12 /tmp/db-connect-test.txt | sed -E 's#(postgres(ql)?://[^:/@]+:)[^@]+@#\1***@#g'
             exit 1
           fi
           echo "SUPABASE_DB_AUTHENTICATED=true"
