@@ -241,6 +241,10 @@ export default function HomeHubPage(){
         const response = await fetch('/api/home-feed?'+params.toString(), {
           headers: token ? { Authorization: 'Bearer '+token } : {},
           cache: 'no-store',
+          // Do not leave the first screen waiting indefinitely on a degraded
+          // aggregator. The catch below immediately enters the direct local
+          // post/thread fallback; cached feed content has already hydrated.
+          signal: AbortSignal.timeout(12000),
         });
         if (response.ok) {
           const payload = await response.json();
@@ -366,7 +370,7 @@ export default function HomeHubPage(){
       // Background refresh reads the newest page, but its cursor must not replace
       // the continuation cursor for the already-loaded older pages.
       const continuationCursor=nextCursorRef.current;
-      const next=await fetchTab('all',0,null,background);
+      const next=await fetchTab('all',0,null,true);
       if(background){
         nextCursorRef.current=continuationCursor;
         setNextCursor(continuationCursor);
