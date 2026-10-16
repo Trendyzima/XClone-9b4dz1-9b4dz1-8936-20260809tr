@@ -50,7 +50,11 @@ jobs:
         run: |
           deno test --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.test.ts
           deno test --node-modules-dir=none supabase/functions/_shared/activitypub-normalize.test.ts
+      # Production availability is an environment smoke test, not a PR code check.
+      # Keep it active on main pushes and manual runs; a pre-existing production
+      # outage must not mask successful compilation and conformance tests for an unrelated PR.
       - name: Probe production ActivityPub contracts
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
