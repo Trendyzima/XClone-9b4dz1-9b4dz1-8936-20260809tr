@@ -311,15 +311,37 @@ export default function HomeHubPage(){
       if (postError) console.warn('[home-hub] direct post fallback', postError);
       if (threadError) console.warn('[home-hub] direct thread fallback', threadError);
 
-      const fallbackItems: Item[] = [
+      let fallbackItems: Item[] = [
         ...(postData ?? []).map((post:any)=>({type:'post' as const,data:post})),
         ...(threadData ?? []).map((thread:any)=>({type:'thread' as const,data:thread})),
       ].sort((a,b)=>Date.parse(String(b.data?.created_at??''))-Date.parse(String(a.data?.created_at??'')));
 
+      // The local fallback must not silently drop federation. Query the
+      // canonical stored Fediverse timeline independently when the mixed
+      // aggregator is unavailable, then continue with its own cursor.
+      if (includeFederated && token) {
+        try {
+          const fedParams = new URLSearchParams({ limit: '24' });
+          const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
+            headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
+            cache: 'no-store',
+          });
+          if (fedResponse.ok) {
+            const fedPayload = await fedResponse.json();
+            const fedPosts = Array.isArray(fedPayload?.items) ? fedPayload.items : [];
+            fallbackItems = appendUniqueFeedItems(fallbackItems, normalizeFederatedFeedItems(fedPosts));
+            federatedCursorRef.current = fedPayload?.pagination?.nextCursor ?? null;
+            federatedExhaustedRef.current = !Boolean(fedPayload?.pagination?.hasMore) || !federatedCursorRef.current;
+          }
+        } catch (federationError) {
+          console.warn('[home-hub] federated fallback temporarily unavailable', federationError);
+        }
+      }
+
       setNextCursor(null);
       nextCursorRef.current=null;
-      setHasMore(fallbackItems.length > 6);
-      return fallbackItems.slice(0, fallbackLimit);
+      setHasMore(fallbackItems.length > 6 || Boolean(federatedCursorRef.current));
+      return fallbackItems;
     }
 
     let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
