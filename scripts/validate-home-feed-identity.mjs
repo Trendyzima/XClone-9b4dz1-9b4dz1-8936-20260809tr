@@ -31,7 +31,7 @@ requireText(aggregator, /function sourceKey\(item: any\)[\s\S]*data\.remote_stat
   'Server-side aggregation must canonicalize object URIs before blending source lanes.');
 requireText(aggregator, /item\?\.type === 'post' \|\| item\?\.type === 'fedpost' \? 'content'/,
   'Server-side aggregation must collapse local/Fediverse wrappers with the same fallback ID.');
-requireText(search, /api\.searchUnified\(clean[\s\S]*searchFederatedDiscovery/,
+requireText(search, /function normalizeSearchHashtag[\s\S]*encodeURIComponent\(tag\)[\s\S]*function GlobalSearchResults/,\n  'Search hashtag links must normalize optional # prefixes and URL-encode the canonical tag.');\nrequireText(search, /api\.searchUnified\(clean[\s\S]*searchFederatedDiscovery/,
   'Unified search must query the canonical discovery capability and federated discovery.');
 requireText(search, /liveHashtags[\s\S]*liveUsers/,
   'Unified search must merge live federated hashtag and account results.');
