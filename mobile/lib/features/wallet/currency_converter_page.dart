@@ -249,7 +249,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
     required ValueChanged<String> onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
       items: [
