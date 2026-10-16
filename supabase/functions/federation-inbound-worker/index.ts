@@ -22,8 +22,9 @@ const classify=(status:number|null,error:string)=>{
   return "network_or_contract";
 };
 const SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const UNAVAILABLE_RECHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const backoff=(failureClass:string,attempts:number,retryAfter?:string|null)=>{
-  if(failureClass==="public_timeline_unavailable")return SYNC_INTERVAL_MS;
+  if(failureClass==="public_timeline_unavailable")return UNAVAILABLE_RECHECK_INTERVAL_MS;
   if(failureClass==="rate_limited"){const n=Number(retryAfter);if(Number.isFinite(n)&&n>=0)return Math.min(Math.max(n*1000,60_000),SYNC_INTERVAL_MS);}
   return Math.min(SYNC_INTERVAL_MS,Math.max(60_000,30_000*Math.pow(2,Math.min(attempts,7))));
 };
@@ -161,17 +162,32 @@ Deno.serve(async(req)=>{
     if(run.error)throw run.error;
     runId=run.data.id;
     await ensureInstances();
-    const {data:instances,error}=await db.from("federated_instances")
-      .select("id,domain,base_url,consecutive_failures,next_sync_at")
-      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(80);
-    if(error)throw error;
     const now=Date.now();
-    const due=(instances||[]).filter((i:any)=>!i.next_sync_at||Date.parse(i.next_sync_at)<=now).slice(0,80);
+    const dueNow=(rows:any[])=> (rows||[]).filter((i:any)=>!i.next_sync_at||Date.parse(i.next_sync_at)<=now);
+    // Keep known-public instances ahead of the much larger discovered-instance
+    // backlog. Without this priority, thousands of unverified instances can
+    // starve healthy public timelines and make the home feed look stale.
+    const {data:publicInstances,error:publicError}=await db.from("federated_instances")
+      .select("id,domain,base_url,consecutive_failures,next_sync_at")
+      .eq("public_timeline_available",true)
+      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(120);
+    if(publicError)throw publicError;
+    const duePublic=dueNow(publicInstances).slice(0,120);
+    // Probe only a small number of unknown/unavailable instances per cycle.
+    // Known public sources get the bulk of the capacity; unsupported instances
+    // are rechecked daily rather than every two hours.
+    const {data:otherInstances,error:otherError}=await db.from("federated_instances")
+      .select("id,domain,base_url,consecutive_failures,next_sync_at")
+      .or("public_timeline_available.is.false,public_timeline_available.is.null")
+      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(8);
+    if(otherError)throw otherError;
+    const dueOther=dueNow(otherInstances).slice(0,8);
+    const due=[...duePublic,...dueOther];
     const results:any[]=[];
-    // Process the full due set in bounded parallel batches so an 80-instance
-    // federation can still complete within one two-hour cycle without creating
-    // an unbounded burst against remote servers.
-    const concurrency=8;
+    // At most 128 instances per run, with bounded concurrency. The cron caller
+    // now allows 120 seconds, enough for the eight-second remote HTTP deadline
+    // across these batches without an unbounded burst against remote servers.
+    const concurrency=12;
     for(let i=0;i<due.length;i+=concurrency){
       const batch=due.slice(i,i+concurrency);
       const settled=await Promise.all(batch.map(async(instance:any)=>{
