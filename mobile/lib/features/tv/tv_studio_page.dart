@@ -100,7 +100,7 @@ class _TvStudioPageState extends State<TvStudioPage> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: category,
+                  initialValue: category,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: const [
                     DropdownMenuItem(value: 'general', child: Text('General')),
