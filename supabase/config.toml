@@ -10,8 +10,9 @@ verify_jwt = false
 [functions.gateway-relay]
 verify_jwt = false
 
+# The handler validates an optional user JWT itself and serves only public items to anonymous readers.
 [functions.federated-feed]
-verify_jwt = true
+verify_jwt = false
 
 [functions.megalodon-gateway]
 verify_jwt = true
