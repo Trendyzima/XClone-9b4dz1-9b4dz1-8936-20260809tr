@@ -88,7 +88,7 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
+          flutter-version: '3.47.0'
           cache: true
       - name: Resolve Flutter dependencies
         working-directory: mobile
