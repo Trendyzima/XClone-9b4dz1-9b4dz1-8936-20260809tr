@@ -60,7 +60,27 @@ function requestUrl(request: RequestLike) {
 }
 
 function sourceKey(item: any) {
-  return String(item.type) + ':' + String(item.data?.id ?? item.data?.uri ?? '');
+  const data = item?.data ?? {};
+  const candidates = [data.remote_status_uri, data.uri, (item?.type === 'fedpost' || data.is_federated === true) ? data.url : null];
+  for (const value of candidates) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!/^https?:\/\//i.test(raw)) continue;
+    try {
+      const url = new URL(raw);
+      url.hash = '';
+      url.hostname = url.hostname.toLowerCase();
+      if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, '');
+      const canonical = url.toString().replace(/\/$/, '');
+      if (canonical) return 'uri:' + canonical;
+    } catch {
+      const canonical = raw.replace(/\/+$/, '');
+      if (canonical) return 'uri:' + canonical;
+    }
+  }
+  const id = data.id ?? data.post_id;
+  if (id === null || id === undefined || String(id) === '') return '';
+  const type = item?.type === 'post' || item?.type === 'fedpost' ? 'content' : String(item?.type ?? 'unknown');
+  return type + ':' + String(id);
 }
 
 function candidateScore(item: any) {
