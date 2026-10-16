@@ -50,6 +50,10 @@ requireText(richText, /const routeHashtag[\s\S]*navigate\('\/hashtag\/'[\s\S]*co
 
 requireText(federationWorker, /\.eq\("public_timeline_available",true\)[\s\S]*\.limit\(120\)[\s\S]*\.limit\(8\)/,
   'Fediverse ingestion must prioritize known public instances and bound exploratory polling of unknown instances.');
+requireText(federationWorker, /status===400[\s\S]*status===404[\s\S]*status===422/,
+  'Unsupported remote timeline responses must be removed from the hot sync queue.');
+requireText(federationWorker, /if\(cls==="public_timeline_unavailable"\)instanceUpdate\.public_timeline_available=false/,
+  'Transient timeouts and 5xx responses must not erase a source previously known to have a public timeline.');
 requireText(federationWorker, /UNAVAILABLE_RECHECK_INTERVAL_MS = 24 \* 60 \* 60 \* 1000/,
   'Instances that do not expose public timelines must be rechecked daily rather than monopolizing the ingestion queue.');
 requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'[\s\S]*timeout_milliseconds := 120000/,
