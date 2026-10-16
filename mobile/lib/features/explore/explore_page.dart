@@ -68,20 +68,20 @@ class _ExplorePageState extends State<ExplorePage> {
       }
       final peopleQuery = viewerId == null
           ? _client
-              .from('profiles')
-              .select(
-                'id,username,display_name,avatar_url,verified,verified_tier',
-              )
-              .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
-              .limit(20)
+                .from('profiles')
+                .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier',
+                )
+                .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
+                .limit(20)
           : _client
-              .from('profiles')
-              .select(
-                'id,username,display_name,avatar_url,verified,verified_tier',
-              )
-              .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
-              .neq('id', viewerId)
-              .limit(20);
+                .from('profiles')
+                .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier',
+                )
+                .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
+                .neq('id', viewerId)
+                .limit(20);
       final postsQuery = _client
           .from('posts')
           .select('id,content,created_at,user_id,author_id,likes_count')
@@ -107,10 +107,7 @@ class _ExplorePageState extends State<ExplorePage> {
             .from('follows')
             .select('following_id')
             .eq('follower_id', viewerId)
-            .inFilter(
-              'following_id',
-              people.map((p) => '${p['id']}').toList(),
-            )
+            .inFilter('following_id', people.map((p) => '${p['id']}').toList())
             .timeout(const Duration(seconds: 12));
         if (!mounted || generation != _searchGeneration) return;
         _following
@@ -188,17 +185,18 @@ class _ExplorePageState extends State<ExplorePage> {
         setState(() {
           wasFollowing ? _following.add(id) : _following.remove(id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Follow update failed: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Follow update failed: $error')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final visiblePeople =
-        _resultFilter == 'Posts' ? const <Map<String, dynamic>>[] : _people;
+    final visiblePeople = _resultFilter == 'Posts'
+        ? const <Map<String, dynamic>>[]
+        : _people;
     final visiblePosts = _resultFilter == 'People'
         ? const <Map<String, dynamic>>[]
         : List<Map<String, dynamic>>.of(_posts);
@@ -223,9 +221,7 @@ class _ExplorePageState extends State<ExplorePage> {
       children: [
         Text(
           'Explore Testagram',
-          style: Theme.of(context)
-              .textTheme
-              .headlineSmall
+          style: Theme.of(context).textTheme.headlineSmall
               ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 12),
@@ -277,17 +273,12 @@ class _ExplorePageState extends State<ExplorePage> {
         ),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(_error!),
-          ),
+          Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
         if (visiblePeople.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(
             'People',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
+            style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
@@ -307,11 +298,7 @@ class _ExplorePageState extends State<ExplorePage> {
                       ? null
                       : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
                 ),
-                title: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text('@${person['username'] ?? 'testagram'}'),
                 trailing: _client.auth.currentUser == null
                     ? null
@@ -333,9 +320,7 @@ class _ExplorePageState extends State<ExplorePage> {
           const SizedBox(height: 14),
           Text(
             'Posts',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
+            style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),

@@ -188,12 +188,11 @@ class ContentPolicyPage extends StatelessWidget {
   ];
   @override
   Widget build(BuildContext context) => const LegalDocumentPage(
-        title: 'Content policy',
-        intro:
-            'These community standards describe prohibited behavior and how safety reports and enforcement are handled.',
-        sections: sections,
-        updated: 'October 2026',
-      );
+    title: 'Content policy',
+    intro: 'These community standards describe prohibited behavior and how safety reports and enforcement are handled.',
+    sections: sections,
+    updated: 'October 2026',
+  );
 }
 
 class PrivacyPolicyPage extends StatelessWidget {
@@ -223,12 +222,11 @@ class PrivacyPolicyPage extends StatelessWidget {
   ];
   @override
   Widget build(BuildContext context) => const LegalDocumentPage(
-        title: 'Privacy policy',
-        intro:
-            'This policy explains the categories of information Testagram handles, why it is used, and choices available to you.',
-        sections: sections,
-        updated: 'October 2026',
-      );
+    title: 'Privacy policy',
+    intro: 'This policy explains the categories of information Testagram handles, why it is used, and choices available to you.',
+    sections: sections,
+    updated: 'October 2026',
+  );
 }
 
 class TermsOfServicePage extends StatelessWidget {
@@ -264,12 +262,11 @@ class TermsOfServicePage extends StatelessWidget {
   ];
   @override
   Widget build(BuildContext context) => const LegalDocumentPage(
-        title: 'Terms of service',
-        intro:
-            'These terms govern access to Testagram and use of its social, creator, media, and commerce features.',
-        sections: sections,
-        updated: 'October 2026',
-      );
+    title: 'Terms of service',
+    intro: 'These terms govern access to Testagram and use of its social, creator, media, and commerce features.',
+    sections: sections,
+    updated: 'October 2026',
+  );
 }
 
 class LegalDocumentPage extends StatelessWidget {

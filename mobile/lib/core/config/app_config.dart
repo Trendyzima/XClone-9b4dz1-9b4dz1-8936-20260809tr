@@ -5,8 +5,9 @@ class AppConfig {
   const AppConfig._();
 
   static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  static const supabasePublishableKey =
-      String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  static const supabasePublishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
   static const siteUrl = String.fromEnvironment(
     'TESTAGRAM_SITE_URL',
     defaultValue: 'https://testagram.site',

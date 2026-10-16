@@ -63,7 +63,8 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
       if (page.length < pageSize) return all;
     }
     throw StateError(
-        'The selected range is too large to load safely. Narrow the range.');
+      'The selected range is too large to load safely. Narrow the range.',
+    );
   }
 
   Future<void> _load() async {
@@ -99,13 +100,15 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
             .order('code')
             .timeout(const Duration(seconds: 20)),
         _readAll(
-            table: 'zenad_impressions',
-            columns: 'id,impression_id,slot_code,billable_micros,created_at',
-            start: start),
+          table: 'zenad_impressions',
+          columns: 'id,impression_id,slot_code,billable_micros,created_at',
+          start: start,
+        ),
         _readAll(
-            table: 'zenad_events',
-            columns: 'id,impression_id,event_type,created_at',
-            start: start),
+          table: 'zenad_events',
+          columns: 'id,impression_id,event_type,created_at',
+          start: start,
+        ),
       ]).timeout(const Duration(seconds: 90));
       final slots = (results[0] as List)
           .whereType<Map>()
@@ -131,8 +134,7 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
       if (mounted && generation == _generation) {
         setState(() {
           _metrics = const [];
-          _error =
-              'Ad performance is unavailable. Confirm platform ad-admin access and retry.';
+          _error = 'Ad performance is unavailable. Confirm platform ad-admin access and retry.';
         });
       }
     } finally {
@@ -150,125 +152,180 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final totalImpressions = _metrics.fold<int>(
-        0, (sum, row) => sum + AdPerformancePolicy.asInt(row['impressions']));
+      0,
+      (sum, row) => sum + AdPerformancePolicy.asInt(row['impressions']),
+    );
     final totalClicks = _metrics.fold<int>(
-        0, (sum, row) => sum + AdPerformancePolicy.asInt(row['clicks']));
+      0,
+      (sum, row) => sum + AdPerformancePolicy.asInt(row['clicks']),
+    );
     final totalMicros = _metrics.fold<int>(
-        0, (sum, row) => sum + AdPerformancePolicy.asInt(row['spend_micros']));
+      0,
+      (sum, row) => sum + AdPerformancePolicy.asInt(row['spend_micros']),
+    );
     return Scaffold(
-      appBar: AppBar(title: const Text('Ad Performance'), actions: [
-        IconButton(
+      appBar: AppBar(
+        title: const Text('Ad Performance'),
+        actions: [
+          IconButton(
             tooltip: 'Refresh',
             onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh)),
-      ]),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          Text('Recorded delivery metrics',
-              style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 6),
-          Text(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              'Recorded delivery metrics',
+              style: theme.textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 6),
+            Text(
               'Spend is the sum of recorded billable micros. No estimated CPM/CPC revenue is shown.',
-              style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 16),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: '7d', label: Text('7 days')),
-              ButtonSegment(value: '30d', label: Text('30 days')),
-              ButtonSegment(value: '90d', label: Text('90 days')),
-            ],
-            selected: {_range},
-            onSelectionChanged: _loading
-                ? null
-                : (value) {
-                    setState(() => _range = value.first);
-                    _load();
-                  },
-          ),
-          const SizedBox(height: 16),
-          if (_loading)
-            const Padding(
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: '7d', label: Text('7 days')),
+                ButtonSegment(value: '30d', label: Text('30 days')),
+                ButtonSegment(value: '90d', label: Text('90 days')),
+              ],
+              selected: {_range},
+              onSelectionChanged: _loading
+                  ? null
+                  : (value) {
+                      setState(() => _range = value.first);
+                      _load();
+                    },
+            ),
+            const SizedBox(height: 16),
+            if (_loading)
+              const Padding(
                 padding: EdgeInsets.all(36),
-                child: Center(child: CircularProgressIndicator())),
-          if (!_loading && _error != null)
-            Card(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (!_loading && _error != null)
+              Card(
                 child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(children: [
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
                       const Icon(Icons.lock_outline, size: 36),
                       const SizedBox(height: 8),
                       Text(_error!, textAlign: TextAlign.center),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
-                          onPressed: _load,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry')),
-                    ]))),
-          if (!_loading && _error == null) ...[
-            Wrap(spacing: 10, runSpacing: 10, children: [
-              _summaryCard('Impressions', _number(totalImpressions),
-                  Icons.visibility_outlined),
-              _summaryCard('Clicks', _number(totalClicks), Icons.ads_click),
-              _summaryCard(
-                  'CTR',
-                  '${AdPerformancePolicy.ctr(impressions: totalImpressions, clicks: totalClicks).toStringAsFixed(2)}%',
-                  Icons.trending_up),
-              _summaryCard(
-                  'Recorded spend',
-                  'KES ${AdPerformancePolicy.revenueKesFromMicros(totalMicros).toStringAsFixed(2)}',
-                  Icons.payments_outlined),
-            ]),
-            const SizedBox(height: 18),
-            Text('Performance by placement', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 8),
-            if (_metrics.isEmpty)
-              const Card(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (!_loading && _error == null) ...[
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _summaryCard(
+                    'Impressions',
+                    _number(totalImpressions),
+                    Icons.visibility_outlined,
+                  ),
+                  _summaryCard('Clicks', _number(totalClicks), Icons.ads_click),
+                  _summaryCard(
+                    'CTR',
+                    '${AdPerformancePolicy.ctr(impressions: totalImpressions, clicks: totalClicks).toStringAsFixed(2)}%',
+                    Icons.trending_up,
+                  ),
+                  _summaryCard(
+                    'Recorded spend',
+                    'KES ${AdPerformancePolicy.revenueKesFromMicros(totalMicros).toStringAsFixed(2)}',
+                    Icons.payments_outlined,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Performance by placement',
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              if (_metrics.isEmpty)
+                const Card(
                   child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(
-                          'No enabled placements or recorded impressions in this period.'))),
-            ..._metrics.map((row) => Card(
-                child: Padding(
+                    padding: EdgeInsets.all(18),
+                    child: Text(
+                      'No enabled placements or recorded impressions in this period.',
+                    ),
+                  ),
+                ),
+              ..._metrics.map(
+                (row) => Card(
+                  child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
                             Expanded(
-                                child: Text('${row['code']}',
-                                    style: theme.textTheme.titleMedium)),
-                            Chip(label: Text('${row['kind']}'))
-                          ]),
-                          const SizedBox(height: 8),
-                          Wrap(spacing: 18, runSpacing: 8, children: [
+                              child: Text(
+                                '${row['code']}',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                            ),
+                            Chip(label: Text('${row['kind']}')),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 18,
+                          runSpacing: 8,
+                          children: [
                             Text('Impressions: ${_number(row['impressions'])}'),
                             Text('Clicks: ${_number(row['clicks'])}'),
                             Text(
-                                'CTR: ${(row['ctr'] as num).toStringAsFixed(2)}%'),
+                              'CTR: ${(row['ctr'] as num).toStringAsFixed(2)}%',
+                            ),
                             Text(
-                                'Recorded spend: ${_moneyMicros(row['spend_micros'])}'),
-                          ]),
-                        ])))),
+                              'Recorded spend: ${_moneyMicros(row['spend_micros'])}',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }
 
   Widget _summaryCard(String label, String value, IconData icon) => SizedBox(
-        width: 155,
-        child: Card(
-            child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(icon),
-                      const SizedBox(height: 8),
-                      Text(value,
-                          style: Theme.of(context).textTheme.titleLarge),
-                      Text(label, style: Theme.of(context).textTheme.bodySmall),
-                    ]))),
-      );
+    width: 155,
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon),
+            const SizedBox(height: 8),
+            Text(value, style: Theme.of(context).textTheme.titleLarge),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    ),
+  );
 }

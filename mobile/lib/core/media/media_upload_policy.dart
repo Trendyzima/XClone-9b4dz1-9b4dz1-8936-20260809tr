@@ -10,8 +10,9 @@ class MediaUploadPolicy {
 
   static String normalizeExtension(String filename, {required bool isVideo}) {
     final hasExtension = filename.contains('.') && !filename.endsWith('.');
-    final extension =
-        hasExtension ? filename.split('.').last.toLowerCase() : '';
+    final extension = hasExtension
+        ? filename.split('.').last.toLowerCase()
+        : '';
     final allowed = isVideo ? videoExtensions : imageExtensions;
     if (!allowed.contains(extension)) {
       throw const FormatException(

@@ -8,8 +8,11 @@ import 'post_interaction_policy.dart';
 /// federated object's canonical URI contract. Never treats a missing remote
 /// reply as the root post.
 class PostReplyChainPage extends StatefulWidget {
-  const PostReplyChainPage(
-      {super.key, required this.postId, required this.replyId});
+  const PostReplyChainPage({
+    super.key,
+    required this.postId,
+    required this.replyId,
+  });
   final String postId;
   final String replyId;
   @override
@@ -65,21 +68,24 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
           _db
               .from('federated_objects')
               .select(
-                  'uri,actor_uri,content,summary,published_at,deleted_at,tombstone')
+                'uri,actor_uri,content,summary,published_at,deleted_at,tombstone',
+              )
               .eq('uri', widget.postId)
               .maybeSingle()
               .timeout(const Duration(seconds: 15)),
           _db
               .from('federated_objects')
               .select(
-                  'uri,actor_uri,content,summary,published_at,in_reply_to_uri,deleted_at,tombstone')
+                'uri,actor_uri,content,summary,published_at,in_reply_to_uri,deleted_at,tombstone',
+              )
               .eq('uri', widget.replyId)
               .maybeSingle()
               .timeout(const Duration(seconds: 15)),
           _db
               .from('federated_objects')
               .select(
-                  'uri,actor_uri,content,summary,published_at,in_reply_to_uri,deleted_at,tombstone')
+                'uri,actor_uri,content,summary,published_at,in_reply_to_uri,deleted_at,tombstone',
+              )
               .eq('in_reply_to_uri', widget.replyId)
               .isFilter('deleted_at', null)
               .eq('tombstone', false)
@@ -92,7 +98,8 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
         }
         if (results[1] == null) {
           throw StateError(
-              'The selected reply was not found. It may not be cached or may no longer be visible.');
+            'The selected reply was not found. It may not be cached or may no longer be visible.',
+          );
         }
         if (results[1]['deleted_at'] != null ||
             results[1]['tombstone'] == true) {
@@ -119,7 +126,8 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
           _db
               .from('replies')
               .select(
-                  'id,post_id,user_id,content,created_at,parent_reply_id,updated_at')
+                'id,post_id,user_id,content,created_at,parent_reply_id,updated_at',
+              )
               .eq('id', widget.replyId)
               .eq('post_id', widget.postId)
               .maybeSingle()
@@ -127,7 +135,8 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
           _db
               .from('replies')
               .select(
-                  'id,post_id,user_id,content,created_at,parent_reply_id,updated_at')
+                'id,post_id,user_id,content,created_at,parent_reply_id,updated_at',
+              )
               .eq('post_id', widget.postId)
               .eq('parent_reply_id', widget.replyId)
               .order('created_at')
@@ -139,7 +148,8 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
         }
         if (results[1] == null) {
           throw StateError(
-              'The selected reply was not found or is no longer visible.');
+            'The selected reply was not found or is no longer visible.',
+          );
         }
         if (!mounted || generation != _generation) return;
         setState(() {
@@ -153,9 +163,9 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
       }
     } catch (e) {
       if (mounted && generation == _generation) {
-        setState(() => _error = e is StateError
-            ? e.message.toString()
-            : 'Reply chain could not load. Check access and connection, then retry.');
+        setState(
+          () => _error = e is StateError ? e.message.toString() : 'Reply chain could not load. Check access and connection, then retry.',
+        );
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -181,33 +191,41 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
     });
     try {
       if (_remote) {
-        final response = await _db.functions.invoke('testagram-api', body: {
-          'path': '/reply',
-          'method': 'POST',
-          'body': {
-            'post_id': widget.postId,
-            'content': content,
-            'parent_reply_id': widget.replyId
-          },
-        }).timeout(const Duration(seconds: 30));
+        final response = await _db.functions
+            .invoke(
+              'testagram-api',
+              body: {
+                'path': '/reply',
+                'method': 'POST',
+                'body': {
+                  'post_id': widget.postId,
+                  'content': content,
+                  'parent_reply_id': widget.replyId,
+                },
+              },
+            )
+            .timeout(const Duration(seconds: 30));
         if (response.data is Map && (response.data as Map)['error'] != null) {
           throw StateError('The federation service rejected this reply.');
         }
       } else {
-        await _db.from('replies').insert({
-          'post_id': widget.postId,
-          'user_id': user.id,
-          'content': content,
-          'parent_reply_id': widget.replyId,
-        }).timeout(const Duration(seconds: 20));
+        await _db
+            .from('replies')
+            .insert({
+              'post_id': widget.postId,
+              'user_id': user.id,
+              'content': content,
+              'parent_reply_id': widget.replyId,
+            })
+            .timeout(const Duration(seconds: 20));
       }
       _text.clear();
       await _load();
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e is StateError
-            ? e.message.toString()
-            : 'Reply could not be sent. Check your connection and permissions.');
+        setState(
+          () => _error = e is StateError ? e.message.toString() : 'Reply could not be sent. Check your connection and permissions.',
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -218,80 +236,116 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Reply chain'), actions: [
-        IconButton(
+      appBar: AppBar(
+        title: const Text('Reply chain'),
+        actions: [
+          IconButton(
             onPressed: _loading ? null : _load,
             tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh))
-      ]),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView(padding: const EdgeInsets.all(16), children: [
-                if (_error != null) ...[
-                  Text(_error!,
-                      style: TextStyle(color: theme.colorScheme.error)),
-                  OutlinedButton(onPressed: _load, child: const Text('Retry')),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_error != null) ...[
+                    Text(
+                      _error!,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                    OutlinedButton(
+                      onPressed: _load,
+                      child: const Text('Retry'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (_root != null)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Original post',
+                              style: theme.textTheme.labelLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              '${_root!['content'] ?? _root!['summary'] ?? ''}',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_selected != null)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Selected reply',
+                              style: theme.textTheme.labelLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              '${_selected!['content'] ?? _selected!['summary'] ?? ''}',
+                            ),
+                            if (_selected!['published_at'] != null ||
+                                _selected!['created_at'] != null)
+                              Text(
+                                '${_selected!['published_at'] ?? _selected!['created_at']}',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 8),
-                ],
-                if (_root != null)
-                  Card(
-                      child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Original post',
-                                    style: theme.textTheme.labelLarge),
-                                const SizedBox(height: 8),
-                                SelectableText(
-                                    '${_root!['content'] ?? _root!['summary'] ?? ''}'),
-                              ]))),
-                if (_selected != null)
-                  Card(
-                      child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Selected reply',
-                                    style: theme.textTheme.labelLarge),
-                                const SizedBox(height: 8),
-                                SelectableText(
-                                    '${_selected!['content'] ?? _selected!['summary'] ?? ''}'),
-                                if (_selected!['published_at'] != null ||
-                                    _selected!['created_at'] != null)
-                                  Text(
-                                      '${_selected!['published_at'] ?? _selected!['created_at']}',
-                                      style: theme.textTheme.bodySmall),
-                              ]))),
-                const SizedBox(height: 8),
-                Text('Replies to this reply',
-                    style: theme.textTheme.titleMedium),
-                if (_children.isEmpty)
-                  const Padding(
+                  Text(
+                    'Replies to this reply',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  if (_children.isEmpty)
+                    const Padding(
                       padding: EdgeInsets.symmetric(vertical: 18),
-                      child: Text('No replies yet.')),
-                ..._children.map((row) => Card(
-                        child: ListTile(
-                      leading: const Icon(Icons.subdirectory_arrow_right),
-                      title: Text('${row['content'] ?? row['summary'] ?? ''}'),
-                      subtitle: Text(
-                          '${row['published_at'] ?? row['created_at'] ?? ''}'),
-                    ))),
-                const SizedBox(height: 12),
-                TextField(
+                      child: Text('No replies yet.'),
+                    ),
+                  ..._children.map(
+                    (row) => Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.subdirectory_arrow_right),
+                        title: Text(
+                          '${row['content'] ?? row['summary'] ?? ''}',
+                        ),
+                        subtitle: Text(
+                          '${row['published_at'] ?? row['created_at'] ?? ''}',
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
                     controller: _text,
                     minLines: 2,
                     maxLines: 5,
                     maxLength: 5000,
                     decoration: const InputDecoration(
-                        labelText: 'Reply to this reply',
-                        border: OutlineInputBorder())),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                    onPressed: _selected == null ||
+                      labelText: 'Reply to this reply',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed:
+                        _selected == null ||
                             _sending ||
                             _text.text.trim().isEmpty
                         ? null
@@ -300,10 +354,13 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.send),
-                    label: Text(_sending ? 'Sending…' : 'Send reply')),
-              ]),
+                    label: Text(_sending ? 'Sending…' : 'Send reply'),
+                  ),
+                ],
+              ),
             ),
     );
   }

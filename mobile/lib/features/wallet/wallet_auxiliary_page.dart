@@ -38,13 +38,13 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
   DateTime _scheduledFor = DateTime.now().add(const Duration(days: 1));
 
   String get _titleText => switch (widget.mode) {
-        WalletAuxiliaryMode.analytics => 'Wallet analytics',
-        WalletAuxiliaryMode.pocket => 'Savings pocket',
-        WalletAuxiliaryMode.receive => 'Receive money',
-        WalletAuxiliaryMode.referrals => 'Wallet referrals',
-        WalletAuxiliaryMode.reminders => 'Payment reminders',
-        WalletAuxiliaryMode.scheduled => 'Scheduled transfers',
-      };
+    WalletAuxiliaryMode.analytics => 'Wallet analytics',
+    WalletAuxiliaryMode.pocket => 'Savings pocket',
+    WalletAuxiliaryMode.receive => 'Receive money',
+    WalletAuxiliaryMode.referrals => 'Wallet referrals',
+    WalletAuxiliaryMode.reminders => 'Payment reminders',
+    WalletAuxiliaryMode.scheduled => 'Scheduled transfers',
+  };
 
   @override
   void initState() {
@@ -183,8 +183,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     final amount = _validAmount;
     if (amount == null) {
       setState(
-        () => _error =
-            'Enter an amount greater than zero with at most two decimal places.',
+        () => _error = 'Enter an amount greater than zero with at most two decimal places.',
       );
       return;
     }
@@ -210,8 +209,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'The savings operation was not confirmed. Refresh your balances before retrying.',
+          () => _error = 'The savings operation was not confirmed. Refresh your balances before retrying.',
         );
       }
     } finally {
@@ -317,16 +315,14 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       _note.clear();
       if (mounted) {
         setState(
-          () => _notice =
-              'Transfer scheduled. It will be processed by the server at the selected time.',
+          () => _notice = 'Transfer scheduled. It will be processed by the server at the selected time.',
         );
       }
       await _load();
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Transfer was not scheduled. Verify the recipient, balance and future date.',
+          () => _error = 'Transfer was not scheduled. Verify the recipient, balance and future date.',
         );
       }
     } finally {
@@ -534,252 +530,250 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       );
 
   Widget _pocketContent(ThemeData theme) => Column(
+    children: [
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.savings_outlined),
+          title: const Text('Pocket balance'),
+          subtitle: Text(
+            'Currency: ${_pocketData?['currency'] ?? _wallet?['currency'] ?? 'KES'}',
+          ),
+          trailing: Text('${_pocketData?['balance'] ?? '0.00'}'),
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _amount,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Amount',
+          prefixIcon: Icon(Icons.payments_outlined),
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Row(
         children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.savings_outlined),
-              title: const Text('Pocket balance'),
-              subtitle: Text(
-                'Currency: ${_pocketData?['currency'] ?? _wallet?['currency'] ?? 'KES'}',
-              ),
-              trailing: Text('${_pocketData?['balance'] ?? '0.00'}'),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _busy ? null : () => _movePocket('in'),
+              child: const Text('Move to pocket'),
             ),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _amount,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Amount',
-              prefixIcon: Icon(Icons.payments_outlined),
-              border: OutlineInputBorder(),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton(
+              onPressed: _busy ? null : () => _movePocket('out'),
+              child: const Text('Withdraw'),
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _busy ? null : () => _movePocket('in'),
-                  child: const Text('Move to pocket'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _busy ? null : () => _movePocket('out'),
-                  child: const Text('Withdraw'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'All balance changes are validated and recorded by the server-side wallet RPC.',
           ),
         ],
-      );
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'All balance changes are validated and recorded by the server-side wallet RPC.',
+      ),
+    ],
+  );
 
   Widget _receive(ThemeData theme) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            children: [
-              const CircleAvatar(
-                radius: 32,
-                child: Icon(Icons.call_received, size: 32),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '@${_profile?['username'] ?? 'account'}',
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Share your Testagram account reference with the sender. Never share your wallet PIN or sign-in codes.',
-              ),
-              const SizedBox(height: 12),
-              SelectableText(_db.auth.currentUser?.id ?? ''),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _shareReceiveDetails,
-                icon: const Icon(Icons.share),
-                label: const Text('Copy & share receiving details'),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _referrals(ThemeData theme) => Column(
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
         children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.card_giftcard),
-              title: const Text('Wallet referral credits'),
-              subtitle: const Text(
-                'Credits are read from the authenticated wallet referral ledger.',
-              ),
-              trailing: Text(
-                '${_rows.fold<int>(0, (s, r) => s + (int.tryParse('${r['amount'] ?? 0}') ?? 0))}',
-              ),
-            ),
-          ),
-          if (_rows.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No wallet referral credits recorded yet.'),
-              ),
-            ),
-          for (final row in _rows)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.stars_outlined),
-                title: Text('${row['reason'] ?? 'Referral credit'}'),
-                subtitle: Text('${row['created_at'] ?? ''}'),
-                trailing: Text('+${row['amount'] ?? 0}'),
-              ),
-            ),
-        ],
-      );
-
-  Widget _reminders(ThemeData theme) => Column(
-        children: [
-          TextField(
-            controller: _title,
-            decoration: const InputDecoration(
-              labelText: 'Reminder title',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _amount,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Amount (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            leading: const Icon(Icons.calendar_month),
-            title: const Text('Remind me at'),
-            subtitle: Text(_scheduledFor.toLocal().toString()),
-            trailing:
-                TextButton(onPressed: _pickDate, child: const Text('Change')),
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _busy ? null : _createReminder,
-              child: const Text('Save reminder'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text('Your reminders', style: theme.textTheme.titleLarge),
-          if (_rows.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No reminders saved.'),
-              ),
-            ),
-          for (final row in _rows)
-            Card(
-              child: ListTile(
-                leading: Icon(
-                  row['is_active'] == true
-                      ? Icons.notifications_active_outlined
-                      : Icons.notifications_off_outlined,
-                ),
-                title: Text('${row['title']}'),
-                subtitle: Text('${row['remind_at']} • ${row['frequency']}'),
-                trailing: row['is_active'] == true
-                    ? IconButton(
-                        tooltip: 'Disable reminder',
-                        onPressed: () => _disableReminder('${row['id']}'),
-                        icon: const Icon(Icons.pause_circle_outline),
-                      )
-                    : const Text('Paused'),
-              ),
-            ),
-        ],
-      );
-
-  Widget _scheduled(ThemeData theme) => Column(
-        children: [
-          TextField(
-            controller: _username,
-            decoration: const InputDecoration(
-              labelText: 'Recipient username',
-              prefixText: '@',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _amount,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Amount',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _note,
-            decoration: const InputDecoration(
-              labelText: 'Note (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.schedule),
-            title: const Text('Transfer date and time'),
-            subtitle: Text(_scheduledFor.toLocal().toString()),
-            trailing:
-                TextButton(onPressed: _pickDate, child: const Text('Change')),
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _busy ? null : _createScheduledTransfer,
-              child: const Text('Schedule transfer'),
-            ),
+          const CircleAvatar(
+            radius: 32,
+            child: Icon(Icons.call_received, size: 32),
           ),
           const SizedBox(height: 12),
           Text(
-            'Upcoming and previous transfers',
+            '@${_profile?['username'] ?? 'account'}',
             style: theme.textTheme.titleLarge,
           ),
-          if (_rows.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No scheduled transfers.'),
-              ),
-            ),
-          for (final row in _rows)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.event_repeat),
-                title: Text(
-                  '${row['currency'] ?? 'KES'} ${row['amount']} → @${row['to_username'] ?? 'recipient'}',
-                ),
-                subtitle: Text('${row['scheduled_for']} • ${row['status']}'),
-                trailing: row['status'] == 'pending'
-                    ? IconButton(
-                        tooltip: 'Cancel transfer',
-                        onPressed: _busy
-                            ? null
-                            : () => _cancelScheduled('${row['id']}'),
-                        icon: const Icon(Icons.cancel_outlined),
-                      )
-                    : null,
-              ),
-            ),
+          const SizedBox(height: 8),
+          const Text(
+            'Share your Testagram account reference with the sender. Never share your wallet PIN or sign-in codes.',
+          ),
+          const SizedBox(height: 12),
+          SelectableText(_db.auth.currentUser?.id ?? ''),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _shareReceiveDetails,
+            icon: const Icon(Icons.share),
+            label: const Text('Copy & share receiving details'),
+          ),
         ],
-      );
+      ),
+    ),
+  );
+
+  Widget _referrals(ThemeData theme) => Column(
+    children: [
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.card_giftcard),
+          title: const Text('Wallet referral credits'),
+          subtitle: const Text(
+            'Credits are read from the authenticated wallet referral ledger.',
+          ),
+          trailing: Text(
+            '${_rows.fold<int>(0, (s, r) => s + (int.tryParse('${r['amount'] ?? 0}') ?? 0))}',
+          ),
+        ),
+      ),
+      if (_rows.isEmpty)
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No wallet referral credits recorded yet.'),
+          ),
+        ),
+      for (final row in _rows)
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.stars_outlined),
+            title: Text('${row['reason'] ?? 'Referral credit'}'),
+            subtitle: Text('${row['created_at'] ?? ''}'),
+            trailing: Text('+${row['amount'] ?? 0}'),
+          ),
+        ),
+    ],
+  );
+
+  Widget _reminders(ThemeData theme) => Column(
+    children: [
+      TextField(
+        controller: _title,
+        decoration: const InputDecoration(
+          labelText: 'Reminder title',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _amount,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Amount (optional)',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 8),
+      ListTile(
+        leading: const Icon(Icons.calendar_month),
+        title: const Text('Remind me at'),
+        subtitle: Text(_scheduledFor.toLocal().toString()),
+        trailing: TextButton(onPressed: _pickDate, child: const Text('Change')),
+      ),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _busy ? null : _createReminder,
+          child: const Text('Save reminder'),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Text('Your reminders', style: theme.textTheme.titleLarge),
+      if (_rows.isEmpty)
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No reminders saved.'),
+          ),
+        ),
+      for (final row in _rows)
+        Card(
+          child: ListTile(
+            leading: Icon(
+              row['is_active'] == true
+                  ? Icons.notifications_active_outlined
+                  : Icons.notifications_off_outlined,
+            ),
+            title: Text('${row['title']}'),
+            subtitle: Text('${row['remind_at']} • ${row['frequency']}'),
+            trailing: row['is_active'] == true
+                ? IconButton(
+                    tooltip: 'Disable reminder',
+                    onPressed: () => _disableReminder('${row['id']}'),
+                    icon: const Icon(Icons.pause_circle_outline),
+                  )
+                : const Text('Paused'),
+          ),
+        ),
+    ],
+  );
+
+  Widget _scheduled(ThemeData theme) => Column(
+    children: [
+      TextField(
+        controller: _username,
+        decoration: const InputDecoration(
+          labelText: 'Recipient username',
+          prefixText: '@',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _amount,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Amount',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _note,
+        decoration: const InputDecoration(
+          labelText: 'Note (optional)',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.schedule),
+        title: const Text('Transfer date and time'),
+        subtitle: Text(_scheduledFor.toLocal().toString()),
+        trailing: TextButton(onPressed: _pickDate, child: const Text('Change')),
+      ),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _busy ? null : _createScheduledTransfer,
+          child: const Text('Schedule transfer'),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        'Upcoming and previous transfers',
+        style: theme.textTheme.titleLarge,
+      ),
+      if (_rows.isEmpty)
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No scheduled transfers.'),
+          ),
+        ),
+      for (final row in _rows)
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.event_repeat),
+            title: Text(
+              '${row['currency'] ?? 'KES'} ${row['amount']} → @${row['to_username'] ?? 'recipient'}',
+            ),
+            subtitle: Text('${row['scheduled_for']} • ${row['status']}'),
+            trailing: row['status'] == 'pending'
+                ? IconButton(
+                    tooltip: 'Cancel transfer',
+                    onPressed: _busy
+                        ? null
+                        : () => _cancelScheduled('${row['id']}'),
+                    icon: const Icon(Icons.cancel_outlined),
+                  )
+                : null,
+          ),
+        ),
+    ],
+  );
 }

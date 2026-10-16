@@ -111,8 +111,9 @@ class _FeedPageState extends State<FeedPage> {
             ..clear()
             ..addAll(cached);
           final lastCached = _posts.isEmpty ? null : _posts.last;
-          _cursorCreatedAt =
-              lastCached == null ? null : '${lastCached['created_at'] ?? ''}';
+          _cursorCreatedAt = lastCached == null
+              ? null
+              : '${lastCached['created_at'] ?? ''}';
           _cursorId = lastCached == null ? null : '${lastCached['id'] ?? ''}';
           _hasMore = _posts.length >= FeedOfflineCache.maxPosts;
         });
@@ -153,12 +154,12 @@ class _FeedPageState extends State<FeedPage> {
       }
       final response =
           _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
-              ? <dynamic>[]
-              : await pagedQuery
-                  .order('created_at', ascending: false)
-                  .order('id', ascending: false)
-                  .limit(_pageSize)
-                  .timeout(const Duration(seconds: 15));
+          ? <dynamic>[]
+          : await pagedQuery
+                .order('created_at', ascending: false)
+                .order('id', ascending: false)
+                .limit(_pageSize)
+                .timeout(const Duration(seconds: 15));
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
@@ -177,11 +178,11 @@ class _FeedPageState extends State<FeedPage> {
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _client
-              .from('profiles')
-              .select(
-                'id,username,display_name,avatar_url,verified,verified_tier',
-              )
-              .inFilter('id', ids);
+                .from('profiles')
+                .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier',
+                )
+                .inFilter('id', ids);
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
@@ -371,7 +372,7 @@ class _FeedPageState extends State<FeedPage> {
         setState(
           () => post['likes_count'] =
               ((post['likes_count'] as num?)?.toInt() ?? 0) +
-                  (wasLiked ? -1 : 1),
+              (wasLiked ? -1 : 1),
         );
       }
     } catch (error) {
@@ -448,7 +449,7 @@ class _FeedPageState extends State<FeedPage> {
         setState(
           () => post['reposts_count'] =
               ((post['reposts_count'] as num?)?.toInt() ?? 0) +
-                  (wasReposted ? -1 : 1),
+              (wasReposted ? -1 : 1),
         );
       }
     } catch (error) {
@@ -593,9 +594,7 @@ class _FeedPageState extends State<FeedPage> {
               children: [
                 Text(
                   'Create a post',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
+                  style: Theme.of(context).textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 14),
@@ -615,8 +614,9 @@ class _FeedPageState extends State<FeedPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -672,12 +672,12 @@ class _FeedPageState extends State<FeedPage> {
                                 if (sheetContext.mounted) {
                                   ScaffoldMessenger.of(sheetContext)
                                       .showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Camera is unavailable or permission was denied.',
-                                      ),
-                                    ),
-                                  );
+                                        const SnackBar(
+                                          content: Text(
+                                            'Camera is unavailable or permission was denied.',
+                                          ),
+                                        ),
+                                      );
                                 }
                               } finally {
                                 if (sheetContext.mounted) {
@@ -709,12 +709,12 @@ class _FeedPageState extends State<FeedPage> {
                                 if (sheetContext.mounted) {
                                   ScaffoldMessenger.of(sheetContext)
                                       .showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Photo selection failed. Check media permissions and retry.',
-                                      ),
-                                    ),
-                                  );
+                                        const SnackBar(
+                                          content: Text(
+                                            'Photo selection failed. Check media permissions and retry.',
+                                          ),
+                                        ),
+                                      );
                                 }
                               } finally {
                                 if (sheetContext.mounted) {
@@ -745,12 +745,12 @@ class _FeedPageState extends State<FeedPage> {
                                 if (sheetContext.mounted) {
                                   ScaffoldMessenger.of(sheetContext)
                                       .showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Video selection failed. Check media permissions and retry.',
-                                      ),
-                                    ),
-                                  );
+                                        const SnackBar(
+                                          content: Text(
+                                            'Video selection failed. Check media permissions and retry.',
+                                          ),
+                                        ),
+                                      );
                                 }
                               } finally {
                                 if (sheetContext.mounted) {
@@ -766,15 +766,16 @@ class _FeedPageState extends State<FeedPage> {
                 if (choosingMedia) const LinearProgressIndicator(),
                 const SizedBox(height: 14),
                 FilledButton(
-                  onPressed: choosingMedia ||
+                  onPressed:
+                      choosingMedia ||
                           (controller.text.trim().isEmpty &&
                               selectedMedia == null)
                       ? null
                       : () => Navigator.pop(sheetContext, {
-                            'content': controller.text.trim(),
-                            'media': selectedMedia,
-                            'isVideo': selectedIsVideo,
-                          }),
+                          'content': controller.text.trim(),
+                          'media': selectedMedia,
+                          'isVideo': selectedIsVideo,
+                        }),
                   child: const Text('Publish post'),
                 ),
               ],
@@ -803,7 +804,9 @@ class _FeedPageState extends State<FeedPage> {
         MediaUploadPolicy.validateSize(bytes.length, isVideo: isVideo);
         final path =
             '$_userId/${DateTime.now().microsecondsSinceEpoch}.$extension';
-        await _client.storage.from('posts').uploadBinary(
+        await _client.storage
+            .from('posts')
+            .uploadBinary(
               path,
               bytes,
               fileOptions: FileOptions(
@@ -858,8 +861,7 @@ class _FeedPageState extends State<FeedPage> {
           SliverToBoxAdapter(
             child: Container(
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .scaffoldBackgroundColor
+                color: Theme.of(context).scaffoldBackgroundColor
                     .withValues(alpha: 0.94),
                 border: Border(
                   bottom: BorderSide(color: Theme.of(context).dividerColor),
@@ -897,9 +899,9 @@ class _FeedPageState extends State<FeedPage> {
                               color: _feedTab == tab
                                   ? Theme.of(context).colorScheme.onSurface
                                   : Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color,
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color,
                             ),
                           ),
                         ),
@@ -921,8 +923,9 @@ class _FeedPageState extends State<FeedPage> {
                     child: Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primaryContainer,
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer,
                           child: const Icon(Icons.edit_rounded),
                         ),
                         const SizedBox(width: 12),
@@ -985,7 +988,8 @@ class _FeedPageState extends State<FeedPage> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
               sliver: SliverList.separated(
-                itemCount: _posts.length +
+                itemCount:
+                    _posts.length +
                     (_sponsoredAd != null && _posts.length >= 5 ? 1 : 0),
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
@@ -1000,8 +1004,8 @@ class _FeedPageState extends State<FeedPage> {
                   }
                   final postIndex =
                       _sponsoredAd != null && _posts.length >= 5 && index > 5
-                          ? index - 1
-                          : index;
+                      ? index - 1
+                      : index;
                   final post = _posts[postIndex];
                   return _PostCard(
                     post: post,
@@ -1072,7 +1076,8 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = (post['profile'] as Map?)?.cast<String, dynamic>() ??
+    final profile =
+        (post['profile'] as Map?)?.cast<String, dynamic>() ??
         <String, dynamic>{};
     final name =
         '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
@@ -1080,7 +1085,8 @@ class _PostCard extends StatelessWidget {
     final content = '${post['content'] ?? ''}';
     final media = FeedMediaUrl.normalize(post['image_url']) ?? '';
     final video = FeedMediaUrl.normalize(post['video_url']) ?? '';
-    final verified = profile['verified'] == true ||
+    final verified =
+        profile['verified'] == true ||
         (profile['verified_tier'] != null &&
             profile['verified_tier'] != 'none');
     final date = DateTime.tryParse('${post['created_at'] ?? ''}');
@@ -1133,10 +1139,8 @@ class _PostCard extends StatelessWidget {
                       Text(
                         '@${profile['username'] ?? 'testagram'} · ${date == null ? '' : _relativeDate(date)}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -1277,10 +1281,10 @@ class _PostAction extends StatelessWidget {
   final bool active;
   @override
   Widget build(BuildContext context) => TextButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 19, color: active ? Colors.redAccent : null),
-        label: Text(label, style: const TextStyle(fontSize: 12)),
-      );
+    onPressed: onTap,
+    icon: Icon(icon, size: 19, color: active ? Colors.redAccent : null),
+    label: Text(label, style: const TextStyle(fontSize: 12)),
+  );
 }
 
 class _InlineVideo extends StatefulWidget {
@@ -1322,9 +1326,10 @@ class _InlineVideoState extends State<_InlineVideo> {
     final padding = MediaQuery.paddingOf(context);
     final visibleTop = padding.top;
     final visibleBottom = screen.height - padding.bottom;
-    final visibleHeight = (rect.bottom.clamp(visibleTop, visibleBottom) -
-            rect.top.clamp(visibleTop, visibleBottom))
-        .clamp(0.0, rect.height);
+    final visibleHeight =
+        (rect.bottom.clamp(visibleTop, visibleBottom) -
+                rect.top.clamp(visibleTop, visibleBottom))
+            .clamp(0.0, rect.height);
     final visible = rect.height > 0 && visibleHeight / rect.height >= 0.55;
 
     if (visible && !_wasVisible) _manuallyPaused = false;
@@ -1440,16 +1445,16 @@ class _InlineVideoState extends State<_InlineVideo> {
                   child: _loading
                       ? const CircularProgressIndicator()
                       : controller?.value.isPlaying == true
-                          ? const Icon(
-                              Icons.pause_circle_outline_rounded,
-                              size: 54,
-                              color: Colors.white,
-                            )
-                          : const Icon(
-                              Icons.play_circle_outline_rounded,
-                              size: 54,
-                              color: Colors.white,
-                            ),
+                      ? const Icon(
+                          Icons.pause_circle_outline_rounded,
+                          size: 54,
+                          color: Colors.white,
+                        )
+                      : const Icon(
+                          Icons.play_circle_outline_rounded,
+                          size: 54,
+                          color: Colors.white,
+                        ),
                 ),
               ),
             ),
@@ -1520,8 +1525,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           .eq('post_id', widget.postId)
           .order('created_at', ascending: true)
           .limit(100);
-      final replies =
-          rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final replies = rows
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
       final ids = replies.map((row) => '${row['user_id']}').toSet().toList();
       if (ids.isNotEmpty) {
         final profiles = await widget.client
@@ -1570,111 +1576,105 @@ class _CommentsSheetState extends State<_CommentsSheet> {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.78,
-          child: Column(
-            children: [
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Replies (${_replies.length})',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              if (_error != null)
-                Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
-              if (_loading && _replies.isEmpty)
-                const Expanded(
-                    child: Center(child: CircularProgressIndicator()))
-              else
+    child: SizedBox(
+      height: MediaQuery.sizeOf(context).height * 0.78,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            child: Row(
+              children: [
                 Expanded(
-                  child: _replies.isEmpty
-                      ? const Center(child: Text('Be the first to reply.'))
-                      : ListView.builder(
-                          itemCount: _replies.length,
-                          itemBuilder: (context, index) {
-                            final reply = _replies[index];
-                            final profile = (reply['profile'] as Map?)
-                                    ?.cast<String, dynamic>() ??
-                                <String, dynamic>{};
-                            final name =
-                                '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
-                            final avatar = '${profile['avatar_url'] ?? ''}';
-                            return ListTile(
-                              leading: CircleAvatar(
-                                backgroundImage: avatar.startsWith('http')
-                                    ? CachedNetworkImageProvider(avatar)
-                                    : null,
-                                child: avatar.startsWith('http')
-                                    ? null
-                                    : Text(
-                                        name.isEmpty
-                                            ? 'T'
-                                            : name[0].toUpperCase(),
-                                      ),
-                              ),
-                              title: Text(
-                                name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700),
-                              ),
-                              subtitle: Text('${reply['content'] ?? ''}'),
-                            );
-                          },
-                        ),
+                  child: Text(
+                    'Replies (${_replies.length})',
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
                 ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  12,
-                  8,
-                  12,
-                  MediaQuery.viewInsetsOf(context).bottom + 12,
+                IconButton(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh_rounded),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _composer,
-                        minLines: 1,
-                        maxLines: 4,
-                        maxLength: 2000,
-                        decoration: const InputDecoration(
-                          hintText: 'Write a reply…',
-                          counterText: '',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      onPressed: _sending ? null : _send,
-                      icon: _sending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send_rounded),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
+          if (_error != null)
+            Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
+          if (_loading && _replies.isEmpty)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else
+            Expanded(
+              child: _replies.isEmpty
+                  ? const Center(child: Text('Be the first to reply.'))
+                  : ListView.builder(
+                      itemCount: _replies.length,
+                      itemBuilder: (context, index) {
+                        final reply = _replies[index];
+                        final profile =
+                            (reply['profile'] as Map?)
+                                ?.cast<String, dynamic>() ??
+                            <String, dynamic>{};
+                        final name =
+                            '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+                        final avatar = '${profile['avatar_url'] ?? ''}';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: avatar.startsWith('http')
+                                ? CachedNetworkImageProvider(avatar)
+                                : null,
+                            child: avatar.startsWith('http')
+                                ? null
+                                : Text(
+                                    name.isEmpty ? 'T' : name[0].toUpperCase(),
+                                  ),
+                          ),
+                          title: Text(
+                            name,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text('${reply['content'] ?? ''}'),
+                        );
+                      },
+                    ),
+            ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              8,
+              12,
+              MediaQuery.viewInsetsOf(context).bottom + 12,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _composer,
+                    minLines: 1,
+                    maxLines: 4,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      hintText: 'Write a reply…',
+                      counterText: '',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: _sending ? null : _send,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_rounded),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../migration_batch_policy.dart';
 
 class CreditsPage extends StatefulWidget {
@@ -109,8 +110,7 @@ class _CreditsPageState extends State<CreditsPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Daily reward was not confirmed. Refresh the balance before retrying.',
+          () => _error = 'Daily reward was not confirmed. Refresh the balance before retrying.',
         );
       }
     } finally {
@@ -120,97 +120,95 @@ class _CreditsPageState extends State<CreditsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: const Text('Credits'),
-          actions: [
-            IconButton(
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
+    appBar: AppBar(
+      title: const Text('Credits'),
+      actions: [
+        IconButton(
+          onPressed: _loading ? null : _load,
+          icon: const Icon(Icons.refresh),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(22),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.monetization_on_outlined,
-                                size: 44),
-                            const SizedBox(height: 8),
-                            const Text('Your credit balance'),
-                            Text(
-                              _credits.toString(),
-                              style: Theme.of(context).textTheme.displaySmall,
-                            ),
-                            Text('Daily streak: $_streak'),
-                          ],
+      ],
+    ),
+    body: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.monetization_on_outlined, size: 44),
+                        const SizedBox(height: 8),
+                        const Text('Your credit balance'),
+                        Text(
+                          _credits.toString(),
+                          style: Theme.of(context).textTheme.displaySmall,
                         ),
-                      ),
+                        Text('Daily streak: $_streak'),
+                      ],
                     ),
-                    if (_error != null)
-                      Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.error_outline),
-                          title: Text(_error!),
-                          trailing: IconButton(
-                            onPressed: _load,
-                            icon: const Icon(Icons.refresh),
-                          ),
-                        ),
-                      ),
-                    FilledButton.icon(
-                      onPressed: _claiming || !_canClaim ? null : _claim,
-                      icon: _claiming
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.card_giftcard),
-                      label: Text(
-                        _claiming
-                            ? 'Claiming…'
-                            : _canClaim
-                                ? 'Claim daily reward'
-                                : 'Daily reward already claimed',
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Recent activity',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    if (_history.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text('No credit transactions yet.'),
-                      ),
-                    for (final row in _history)
-                      Card(
-                        child: ListTile(
-                          leading: Icon(
-                            (row['amount'] as num? ?? 0) >= 0
-                                ? Icons.add_circle_outline
-                                : Icons.remove_circle_outline,
-                          ),
-                          title:
-                              Text('${row['reason'] ?? 'Credit transaction'}'),
-                          subtitle: Text('${row['created_at'] ?? ''}'),
-                          trailing: Text(
-                            '${(row['amount'] as num?)?.toInt() ?? 0}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-      );
+                if (_error != null)
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.error_outline),
+                      title: Text(_error!),
+                      trailing: IconButton(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ),
+                  ),
+                FilledButton.icon(
+                  onPressed: _claiming || !_canClaim ? null : _claim,
+                  icon: _claiming
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.card_giftcard),
+                  label: Text(
+                    _claiming
+                        ? 'Claiming…'
+                        : _canClaim
+                        ? 'Claim daily reward'
+                        : 'Daily reward already claimed',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Recent activity',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (_history.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('No credit transactions yet.'),
+                  ),
+                for (final row in _history)
+                  Card(
+                    child: ListTile(
+                      leading: Icon(
+                        (row['amount'] as num? ?? 0) >= 0
+                            ? Icons.add_circle_outline
+                            : Icons.remove_circle_outline,
+                      ),
+                      title: Text('${row['reason'] ?? 'Credit transaction'}'),
+                      subtitle: Text('${row['created_at'] ?? ''}'),
+                      trailing: Text(
+                        '${(row['amount'] as num?)?.toInt() ?? 0}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+  );
 }

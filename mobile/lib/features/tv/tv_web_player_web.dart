@@ -64,7 +64,8 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
   void initState() {
     super.initState();
     // ignore: prefer_interpolation_to_compose_strings
-    _viewType = 'testagram-tv-player-' +
+    _viewType =
+        'testagram-tv-player-' +
         DateTime.now().microsecondsSinceEpoch.toString();
     ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final video = web.HTMLVideoElement()
@@ -80,20 +81,23 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       video.style.setProperty('background-color', '#000');
       video.style.setProperty('border', '0');
       video.addEventListener(
-          'error',
-          ((web.Event event) {
-            _reportError(
-                'This stream failed to load in the browser. Try another channel or retry.');
-          }).toJS);
+        'error',
+        ((web.Event event) {
+          _reportError(
+            'This stream failed to load in the browser. Try another channel or retry.',
+          );
+        }).toJS,
+      );
       video.addEventListener(
-          'playing',
-          ((web.Event event) {
-            if (!mounted) return;
-            _recoveryAttempts = 0;
-            if (_readyGeneration == _generation) return;
-            _readyGeneration = _generation;
-            widget.onPlaybackReady?.call();
-          }).toJS);
+        'playing',
+        ((web.Event event) {
+          if (!mounted) return;
+          _recoveryAttempts = 0;
+          if (_readyGeneration == _generation) return;
+          _readyGeneration = _generation;
+          widget.onPlaybackReady?.call();
+        }).toJS,
+      );
       _video = video;
       unawaited(_attach(video, widget.url, ++_generation));
       return video;
@@ -111,20 +115,22 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
         ..src = 'https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js'
         ..async = true;
       script.addEventListener(
-          'load',
-          ((web.Event event) {
-            if (!completer.isCompleted) {
-              completer.complete(_hlsConstructor != null);
-            }
-          }).toJS);
+        'load',
+        ((web.Event event) {
+          if (!completer.isCompleted) {
+            completer.complete(_hlsConstructor != null);
+          }
+        }).toJS,
+      );
       script.addEventListener(
-          'error',
-          ((web.Event event) {
-            script.remove();
-            if (!completer.isCompleted) {
-              completer.complete(false);
-            }
-          }).toJS);
+        'error',
+        ((web.Event event) {
+          script.remove();
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+        }).toJS,
+      );
       web.document.head?.append(script);
       return completer.future.timeout(
         const Duration(seconds: 12),
@@ -157,7 +163,8 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
     final parsed = Uri.tryParse(url);
     final upstream = parsed?.queryParameters['url'] ?? url;
     final lower = upstream.toLowerCase();
-    final isHls = lower.contains('.m3u8') ||
+    final isHls =
+        lower.contains('.m3u8') ||
         lower.contains('.m3u') ||
         lower.contains('format=m3u');
     if (!isHls ||
@@ -175,13 +182,15 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
     if (!mounted || generation != _generation) return;
     if (!loaded) {
       _reportError(
-          'HLS playback support could not load. Check your connection and retry.');
+        'HLS playback support could not load. Check your connection and retry.',
+      );
       return;
     }
     final constructor = _hlsConstructor;
     if (constructor == null || !_hlsIsSupported().toDart) {
       _reportError(
-          'This browser cannot play HLS. Try a supported browser or another channel.');
+        'This browser cannot play HLS. Try a supported browser or another channel.',
+      );
       return;
     }
     try {
@@ -202,31 +211,33 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       if (eventsObject != null) {
         final events = _HlsEvents(eventsObject);
         instance.on(
-            events.error,
-            ((JSAny? event, JSAny? data) {
-              if (!mounted || generation != _generation) return;
-              final details = data?.dartify();
-              if (details is Map && details['fatal'] == true) {
-                // Recover transient HLS network/media faults before surfacing
-                // an error. Cap retries so an offline broadcaster cannot loop.
-                if (_recoveryAttempts < 2) {
-                  _recoveryAttempts++;
-                  final type = '${details['type'] ?? ''}';
-                  try {
-                    if (type.toLowerCase().contains('media')) {
-                      instance.recoverMediaError();
-                    } else {
-                      instance.startLoad();
-                    }
-                    return;
-                  } catch (_) {
-                    // Fall through to a visible, actionable playback error.
+          events.error,
+          ((JSAny? event, JSAny? data) {
+            if (!mounted || generation != _generation) return;
+            final details = data?.dartify();
+            if (details is Map && details['fatal'] == true) {
+              // Recover transient HLS network/media faults before surfacing
+              // an error. Cap retries so an offline broadcaster cannot loop.
+              if (_recoveryAttempts < 2) {
+                _recoveryAttempts++;
+                final type = '${details['type'] ?? ''}';
+                try {
+                  if (type.toLowerCase().contains('media')) {
+                    instance.recoverMediaError();
+                  } else {
+                    instance.startLoad();
                   }
+                  return;
+                } catch (_) {
+                  // Fall through to a visible, actionable playback error.
                 }
-                _reportError(
-                    'This HLS stream could not recover after two attempts. Try another channel or retry.');
               }
-            }).toJS);
+              _reportError(
+                'This HLS stream could not recover after two attempts. Try another channel or retry.',
+              );
+            }
+          }).toJS,
+        );
       }
     } catch (_) {
       _reportError('HLS playback could not initialize for this stream.');
@@ -267,28 +278,28 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
 
   @override
   Widget build(BuildContext context) => Stack(
-        fit: StackFit.expand,
-        children: [
-          HtmlElementView(viewType: _viewType),
-          if (_error != null)
-            Positioned(
-              left: 14,
-              right: 14,
-              bottom: 14,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: const Color(0xDD101010),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
+    fit: StackFit.expand,
+    children: [
+      HtmlElementView(viewType: _viewType),
+      if (_error != null)
+        Positioned(
+          left: 14,
+          right: 14,
+          bottom: 14,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xDD101010),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                _error!,
+                style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
-        ],
-      );
+          ),
+        ),
+    ],
+  );
 }

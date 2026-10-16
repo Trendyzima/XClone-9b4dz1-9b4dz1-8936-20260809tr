@@ -40,8 +40,10 @@ void main() {
     test('rejects unsafe or malformed media URLs', () {
       expect(FeedMediaUrl.normalize('javascript:alert(1)'), isNull);
       expect(FeedMediaUrl.normalize('file:///tmp/video.mp4'), isNull);
-      expect(FeedMediaUrl.normalize('https://user:pass@cdn.example/a.mp4'),
-          isNull);
+      expect(
+        FeedMediaUrl.normalize('https://user:pass@cdn.example/a.mp4'),
+        isNull,
+      );
       expect(FeedMediaUrl.normalize('  '), isNull);
     });
   });

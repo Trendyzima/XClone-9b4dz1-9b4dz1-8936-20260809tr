@@ -30,20 +30,19 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
   List<Map<String, dynamic>> _items = const [];
 
   String get _title => switch (widget.mode) {
-        ThreadInteractionMode.likes => 'Likes',
-        ThreadInteractionMode.reposts => 'Reposts & retweets',
-        ThreadInteractionMode.quotes => 'Quotes',
-        ThreadInteractionMode.quoteLikes => 'Quote likes',
-        ThreadInteractionMode.replyLikes => 'Reply likes',
-      };
+    ThreadInteractionMode.likes => 'Likes',
+    ThreadInteractionMode.reposts => 'Reposts & retweets',
+    ThreadInteractionMode.quotes => 'Quotes',
+    ThreadInteractionMode.quoteLikes => 'Quote likes',
+    ThreadInteractionMode.replyLikes => 'Reply likes',
+  };
   IconData get _icon => switch (widget.mode) {
-        ThreadInteractionMode.likes ||
-        ThreadInteractionMode.quoteLikes ||
-        ThreadInteractionMode.replyLikes =>
-          Icons.favorite_border,
-        ThreadInteractionMode.reposts => Icons.repeat,
-        ThreadInteractionMode.quotes => Icons.format_quote,
-      };
+    ThreadInteractionMode.likes ||
+    ThreadInteractionMode.quoteLikes ||
+    ThreadInteractionMode.replyLikes => Icons.favorite_border,
+    ThreadInteractionMode.reposts => Icons.repeat,
+    ThreadInteractionMode.quotes => Icons.format_quote,
+  };
 
   @override
   void initState() {
@@ -119,11 +118,11 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _db
-              .from('profiles')
-              .select(
-                'id,username,display_name,full_name,avatar_url,verified',
-              )
-              .inFilter('id', ids);
+                .from('profiles')
+                .select(
+                  'id,username,display_name,full_name,avatar_url,verified',
+                )
+                .inFilter('id', ids);
       final profileById = <String, Map<String, dynamic>>{};
       for (final profile in profiles) {
         profileById['${profile['id']}'] = Map<String, dynamic>.from(profile);
@@ -399,8 +398,9 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
     final avatar = profile?['avatar_url'] as String?;
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage:
-            avatar == null || avatar.isEmpty ? null : NetworkImage(avatar),
+        backgroundImage: avatar == null || avatar.isEmpty
+            ? null
+            : NetworkImage(avatar),
         child: avatar == null || avatar.isEmpty
             ? Text(name.isEmpty ? '?' : name.characters.first.toUpperCase())
             : null,
@@ -434,7 +434,8 @@ class _ThreadInteractionPageState extends State<ThreadInteractionPage> {
             Text('${item['created_at']}', style: theme.textTheme.labelSmall),
         ],
       ),
-      trailing: widget.mode == ThreadInteractionMode.likes ||
+      trailing:
+          widget.mode == ThreadInteractionMode.likes ||
               widget.mode == ThreadInteractionMode.quoteLikes ||
               widget.mode == ThreadInteractionMode.replyLikes
           ? IconButton(

@@ -46,12 +46,18 @@ void main() {
   });
 
   test('only owner or regulator can moderate team messages', () {
-    expect(TeamChatPolicy.canModerate(isOwner: false, isRegulator: false),
-        isFalse);
     expect(
-        TeamChatPolicy.canModerate(isOwner: true, isRegulator: false), isTrue);
+      TeamChatPolicy.canModerate(isOwner: false, isRegulator: false),
+      isFalse,
+    );
     expect(
-        TeamChatPolicy.canModerate(isOwner: false, isRegulator: true), isTrue);
+      TeamChatPolicy.canModerate(isOwner: true, isRegulator: false),
+      isTrue,
+    );
+    expect(
+      TeamChatPolicy.canModerate(isOwner: false, isRegulator: true),
+      isTrue,
+    );
   });
 
   test('message composition trims whitespace and preserves content', () {

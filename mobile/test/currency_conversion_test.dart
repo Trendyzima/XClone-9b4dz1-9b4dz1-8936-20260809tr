@@ -23,38 +23,22 @@ void main() {
 
     test('returns zero for a zero amount', () {
       expect(
-        CurrencyConversion.convert(
-          amount: 0,
-          fromRate: 150,
-          toRate: 1,
-        ),
+        CurrencyConversion.convert(amount: 0, fromRate: 150, toRate: 1),
         0,
       );
     });
 
     test('rejects invalid amounts and unavailable or invalid rates', () {
       expect(
-        CurrencyConversion.convert(
-          amount: double.nan,
-          fromRate: 1,
-          toRate: 2,
-        ),
+        CurrencyConversion.convert(amount: double.nan, fromRate: 1, toRate: 2),
         isNull,
       );
       expect(
-        CurrencyConversion.convert(
-          amount: 1,
-          fromRate: 0,
-          toRate: 2,
-        ),
+        CurrencyConversion.convert(amount: 1, fromRate: 0, toRate: 2),
         isNull,
       );
       expect(
-        CurrencyConversion.convert(
-          amount: 1,
-          fromRate: 1,
-          toRate: null,
-        ),
+        CurrencyConversion.convert(amount: 1, fromRate: 1, toRate: null),
         isNull,
       );
     });

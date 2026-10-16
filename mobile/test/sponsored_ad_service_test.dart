@@ -151,7 +151,7 @@ void main() {
       final ad = await service.requestAd(
         slotCode: 'feed-inline',
         content: {
-          'keywords': ['creator']
+          'keywords': ['creator'],
         },
       );
       expect(ad, isNotNull);
@@ -167,7 +167,8 @@ void main() {
         supabaseUrl: 'https://project.supabase.co',
         publishableKey: 'public-key',
         httpClient: MockClient(
-            (request) async => http.Response('{"kind":"no_fill"}', 200)),
+          (request) async => http.Response('{"kind":"no_fill"}', 200),
+        ),
       );
       expect(await service.requestAd(slotCode: 'feed-inline'), isNull);
       service.close();
@@ -191,22 +192,13 @@ void main() {
         body: '',
         sponsored: true,
       );
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isTrue,
-      );
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isTrue,
-      );
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isTrue);
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isTrue);
       expect(requests, hasLength(1));
       expect(requests.single.url.path, '/functions/v1/zenad-event');
       expect(jsonDecode(requests.single.body)['eventToken'], 'signed-token');
 
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'click'),
-        isTrue,
-      );
+      expect(await service.recordEvent(ad: ad, eventType: 'click'), isTrue);
       expect(requests, hasLength(2));
       expect(jsonDecode(requests.last.body)['eventType'], 'click');
       service.close();
@@ -261,14 +253,8 @@ void main() {
         sponsored: true,
       );
 
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isFalse,
-      );
-      expect(
-        await service.recordEvent(ad: ad, eventType: 'viewable'),
-        isTrue,
-      );
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isFalse);
+      expect(await service.recordEvent(ad: ad, eventType: 'viewable'), isTrue);
       expect(requestCount, 2);
       service.close();
     });

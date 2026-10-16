@@ -21,18 +21,18 @@ void main() {
           {
             'slot_code': 'feed',
             'impression_id': 'i1',
-            'billable_micros': 50000
+            'billable_micros': 50000,
           },
           {
             'slot_code': 'feed',
             'impression_id': 'i2',
-            'billable_micros': '150000'
+            'billable_micros': '150000',
           },
           {'slot_code': 'profile', 'impression_id': 'i3', 'billable_micros': 0},
           {
             'slot_code': 'unknown',
             'impression_id': 'i4',
-            'billable_micros': 999
+            'billable_micros': 999,
           },
         ],
         clickedImpressionIds: {'i2', 'not-an-impression'},
@@ -49,16 +49,17 @@ void main() {
 
     test('empty slots and missing slot codes do not invent placements', () {
       expect(
-          AdPerformancePolicy.aggregate(
-            slots: const [
-              {'kind': 'feed'}
-            ],
-            impressions: const [
-              {'slot_code': 'feed', 'billable_micros': 100}
-            ],
-            clickedImpressionIds: const {},
-          ),
-          isEmpty);
+        AdPerformancePolicy.aggregate(
+          slots: const [
+            {'kind': 'feed'},
+          ],
+          impressions: const [
+            {'slot_code': 'feed', 'billable_micros': 100},
+          ],
+          clickedImpressionIds: const {},
+        ),
+        isEmpty,
+      );
     });
   });
 }

@@ -32,6 +32,5 @@ class FeedLoadPolicy {
   static bool isCurrent({
     required int requestGeneration,
     required int currentGeneration,
-  }) =>
-      requestGeneration == currentGeneration;
+  }) => requestGeneration == currentGeneration;
 }

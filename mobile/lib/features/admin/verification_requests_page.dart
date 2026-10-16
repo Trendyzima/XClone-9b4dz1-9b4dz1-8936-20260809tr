@@ -84,8 +84,7 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
     } catch (_) {
       if (mounted && run == generation) {
         setState(
-          () => error =
-              'Verification requests unavailable. Confirm the owner-review migration is applied and retry.',
+          () => error = 'Verification requests unavailable. Confirm the owner-review migration is applied and retry.',
         );
       }
     } finally {
@@ -184,159 +183,151 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
       body: loading && rows.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : db.auth.currentUser == null
-              ? _gate(
-                  'Sign in required',
-                  'Sign in to continue.',
-                  FilledButton(
-                    onPressed: () => context.go('/auth'),
-                    child: const Text('Sign in'),
+          ? _gate(
+              'Sign in required',
+              'Sign in to continue.',
+              FilledButton(
+                onPressed: () => context.go('/auth'),
+                child: const Text('Sign in'),
+              ),
+            )
+          : !owner && error == null
+          ? _gate(
+              'Owner access required',
+              'Only the platform owner can review these requests.',
+              FilledButton.tonal(
+                onPressed: () => context.go('/admin/governance'),
+                child: const Text('Open governance'),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    'Verification requests',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                )
-              : !owner && error == null
-                  ? _gate(
-                      'Owner access required',
-                      'Only the platform owner can review these requests.',
-                      FilledButton.tonal(
-                        onPressed: () => context.go('/admin/governance'),
-                        child: const Text('Open governance'),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Reviews update the recorded request status and audit metadata. Approval does not grant a badge or subscription unless a separate entitlement flow confirms it.',
+                  ),
+                  const SizedBox(height: 12),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'pending', label: Text('Pending')),
+                      ButtonSegment(value: 'approved', label: Text('Approved')),
+                      ButtonSegment(value: 'rejected', label: Text('Rejected')),
+                      ButtonSegment(value: 'all', label: Text('All')),
+                    ],
+                    selected: {filter},
+                    onSelectionChanged: (v) => setState(() => filter = v.first),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    MaterialBanner(
+                      content: Text(error!),
+                      actions: [
+                        TextButton(
+                          onPressed: _load,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  if (filtered.isEmpty && error == null)
+                    const Card(
+                      child: ListTile(
+                        title: Text('No requests in this filter.'),
                       ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          Text(
-                            'Verification requests',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Reviews update the recorded request status and audit metadata. Approval does not grant a badge or subscription unless a separate entitlement flow confirms it.',
-                          ),
-                          const SizedBox(height: 12),
-                          SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(
-                                  value: 'pending', label: Text('Pending')),
-                              ButtonSegment(
-                                  value: 'approved', label: Text('Approved')),
-                              ButtonSegment(
-                                  value: 'rejected', label: Text('Rejected')),
-                              ButtonSegment(value: 'all', label: Text('All')),
-                            ],
-                            selected: {filter},
-                            onSelectionChanged: (v) =>
-                                setState(() => filter = v.first),
-                          ),
-                          if (error != null) ...[
-                            const SizedBox(height: 12),
-                            MaterialBanner(
-                              content: Text(error!),
-                              actions: [
-                                TextButton(
-                                  onPressed: _load,
-                                  child: const Text('Retry'),
+                    ),
+                  ...filtered.map((row) {
+                    final evidence = row['evidence'] is Map
+                        ? Map<String, dynamic>.from(row['evidence'] as Map)
+                        : <String, dynamic>{};
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${row['tier'] ?? 'standard'} tier',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                ),
+                                Chip(
+                                  label: Text('${row['status'] ?? 'pending'}'),
                                 ),
                               ],
                             ),
-                          ],
-                          const SizedBox(height: 12),
-                          if (filtered.isEmpty && error == null)
-                            const Card(
-                              child: ListTile(
-                                title: Text('No requests in this filter.'),
-                              ),
+                            SelectableText('Request: ${row['id']}'),
+                            SelectableText('User ID: ${row['user_id']}'),
+                            Text(
+                              'Submitted: ${row['created_at'] ?? 'unknown'}',
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                          ...filtered.map((row) {
-                            final evidence = row['evidence'] is Map
-                                ? Map<String, dynamic>.from(
-                                    row['evidence'] as Map)
-                                : <String, dynamic>{};
-                            return Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '${row['tier'] ?? 'standard'} tier',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium,
-                                          ),
-                                        ),
-                                        Chip(
-                                          label: Text(
-                                              '${row['status'] ?? 'pending'}'),
-                                        ),
-                                      ],
-                                    ),
-                                    SelectableText('Request: ${row['id']}'),
-                                    SelectableText(
-                                        'User ID: ${row['user_id']}'),
-                                    Text(
-                                      'Submitted: ${row['created_at'] ?? 'unknown'}',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                    if (evidence.isNotEmpty)
-                                      const ListTile(
-                                        dense: true,
-                                        leading: Icon(Icons.lock_outline),
-                                        title: Text(
-                                            'Evidence metadata attached; contents hidden in this review list.'),
-                                      ),
-                                    if ('${row['status']}' == 'pending')
-                                      Wrap(
-                                        spacing: 8,
-                                        children: [
-                                          FilledButton.icon(
-                                            onPressed: busyId == null
-                                                ? () => _decide(row, 'approved')
-                                                : null,
-                                            icon: const Icon(Icons.check),
-                                            label:
-                                                const Text('Approve request'),
-                                          ),
-                                          OutlinedButton.icon(
-                                            onPressed: busyId == null
-                                                ? () => _decide(row, 'rejected')
-                                                : null,
-                                            icon: const Icon(Icons.close),
-                                            label: const Text('Reject'),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
+                            if (evidence.isNotEmpty)
+                              const ListTile(
+                                dense: true,
+                                leading: Icon(Icons.lock_outline),
+                                title: Text(
+                                  'Evidence metadata attached; contents hidden in this review list.',
                                 ),
                               ),
-                            );
-                          }),
-                        ],
+                            if ('${row['status']}' == 'pending')
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  FilledButton.icon(
+                                    onPressed: busyId == null
+                                        ? () => _decide(row, 'approved')
+                                        : null,
+                                    icon: const Icon(Icons.check),
+                                    label: const Text('Approve request'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: busyId == null
+                                        ? () => _decide(row, 'rejected')
+                                        : null,
+                                    icon: const Icon(Icons.close),
+                                    label: const Text('Reject'),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
+                    );
+                  }),
+                ],
+              ),
+            ),
     );
   }
 
   Widget _gate(String title, String message, Widget action) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.admin_panel_settings_outlined, size: 42),
-              const SizedBox(height: 12),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(message, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              action,
-            ],
-          ),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.admin_panel_settings_outlined, size: 42),
+          const SizedBox(height: 12),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          action,
+        ],
+      ),
+    ),
+  );
 }

@@ -96,8 +96,9 @@ class _WishlistPageState extends State<WishlistPage> {
           .eq('product_id', productId);
       if (mounted) {
         setState(
-          () => _products =
-              _products.where((p) => '${p['id']}' != productId).toList(),
+          () => _products = _products
+              .where((p) => '${p['id']}' != productId)
+              .toList(),
         );
       }
     } catch (_) {
@@ -168,7 +169,8 @@ class _WishlistPageState extends State<WishlistPage> {
           for (final product in _products)
             Card(
               child: ListTile(
-                leading: product['image_url'] is String &&
+                leading:
+                    product['image_url'] is String &&
                         '${product['image_url']}'.startsWith('http')
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),

@@ -40,38 +40,42 @@ void main() {
       expect(result.pending.single['uri'], 'same');
     });
 
-    test('applies pending items newest-first without duplicating visible rows',
-        () {
-      final result = applyPendingFediversePosts(
-        [post('visible', '2026-10-10T10:00:00Z')],
-        [
-          post('older-new', '2026-10-11T10:00:00Z'),
-          post('newest', '2026-10-12T10:00:00Z'),
-          post('visible', '2026-10-09T10:00:00Z'),
-        ],
-      );
-      expect(result.map((p) => p['uri']), ['newest', 'older-new', 'visible']);
-    });
+    test(
+      'applies pending items newest-first without duplicating visible rows',
+      () {
+        final result = applyPendingFediversePosts(
+          [post('visible', '2026-10-10T10:00:00Z')],
+          [
+            post('older-new', '2026-10-11T10:00:00Z'),
+            post('newest', '2026-10-12T10:00:00Z'),
+            post('visible', '2026-10-09T10:00:00Z'),
+          ],
+        );
+        expect(result.map((p) => p['uri']), ['newest', 'older-new', 'visible']);
+      },
+    );
   });
 
   group('normalizeFederatedMediaUrl', () {
-    test('trims and upgrades HTTPS-capable HTTP and protocol-relative links',
-        () {
-      expect(
-        normalizeFederatedMediaUrl(
-          '  https://cdn.example/media.jpg#preview  ',
-        ),
-        'https://cdn.example/media.jpg',
-      );
-      expect(
-        normalizeFederatedMediaUrl('http://cdn.example/media.jpg'),
-        'https://cdn.example/media.jpg',
-      );
-      expect(
-        normalizeFederatedMediaUrl('//cdn.example/media.jpg'),
-        'https://cdn.example/media.jpg',
-      );
-    });
+    test(
+      'trims and upgrades HTTPS-capable HTTP and protocol-relative links',
+      () {
+        expect(
+          normalizeFederatedMediaUrl(
+            '  https://cdn.example/media.jpg#preview  ',
+          ),
+          'https://cdn.example/media.jpg',
+        );
+        expect(
+          normalizeFederatedMediaUrl('http://cdn.example/media.jpg'),
+          'https://cdn.example/media.jpg',
+        );
+        expect(
+          normalizeFederatedMediaUrl('//cdn.example/media.jpg'),
+          'https://cdn.example/media.jpg',
+        );
+      },
+    );
 
     test('falls back through ActivityPub URL candidates', () {
       expect(

@@ -28,11 +28,12 @@ class _NewsPageState extends State<NewsPage> {
       _error = null;
     });
     try {
-      final result = await _db.rpc('list_newsify_trending', params: {
-        'p_limit': 50,
-        'p_geo': _geo,
-        'p_language': 'english'
-      }).timeout(const Duration(seconds: 15));
+      final result = await _db
+          .rpc(
+            'list_newsify_trending',
+            params: {'p_limit': 50, 'p_geo': _geo, 'p_language': 'english'},
+          )
+          .timeout(const Duration(seconds: 15));
       final payload = Map<String, dynamic>.from(result as Map);
       final items = (payload['items'] as List? ?? const [])
           .map((r) => Map<String, dynamic>.from(r as Map))
@@ -40,8 +41,9 @@ class _NewsPageState extends State<NewsPage> {
       if (mounted) setState(() => _items = items);
     } catch (_) {
       if (mounted) {
-        setState(() => _error =
-            'News could not load. The news feed service may be unavailable; retry shortly.');
+        setState(
+          () => _error = 'News could not load. The news feed service may be unavailable; retry shortly.',
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -63,62 +65,76 @@ class _NewsPageState extends State<NewsPage> {
         !{'http', 'https'}.contains(uri.scheme) ||
         uri.host.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('This article has no valid external link.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This article has no valid external link.'),
+          ),
+        );
       }
       return;
     }
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open the article link.')));
+        const SnackBar(content: Text('Could not open the article link.')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(padding: const EdgeInsets.all(14), children: [
-        Text('News',
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w900)),
+    onRefresh: _load,
+    child: ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        Text(
+          'News',
+          style: Theme.of(context).textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w900),
+        ),
         const SizedBox(height: 4),
         const Text('Trending stories from Testagram’s cached news feed.'),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-            value: _geo,
-            decoration: const InputDecoration(labelText: 'Region'),
-            items: const [
-              DropdownMenuItem(value: 'KE', child: Text('Kenya')),
-              DropdownMenuItem(value: 'US', child: Text('United States')),
-              DropdownMenuItem(value: 'GB', child: Text('United Kingdom')),
-              DropdownMenuItem(value: 'IN', child: Text('India'))
-            ],
-            onChanged: (v) {
-              if (v != null) {
-                setState(() => _geo = v);
-                _load();
-              }
-            }),
+          value: _geo,
+          decoration: const InputDecoration(labelText: 'Region'),
+          items: const [
+            DropdownMenuItem(value: 'KE', child: Text('Kenya')),
+            DropdownMenuItem(value: 'US', child: Text('United States')),
+            DropdownMenuItem(value: 'GB', child: Text('United Kingdom')),
+            DropdownMenuItem(value: 'IN', child: Text('India')),
+          ],
+          onChanged: (v) {
+            if (v != null) {
+              setState(() => _geo = v);
+              _load();
+            }
+          },
+        ),
         if (_loading)
           const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: CircularProgressIndicator())),
+            padding: EdgeInsets.all(20),
+            child: Center(child: CircularProgressIndicator()),
+          ),
         if (_error != null)
           Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(children: [
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
                 Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry'))
-              ])),
+                TextButton(onPressed: _load, child: const Text('Retry')),
+              ],
+            ),
+          ),
         if (!_loading && _items.isEmpty && _error == null)
           const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(
-                  child: Text(
-                      'No fresh stories for this region right now. Try another region.'))),
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                'No fresh stories for this region right now. Try another region.',
+              ),
+            ),
+          ),
         ..._items.map((item) {
           final title =
               '${item['title'] ?? item['trend_title'] ?? 'News story'}';
@@ -127,63 +143,75 @@ class _NewsPageState extends State<NewsPage> {
           final image =
               '${item['metadata'] is Map ? (item['metadata'] as Map)['image_url'] ?? '' : ''}';
           return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                  onTap: () => _openStory(item, url),
-                  child: Column(
+            margin: const EdgeInsets.only(bottom: 10),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _openStory(item, url),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (image.startsWith('https://'))
+                    Image.network(
+                      image,
+                      height: 150,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (image.startsWith('https://'))
-                          Image.network(image,
-                              height: 150,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const SizedBox.shrink()),
-                        Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(source.toUpperCase(),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.w800)),
-                                  const SizedBox(height: 5),
-                                  Text(title,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.w900)),
-                                  if ('${item['excerpt'] ?? ''}'.isNotEmpty)
-                                    Padding(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        child: Text('${item['excerpt']}',
-                                            maxLines: 4,
-                                            overflow: TextOverflow.ellipsis)),
-                                  const SizedBox(height: 8),
-                                  Row(children: [
-                                    Expanded(
-                                        child: Text(
-                                            '${item['published_at'] ?? ''}',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall)),
-                                    IconButton(
-                                        tooltip: 'Share story',
-                                        onPressed: () =>
-                                            Share.share('$title\n$url'),
-                                        icon: const Icon(Icons.share_rounded)),
-                                    TextButton(
-                                        onPressed: () => _openStory(item, url),
-                                        child: const Text('Read story'))
-                                  ])
-                                ]))
-                      ])));
+                        Text(
+                          source.toUpperCase(),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        if ('${item['excerpt'] ?? ''}'.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              '${item['excerpt']}',
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${item['published_at'] ?? ''}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Share story',
+                              onPressed: () => Share.share('$title\n$url'),
+                              icon: const Icon(Icons.share_rounded),
+                            ),
+                            TextButton(
+                              onPressed: () => _openStory(item, url),
+                              child: const Text('Read story'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
         }),
-      ]));
+      ],
+    ),
+  );
 }

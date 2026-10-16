@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../migration_batch_policy.dart';
 
 class PremiumPage extends StatefulWidget {
@@ -52,8 +53,7 @@ class _PremiumPageState extends State<PremiumPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Premium status could not be verified. Retry before making a payment.',
+          () => _error = 'Premium status could not be verified. Retry before making a payment.',
         );
       }
     } finally {
@@ -71,8 +71,9 @@ class _PremiumPageState extends State<PremiumPage> {
       _error = null;
     });
     try {
-      final result = await _db.functions.invoke('premium-paypal-create-order',
-          body: {'plan': _plan}).timeout(const Duration(seconds: 25));
+      final result = await _db.functions
+          .invoke('premium-paypal-create-order', body: {'plan': _plan})
+          .timeout(const Duration(seconds: 25));
       final data = result.data;
       if (result.status < 200 ||
           result.status >= 300 ||
@@ -114,8 +115,9 @@ class _PremiumPageState extends State<PremiumPage> {
       _error = null;
     });
     try {
-      final result = await _db.functions.invoke('premium-paypal-capture-order',
-          body: {'orderId': orderId}).timeout(const Duration(seconds: 30));
+      final result = await _db.functions
+          .invoke('premium-paypal-capture-order', body: {'orderId': orderId})
+          .timeout(const Duration(seconds: 30));
       final data = result.data;
       if (result.status < 200 ||
           result.status >= 300 ||
@@ -130,8 +132,7 @@ class _PremiumPageState extends State<PremiumPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Payment could not be verified. Your Premium status was not changed locally. Refresh after checkout or contact support.',
+          () => _error = 'Payment could not be verified. Your Premium status was not changed locally. Refresh after checkout or contact support.',
         );
       }
     } finally {
@@ -241,10 +242,13 @@ class _PremiumPageState extends State<PremiumPage> {
                     SegmentedButton<String>(
                       segments: const [
                         ButtonSegment(
-                            value: 'monthly',
-                            label: Text('Monthly · USD 4.99')),
+                          value: 'monthly',
+                          label: Text('Monthly · USD 4.99'),
+                        ),
                         ButtonSegment(
-                            value: 'annual', label: Text('Annual · USD 39.99')),
+                          value: 'annual',
+                          label: Text('Annual · USD 39.99'),
+                        ),
                       ],
                       selected: {_plan},
                       onSelectionChanged: _busy

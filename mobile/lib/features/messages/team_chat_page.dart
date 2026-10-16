@@ -140,8 +140,7 @@ class _TeamChatPageState extends State<TeamChatPage> {
     } catch (_) {
       if (mounted && generation == _generation) {
         setState(() {
-          _error =
-              'Team chat could not load. Check staff access and connection, then retry.';
+          _error = 'Team chat could not load. Check staff access and connection, then retry.';
         });
       }
     } finally {
@@ -162,13 +161,19 @@ class _TeamChatPageState extends State<TeamChatPage> {
       final replyLabel = reply == null
           ? text
           : '[Reply to @${reply['username'] ?? 'team member'}] $text';
-      await _db.from('team_chat_messages').insert({
-        'user_id': userId,
-        'message': replyLabel,
-        'department': _job?['department'] ??
-            (_isOwner ? 'System Owner' : (_isRegulator ? 'Regulator' : null)),
-        'reply_to_id': replyId,
-      }).timeout(const Duration(seconds: 15));
+      await _db
+          .from('team_chat_messages')
+          .insert({
+            'user_id': userId,
+            'message': replyLabel,
+            'department':
+                _job?['department'] ??
+                (_isOwner
+                    ? 'System Owner'
+                    : (_isRegulator ? 'Regulator' : null)),
+            'reply_to_id': replyId,
+          })
+          .timeout(const Duration(seconds: 15));
       if (!mounted) return;
       _composer.clear();
       setState(() => _replyTo = null);
@@ -240,231 +245,225 @@ class _TeamChatPageState extends State<TeamChatPage> {
       body: _loading && _messages.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : userId == null
-              ? _notice(
-                  context,
-                  Icons.lock_outline_rounded,
-                  'Sign in required',
-                  'Sign in with your Testagram account to continue.',
-                  action: FilledButton(
-                    onPressed: () => context.go('/auth'),
-                    child: const Text('Sign in'),
-                  ),
-                )
-              : (!_isEmployee && _error != null)
-                  ? _notice(
-                      context,
-                      Icons.cloud_off_outlined,
-                      'Team chat unavailable',
-                      _error!,
-                      action: FilledButton.tonal(
-                        onPressed: _load,
-                        child: const Text('Retry'),
+          ? _notice(
+              context,
+              Icons.lock_outline_rounded,
+              'Sign in required',
+              'Sign in with your Testagram account to continue.',
+              action: FilledButton(
+                onPressed: () => context.go('/auth'),
+                child: const Text('Sign in'),
+              ),
+            )
+          : (!_isEmployee && _error != null)
+          ? _notice(
+              context,
+              Icons.cloud_off_outlined,
+              'Team chat unavailable',
+              _error!,
+              action: FilledButton.tonal(
+                onPressed: _load,
+                child: const Text('Retry'),
+              ),
+            )
+          : !_isEmployee
+          ? _notice(
+              context,
+              Icons.admin_panel_settings_outlined,
+              'Employees only',
+              'This confidential channel is limited to active staff, the system owner, and authorized regulators.',
+              action: FilledButton.tonal(
+                onPressed: () => context.go('/jobs'),
+                child: const Text('View jobs'),
+              ),
+            )
+          : Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.shield_outlined),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Confidential staff channel${_job?['department'] == null ? '' : ' · ${_job!['department']}'}',
+                          style: theme.textTheme.labelLarge,
+                        ),
                       ),
-                    )
-                  : !_isEmployee
-                      ? _notice(
-                          context,
-                          Icons.admin_panel_settings_outlined,
-                          'Employees only',
-                          'This confidential channel is limited to active staff, the system owner, and authorized regulators.',
-                          action: FilledButton.tonal(
-                            onPressed: () => context.go('/jobs'),
-                            child: const Text('View jobs'),
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.shield_outlined),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Confidential staff channel${_job?['department'] == null ? '' : ' · ${_job!['department']}'}',
-                                      style: theme.textTheme.labelLarge,
-                                    ),
-                                  ),
-                                  Text('${_messages.length}/100'),
-                                ],
+                      Text('${_messages.length}/100'),
+                    ],
+                  ),
+                ),
+                if (_error != null)
+                  MaterialBanner(
+                    content: Text(_error!),
+                    actions: [
+                      TextButton(onPressed: _load, child: const Text('Retry')),
+                    ],
+                  ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _load,
+                    child: _messages.isEmpty
+                        ? ListView(
+                            controller: _scroll,
+                            children: const [
+                              SizedBox(height: 100),
+                              Center(
+                                child: Text(
+                                  'No team messages yet. Start the conversation.',
+                                ),
                               ),
-                            ),
-                            if (_error != null)
-                              MaterialBanner(
-                                content: Text(_error!),
-                                actions: [
-                                  TextButton(
-                                      onPressed: _load,
-                                      child: const Text('Retry')),
-                                ],
-                              ),
-                            Expanded(
-                              child: RefreshIndicator(
-                                onRefresh: _load,
-                                child: _messages.isEmpty
-                                    ? ListView(
-                                        controller: _scroll,
-                                        children: const [
-                                          SizedBox(height: 100),
-                                          Center(
-                                              child: Text(
-                                                  'No team messages yet. Start the conversation.')),
-                                        ],
-                                      )
-                                    : ListView.builder(
-                                        controller: _scroll,
-                                        padding: const EdgeInsets.all(12),
-                                        itemCount: _messages.length,
-                                        itemBuilder: (context, index) {
-                                          final message = _messages[index];
-                                          final profile =
-                                              message['user_profiles'] is Map
-                                                  ? Map<String, dynamic>.from(
-                                                      message['user_profiles']
-                                                          as Map)
-                                                  : <String, dynamic>{};
-                                          final authorId =
-                                              '${message['user_id'] ?? ''}';
-                                          final own = authorId == userId;
-                                          final name =
-                                              '${profile['username'] ?? (own ? 'You' : 'Team member')}';
-                                          final created = DateTime.tryParse(
-                                              '${message['created_at'] ?? ''}');
-                                          return Card(
-                                            margin: const EdgeInsets.only(
-                                                bottom: 8),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(12),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    children: [
-                                                      CircleAvatar(
-                                                        radius: 15,
-                                                        child: Text(name.isEmpty
-                                                            ? '?'
-                                                            : name[0]
-                                                                .toUpperCase()),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Text(name,
-                                                                style: theme
-                                                                    .textTheme
-                                                                    .labelLarge),
-                                                            Text(
-                                                              '${message['department'] ?? 'Team'}${created == null ? '' : ' · ${created.toLocal().toString().substring(0, 16)}'}',
-                                                              style: theme
-                                                                  .textTheme
-                                                                  .bodySmall,
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      if (_canModerate)
-                                                        IconButton(
-                                                          tooltip:
-                                                              'Delete message',
-                                                          onPressed: () =>
-                                                              _delete(message),
-                                                          icon: const Icon(Icons
-                                                              .delete_outline_rounded),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  SelectableText(
-                                                      '${message['message'] ?? ''}'),
-                                                  Align(
-                                                    alignment:
-                                                        Alignment.centerRight,
-                                                    child: TextButton.icon(
-                                                      onPressed: () => setState(
-                                                          () => _replyTo = {
-                                                                'id': message[
-                                                                    'id'],
-                                                                'username':
-                                                                    name,
-                                                              }),
-                                                      icon: const Icon(
-                                                          Icons.reply_rounded,
-                                                          size: 18),
-                                                      label:
-                                                          const Text('Reply'),
-                                                    ),
-                                                  ),
-                                                ],
+                            ],
+                          )
+                        : ListView.builder(
+                            controller: _scroll,
+                            padding: const EdgeInsets.all(12),
+                            itemCount: _messages.length,
+                            itemBuilder: (context, index) {
+                              final message = _messages[index];
+                              final profile = message['user_profiles'] is Map
+                                  ? Map<String, dynamic>.from(
+                                      message['user_profiles'] as Map,
+                                    )
+                                  : <String, dynamic>{};
+                              final authorId = '${message['user_id'] ?? ''}';
+                              final own = authorId == userId;
+                              final name =
+                                  '${profile['username'] ?? (own ? 'You' : 'Team member')}';
+                              final created = DateTime.tryParse(
+                                '${message['created_at'] ?? ''}',
+                              );
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 15,
+                                            child: Text(
+                                              name.isEmpty
+                                                  ? '?'
+                                                  : name[0].toUpperCase(),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  name,
+                                                  style: theme
+                                                      .textTheme
+                                                      .labelLarge,
+                                                ),
+                                                Text(
+                                                  '${message['department'] ?? 'Team'}${created == null ? '' : ' · ${created.toLocal().toString().substring(0, 16)}'}',
+                                                  style:
+                                                      theme.textTheme.bodySmall,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (_canModerate)
+                                            IconButton(
+                                              tooltip: 'Delete message',
+                                              onPressed: () => _delete(message),
+                                              icon: const Icon(
+                                                Icons.delete_outline_rounded,
                                               ),
                                             ),
-                                          );
-                                        },
+                                        ],
                                       ),
-                              ),
-                            ),
-                            if (_replyTo != null)
-                              Material(
-                                color: theme.colorScheme.secondaryContainer,
-                                child: ListTile(
-                                  dense: true,
-                                  title: Text(
-                                      'Replying to @${_replyTo!['username']}'),
-                                  trailing: IconButton(
-                                    onPressed: () =>
-                                        setState(() => _replyTo = null),
-                                    icon: const Icon(Icons.close_rounded),
+                                      const SizedBox(height: 8),
+                                      SelectableText(
+                                        '${message['message'] ?? ''}',
+                                      ),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                          onPressed: () => setState(
+                                            () => _replyTo = {
+                                              'id': message['id'],
+                                              'username': name,
+                                            },
+                                          ),
+                                          icon: const Icon(
+                                            Icons.reply_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Reply'),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                            SafeArea(
-                              top: false,
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                        controller: _composer,
-                                        minLines: 1,
-                                        maxLines: 5,
-                                        textCapitalization:
-                                            TextCapitalization.sentences,
-                                        decoration: const InputDecoration(
-                                          hintText: 'Message the team…',
-                                          border: OutlineInputBorder(),
-                                        ),
-                                        onSubmitted: (_) => _send(),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton.filled(
-                                      tooltip: 'Send message',
-                                      onPressed: _sending ? null : _send,
-                                      icon: _sending
-                                          ? const SizedBox.square(
-                                              dimension: 18,
-                                              child: CircularProgressIndicator(
-                                                  strokeWidth: 2),
-                                            )
-                                          : const Icon(Icons.send_rounded),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+                if (_replyTo != null)
+                  Material(
+                    color: theme.colorScheme.secondaryContainer,
+                    child: ListTile(
+                      dense: true,
+                      title: Text('Replying to @${_replyTo!['username']}'),
+                      trailing: IconButton(
+                        onPressed: () => setState(() => _replyTo = null),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ),
+                  ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _composer,
+                            minLines: 1,
+                            maxLines: 5,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              hintText: 'Message the team…',
+                              border: OutlineInputBorder(),
                             ),
-                          ],
+                            onSubmitted: (_) => _send(),
+                          ),
                         ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          tooltip: 'Send message',
+                          onPressed: _sending ? null : _send,
+                          icon: _sending
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.send_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -474,24 +473,20 @@ class _TeamChatPageState extends State<TeamChatPage> {
     String title,
     String body, {
     Widget? action,
-  }) =>
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 52),
-              const SizedBox(height: 14),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(body, textAlign: TextAlign.center),
-              if (action != null) ...[
-                const SizedBox(height: 16),
-                action,
-              ],
-            ],
-          ),
-        ),
-      );
+  }) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 52),
+          const SizedBox(height: 14),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(body, textAlign: TextAlign.center),
+          if (action != null) ...[const SizedBox(height: 16), action],
+        ],
+      ),
+    ),
+  );
 }

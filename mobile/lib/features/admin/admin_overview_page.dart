@@ -112,16 +112,21 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
       final counts = <String, int>{
         'Users': AdminOverviewPolicy.safeCount((results[0] as dynamic).count),
         'Posts': AdminOverviewPolicy.safeCount((results[1] as dynamic).count),
-        'Communities':
-            AdminOverviewPolicy.safeCount((results[2] as dynamic).count),
-        'Pending verifications':
-            AdminOverviewPolicy.safeCount((results[3] as dynamic).count),
-        'Pending ads':
-            AdminOverviewPolicy.safeCount((results[4] as dynamic).count),
-        'Open fraud alerts':
-            AdminOverviewPolicy.safeCount((results[5] as dynamic).count),
-        'Live streams':
-            AdminOverviewPolicy.safeCount((results[6] as dynamic).count),
+        'Communities': AdminOverviewPolicy.safeCount(
+          (results[2] as dynamic).count,
+        ),
+        'Pending verifications': AdminOverviewPolicy.safeCount(
+          (results[3] as dynamic).count,
+        ),
+        'Pending ads': AdminOverviewPolicy.safeCount(
+          (results[4] as dynamic).count,
+        ),
+        'Open fraud alerts': AdminOverviewPolicy.safeCount(
+          (results[5] as dynamic).count,
+        ),
+        'Live streams': AdminOverviewPolicy.safeCount(
+          (results[6] as dynamic).count,
+        ),
       };
       final ads = (results[7] as List)
           .whereType<Map>()
@@ -170,146 +175,164 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
       body: _loading && _counts.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : user == null
-              ? _empty(
-                  context,
-                  Icons.lock_outline_rounded,
-                  'Sign in required',
-                  'Sign in to continue to the administration console.',
-                  FilledButton(
-                    onPressed: () => context.go('/auth'),
-                    child: const Text('Sign in'),
+          ? _empty(
+              context,
+              Icons.lock_outline_rounded,
+              'Sign in required',
+              'Sign in to continue to the administration console.',
+              FilledButton(
+                onPressed: () => context.go('/auth'),
+                child: const Text('Sign in'),
+              ),
+            )
+          : !_authorized && _error == null
+          ? _empty(
+              context,
+              Icons.admin_panel_settings_outlined,
+              'Owner access required',
+              'The full platform command center is restricted to the system owner. Delegated administrators can use the governance console.',
+              FilledButton.tonal(
+                onPressed: () => context.go('/admin/governance'),
+                child: const Text('Open Governance'),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    'Platform health at a glance',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                )
-              : !_authorized && _error == null
-                  ? _empty(
-                      context,
-                      Icons.admin_panel_settings_outlined,
-                      'Owner access required',
-                      'The full platform command center is restricted to the system owner. Delegated administrators can use the governance console.',
-                      FilledButton.tonal(
-                        onPressed: () => context.go('/admin/governance'),
-                        child: const Text('Open Governance'),
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          Text(
-                            'Platform health at a glance',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Live counts from Testagram’s existing database. Revenue estimates are intentionally excluded.',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          if (_error != null) ...[
-                            const SizedBox(height: 12),
-                            MaterialBanner(
-                              content: Text(_error!),
-                              actions: [
-                                TextButton(
-                                    onPressed: _load,
-                                    child: const Text('Retry')),
-                              ],
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          GridView.count(
-                            crossAxisCount:
-                                MediaQuery.sizeOf(context).width >= 700 ? 3 : 2,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 1.55,
-                            children: [
-                              for (final item in _counts.entries)
-                                _metric(context, item.key, item.value),
-                            ],
-                          ),
-                          const SizedBox(height: 22),
-                          _sectionTitle(
-                              context, 'Pending ad review', _pendingAds.length),
-                          if (_pendingAds.isEmpty)
-                            const Card(
-                                child: ListTile(
-                                    title: Text(
-                                        'No pending ads in the preview queue.'))),
-                          ..._pendingAds.map((ad) => Card(
-                                child: ListTile(
-                                  leading: const Icon(Icons.campaign_outlined),
-                                  title: Text('${ad['title'] ?? 'Untitled ad'}',
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis),
-                                  subtitle: Text(
-                                      'Budget: ${ad['budget'] ?? '—'} · ${ad['created_at'] ?? ''}'),
-                                  trailing:
-                                      const Icon(Icons.chevron_right_rounded),
-                                  onTap: () => context.go('/admin/ads-review'),
-                                ),
-                              )),
-                          const SizedBox(height: 18),
-                          _sectionTitle(context, 'Open fraud alerts',
-                              _fraudAlerts.length),
-                          if (_fraudAlerts.isEmpty)
-                            const Card(
-                                child: ListTile(
-                                    title: Text(
-                                        'No unresolved fraud alerts in the preview queue.'))),
-                          ..._fraudAlerts.map((alert) => Card(
-                                child: ListTile(
-                                  leading: Icon(
-                                    Icons.warning_amber_rounded,
-                                    color: theme.colorScheme.error,
-                                  ),
-                                  title: Text(
-                                      '${alert['alert_type'] ?? 'Fraud alert'}'),
-                                  subtitle: Text(
-                                      '${alert['severity'] ?? 'Unclassified'} · ${alert['created_at'] ?? ''}'),
-                                  trailing:
-                                      const Icon(Icons.chevron_right_rounded),
-                                  onTap: () => context.go('/admin/fraud'),
-                                ),
-                              )),
-                          const SizedBox(height: 16),
-                          OutlinedButton.icon(
-                            onPressed: () => context.go('/admin/governance'),
-                            icon: const Icon(Icons.shield_outlined),
-                            label:
-                                const Text('Open governance and role controls'),
-                          ),
-                        ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'Live counts from Testagram’s existing database. Revenue estimates are intentionally excluded.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    MaterialBanner(
+                      content: Text(_error!),
+                      actions: [
+                        TextButton(
+                          onPressed: _load,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  GridView.count(
+                    crossAxisCount: MediaQuery.sizeOf(context).width >= 700
+                        ? 3
+                        : 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1.55,
+                    children: [
+                      for (final item in _counts.entries)
+                        _metric(context, item.key, item.value),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  _sectionTitle(
+                    context,
+                    'Pending ad review',
+                    _pendingAds.length,
+                  ),
+                  if (_pendingAds.isEmpty)
+                    const Card(
+                      child: ListTile(
+                        title: Text('No pending ads in the preview queue.'),
                       ),
                     ),
+                  ..._pendingAds.map(
+                    (ad) => Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.campaign_outlined),
+                        title: Text(
+                          '${ad['title'] ?? 'Untitled ad'}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          'Budget: ${ad['budget'] ?? '—'} · ${ad['created_at'] ?? ''}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => context.go('/admin/ads-review'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _sectionTitle(
+                    context,
+                    'Open fraud alerts',
+                    _fraudAlerts.length,
+                  ),
+                  if (_fraudAlerts.isEmpty)
+                    const Card(
+                      child: ListTile(
+                        title: Text(
+                          'No unresolved fraud alerts in the preview queue.',
+                        ),
+                      ),
+                    ),
+                  ..._fraudAlerts.map(
+                    (alert) => Card(
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.warning_amber_rounded,
+                          color: theme.colorScheme.error,
+                        ),
+                        title: Text('${alert['alert_type'] ?? 'Fraud alert'}'),
+                        subtitle: Text(
+                          '${alert['severity'] ?? 'Unclassified'} · ${alert['created_at'] ?? ''}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => context.go('/admin/fraud'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: () => context.go('/admin/governance'),
+                    icon: const Icon(Icons.shield_outlined),
+                    label: const Text('Open governance and role controls'),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
   Widget _metric(BuildContext context, String label, int value) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('$value',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 4),
-              Text(label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '$value',
+            style: Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
-        ),
-      );
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _sectionTitle(BuildContext context, String title, int count) =>
       Padding(
@@ -317,33 +340,38 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
         child: Row(
           children: [
             Expanded(
-                child: Text(title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800))),
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
             Chip(label: Text('$count')),
           ],
         ),
       );
 
-  Widget _empty(BuildContext context, IconData icon, String title, String body,
-          Widget action) =>
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 52),
-              const SizedBox(height: 14),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(body, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              action,
-            ],
-          ),
-        ),
-      );
+  Widget _empty(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String body,
+    Widget action,
+  ) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 52),
+          const SizedBox(height: 14),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(body, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          action,
+        ],
+      ),
+    ),
+  );
 }

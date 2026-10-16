@@ -115,13 +115,12 @@ class SponsoredAdService {
   }
 
   Map<String, String> get _headers => {
-        'apikey': publishableKey,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        if ((accessTokenProvider?.call() ?? accessToken)?.isNotEmpty == true)
-          'Authorization':
-              'Bearer ${accessTokenProvider?.call() ?? accessToken}',
-      };
+    'apikey': publishableKey,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    if ((accessTokenProvider?.call() ?? accessToken)?.isNotEmpty == true)
+      'Authorization': 'Bearer ${accessTokenProvider?.call() ?? accessToken}',
+  };
 
   Future<SponsoredAd?> requestAd({
     required String slotCode,
@@ -169,7 +168,7 @@ class SponsoredAdService {
       'video_first_quartile',
       'video_midpoint',
       'video_third_quartile',
-      'video_complete'
+      'video_complete',
     }.contains(eventType)) {
       return Future.value(false);
     }
@@ -179,16 +178,14 @@ class SponsoredAdService {
     final pending = _eventsInFlight[key];
     if (pending != null) return pending;
 
-    final request = _sendEvent(
-      ad: ad,
-      eventType: eventType,
-      metadata: metadata,
-    ).then((success) {
-      if (success) _recordedEvents.add(key);
-      return success;
-    }).whenComplete(() {
-      _eventsInFlight.remove(key);
-    });
+    final request = _sendEvent(ad: ad, eventType: eventType, metadata: metadata)
+        .then((success) {
+          if (success) _recordedEvents.add(key);
+          return success;
+        })
+        .whenComplete(() {
+          _eventsInFlight.remove(key);
+        });
     _eventsInFlight[key] = request;
     return request;
   }
@@ -392,7 +389,9 @@ class _SponsoredAdCardState extends State<SponsoredAdCard>
                       child: const Text(
                         'Sponsored',
                         style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.w800),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 5),

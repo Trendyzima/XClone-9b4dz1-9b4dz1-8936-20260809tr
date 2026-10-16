@@ -3,25 +3,23 @@ import 'package:testagram/features/feed/feed_load_policy.dart';
 
 void main() {
   group('FeedLoadPolicy', () {
-    test('allows initial and pagination requests when idle and more exists',
-        () {
-      expect(
-        FeedLoadPolicy.shouldStart(
-          loading: false,
-          hasMore: true,
-          reset: false,
-        ),
-        isTrue,
-      );
-    });
+    test(
+      'allows initial and pagination requests when idle and more exists',
+      () {
+        expect(
+          FeedLoadPolicy.shouldStart(
+            loading: false,
+            hasMore: true,
+            reset: false,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('blocks concurrent pagination requests', () {
       expect(
-        FeedLoadPolicy.shouldStart(
-          loading: true,
-          hasMore: true,
-          reset: false,
-        ),
+        FeedLoadPolicy.shouldStart(loading: true, hasMore: true, reset: false),
         isFalse,
       );
     });
@@ -39,22 +37,14 @@ void main() {
 
     test('allows refresh to supersede an in-flight request', () {
       expect(
-        FeedLoadPolicy.shouldStart(
-          loading: true,
-          hasMore: true,
-          reset: true,
-        ),
+        FeedLoadPolicy.shouldStart(loading: true, hasMore: true, reset: true),
         isTrue,
       );
     });
 
     test('allows refresh after the feed reaches its end', () {
       expect(
-        FeedLoadPolicy.shouldStart(
-          loading: false,
-          hasMore: false,
-          reset: true,
-        ),
+        FeedLoadPolicy.shouldStart(loading: false, hasMore: false, reset: true),
         isTrue,
       );
     });
@@ -70,22 +60,25 @@ void main() {
       );
     });
 
-    test('omits incomplete cursors rather than constructing invalid filters',
-        () {
-      expect(
-        FeedLoadPolicy.cursorFilter(createdAt: null, id: 'post-1'),
-        isNull,
-      );
-      expect(
-        FeedLoadPolicy.cursorFilter(createdAt: '2026-10-15', id: null),
-        isNull,
-      );
-    });
+    test(
+      'omits incomplete cursors rather than constructing invalid filters',
+      () {
+        expect(
+          FeedLoadPolicy.cursorFilter(createdAt: null, id: 'post-1'),
+          isNull,
+        );
+        expect(
+          FeedLoadPolicy.cursorFilter(createdAt: '2026-10-15', id: null),
+          isNull,
+        );
+      },
+    );
 
     test('invalidates older responses after a refresh starts', () {
       final paginationGeneration = FeedLoadPolicy.nextGeneration(4);
-      final refreshGeneration =
-          FeedLoadPolicy.nextGeneration(paginationGeneration);
+      final refreshGeneration = FeedLoadPolicy.nextGeneration(
+        paginationGeneration,
+      );
 
       expect(
         FeedLoadPolicy.isCurrent(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../migration_batch_policy.dart';
 
 class InterestsPage extends StatefulWidget {
@@ -152,9 +153,9 @@ class _InterestsPageState extends State<InterestsPage> {
       _error = null;
     });
     try {
-      final result = await _db.rpc('save_user_interests', params: {
-        'p_tags': _selected.toList()
-      }).timeout(const Duration(seconds: 20));
+      final result = await _db
+          .rpc('save_user_interests', params: {'p_tags': _selected.toList()})
+          .timeout(const Duration(seconds: 20));
       if (result is! num || result < 3) {
         throw StateError('The server did not confirm all selected interests.');
       }
@@ -166,8 +167,7 @@ class _InterestsPageState extends State<InterestsPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Interests could not be saved. Your previous preferences remain unchanged.',
+          () => _error = 'Interests could not be saved. Your previous preferences remain unchanged.',
         );
       }
     } finally {
@@ -177,128 +177,124 @@ class _InterestsPageState extends State<InterestsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: const Text('Your interests'),
-          actions: [
-            IconButton(
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
+    appBar: AppBar(
+      title: const Text('Your interests'),
+      actions: [
+        IconButton(
+          onPressed: _loading ? null : _load,
+          icon: const Icon(Icons.refresh),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Select at least 3 topics (${_selected.length} selected). Your feed is personalized using these choices.',
-                          ),
-                        ),
-                        const Icon(Icons.auto_awesome),
-                      ],
-                    ),
-                  ),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+      ],
+    ),
+    body: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
                       child: Text(
-                        _error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                        'Select at least 3 topics (${_selected.length} selected). Your feed is personalized using these choices.',
                       ),
                     ),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      children: [
-                        for (final category in _categories)
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                    const Icon(Icons.auto_awesome),
+                  ],
+                ),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  children: [
+                    for (final category in _categories)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                category.$1,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
                                 children: [
-                                  Text(
-                                    category.$1,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 4,
-                                    children: [
-                                      for (final tag in category.$2)
-                                        FilterChip(
-                                          label: Text('#$tag'),
-                                          selected: _selected.contains(tag),
-                                          onSelected: _saving
-                                              ? null
-                                              : (value) => setState(() {
-                                                    if (value) {
-                                                      _selected.add(tag);
-                                                    } else {
-                                                      _selected.remove(tag);
-                                                    }
-                                                  }),
-                                        ),
-                                    ],
-                                  ),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                      onPressed: _saving
+                                  for (final tag in category.$2)
+                                    FilterChip(
+                                      label: Text('#$tag'),
+                                      selected: _selected.contains(tag),
+                                      onSelected: _saving
                                           ? null
-                                          : () => setState(() {
-                                                final all = category.$2.every(
-                                                  _selected.contains,
-                                                );
-                                                if (all) {
-                                                  _selected
-                                                      .removeAll(category.$2);
-                                                } else {
-                                                  _selected.addAll(category.$2);
-                                                }
-                                              }),
-                                      child:
-                                          const Text('Select / clear category'),
+                                          : (value) => setState(() {
+                                              if (value) {
+                                                _selected.add(tag);
+                                              } else {
+                                                _selected.remove(tag);
+                                              }
+                                            }),
                                     ),
-                                  ),
                                 ],
                               ),
-                            ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: _saving
+                                      ? null
+                                      : () => setState(() {
+                                          final all = category.$2.every(
+                                            _selected.contains,
+                                          );
+                                          if (all) {
+                                            _selected.removeAll(category.$2);
+                                          } else {
+                                            _selected.addAll(category.$2);
+                                          }
+                                        }),
+                                  child: const Text('Select / clear category'),
+                                ),
+                              ),
+                            ],
                           ),
-                      ],
-                    ),
-                  ),
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _saving ? null : _save,
-                          icon: _saving
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.check),
-                          label: const Text('Save interests'),
                         ),
                       ),
+                  ],
+                ),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.check),
+                      label: const Text('Save interests'),
                     ),
                   ),
-                ],
+                ),
               ),
-      );
+            ],
+          ),
+  );
 }

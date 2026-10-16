@@ -73,8 +73,10 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
     final amount = double.tryParse(_amountController.text.trim());
     final phone = _phoneController.text.trim();
     if (wallet == null || user == null) {
-      setState(() => _message =
-          'Sign in and load your wallet before requesting a payment.');
+      setState(
+        () => _message =
+            'Sign in and load your wallet before requesting a payment.',
+      );
       return;
     }
     if (amount == null ||
@@ -82,8 +84,10 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         amount < 10 ||
         amount > 150000 ||
         amount != amount.roundToDouble()) {
-      setState(() =>
-          _message = 'Enter a whole-number amount from KES 10 to KES 150,000.');
+      setState(
+        () => _message =
+            'Enter a whole-number amount from KES 10 to KES 150,000.',
+      );
       return;
     }
     if (phone.replaceAll(RegExp(r'\D'), '').length < 9) {
@@ -91,8 +95,9 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       return;
     }
     if (!_pinSet) {
-      setState(() =>
-          _message = 'Set a wallet PIN before requesting an M-Pesa top-up.');
+      setState(
+        () => _message = 'Set a wallet PIN before requesting an M-Pesa top-up.',
+      );
       return;
     }
     final pin = _pinController.text;
@@ -101,20 +106,26 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       return;
     }
     try {
-      final verification =
-          await _client.rpc('verify_wallet_pin', params: {'p_pin': pin});
+      final verification = await _client.rpc(
+        'verify_wallet_pin',
+        params: {'p_pin': pin},
+      );
       final result = Map<String, dynamic>.from(verification as Map);
       if (result['success'] != true) {
         final code = (result['code'] ?? 'INVALID_PIN').toString();
-        setState(() => _message = code == 'PIN_LOCKED'
-            ? 'Wallet PIN is temporarily locked.'
-            : 'Wallet PIN was not accepted.');
+        setState(
+          () => _message = code == 'PIN_LOCKED'
+              ? 'Wallet PIN is temporarily locked.'
+              : 'Wallet PIN was not accepted.',
+        );
         _pinController.clear();
         return;
       }
     } catch (_) {
-      setState(() => _message =
-          'Wallet PIN could not be verified. No M-Pesa prompt was requested.');
+      setState(
+        () => _message =
+            'Wallet PIN could not be verified. No M-Pesa prompt was requested.',
+      );
       return;
     }
     if (!mounted) return;
@@ -127,11 +138,13 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Send prompt')),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Send prompt'),
+          ),
         ],
       ),
     );
@@ -143,20 +156,24 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       _status = 'sending';
     });
     try {
-      final response = await _client.functions.invoke('mpesa-stk-push', body: {
-        'phone': phone,
-        'amount': amount,
-        'purpose': 'wallet_topup',
-        'metadata': {'wallet_id': wallet.id},
-      });
+      final response = await _client.functions.invoke(
+        'mpesa-stk-push',
+        body: {
+          'phone': phone,
+          'amount': amount,
+          'purpose': 'wallet_topup',
+          'metadata': {'wallet_id': wallet.id},
+        },
+      );
       final data = response.data;
       if (response.status >= 400 ||
           data is! Map ||
           data['checkout_request_id'] == null) {
         final message = data is Map ? (data['error'] ?? data['message']) : null;
         throw StateError(
-            (message ?? 'M-Pesa did not confirm the request was accepted.')
-                .toString());
+          (message ?? 'M-Pesa did not confirm the request was accepted.')
+              .toString(),
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -164,10 +181,11 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         _status = 'pending';
         _submitting = false;
         _elapsedSeconds = 0;
-        _message = (data['error'] ??
-                data['customer_message'] ??
-                'Payment prompt sent. Enter your M-Pesa PIN on your phone.')
-            .toString();
+        _message =
+            (data['error'] ??
+                    data['customer_message'] ??
+                    'Payment prompt sent. Enter your M-Pesa PIN on your phone.')
+                .toString();
       });
       _beginPolling();
     } catch (error) {
@@ -188,8 +206,9 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       if (_elapsedSeconds >= 120) {
         _pollTimer?.cancel();
         if (mounted && _status == 'pending') {
-          setState(() => _message =
-              'Still awaiting confirmation. Use “Check status” before starting another payment.');
+          setState(
+            () => _message = 'Still awaiting confirmation. Use “Check status” before starting another payment.',
+          );
         }
         return;
       }
@@ -212,8 +231,10 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       final data = response.data;
       if (response.status >= 400 || data is! Map || data['ok'] != true) {
         if (!silent && mounted) {
-          setState(() => _message =
-              'Status is not confirmed yet. Retry the status check.');
+          setState(
+            () => _message =
+                'Status is not confirmed yet. Retry the status check.',
+          );
         }
         return;
       }
@@ -225,8 +246,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         if (!mounted) return;
         setState(() {
           _status = 'completed';
-          _message =
-              'M-Pesa payment confirmed by the server. Wallet balance refreshed.';
+          _message = 'M-Pesa payment confirmed by the server. Wallet balance refreshed.';
           _amountController.clear();
           _pinController.clear();
         });
@@ -239,13 +259,15 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
           _message = 'Payment status: $status. No successful top-up is shown.';
         });
       } else if (!silent) {
-        setState(() => _message =
-            'Payment is still pending. Complete the prompt on your phone and check again.');
+        setState(
+          () => _message = 'Payment is still pending. Complete the prompt on your phone and check again.',
+        );
       }
     } catch (_) {
       if (!silent && mounted) {
-        setState(() => _message =
-            'Could not check payment status. The payment remains unconfirmed.');
+        setState(
+          () => _message = 'Could not check payment status. The payment remains unconfirmed.',
+        );
       }
     } finally {
       _checkingStatus = false;
@@ -261,25 +283,33 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         Row(
           children: [
             IconButton(
-                onPressed: () => context.go('/wallet'),
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back to wallet'),
+              onPressed: () => context.go('/wallet'),
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back to wallet',
+            ),
             Expanded(
-                child: Text('M-Pesa top-up',
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w800))),
+              child: Text(
+                'M-Pesa top-up',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
             IconButton(
-                onPressed: _loading ? null : _loadWallet,
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh wallet'),
+              onPressed: _loading ? null : _loadWallet,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh wallet',
+            ),
           ],
         ),
         const SizedBox(height: 8),
         if (_loading)
           const Center(
-              child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator()))
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(),
+            ),
+          )
         else ...[
           if (_wallet != null)
             Card(
@@ -287,7 +317,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                 leading: const Icon(Icons.account_balance_wallet_outlined),
                 title: const Text('Wallet balance'),
                 subtitle: Text(
-                    formatWalletAmount(_wallet!.balance, _wallet!.currency)),
+                  formatWalletAmount(_wallet!.balance, _wallet!.currency),
+                ),
               ),
             ),
           Card(
@@ -296,12 +327,16 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Add funds from M-Pesa',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  Text(
+                    'Add funds from M-Pesa',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   const Text(
-                      'Enter the number that should receive the STK prompt. M-Pesa charges in Kenyan shillings; the backend applies the configured wallet exchange rate.'),
+                    'Enter the number that should receive the STK prompt. M-Pesa charges in Kenyan shillings; the backend applies the configured wallet exchange rate.',
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _phoneController,
@@ -309,9 +344,10 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                     keyboardType: TextInputType.phone,
                     autofillHints: const [AutofillHints.telephoneNumber],
                     decoration: const InputDecoration(
-                        labelText: 'M-Pesa phone number',
-                        hintText: '07xx xxx xxx or 2547xx xxx xxx',
-                        border: OutlineInputBorder()),
+                      labelText: 'M-Pesa phone number',
+                      hintText: '07xx xxx xxx or 2547xx xxx xxx',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -321,19 +357,21 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                     obscureText: true,
                     maxLength: 6,
                     decoration: const InputDecoration(
-                        labelText: 'Wallet PIN',
-                        helperText:
-                            'Verified by Testagram before the payment request.',
-                        border: OutlineInputBorder()),
+                      labelText: 'Wallet PIN',
+                      helperText:
+                          'Verified by Testagram before the payment request.',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   TextField(
                     controller: _amountController,
                     enabled: !_submitting && _status != 'pending',
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                        labelText: 'Amount in KES',
-                        hintText: 'e.g. 100',
-                        border: OutlineInputBorder()),
+                      labelText: 'Amount in KES',
+                      hintText: 'e.g. 100',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 14),
                   if (!_pinSet)
@@ -350,11 +388,14 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.phone_android),
-                    label: Text(_submitting
-                        ? 'Sending request…'
-                        : 'Request M-Pesa prompt'),
+                    label: Text(
+                      _submitting
+                          ? 'Sending request…'
+                          : 'Request M-Pesa prompt',
+                    ),
                   ),
                   if (_status == 'pending') ...[
                     const SizedBox(height: 8),
@@ -367,8 +408,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                       onPressed: () {
                         _pollTimer?.cancel();
                         setState(() {
-                          _message =
-                              'Automatic checks paused. Check this same request again before starting another payment.';
+                          _message = 'Automatic checks paused. Check this same request again before starting another payment.';
                         });
                       },
                       child: const Text('Pause auto-checks'),
@@ -388,11 +428,13 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(_status == 'completed'
-                        ? Icons.check_circle
-                        : _status == 'failed'
-                            ? Icons.error_outline
-                            : Icons.info_outline),
+                    Icon(
+                      _status == 'completed'
+                          ? Icons.check_circle
+                          : _status == 'failed'
+                          ? Icons.error_outline
+                          : Icons.info_outline,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(child: Text(_message!)),
                   ],
@@ -400,8 +442,10 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
               ),
             ),
           if (_checkoutId != null)
-            SelectableText('Checkout request: $_checkoutId',
-                style: theme.textTheme.bodySmall),
+            SelectableText(
+              'Checkout request: $_checkoutId',
+              style: theme.textTheme.bodySmall,
+            ),
           const SizedBox(height: 12),
           const Text(
             'A prompt being sent is not proof of payment. The wallet is credited only after Testagram’s M-Pesa callback and server-side settlement confirm the transaction. Do not retry while a previous request may still complete.',

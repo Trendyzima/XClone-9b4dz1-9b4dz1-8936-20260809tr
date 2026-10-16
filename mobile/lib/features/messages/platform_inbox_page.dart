@@ -71,8 +71,9 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
           .range(offset, offset + PlatformInboxPolicy.pageSize - 1)
           .timeout(const Duration(seconds: 15));
       if (!mounted || generation != _generation) return;
-      final next =
-          rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final next = rows
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
       setState(() {
         _messages = append ? [..._messages, ...next] : next;
         _hasMore = next.length == PlatformInboxPolicy.pageSize;
@@ -80,8 +81,7 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
     } catch (_) {
       if (mounted && generation == _generation) {
         setState(
-          () => _error =
-              'Your inbox could not be loaded. Check your connection and retry.',
+          () => _error = 'Your inbox could not be loaded. Check your connection and retry.',
         );
       }
     } finally {
@@ -113,8 +113,9 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
         } else if (id.startsWith('delete:')) {
           final messageId = id.substring('delete:'.length);
           setState(
-            () => _messages =
-                _messages.where((m) => '${m['id']}' != messageId).toList(),
+            () => _messages = _messages
+                .where((m) => '${m['id']}' != messageId)
+                .toList(),
           );
         } else {
           setState(() {
@@ -150,12 +151,12 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
   }
 
   Future<void> _markAllRead() async => _mutate('all', (userId) async {
-        await _db
-            .from('platform_inbox')
-            .update({'read': true})
-            .eq('user_id', userId)
-            .eq('read', false);
-      });
+    await _db
+        .from('platform_inbox')
+        .update({'read': true})
+        .eq('user_id', userId)
+        .eq('read', false);
+  });
 
   Future<void> _delete(String id) async =>
       _mutate('delete:$id', (userId) async {
@@ -348,10 +349,8 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                 margin: const EdgeInsets.only(top: 8),
                 color: message['read'] == true
                     ? null
-                    : Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: .35),
+                    : Theme.of(context).colorScheme.primaryContainer
+                          .withValues(alpha: .35),
                 child: ListTile(
                   isThreeLine: true,
                   leading: CircleAvatar(

@@ -69,9 +69,9 @@ class _AppealsPageState extends State<AppealsPage> {
       ]);
       final rows = results[0] is List
           ? (results[0] as List)
-              .whereType<Map>()
-              .map(Map<String, dynamic>.from)
-              .toList()
+                .whereType<Map>()
+                .map(Map<String, dynamic>.from)
+                .toList()
           : <Map<String, dynamic>>[];
       final ban = results[1] is Map
           ? Map<String, dynamic>.from(results[1] as Map)
@@ -86,8 +86,7 @@ class _AppealsPageState extends State<AppealsPage> {
     } catch (_) {
       if (mounted && generation == _generation) {
         setState(
-          () => _error =
-              'Appeal history could not be loaded. Check your connection and retry.',
+          () => _error = 'Appeal history could not be loaded. Check your connection and retry.',
         );
       }
     } finally {
@@ -112,10 +111,12 @@ class _AppealsPageState extends State<AppealsPage> {
       _error = null;
     });
     try {
-      await _db.rpc(
-        'testagram_submit_moderation_appeal',
-        params: {'p_reason': reason},
-      ).timeout(const Duration(seconds: 20));
+      await _db
+          .rpc(
+            'testagram_submit_moderation_appeal',
+            params: {'p_reason': reason},
+          )
+          .timeout(const Duration(seconds: 20));
       if (!mounted) return;
       _reason.clear();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -189,9 +190,7 @@ class _AppealsPageState extends State<AppealsPage> {
                     const SizedBox(height: 10),
                     Text(
                       'A fair review starts with your explanation',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
+                      style: Theme.of(context).textTheme.titleLarge
                           ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 8),
@@ -254,9 +253,7 @@ class _AppealsPageState extends State<AppealsPage> {
                       children: [
                         Text(
                           'Submit an appeal',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
@@ -267,8 +264,7 @@ class _AppealsPageState extends State<AppealsPage> {
                           maxLength: 800,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
-                            hintText:
-                                'Describe what happened and why you believe the decision should be reviewed.',
+                            hintText: 'Describe what happened and why you believe the decision should be reviewed.',
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
@@ -281,13 +277,13 @@ class _AppealsPageState extends State<AppealsPage> {
                           child: FilledButton.icon(
                             onPressed:
                                 !ModerationWorkflowPolicy.canSubmitAppeal(
-                              authenticated: true,
-                              submitting: _submitting,
-                              hasPendingAppeal: pending,
-                              reason: _reason.text,
-                            )
-                                    ? null
-                                    : _submit,
+                                  authenticated: true,
+                                  submitting: _submitting,
+                                  hasPendingAppeal: pending,
+                                  reason: _reason.text,
+                                )
+                                ? null
+                                : _submit,
                             icon: _submitting
                                 ? const SizedBox(
                                     width: 18,
@@ -319,9 +315,7 @@ class _AppealsPageState extends State<AppealsPage> {
               const SizedBox(height: 18),
               Text(
                 'Appeal history',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
+                style: Theme.of(context).textTheme.titleLarge
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
@@ -361,8 +355,8 @@ class _AppealsPageState extends State<AppealsPage> {
                   final color = status == 'approved'
                       ? Colors.green
                       : status == 'denied'
-                          ? Theme.of(context).colorScheme.error
-                          : Colors.orange;
+                      ? Theme.of(context).colorScheme.error
+                      : Colors.orange;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: Padding(

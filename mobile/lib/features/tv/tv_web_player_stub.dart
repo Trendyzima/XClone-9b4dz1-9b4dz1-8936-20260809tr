@@ -14,13 +14,13 @@ class TvWebPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const ColoredBox(
-        color: Colors.black,
-        child: Center(
-          child: Text(
-            'Browser stream playback is not available on this platform.',
-            style: TextStyle(color: Colors.white70),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
+    color: Colors.black,
+    child: Center(
+      child: Text(
+        'Browser stream playback is not available on this platform.',
+        style: TextStyle(color: Colors.white70),
+        textAlign: TextAlign.center,
+      ),
+    ),
+  );
 }

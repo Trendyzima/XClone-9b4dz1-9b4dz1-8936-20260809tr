@@ -8,8 +8,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
 class VideosPage extends StatefulWidget {
-  const VideosPage(
-      {super.key, this.shortsMode = false, this.watchLaterOnly = false});
+  const VideosPage({
+    super.key,
+    this.shortsMode = false,
+    this.watchLaterOnly = false,
+  });
   final bool shortsMode;
   final bool watchLaterOnly;
   @override
@@ -49,13 +52,17 @@ class _VideosPageState extends State<VideosPage> {
     if (raw == null) return;
     try {
       _saved.addAll((jsonDecode(raw) as List).map((v) => '$v'));
-    } catch (_) {/* malformed local cache is ignored */}
+    } catch (_) {
+      /* malformed local cache is ignored */
+    }
   }
 
   Future<void> _persistSaved() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('testagram-watch-later:${_uid ?? 'guest'}',
-        jsonEncode(_saved.toList()));
+    await prefs.setString(
+      'testagram-watch-later:${_uid ?? 'guest'}',
+      jsonEncode(_saved.toList()),
+    );
   }
 
   Future<void> _load({bool reset = false}) async {
@@ -83,7 +90,8 @@ class _VideosPageState extends State<VideosPage> {
       var query = _db
           .from('posts')
           .select(
-              'id,user_id,author_id,content,video_url,views_count,likes_count,created_at,is_video')
+            'id,user_id,author_id,content,video_url,views_count,likes_count,created_at,is_video',
+          )
           .eq('is_video', true)
           .not('video_url', 'is', null);
       if (widget.watchLaterOnly) query = query.inFilter('id', _saved.toList());
@@ -103,12 +111,12 @@ class _VideosPageState extends State<VideosPage> {
       final profiles = authorIds.isEmpty
           ? <dynamic>[]
           : await _db
-              .from('profiles')
-              .select('id,username,display_name,avatar_url,verified')
-              .inFilter('id', authorIds);
+                .from('profiles')
+                .select('id,username,display_name,avatar_url,verified')
+                .inFilter('id', authorIds);
       final byId = {
         for (final p in profiles)
-          '${p['id']}': Map<String, dynamic>.from(p as Map)
+          '${p['id']}': Map<String, dynamic>.from(p as Map),
       };
       for (final video in page) {
         video['profile'] = byId['${video['author_id'] ?? video['user_id']}'];
@@ -135,8 +143,10 @@ class _VideosPageState extends State<VideosPage> {
       });
     } catch (_) {
       if (mounted) {
-        setState(() =>
-            _error = 'Videos could not load. Check your connection and retry.');
+        setState(
+          () => _error =
+              'Videos could not load. Check your connection and retry.',
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -156,8 +166,11 @@ class _VideosPageState extends State<VideosPage> {
       await _persistSaved();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Watch Later could not be saved on this device.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Watch Later could not be saved on this device.'),
+          ),
+        );
       }
     }
   }
@@ -184,9 +197,11 @@ class _VideosPageState extends State<VideosPage> {
             .eq('post_id', id)
             .eq('emoji', '❤️');
       } else {
-        await _db.from('post_reactions').upsert(
-            {'user_id': uid, 'post_id': id, 'emoji': '❤️'},
-            onConflict: 'post_id,user_id');
+        await _db.from('post_reactions').upsert({
+          'user_id': uid,
+          'post_id': id,
+          'emoji': '❤️',
+        }, onConflict: 'post_id,user_id');
       }
     } catch (_) {
       if (mounted) {
@@ -194,10 +209,11 @@ class _VideosPageState extends State<VideosPage> {
           wasLiked ? _liked.add(id) : _liked.remove(id);
           video['likes_count'] =
               ((video['likes_count'] as num?)?.toInt() ?? 0) +
-                  (wasLiked ? 1 : -1);
+              (wasLiked ? 1 : -1);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Like failed. Please retry.')));
+          const SnackBar(content: Text('Like failed. Please retry.')),
+        );
       }
     }
   }
@@ -207,90 +223,109 @@ class _VideosPageState extends State<VideosPage> {
     final title = widget.watchLaterOnly
         ? 'Watch Later'
         : widget.shortsMode
-            ? 'Shorts'
-            : 'Videos';
-    return Column(children: [
-      Padding(
+        ? 'Shorts'
+        : 'Videos';
+    return Column(
+      children: [
+        Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-          child: Row(children: [
-            Expanded(
-                child: Text(title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w900))),
-            IconButton(
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              IconButton(
                 tooltip: 'Videos',
                 onPressed: () => context.go('/videos'),
-                icon: const Icon(Icons.video_library_outlined)),
-            IconButton(
+                icon: const Icon(Icons.video_library_outlined),
+              ),
+              IconButton(
                 tooltip: 'Watch Later',
                 onPressed: () => context.go('/videos/watchlater'),
-                icon: const Icon(Icons.bookmark_border_rounded))
-          ])),
-      if (_error != null)
-        Padding(
+                icon: const Icon(Icons.bookmark_border_rounded),
+              ),
+            ],
+          ),
+        ),
+        if (_error != null)
+          Padding(
             padding: const EdgeInsets.all(12),
-            child: Column(children: [
-              Text(_error!),
-              TextButton(
+            child: Column(
+              children: [
+                Text(_error!),
+                TextButton(
                   onPressed: () => _load(reset: true),
-                  child: const Text('Retry'))
-            ])),
-      Expanded(
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
           child: _videos.isEmpty && _loading
               ? const Center(child: CircularProgressIndicator())
               : _videos.isEmpty
-                  ? Center(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       const Text('No videos found yet.'),
                       TextButton(
-                          onPressed: () => _load(reset: true),
-                          child: const Text('Refresh'))
-                    ]))
-                  : PageView.builder(
-                      controller: _pager,
-                      scrollDirection: Axis.vertical,
-                      itemCount: _videos.length + (_hasMore ? 1 : 0),
-                      onPageChanged: (index) {
-                        setState(() => _active = index);
-                        if (index >= _videos.length - 3 &&
-                            !_loading &&
-                            _hasMore) {
-                          _load();
-                        }
-                      },
-                      itemBuilder: (context, index) {
-                        if (index >= _videos.length) {
-                          return const Center(
-                              child: CircularProgressIndicator());
-                        }
-                        final video = _videos[index];
-                        return _VideoCard(
-                            video: video,
-                            active: index == _active,
-                            shortsMode: widget.shortsMode,
-                            liked: _liked.contains('${video['id']}'),
-                            saved: _saved.contains('${video['id']}'),
-                            onLike: () => _toggleLike(video),
-                            onSave: () => _toggleSaved(video),
-                            onShare: () => Share.share(
-                                'Watch this Testagram video: https://testagram.site/videos?id=${video['id']}'));
-                      })),
-    ]);
+                        onPressed: () => _load(reset: true),
+                        child: const Text('Refresh'),
+                      ),
+                    ],
+                  ),
+                )
+              : PageView.builder(
+                  controller: _pager,
+                  scrollDirection: Axis.vertical,
+                  itemCount: _videos.length + (_hasMore ? 1 : 0),
+                  onPageChanged: (index) {
+                    setState(() => _active = index);
+                    if (index >= _videos.length - 3 && !_loading && _hasMore) {
+                      _load();
+                    }
+                  },
+                  itemBuilder: (context, index) {
+                    if (index >= _videos.length) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final video = _videos[index];
+                    return _VideoCard(
+                      video: video,
+                      active: index == _active,
+                      shortsMode: widget.shortsMode,
+                      liked: _liked.contains('${video['id']}'),
+                      saved: _saved.contains('${video['id']}'),
+                      onLike: () => _toggleLike(video),
+                      onSave: () => _toggleSaved(video),
+                      onShare: () => Share.share(
+                        'Watch this Testagram video: https://testagram.site/videos?id=${video['id']}',
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
   }
 }
 
 class _VideoCard extends StatefulWidget {
-  const _VideoCard(
-      {required this.video,
-      required this.active,
-      required this.shortsMode,
-      required this.liked,
-      required this.saved,
-      required this.onLike,
-      required this.onSave,
-      required this.onShare});
+  const _VideoCard({
+    required this.video,
+    required this.active,
+    required this.shortsMode,
+    required this.liked,
+    required this.saved,
+    required this.onLike,
+    required this.onSave,
+    required this.onShare,
+  });
   final Map<String, dynamic> video;
   final bool active, shortsMode, liked, saved;
   final VoidCallback onLike, onSave, onShare;
@@ -353,123 +388,151 @@ class _VideoCardState extends State<_VideoCard> {
         '${profile['display_name'] ?? profile['username'] ?? 'Testagram creator'}';
     final controller = _controller;
     return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-        child: Center(
-            child: ConstrainedBox(
-                constraints:
-                    BoxConstraints(maxWidth: widget.shortsMode ? 620 : 780),
-                child: SizedBox.expand(
-                    child: Card(
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(children: [
-                          Positioned.fill(
-                              child: Container(
-                                  color: Colors.black,
-                                  alignment: Alignment.center,
-                                  child: _failed
-                                      ? const Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                              Icon(Icons.video_library_outlined,
-                                                  color: Colors.white70,
-                                                  size: 42),
-                                              SizedBox(height: 8),
-                                              Text(
-                                                  'This video could not be played',
-                                                  style: TextStyle(
-                                                      color: Colors.white70))
-                                            ])
-                                      : controller != null &&
-                                              controller.value.isInitialized
-                                          ? AspectRatio(
-                                              aspectRatio:
-                                                  controller.value.aspectRatio,
-                                              child: VideoPlayer(controller))
-                                          : const CircularProgressIndicator())),
-                          Positioned(
-                              left: 12,
-                              right: 70,
-                              bottom: 16,
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(name,
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w900,
-                                            shadows: [
-                                              Shadow(
-                                                  blurRadius: 8,
-                                                  color: Colors.black)
-                                            ])),
-                                    const SizedBox(height: 6),
-                                    Text('${widget.video['content'] ?? ''}',
-                                        maxLines: 4,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            shadows: [
-                                              Shadow(
-                                                  blurRadius: 8,
-                                                  color: Colors.black)
-                                            ])),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                        '${widget.video['views_count'] ?? 0} views',
-                                        style: const TextStyle(
-                                            color: Colors.white70))
-                                  ])),
-                          Positioned(
-                              right: 8,
-                              bottom: 18,
-                              child: Column(children: [
-                                IconButton(
-                                    tooltip: widget.liked ? 'Unlike' : 'Like',
-                                    onPressed: widget.onLike,
-                                    color: widget.liked
-                                        ? Colors.pinkAccent
-                                        : Colors.white,
-                                    icon: Icon(widget.liked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border)),
-                                Text('${widget.video['likes_count'] ?? 0}',
-                                    style:
-                                        const TextStyle(color: Colors.white)),
-                                const SizedBox(height: 10),
-                                IconButton(
-                                    tooltip: widget.saved
-                                        ? 'Remove from Watch Later'
-                                        : 'Save to Watch Later',
-                                    onPressed: widget.onSave,
-                                    color: widget.saved
-                                        ? Colors.greenAccent
-                                        : Colors.white,
-                                    icon: Icon(widget.saved
-                                        ? Icons.bookmark
-                                        : Icons.bookmark_border)),
-                                IconButton(
-                                    tooltip: 'Share video',
-                                    onPressed: widget.onShare,
-                                    color: Colors.white,
-                                    icon: const Icon(Icons.share_rounded))
-                              ])),
-                          if (controller != null &&
-                              controller.value.isInitialized)
-                            Positioned(
-                                top: 8,
-                                right: 8,
-                                child: IconButton.filledTonal(
-                                    onPressed: () async {
-                                      if (controller.value.isPlaying) {
-                                        await controller.pause();
-                                      } else {
-                                        await controller.play();
-                                      }
-                                      if (mounted) setState(() {});
-                                    },
-                                    icon: Icon(controller.value.isPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded))),
-                        ]))))));
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: widget.shortsMode ? 620 : 780),
+          child: SizedBox.expand(
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black,
+                      alignment: Alignment.center,
+                      child: _failed
+                          ? const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.video_library_outlined,
+                                  color: Colors.white70,
+                                  size: 42,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'This video could not be played',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ],
+                            )
+                          : controller != null && controller.value.isInitialized
+                          ? AspectRatio(
+                              aspectRatio: controller.value.aspectRatio,
+                              child: VideoPlayer(controller),
+                            )
+                          : const CircularProgressIndicator(),
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 70,
+                    bottom: 16,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            shadows: [
+                              Shadow(blurRadius: 8, color: Colors.black),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${widget.video['content'] ?? ''}',
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(blurRadius: 8, color: Colors.black),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${widget.video['views_count'] ?? 0} views',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    bottom: 18,
+                    child: Column(
+                      children: [
+                        IconButton(
+                          tooltip: widget.liked ? 'Unlike' : 'Like',
+                          onPressed: widget.onLike,
+                          color: widget.liked
+                              ? Colors.pinkAccent
+                              : Colors.white,
+                          icon: Icon(
+                            widget.liked
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                          ),
+                        ),
+                        Text(
+                          '${widget.video['likes_count'] ?? 0}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        const SizedBox(height: 10),
+                        IconButton(
+                          tooltip: widget.saved
+                              ? 'Remove from Watch Later'
+                              : 'Save to Watch Later',
+                          onPressed: widget.onSave,
+                          color: widget.saved
+                              ? Colors.greenAccent
+                              : Colors.white,
+                          icon: Icon(
+                            widget.saved
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Share video',
+                          onPressed: widget.onShare,
+                          color: Colors.white,
+                          icon: const Icon(Icons.share_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (controller != null && controller.value.isInitialized)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton.filledTonal(
+                        onPressed: () async {
+                          if (controller.value.isPlaying) {
+                            await controller.pause();
+                          } else {
+                            await controller.play();
+                          }
+                          if (mounted) setState(() {});
+                        },
+                        icon: Icon(
+                          controller.value.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

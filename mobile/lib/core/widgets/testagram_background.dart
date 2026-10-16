@@ -46,7 +46,8 @@ class TestagramBackground extends StatelessWidget {
           ),
           Positioned.fill(
             child: IgnorePointer(
-                child: CustomPaint(painter: _TexturePainter(dark: dark))),
+              child: CustomPaint(painter: _TexturePainter(dark: dark)),
+            ),
           ),
           child,
         ],
@@ -64,8 +65,9 @@ class _TexturePainter extends CustomPainter {
     final primary = Paint()
       ..color = TestagramTheme.green.withValues(alpha: dark ? 0.018 : 0.019);
     final secondary = Paint()
-      ..color = (dark ? Colors.white : Colors.black)
-          .withValues(alpha: dark ? 0.012 : 0.009);
+      ..color = (dark ? Colors.white : Colors.black).withValues(
+        alpha: dark ? 0.012 : 0.009,
+      );
     for (double y = 12; y < size.height; y += 19) {
       for (double x = 10; x < size.width; x += 19) {
         canvas.drawCircle(Offset(x, y), 0.58, primary);

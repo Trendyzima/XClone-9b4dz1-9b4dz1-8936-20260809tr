@@ -45,8 +45,9 @@ FediverseFeedReconciliation reconcileFediverseFeed(
     final key = _fediversePostKey(post);
     if (key.isNotEmpty) visibleKeys.add(key);
     final updated = key.isEmpty ? null : incomingByKey[key];
-    visible
-        .add(updated == null ? post : <String, dynamic>{...post, ...updated});
+    visible.add(
+      updated == null ? post : <String, dynamic>{...post, ...updated},
+    );
   }
 
   final pendingByKey = <String, FediversePost>{};
@@ -58,7 +59,8 @@ FediverseFeedReconciliation reconcileFediverseFeed(
   }
   final pending = pendingByKey.values.toList()
     ..sort(
-        (a, b) => _fediversePublishedAt(b).compareTo(_fediversePublishedAt(a)));
+      (a, b) => _fediversePublishedAt(b).compareTo(_fediversePublishedAt(a)),
+    );
   return FediverseFeedReconciliation(visible: visible, pending: pending);
 }
 
@@ -67,8 +69,10 @@ List<FediversePost> applyPendingFediversePosts(
   List<FediversePost> current,
   List<FediversePost> pending,
 ) {
-  final seen =
-      current.map(_fediversePostKey).where((key) => key.isNotEmpty).toSet();
+  final seen = current
+      .map(_fediversePostKey)
+      .where((key) => key.isNotEmpty)
+      .toSet();
   final additions = <FediversePost>[];
   for (final post in pending) {
     if (!_isVisibleFediversePost(post)) continue;
@@ -77,6 +81,7 @@ List<FediversePost> applyPendingFediversePosts(
     additions.add(post);
   }
   additions.sort(
-      (a, b) => _fediversePublishedAt(b).compareTo(_fediversePublishedAt(a)));
+    (a, b) => _fediversePublishedAt(b).compareTo(_fediversePublishedAt(a)),
+  );
   return [...additions, ...current];
 }

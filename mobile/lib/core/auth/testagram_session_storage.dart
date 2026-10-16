@@ -11,12 +11,13 @@ import 'session_persistence_policy.dart';
 /// was refreshed; Supabase remains responsible for token refresh/revocation.
 class TestagramSessionStorage extends LocalStorage {
   TestagramSessionStorage({FlutterSecureStorage? secureStorage})
-      : _secure = secureStorage ?? const FlutterSecureStorage();
+    : _secure = secureStorage ?? const FlutterSecureStorage();
 
   static const _key = 'testagram-flutter-session-v1';
   final FlutterSecureStorage _secure;
-  final SharedPreferencesLocalStorage _web =
-      SharedPreferencesLocalStorage(persistSessionKey: _key);
+  final SharedPreferencesLocalStorage _web = SharedPreferencesLocalStorage(
+    persistSessionKey: _key,
+  );
 
   Future<String?> _read() async {
     if (kIsWeb) return _web.accessToken();
@@ -61,7 +62,8 @@ class TestagramSessionStorage extends LocalStorage {
     final normalized = SessionPersistencePolicy.normalize(persistSessionString);
     if (normalized == null) {
       throw const FormatException(
-          'Refusing to persist an invalid auth session.');
+        'Refusing to persist an invalid auth session.',
+      );
     }
     await _write(normalized);
   }

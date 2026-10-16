@@ -57,15 +57,15 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final profile = widget.username == null
           ? await _client
-              .from('profiles')
-              .select('*')
-              .eq('id', uid!)
-              .maybeSingle()
+                .from('profiles')
+                .select('*')
+                .eq('id', uid!)
+                .maybeSingle()
           : await _client
-              .from('profiles')
-              .select('*')
-              .eq('username', widget.username!)
-              .maybeSingle();
+                .from('profiles')
+                .select('*')
+                .eq('username', widget.username!)
+                .maybeSingle();
       if (profile == null) throw Exception('This profile could not be found.');
       final targetId = '${profile['id']}';
       final results = await Future.wait([
@@ -90,10 +90,12 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final people = <Map<String, dynamic>>[];
       if (widget.section == 'followers' || widget.section == 'following') {
-        final relationColumn =
-            widget.section == 'followers' ? 'following_id' : 'follower_id';
-        final personColumn =
-            widget.section == 'followers' ? 'follower_id' : 'following_id';
+        final relationColumn = widget.section == 'followers'
+            ? 'following_id'
+            : 'follower_id';
+        final personColumn = widget.section == 'followers'
+            ? 'follower_id'
+            : 'following_id';
         final relationships = await _client
             .from('follows')
             .select('follower_id,following_id')
@@ -184,11 +186,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 .isFilter('deleted_at', null)
                 .limit(30)
                 .timeout(const Duration(seconds: 15));
-            sectionItems = likedPosts
-                .map((row) => Map<String, dynamic>.from(row as Map))
-                .toList()
-              ..sort((a, b) => '${b['created_at'] ?? ''}'
-                  .compareTo('${a['created_at'] ?? ''}'));
+            sectionItems =
+                likedPosts
+                    .map((row) => Map<String, dynamic>.from(row as Map))
+                    .toList()
+                  ..sort(
+                    (a, b) => '${b['created_at'] ?? ''}'.compareTo(
+                      '${a['created_at'] ?? ''}',
+                    ),
+                  );
           }
           break;
         case 'media':
@@ -211,7 +217,8 @@ class _ProfilePageState extends State<ProfilePage> {
           final recordings = await _client
               .from('space_recordings')
               .select(
-                  'id,title,audio_url,video_url,duration,created_at,space_id,spaces(title,artwork_url,category,episode_number,subscriber_only)')
+                'id,title,audio_url,video_url,duration,created_at,space_id,spaces(title,artwork_url,category,episode_number,subscriber_only)',
+              )
               .eq('user_id', targetId)
               .order('created_at', ascending: false)
               .limit(30)
@@ -243,20 +250,22 @@ class _ProfilePageState extends State<ProfilePage> {
               .limit(50)
               .timeout(const Duration(seconds: 15));
           final personIds = tipRows
-              .expand((row) => [
-                    '${row['from_user_id'] ?? ''}',
-                    '${row['to_user_id'] ?? ''}',
-                  ])
+              .expand(
+                (row) => [
+                  '${row['from_user_id'] ?? ''}',
+                  '${row['to_user_id'] ?? ''}',
+                ],
+              )
               .where((id) => id.isNotEmpty)
               .toSet()
               .toList();
           final tipProfiles = personIds.isEmpty
               ? <dynamic>[]
               : await _client
-                  .from('profiles')
-                  .select('id,username,display_name,avatar_url')
-                  .inFilter('id', personIds)
-                  .timeout(const Duration(seconds: 15));
+                    .from('profiles')
+                    .select('id,username,display_name,avatar_url')
+                    .inFilter('id', personIds)
+                    .timeout(const Duration(seconds: 15));
           final profilesById = <String, Map<String, dynamic>>{
             for (final row in tipProfiles)
               '${row['id']}': Map<String, dynamic>.from(row as Map),
@@ -289,10 +298,12 @@ class _ProfilePageState extends State<ProfilePage> {
             break;
           }
           final now = DateTime.now().toUtc();
-          final sevenDaysAgo =
-              now.subtract(const Duration(days: 7)).toIso8601String();
-          final thirtyDaysAgo =
-              now.subtract(const Duration(days: 30)).toIso8601String();
+          final sevenDaysAgo = now
+              .subtract(const Duration(days: 7))
+              .toIso8601String();
+          final thirtyDaysAgo = now
+              .subtract(const Duration(days: 30))
+              .toIso8601String();
           try {
             final profileViews = await _client
                 .from('browsing_history')
@@ -326,8 +337,11 @@ class _ProfilePageState extends State<ProfilePage> {
             }
           }
           try {
-            final monthStart =
-                DateTime.utc(now.year, now.month, 1).toIso8601String();
+            final monthStart = DateTime.utc(
+              now.year,
+              now.month,
+              1,
+            ).toIso8601String();
             final monthTips = await _client
                 .from('tips')
                 .select('amount')
@@ -489,11 +503,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     : const Icon(Icons.headphones_rounded),
               ),
               title: Text(title),
-              subtitle: Text([
-                if (duration > 0) '${duration ~/ 60} min',
-                if (listeners > 0) '$listeners listeners',
-                '${item['created_at'] ?? ''}',
-              ].join(' · ')),
+              subtitle: Text(
+                [
+                  if (duration > 0) '${duration ~/ 60} min',
+                  if (listeners > 0) '$listeners listeners',
+                  '${item['created_at'] ?? ''}',
+                ].join(' · '),
+              ),
               trailing: const Icon(Icons.play_circle_outline_rounded),
               onTap: () => context.go('/space-recording/${item['id']}'),
             ),
@@ -512,15 +528,16 @@ class _ProfilePageState extends State<ProfilePage> {
           final rawItems = item['post_series_items'];
           final count =
               rawItems is List && rawItems.isNotEmpty && rawItems.first is Map
-                  ? int.tryParse('${rawItems.first['count'] ?? 0}') ?? 0
-                  : 0;
+              ? int.tryParse('${rawItems.first['count'] ?? 0}') ?? 0
+              : 0;
           final cover = '${item['cover_image_url'] ?? item['cover_url'] ?? ''}';
           return Card(
             margin: const EdgeInsets.only(top: 8),
             child: ListTile(
               leading: CircleAvatar(
-                backgroundImage:
-                    cover.startsWith('https://') ? NetworkImage(cover) : null,
+                backgroundImage: cover.startsWith('https://')
+                    ? NetworkImage(cover)
+                    : null,
                 child: cover.startsWith('https://')
                     ? null
                     : const Icon(Icons.library_books_rounded),
@@ -548,8 +565,9 @@ class _ProfilePageState extends State<ProfilePage> {
         final profileId = '${_profile?['id'] ?? ''}';
         return _sectionRecords.map((item) {
           final received = '${item['to_user_id'] ?? ''}' == profileId;
-          final other = (received ? item['sender'] : item['recipient'])
-              as Map<String, dynamic>?;
+          final other =
+              (received ? item['sender'] : item['recipient'])
+                  as Map<String, dynamic>?;
           final otherName =
               '${other?['display_name'] ?? other?['username'] ?? 'Testagram user'}';
           final amount = double.tryParse('${item['amount'] ?? 0}') ?? 0;
@@ -597,7 +615,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               title: Text(
-                  received ? 'Premium gift received' : 'Premium gift sent'),
+                received ? 'Premium gift received' : 'Premium gift sent',
+              ),
               subtitle: Text(
                 '$plan · $status · ${item['created_at'] ?? ''}',
                 maxLines: 2,
@@ -617,16 +636,19 @@ class _ProfilePageState extends State<ProfilePage> {
               child: ListTile(
                 leading: Icon(Icons.lock_outline_rounded),
                 title: Text('Analytics are private'),
-                subtitle:
-                    Text('Only the profile owner can view these metrics.'),
+                subtitle: Text(
+                  'Only the profile owner can view these metrics.',
+                ),
               ),
             ),
           ];
         }
         final topPosts = [..._posts]
-          ..sort((a, b) => ((b['views_count'] as num?)?.toInt() ?? 0).compareTo(
-                (a['views_count'] as num?)?.toInt() ?? 0,
-              ));
+          ..sort(
+            (a, b) => ((b['views_count'] as num?)?.toInt() ?? 0).compareTo(
+              (a['views_count'] as num?)?.toInt() ?? 0,
+            ),
+          );
         return [
           Wrap(
             spacing: 8,
@@ -661,9 +683,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 16),
           Text(
             'Top posts by views',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
+            style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           if (topPosts.isEmpty)
@@ -671,7 +691,9 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: EdgeInsets.all(16),
               child: Text('Publish posts to start seeing content performance.'),
             ),
-          ...topPosts.take(5).map(
+          ...topPosts
+              .take(5)
+              .map(
                 (post) => Card(
                   margin: const EdgeInsets.only(top: 8),
                   child: ListTile(
@@ -697,30 +719,27 @@ class _ProfilePageState extends State<ProfilePage> {
     String label,
     String value,
     IconData icon,
-  ) =>
-      SizedBox(
-        width: 155,
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, size: 20),
-                const SizedBox(height: 10),
-                Text(
-                  value,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                Text(label, style: Theme.of(context).textTheme.bodySmall),
-              ],
+  ) => SizedBox(
+    width: 155,
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w900),
             ),
-          ),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   Future<void> _toggleFollow() async {
     if (_isOwnProfile || _followBusy) return;
@@ -769,8 +788,9 @@ class _ProfilePageState extends State<ProfilePage> {
     if (session == null) {
       throw Exception('Sign in again before uploading profile media.');
     }
-    final extension =
-        file.name.contains('.') ? file.name.split('.').last.toLowerCase() : '';
+    final extension = file.name.contains('.')
+        ? file.name.split('.').last.toLowerCase()
+        : '';
     const mimeByExtension = <String, String>{
       'jpg': 'image/jpeg',
       'jpeg': 'image/jpeg',
@@ -915,12 +935,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Camera access failed. Check permission and retry.',
-                                        ),
-                                      ),
-                                    );
+                                          const SnackBar(
+                                            content: Text(
+                                              'Camera access failed. Check permission and retry.',
+                                            ),
+                                          ),
+                                        );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -963,12 +983,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Photo selection failed. Check media permissions and retry.',
-                                        ),
-                                      ),
-                                    );
+                                          const SnackBar(
+                                            content: Text(
+                                              'Photo selection failed. Check media permissions and retry.',
+                                            ),
+                                          ),
+                                        );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -995,12 +1015,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                       if (dialogContext.mounted) {
                                         ScaffoldMessenger.of(dialogContext)
                                             .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Cover image must be 5 MB or smaller.',
-                                            ),
-                                          ),
-                                        );
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Cover image must be 5 MB or smaller.',
+                                                ),
+                                              ),
+                                            );
                                       }
                                     } else {
                                       setDialogState(() => coverFile = file);
@@ -1010,12 +1030,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Cover selection failed. Check media permissions and retry.',
-                                        ),
-                                      ),
-                                    );
+                                          const SnackBar(
+                                            content: Text(
+                                              'Cover selection failed. Check media permissions and retry.',
+                                            ),
+                                          ),
+                                        );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -1061,13 +1081,13 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: picking
                   ? null
                   : () => Navigator.pop(dialogContext, {
-                        'display_name': name.text.trim(),
-                        'bio': bio.text.trim(),
-                        'website': website.text.trim(),
-                        'location': location.text.trim(),
-                        'avatar': avatarFile,
-                        'cover': coverFile,
-                      }),
+                      'display_name': name.text.trim(),
+                      'bio': bio.text.trim(),
+                      'website': website.text.trim(),
+                      'location': location.text.trim(),
+                      'avatar': avatarFile,
+                      'cover': coverFile,
+                    }),
               child: const Text('Save'),
             ),
           ],
@@ -1095,8 +1115,9 @@ class _ProfilePageState extends State<ProfilePage> {
       if (cover != null) {
         update['cover_url'] = await _uploadProfileMedia(cover, 'cover');
       }
-      final result = await _client.rpc('profile_update',
-          params: {'p_input': update}).timeout(const Duration(seconds: 20));
+      final result = await _client
+          .rpc('profile_update', params: {'p_input': update})
+          .timeout(const Duration(seconds: 20));
       if (result is! Map || result['updated'] != true) {
         throw Exception('The server did not confirm the profile update.');
       }
@@ -1166,9 +1187,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 12),
                   Text(
                     name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
+                    style: Theme.of(context).textTheme.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   Text(
@@ -1224,9 +1243,7 @@ class _ProfilePageState extends State<ProfilePage> {
               widget.section == 'following') ...[
             Text(
               widget.section == 'followers' ? 'Followers' : 'Following',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
+              style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (_loading && _people.isEmpty)
@@ -1250,8 +1267,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 margin: const EdgeInsets.only(top: 8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundImage: '${person['avatar_url'] ?? ''}'
-                            .startsWith('http')
+                    backgroundImage:
+                        '${person['avatar_url'] ?? ''}'.startsWith('http')
                         ? CachedNetworkImageProvider('${person['avatar_url']}')
                         : null,
                     child: '${person['avatar_url'] ?? ''}'.startsWith('http')
@@ -1265,21 +1282,24 @@ class _ProfilePageState extends State<ProfilePage> {
                   onTap: '${person['username'] ?? ''}'.isEmpty
                       ? null
                       : () => context.go(
-                            '/profile/${Uri.encodeComponent('${person['username']}')}',
-                          ),
+                          '/profile/${Uri.encodeComponent('${person['username']}')}',
+                        ),
                 ),
               ),
             ),
           ] else ...[
             Text(
               _sectionHeading,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
+              style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
-            if (const {'podcasts', 'series', 'tips', 'gifts', 'analytics'}
-                .contains(widget.section))
+            if (const {
+              'podcasts',
+              'series',
+              'tips',
+              'gifts',
+              'analytics',
+            }.contains(widget.section))
               ..._buildSpecialSection(context)
             else ...[
               if (_loading && _posts.isEmpty)
@@ -1325,15 +1345,13 @@ class _Stat extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) => Column(
-        children: [
-          Text(
-            value,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      );
+    children: [
+      Text(
+        value,
+        style: Theme.of(context).textTheme.titleMedium
+            ?.copyWith(fontWeight: FontWeight.w800),
+      ),
+      Text(label, style: Theme.of(context).textTheme.bodySmall),
+    ],
+  );
 }

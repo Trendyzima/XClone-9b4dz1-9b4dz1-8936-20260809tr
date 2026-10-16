@@ -50,7 +50,8 @@ class TvChannelCachePolicy {
   }
 
   static List<Map<String, dynamic>> sanitizeChannels(
-      Iterable<Map<String, dynamic>> channels) {
+    Iterable<Map<String, dynamic>> channels,
+  ) {
     final output = <Map<String, dynamic>>[];
     final seen = <String>{};
     for (final channel in channels) {
@@ -81,8 +82,10 @@ class TvChannelCachePolicy {
     return output;
   }
 
-  static String? encode(Iterable<Map<String, dynamic>> channels,
-      {DateTime? now}) {
+  static String? encode(
+    Iterable<Map<String, dynamic>> channels, {
+    DateTime? now,
+  }) {
     final safe = sanitizeChannels(channels);
     if (safe.isEmpty) return null;
     final encoded = jsonEncode({

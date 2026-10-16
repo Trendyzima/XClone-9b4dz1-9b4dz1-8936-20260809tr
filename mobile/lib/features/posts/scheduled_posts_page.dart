@@ -45,15 +45,15 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
           .timeout(const Duration(seconds: 20));
       if (mounted) {
         setState(
-          () => _posts =
-              rows.map((r) => Map<String, dynamic>.from(r as Map)).toList(),
+          () => _posts = rows
+              .map((r) => Map<String, dynamic>.from(r as Map))
+              .toList(),
         );
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Scheduled posts could not load. Check connection and permissions, then retry.',
+          () => _error = 'Scheduled posts could not load. Check connection and permissions, then retry.',
         );
       }
     } finally {
@@ -102,8 +102,7 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Could not cancel this post. It may already have been processed. Refresh and check its status.',
+          () => _error = 'Could not cancel this post. It may already have been processed. Refresh and check its status.',
         );
       }
     } finally {
@@ -190,8 +189,9 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
                                   child: Text(
                                     '${post['status'] ?? 'scheduled'}'
                                         .toUpperCase(),
-                                    style:
-                                        Theme.of(context).textTheme.labelLarge,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge,
                                   ),
                                 ),
                                 Text(_date(post['scheduled_for'])),

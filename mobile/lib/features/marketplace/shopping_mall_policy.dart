@@ -84,9 +84,9 @@ class MallPolicy {
   ];
 
   static MallCategory category(String id) => categories.firstWhere(
-        (item) => item.id == id,
-        orElse: () => categories.first,
-      );
+    (item) => item.id == id,
+    orElse: () => categories.first,
+  );
 
   static bool matchesCategory({
     required String selectedId,

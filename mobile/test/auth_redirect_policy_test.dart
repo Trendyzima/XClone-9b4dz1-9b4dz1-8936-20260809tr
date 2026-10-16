@@ -68,7 +68,9 @@ void main() {
 
     test('prevents auth and setup redirect loops', () {
       expect(
-          AuthRedirectPolicy.safeReturnPath('/auth?returnTo=/messages'), '/');
+        AuthRedirectPolicy.safeReturnPath('/auth?returnTo=/messages'),
+        '/',
+      );
       expect(AuthRedirectPolicy.safeReturnPath('/setup'), '/');
     });
   });

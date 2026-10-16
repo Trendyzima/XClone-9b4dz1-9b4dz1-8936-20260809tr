@@ -24,15 +24,14 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
   int _generation = 0;
 
   int get _listeners => _recordings.fold<int>(
-        0,
-        (sum, row) =>
-            sum + PodcastAnalyticsPolicy.asCount(row['listener_count']),
-      );
+    0,
+    (sum, row) => sum + PodcastAnalyticsPolicy.asCount(row['listener_count']),
+  );
 
   int get _duration => _recordings.fold<int>(
-        0,
-        (sum, row) => sum + PodcastAnalyticsPolicy.asCount(row['duration']),
-      );
+    0,
+    (sum, row) => sum + PodcastAnalyticsPolicy.asCount(row['duration']),
+  );
 
   @override
   void initState() {
@@ -65,9 +64,10 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
     try {
       var owner = false;
       try {
-        owner = await _db.rpc('testagram_is_owner').timeout(
-                  const Duration(seconds: 10),
-                ) ==
+        owner =
+            await _db
+                .rpc('testagram_is_owner')
+                .timeout(const Duration(seconds: 10)) ==
             true;
       } catch (_) {
         // Non-owner users are still evaluated using their explicit feature lock.
@@ -89,8 +89,7 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
             _featureResolved = true;
             _recordings = const [];
             _tipsEarned = 0;
-            _error =
-                'Podcast analytics access could not be verified. Retry when connected.';
+            _error = 'Podcast analytics access could not be verified. Retry when connected.';
           });
         }
         return;
@@ -181,165 +180,183 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
       body: _loading && !_featureResolved
           ? const Center(child: CircularProgressIndicator())
           : user == null
-              ? _emptyState(
-                  context,
-                  Icons.lock_outline_rounded,
-                  'Sign in required',
-                  'Sign in to view your podcast and recording performance.',
-                  action: FilledButton(
-                    onPressed: () => context.go('/auth'),
-                    child: const Text('Sign in'),
+          ? _emptyState(
+              context,
+              Icons.lock_outline_rounded,
+              'Sign in required',
+              'Sign in to view your podcast and recording performance.',
+              action: FilledButton(
+                onPressed: () => context.go('/auth'),
+                child: const Text('Sign in'),
+              ),
+            )
+          : _locked
+          ? _emptyState(
+              context,
+              Icons.lock_outline_rounded,
+              'Feature locked',
+              'Podcast Analytics is locked for this account. Contact the platform owner to request access.',
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    'Your podcast performance',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                )
-              : _locked
-                  ? _emptyState(
-                      context,
-                      Icons.lock_outline_rounded,
-                      'Feature locked',
-                      'Podcast Analytics is locked for this account. Contact the platform owner to request access.',
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          Text(
-                            'Your podcast performance',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Based on your latest 50 recordings and tips received in the last 30 days.',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          if (_error != null) ...[
-                            const SizedBox(height: 12),
-                            MaterialBanner(
-                              content: Text(_error!),
-                              actions: [
-                                TextButton(
-                                  onPressed: _load,
-                                  child: const Text('Retry'),
-                                ),
-                              ],
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          GridView.count(
-                            crossAxisCount: 2,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 1.7,
-                            children: [
-                              _metric(context, 'Listeners', '$_listeners',
-                                  Icons.headphones_rounded),
-                              _metric(
-                                  context,
-                                  'Total duration',
-                                  PodcastAnalyticsPolicy.formatDuration(
-                                      _duration),
-                                  Icons.schedule_rounded),
-                              _metric(
-                                  context,
-                                  'Episodes',
-                                  '${_recordings.length}',
-                                  Icons.podcasts_rounded),
-                              _metric(
-                                  context,
-                                  'Tips · 30 days',
-                                  _tipsEarned.toStringAsFixed(2),
-                                  Icons.volunteer_activism_outlined),
-                            ],
-                          ),
-                          const SizedBox(height: 22),
-                          Text(
-                            'Top recordings',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          if (_recordings.isEmpty && _error == null)
-                            const Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(22),
-                                child: Text(
-                                    'No recordings found for this account yet.'),
-                              ),
-                            ),
-                          ..._recordings.map((recording) {
-                            final space = recording['spaces'] is Map
-                                ? Map<String, dynamic>.from(
-                                    recording['spaces'] as Map)
-                                : <String, dynamic>{};
-                            final title =
-                                '${recording['title'] ?? space['title'] ?? 'Untitled recording'}';
-                            final listeners = PodcastAnalyticsPolicy.asCount(
-                                recording['listener_count']);
-                            final created = DateTime.tryParse(
-                                '${recording['created_at'] ?? ''}');
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: const CircleAvatar(
-                                  child: Icon(Icons.podcasts_rounded),
-                                ),
-                                title: Text(title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis),
-                                subtitle: Text(
-                                  '${space['category'] ?? 'Podcast'} · ${PodcastAnalyticsPolicy.formatDuration(recording['duration'])}${created == null ? '' : ' · ${created.toLocal().toString().substring(0, 10)}'}',
-                                ),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text('$listeners',
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w800)),
-                                    Text('listeners',
-                                        style: theme.textTheme.labelSmall),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'Based on your latest 50 recordings and tips received in the last 30 days.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    MaterialBanner(
+                      content: Text(_error!),
+                      actions: [
+                        TextButton(
+                          onPressed: _load,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1.7,
+                    children: [
+                      _metric(
+                        context,
+                        'Listeners',
+                        '$_listeners',
+                        Icons.headphones_rounded,
+                      ),
+                      _metric(
+                        context,
+                        'Total duration',
+                        PodcastAnalyticsPolicy.formatDuration(_duration),
+                        Icons.schedule_rounded,
+                      ),
+                      _metric(
+                        context,
+                        'Episodes',
+                        '${_recordings.length}',
+                        Icons.podcasts_rounded,
+                      ),
+                      _metric(
+                        context,
+                        'Tips · 30 days',
+                        _tipsEarned.toStringAsFixed(2),
+                        Icons.volunteer_activism_outlined,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  Text(
+                    'Top recordings',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_recordings.isEmpty && _error == null)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(22),
+                        child: Text(
+                          'No recordings found for this account yet.',
+                        ),
                       ),
                     ),
+                  ..._recordings.map((recording) {
+                    final space = recording['spaces'] is Map
+                        ? Map<String, dynamic>.from(recording['spaces'] as Map)
+                        : <String, dynamic>{};
+                    final title =
+                        '${recording['title'] ?? space['title'] ?? 'Untitled recording'}';
+                    final listeners = PodcastAnalyticsPolicy.asCount(
+                      recording['listener_count'],
+                    );
+                    final created = DateTime.tryParse(
+                      '${recording['created_at'] ?? ''}',
+                    );
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.podcasts_rounded),
+                        ),
+                        title: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${space['category'] ?? 'Podcast'} · ${PodcastAnalyticsPolicy.formatDuration(recording['duration'])}${created == null ? '' : ' · ${created.toLocal().toString().substring(0, 10)}'}',
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '$listeners',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'listeners',
+                              style: theme.textTheme.labelSmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
     );
   }
 
   Widget _metric(
-          BuildContext context, String label, String value, IconData icon) =>
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon,
-                  size: 20, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 6),
-              Text(value,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900)),
-              Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall),
-            ],
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+  ) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
-        ),
-      );
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _emptyState(
     BuildContext context,
@@ -347,24 +364,20 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
     String title,
     String body, {
     Widget? action,
-  }) =>
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 52),
-              const SizedBox(height: 14),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(body, textAlign: TextAlign.center),
-              if (action != null) ...[
-                const SizedBox(height: 16),
-                action,
-              ],
-            ],
-          ),
-        ),
-      );
+  }) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 52),
+          const SizedBox(height: 14),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(body, textAlign: TextAlign.center),
+          if (action != null) ...[const SizedBox(height: 16), action],
+        ],
+      ),
+    ),
+  );
 }

@@ -22,8 +22,7 @@ bool tvCanRequestSponsoredAd({
   required bool hasPlaybackStarted,
   required bool alreadyRequested,
   required bool isCurrentGeneration,
-}) =>
-    hasPlaybackStarted && !alreadyRequested && isCurrentGeneration;
+}) => hasPlaybackStarted && !alreadyRequested && isCurrentGeneration;
 
 /// Native TV playback should pause whenever the app is not foregrounded.
 bool tvShouldPauseForLifecycle(AppLifecycleState state) =>
@@ -33,8 +32,7 @@ bool tvShouldPauseForLifecycle(AppLifecycleState state) =>
 bool tvShouldResumeAfterLifecycle({
   required AppLifecycleState state,
   required bool wasPlayingBeforePause,
-}) =>
-    state == AppLifecycleState.resumed && wasPlayingBeforePause;
+}) => state == AppLifecycleState.resumed && wasPlayingBeforePause;
 
 /// Return a canonical external YouTube URL only for a valid video identifier.
 /// YouTube playback is deliberately external on Android so the APK needs no WebView.

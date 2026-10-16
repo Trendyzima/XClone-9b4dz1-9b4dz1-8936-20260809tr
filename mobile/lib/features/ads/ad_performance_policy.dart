@@ -32,11 +32,15 @@ class AdPerformancePolicy {
       if (code.isEmpty) continue;
       final rows = bySlot[code] ?? const <Map<String, dynamic>>[];
       final clicks = rows
-          .where((row) =>
-              clickedImpressionIds.contains('${row['impression_id'] ?? ''}'))
+          .where(
+            (row) =>
+                clickedImpressionIds.contains('${row['impression_id'] ?? ''}'),
+          )
           .length;
-      final spendMicros =
-          rows.fold<int>(0, (sum, row) => sum + asInt(row['billable_micros']));
+      final spendMicros = rows.fold<int>(
+        0,
+        (sum, row) => sum + asInt(row['billable_micros']),
+      );
       result.add({
         'code': code,
         'kind': '${slot['kind'] ?? 'unknown'}',
@@ -47,8 +51,9 @@ class AdPerformancePolicy {
         'ctr': ctr(impressions: rows.length, clicks: clicks),
       });
     }
-    result.sort((a, b) =>
-        (b['spend_micros'] as int).compareTo(a['spend_micros'] as int));
+    result.sort(
+      (a, b) => (b['spend_micros'] as int).compareTo(a['spend_micros'] as int),
+    );
     return result;
   }
 }

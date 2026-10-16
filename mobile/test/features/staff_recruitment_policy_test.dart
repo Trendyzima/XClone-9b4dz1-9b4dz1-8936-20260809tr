@@ -9,22 +9,30 @@ void main() {
       'reviewing',
       'shortlisted',
       'rejected',
-      'withdrawn'
+      'withdrawn',
     ]) {
       expect(StaffRecruitmentPolicy.canInvite(status), isFalse, reason: status);
     }
   });
 
-  test('display name prefers profile name and safely falls back to username',
-      () {
-    expect(
-        StaffRecruitmentPolicy.displayName(
-            {'display_name': 'Amina', 'username': 'amina'}),
-        'Amina');
-    expect(
-        StaffRecruitmentPolicy.displayName(
-            {'display_name': '', 'username': 'amina'}),
-        '@amina');
-    expect(StaffRecruitmentPolicy.displayName({}), 'Applicant');
-  });
+  test(
+    'display name prefers profile name and safely falls back to username',
+    () {
+      expect(
+        StaffRecruitmentPolicy.displayName({
+          'display_name': 'Amina',
+          'username': 'amina',
+        }),
+        'Amina',
+      );
+      expect(
+        StaffRecruitmentPolicy.displayName({
+          'display_name': '',
+          'username': 'amina',
+        }),
+        '@amina',
+      );
+      expect(StaffRecruitmentPolicy.displayName({}), 'Applicant');
+    },
+  );
 }

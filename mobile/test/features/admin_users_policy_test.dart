@@ -12,7 +12,7 @@ void main() {
       const user = {
         'id': 'abc-123',
         'username': 'Trendy',
-        'email': 't@example.com'
+        'email': 't@example.com',
       };
       expect(AdminUsersPolicy.matchesSearch(user, 'trend'), isTrue);
       expect(AdminUsersPolicy.matchesSearch(user, 'EXAMPLE.COM'), isTrue);

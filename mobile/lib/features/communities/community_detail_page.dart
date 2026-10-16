@@ -38,7 +38,8 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       final community = await _db
           .from('communities')
           .select(
-              'id,name,display_name,description,icon_url,banner_url,is_private,member_count,post_count,owner_id,rules')
+            'id,name,display_name,description,icon_url,banner_url,is_private,member_count,post_count,owner_id,rules',
+          )
           .eq('name', widget.name)
           .maybeSingle()
           .timeout(const Duration(seconds: 15));
@@ -46,7 +47,8 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       final posts = await _db
           .from('posts')
           .select(
-              'id,author_id,user_id,content,created_at,likes_count,community_id')
+            'id,author_id,user_id,content,created_at,likes_count,community_id',
+          )
           .eq('community_id', '${community['id']}')
           .order('created_at', ascending: false)
           .limit(30)
@@ -69,8 +71,9 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       });
     } catch (_) {
       if (mounted) {
-        setState(() => _error =
-            'This community could not load. It may be private or no longer available.');
+        setState(
+          () => _error = 'This community could not load. It may be private or no longer available.',
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -90,14 +93,19 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
       _joined = joining;
     });
     try {
-      await _db.rpc(joining ? 'join_community' : 'leave_community',
-          params: {'p_community_id': id});
+      await _db.rpc(
+        joining ? 'join_community' : 'leave_community',
+        params: {'p_community_id': id},
+      );
       await _load();
     } catch (_) {
       if (mounted) {
         setState(() => _joined = !joining);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Membership update failed. Please retry.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Membership update failed. Please retry.'),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -112,7 +120,8 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
     }
     if (!_joined) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Join this community before posting.')));
+        const SnackBar(content: Text('Join this community before posting.')),
+      );
       return;
     }
     final content = _composer.text.trim();
@@ -123,14 +132,17 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
         'author_id': uid,
         'user_id': uid,
         'community_id': _community!['id'],
-        'content': content
+        'content': content,
       });
       _composer.clear();
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Post could not be published. Please retry.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Post could not be published. Please retry.'),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -139,102 +151,136 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(padding: const EdgeInsets.all(14), children: [
-        Row(children: [
-          IconButton(
+    onRefresh: _load,
+    child: ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        Row(
+          children: [
+            IconButton(
               onPressed: () => context.go('/communities'),
-              icon: const Icon(Icons.arrow_back_rounded)),
-          Expanded(
-              child: Text('Community',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w900)))
-        ]),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            Expanded(
+              child: Text(
+                'Community',
+                style: Theme.of(context).textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ),
         if (_loading)
           const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator())),
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
         if (_error != null)
           Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(children: [
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
                 Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry'))
-              ])),
+                TextButton(onPressed: _load, child: const Text('Retry')),
+              ],
+            ),
+          ),
         if (!_loading && _community != null) ...[
           if ('${_community!['banner_url'] ?? ''}'.startsWith('http'))
             ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.network('${_community!['banner_url']}',
-                    height: 130,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink())),
+              borderRadius: BorderRadius.circular(14),
+              child: Image.network(
+                '${_community!['banner_url']}',
+                height: 130,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
           Card(
-              child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                            '${_community!['display_name'] ?? _community!['name']}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w900)),
-                        Text('c/${_community!['name']}'),
-                        const SizedBox(height: 8),
-                        Text(
-                            '${_community!['description'] ?? 'A Testagram community.'}'),
-                        const SizedBox(height: 8),
-                        Text(
-                            '${_community!['member_count'] ?? 0} members · ${_community!['post_count'] ?? 0} posts'),
-                        const SizedBox(height: 12),
-                        if (_uid != null)
-                          FilledButton(
-                              onPressed: _working ? null : _toggleMembership,
-                              child: Text(_joined
-                                  ? 'Leave community'
-                                  : 'Join community'))
-                      ]))),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_community!['display_name'] ?? _community!['name']}',
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                  Text('c/${_community!['name']}'),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_community!['description'] ?? 'A Testagram community.'}',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_community!['member_count'] ?? 0} members · ${_community!['post_count'] ?? 0} posts',
+                  ),
+                  const SizedBox(height: 12),
+                  if (_uid != null)
+                    FilledButton(
+                      onPressed: _working ? null : _toggleMembership,
+                      child: Text(
+                        _joined ? 'Leave community' : 'Join community',
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
           if (_joined)
             Card(
-                child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(children: [
-                      TextField(
-                          controller: _composer,
-                          maxLength: 2000,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                              hintText: 'Share with this community…',
-                              border: InputBorder.none)),
-                      Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                              onPressed: _working ? null : _publish,
-                              icon: const Icon(Icons.send_rounded),
-                              label: const Text('Publish')))
-                    ]))),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _composer,
+                      maxLength: 2000,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: 'Share with this community…',
+                        border: InputBorder.none,
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.icon(
+                        onPressed: _working ? null : _publish,
+                        icon: const Icon(Icons.send_rounded),
+                        label: const Text('Publish'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text('Community posts',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900))),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'Community posts',
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
+          ),
           if (_posts.isEmpty)
             const Padding(
-                padding: EdgeInsets.all(20),
-                child: Center(child: Text('No posts yet.'))),
-          ..._posts.map((p) => Card(
+              padding: EdgeInsets.all(20),
+              child: Center(child: Text('No posts yet.')),
+            ),
+          ..._posts.map(
+            (p) => Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
-                  title: Text('${p['content'] ?? ''}'),
-                  subtitle: Text('${p['created_at'] ?? ''}'),
-                  onTap: () => context.go('/post/${p['id']}')))),
+                title: Text('${p['content'] ?? ''}'),
+                subtitle: Text('${p['created_at'] ?? ''}'),
+                onTap: () => context.go('/post/${p['id']}'),
+              ),
+            ),
+          ),
         ],
-      ]));
+      ],
+    ),
+  );
 }

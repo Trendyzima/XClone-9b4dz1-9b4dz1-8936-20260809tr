@@ -30,9 +30,9 @@ class UnifiedSearchPolicy {
       ])
         key: raw[key] is List
             ? (raw[key] as List)
-                .whereType<Map>()
-                .map((row) => Map<String, dynamic>.from(row))
-                .toList(growable: false)
+                  .whereType<Map>()
+                  .map((row) => Map<String, dynamic>.from(row))
+                  .toList(growable: false)
             : <Map<String, dynamic>>[],
       'next_cursor': raw['next_cursor'] is String || raw['next_cursor'] is num
           ? '${raw['next_cursor']}'
@@ -56,11 +56,13 @@ class UnifiedSearchPolicy {
           'preferredUsername',
         ]).replaceFirst(RegExp(r'^@'), '').toLowerCase();
         final actor = firstText(row, ['actor_uri', 'actor_url', 'url']);
-        final host = Uri.tryParse(actor)?.host.toLowerCase() ??
+        final host =
+            Uri.tryParse(actor)?.host.toLowerCase() ??
             firstText(row, ['domain']).toLowerCase();
         if (username.isNotEmpty && host.isNotEmpty) {
-          final canonicalHost =
-              host.startsWith('www.') ? host.substring(4) : host;
+          final canonicalHost = host.startsWith('www.')
+              ? host.substring(4)
+              : host;
           return '$group:remote:$username@$canonicalHost';
         }
       }
