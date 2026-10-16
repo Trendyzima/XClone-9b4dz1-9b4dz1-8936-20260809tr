@@ -247,7 +247,7 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _sort,
+              initialValue: _sort,
               decoration: const InputDecoration(labelText: 'Sort communities'),
               items: const [
                 DropdownMenuItem(value: 'Popular', child: Text('Most members')),
