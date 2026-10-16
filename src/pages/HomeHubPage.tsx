@@ -401,7 +401,7 @@ export default function HomeHubPage(){
       // Background refresh reads the newest page, but its cursor must not replace
       // the continuation cursor for the already-loaded older pages.
       const continuationCursor=nextCursorRef.current;
-      const next=await fetchTab('all',0,null,background);
+      const next=await fetchTab('all',0,null,true);
       if(background){
         nextCursorRef.current=continuationCursor;
         setNextCursor(continuationCursor);
