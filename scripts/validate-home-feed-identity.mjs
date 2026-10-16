@@ -17,6 +17,7 @@ const federatedFeed = read('supabase/functions/federated-feed/index.ts');
 const supabaseConfig = read('supabase/config.toml');
 const visibilityRepair = read('supabase/migrations/20261016101000_federated_public_timeline_visibility_repair.sql');
 const ingestionCadence = read('supabase/migrations/20261016104000_fediverse_ingestion_cadence_and_queue_priority.sql');
+const ingestionBatchTuning = read('supabase/migrations/20261016110000_fediverse_ingestion_batch_tuning.sql');
 const videoPlayer = read('src/components/features/UniversalVideoPlayer.tsx');
 const postCard = read('src/components/features/PostCard.tsx');
 
@@ -48,7 +49,7 @@ requireText(richText, /const routeHashtag[\s\S]*navigate\('\/hashtag\/'[\s\S]*co
   'Fediverse rich text must route hashtags and remote mentions into canonical Testagram surfaces.');
 
 
-requireText(federationWorker, /\.eq\("public_timeline_available",true\)[\s\S]*\.limit\(80\)[\s\S]*\.limit\(4\)/,
+requireText(federationWorker, /\.eq\("public_timeline_available",true\)[\s\S]*\.limit\(40\)[\s\S]*\.limit\(2\)/,
   'Fediverse ingestion must prioritize known public instances and bound exploratory polling of unknown instances.');
 requireText(federationWorker, /status===400[\s\S]*status===404[\s\S]*status===422/,
   'Unsupported remote timeline responses must be removed from the hot sync queue.');
@@ -56,6 +57,10 @@ requireText(federationWorker, /if\(cls==="public_timeline_unavailable"\)instance
   'Transient timeouts and 5xx responses must not erase a source previously known to have a public timeline.');
 requireText(federationWorker, /UNAVAILABLE_RECHECK_INTERVAL_MS = 24 \* 60 \* 60 \* 1000/,
   'Instances that do not expose public timelines must be rechecked daily rather than monopolizing the ingestion queue.');
+requireText(federationWorker, /const concurrency=6;[\s\S]*const progress=await db\.from\("fediverse_ingestion_runs"\)\.update/,
+  'The inbound worker must use a timeout-safe batch size and report per-batch progress so a slow run is diagnosable.');
+requireText(ingestionBatchTuning, /schedule := '\*\/2 \* \* \* \*'/,
+  'After bounded batches are in place, inbound Fediverse sync should be scheduled every two minutes.');
 requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'[\s\S]*timeout_milliseconds := 120000/,
   'The inbound worker cron cadence and HTTP timeout must match its bounded processing batch.');
 requireText(federationWorker, /function normalizeTimelineVisibility\(value:any\)[\s\S]*visibility:normalizeTimelineVisibility\(s\.visibility\)/,
