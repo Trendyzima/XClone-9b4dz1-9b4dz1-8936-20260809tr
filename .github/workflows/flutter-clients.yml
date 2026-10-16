@@ -20,6 +20,7 @@ on:
       - 'scripts/validate-appeals-reports-contract.mjs'
       - 'scripts/validate-unified-search-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
+      - 'scripts/validate-flutter-sdk-pin.mjs'
       - '.github/workflows/flutter-clients.yml'
   push:
     branches: [main]
@@ -90,6 +91,8 @@ jobs:
         with:
           flutter-version: '3.47.0'
           cache: true
+      - name: Verify Flutter CI SDK satisfies the lockfile
+        run: node scripts/validate-flutter-sdk-pin.mjs
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
