@@ -1,5 +1,5 @@
 -- Tune the inbound sync cadence to the smaller, observable batch.
--- 40 known-public + 2 exploratory sources at concurrency six complete below the
+-- 24 known-public + 2 exploratory sources at concurrency six complete below the
 -- 120-second request timeout even when some remote timelines are slow.
 do $$
 declare
