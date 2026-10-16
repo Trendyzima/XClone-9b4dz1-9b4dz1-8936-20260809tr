@@ -43,6 +43,9 @@ requireText(aggregator, /function sourceKey\(item: any\)[\s\S]*data\.remote_stat
   'Server-side aggregation must canonicalize object URIs before blending source lanes.');
 requireText(aggregator, /item\?\.type === 'post' \|\| item\?\.type === 'fedpost' \? 'content'/,
   'Server-side aggregation must collapse local/Fediverse wrappers with the same fallback ID.');
+requireText(aggregator, /postsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)[\s\S]*threadsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)/,
+  'Home feed source queries must be independently time-bounded so one slow lane cannot block the entire page.');
+
 requireText(search, /function normalizeSearchHashtag[\s\S]*encodeURIComponent\(tag\)[\s\S]*function GlobalSearchResults/,
   'Search hashtag links must normalize optional # prefixes and URL-encode the canonical tag.');
 requireText(search, /api\.searchUnified\(clean[\s\S]*searchFederatedDiscovery/,
