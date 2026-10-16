@@ -136,7 +136,7 @@ class _ProductsPageState extends State<ProductsPage> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: delivery,
+                  initialValue: delivery,
                   decoration: const InputDecoration(labelText: 'Delivery'),
                   items: [
                     const DropdownMenuItem(value: 'pickup', child: Text('Pickup')),
@@ -296,7 +296,7 @@ class _ProductsPageState extends State<ProductsPage> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _sort,
+              initialValue: _sort,
               decoration: const InputDecoration(labelText: 'Sort'),
               items: const [
                 DropdownMenuItem(value: 'Popular', child: Text('Best selling')),
