@@ -244,7 +244,7 @@ export default function HomeHubPage(){
           // Do not leave the first screen waiting indefinitely on a degraded
           // aggregator. The catch below immediately enters the direct local
           // post/thread fallback; cached feed content has already hydrated.
-          signal: AbortSignal.timeout(12000),
+          signal: AbortSignal.timeout(15000),
         });
         if (response.ok) {
           const payload = await response.json();
