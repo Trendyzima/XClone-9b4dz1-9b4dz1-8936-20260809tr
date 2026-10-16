@@ -31,7 +31,7 @@ requireText(home, /homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT/,
   'HomeHub must use the same identity helper as the offline cache.');
 requireText(home, /const next=await fetchTab\('all',0,null,true\)/,
   'The first For You request must include public Fediverse content instead of waiting for the background refresh.');
-requireText(home, /signal: AbortSignal\.timeout\(12000\)/,
+requireText(home, /signal: AbortSignal\.timeout\(15000\)/,
   'A stalled home-feed aggregator must time out into the existing direct fallback rather than leaving first load pending indefinitely.');
 requireText(home, /new Set\(existing\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)\)/,
   'HomeHub page append must seed its deduplication set from canonical identities.');
