@@ -6,6 +6,18 @@ const db=createClient(SUPABASE_URL,SERVICE,{auth:{persistSession:false,autoRefre
 const AP='https://www.w3.org/ns/activitystreams',SEC='https://w3id.org/security/v1',TOOT='http://joinmastodon.org/ns#';
 const H={'Content-Type':'application/activity+json; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'no-store','CDN-Cache-Control':'no-store'};
 const json=(v:unknown,s=200,extra:Record<string,string>={})=>new Response(JSON.stringify(v),{status:s,headers:{...H,...extra}});
+let nodeInfoStatsCache:{users:number;posts:number;expiresAt:number}|null=null;
+async function getNodeInfoStats(){
+  if(nodeInfoStatsCache&&nodeInfoStatsCache.expiresAt>Date.now())return nodeInfoStatsCache;
+  const [users,posts]=await Promise.all([
+    db.from('profiles').select('id',{count:'exact',head:true}),
+    db.from('posts').select('id',{count:'exact',head:true}).is('deleted_at',null)
+  ]);
+  if(users.error)throw users.error;
+  if(posts.error)throw posts.error;
+  nodeInfoStatsCache={users:Number(users.count||0),posts:Number(posts.count||0),expiresAt:Date.now()+5*60*1000};
+  return nodeInfoStatsCache;
+}
 const str=(v:unknown)=>typeof v==='string'?v:'';const uri=(v:unknown)=>typeof v==='string'?v:v&&typeof v==='object'?str((v as any).id):'';
 const context=[AP,SEC,{toot:TOOT,discoverable:'toot:discoverable',indexable:'toot:indexable',featured:'toot:featured'}];
 async function ensureActivityPubIdentity(userId:string){
@@ -21,33 +33,55 @@ async function ensureActivityPubIdentity(userId:string){
   }
 }
 async function actor(username:string){
-  const profile=await db.from('profiles').select('id,username,account_status').eq('username',username).maybeSingle();
+  const profile=await db.from('profiles')
+    .select('id,username,account_status,display_name,bio,avatar_url,cover_url,protected_account')
+    .eq('username',username).maybeSingle();
   if(profile.error)throw profile.error;
   if(profile.data){
     if(profile.data.account_status!=='active')return null;
-    const [existingActor,existingKey]=await Promise.all([
-      db.from('activitypub_actors').select('id,user_id').eq('user_id',profile.data.id).maybeSingle(),
-      db.from('activitypub_keys').select('id,public_key_pem').eq('user_id',profile.data.id).maybeSingle()
+    // Fetch the actor and signing key in parallel and reuse both results. The
+    // previous path queried actor/key for existence, then fetched them again,
+    // adding three unnecessary PostgREST round trips to every local actor lookup.
+    let [actorResult,keyResult]=await Promise.all([
+      db.from('activitypub_actors')
+        .select('actor_id,username,user_id,inbox_url,outbox_url,followers_url,following_url')
+        .eq('user_id',profile.data.id).maybeSingle(),
+      db.from('activitypub_keys')
+        .select('key_id,public_key_pem')
+        .eq('user_id',profile.data.id).maybeSingle()
     ]);
-    if(existingActor.error)throw existingActor.error;
-    if(existingKey.error)throw existingKey.error;
-    if(!existingActor.data||!existingKey.data?.public_key_pem){
+    if(actorResult.error)throw actorResult.error;
+    if(keyResult.error)throw keyResult.error;
+    if(!actorResult.data||!keyResult.data?.public_key_pem){
       await ensureActivityPubIdentity(String(profile.data.id));
+      [actorResult,keyResult]=await Promise.all([
+        db.from('activitypub_actors')
+          .select('actor_id,username,user_id,inbox_url,outbox_url,followers_url,following_url')
+          .eq('user_id',profile.data.id).maybeSingle(),
+        db.from('activitypub_keys')
+          .select('key_id,public_key_pem')
+          .eq('user_id',profile.data.id).maybeSingle()
+      ]);
+      if(actorResult.error)throw actorResult.error;
+      if(keyResult.error)throw keyResult.error;
     }
-  }
-  const canonical=await db.from('activitypub_actors').select('actor_id,username,user_id,inbox_url,outbox_url,followers_url,following_url').eq('username',username).maybeSingle();
-  if(canonical.error)throw canonical.error;
-  if(canonical.data){
-    const [p,k]=await Promise.all([
-      db.from('profiles').select('display_name,bio,avatar_url,protected_account,visibility,account_status').eq('id',canonical.data.user_id).maybeSingle(),
-      db.from('activitypub_keys').select('key_id,public_key_pem').eq('user_id',canonical.data.user_id).maybeSingle()
-    ]);
-    if(k.error)throw k.error;
-    if(!k.data?.public_key_pem)throw new Error('Local ActivityPub signing key is missing');
-    return {...canonical.data,actor_url:canonical.data.actor_id,public_key_id:k.data.key_id||canonical.data.actor_id+'#main-key',public_key_pem:k.data.public_key_pem,display_name:p.data?.display_name||username,bio:p.data?.bio||null,avatar_url:p.data?.avatar_url||null,locked:p.data?.protected_account===true};
+    if(!actorResult.data||!keyResult.data?.public_key_pem){
+      throw new Error('Local ActivityPub actor or signing key is missing after provisioning');
+    }
+    const local=actorResult.data;
+    return {
+      ...local,
+      actor_url:local.actor_id,
+      public_key_id:keyResult.data.key_id||local.actor_id+'#main-key',
+      public_key_pem:keyResult.data.public_key_pem,
+      display_name:profile.data.display_name||username,
+      bio:profile.data.bio||null,
+      avatar_url:profile.data.avatar_url||null,
+      header_url:profile.data.cover_url||null,
+      locked:profile.data.protected_account===true
+    };
   }
   // Only return cached remote actors when no local profile owns this username.
-  if(profile.data)return null;
   const remote=await db.from('federated_actors').select('*').eq('username',username).maybeSingle();
   if(remote.error)throw remote.error;
   return remote.data||null;
@@ -114,4 +148,4 @@ async function outbox(a:any,u:URL){
   return json({'@context':AP,id:currentUrl,type:'OrderedCollectionPage',partOf:outboxId,totalItems:Number(count.count||0),orderedItems:items,...(next?{next}:{})});
 }
 async function collection(a:any,kind:string,u:URL){const profile=await db.from('profiles').select('visibility,protected_account,account_status').eq('id',a.user_id).maybeSingle();if(profile.error)throw profile.error;const collectionId=`${a.actor_url||a.uri}/${kind}`;if(profile.data?.account_status!=='active'||profile.data?.visibility!=='public'||profile.data?.protected_account===true)return json({'@context':AP,id:collectionId,type:'OrderedCollectionPage',partOf:collectionId,totalItems:0,orderedItems:[]});const relation=kind==='followers'?'follower':'following',limit=Math.min(Math.max(Number(u.searchParams.get('limit')||40),1),100),cursor=decodeCursor(u.searchParams.get('cursor'));let q=db.from('federated_follow_relationships').select('remote_actor_uri,created_at,id',{count:'exact'}).eq('local_user_id',a.user_id).eq('direction',relation==='following'?'following':'follower').in('state',['accepted','active']).eq('delivery_state','delivered').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(limit+1);if(cursor?.created_at&&cursor?.id)q=q.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);const r=await q;if(r.error)throw r.error;const rows=r.data||[],has=rows.length>limit,items=rows.slice(0,limit).map((x:any)=>x.remote_actor_uri),last=rows[limit-1] as any;const next=has&&last?`${a.actor_url||a.uri}/${kind}?limit=${limit}&cursor=${encodeURIComponent(encodeCursor({created_at:last.created_at,id:last.id}))}`:null;return json({'@context':AP,id:collectionId,type:'OrderedCollectionPage',partOf:collectionId,totalItems:r.count||items.length,orderedItems:items,...(next?{next}:{})});}
-Deno.serve(async req=>{if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type,accept,date,digest,signature,signature-input,content-digest,host'}});try{const u=new URL(req.url);const functionPrefix='/functions/v1/mastodon-federation';const path=u.pathname.startsWith(functionPrefix)?(u.pathname.slice(functionPrefix.length)||'/'):u.pathname;if(req.method==='POST'){const raw=await req.text();const r=await fetch(`${SUPABASE_URL}/functions/v1/federation-inbox`,{method:'POST',headers:req.headers,body:raw});return new Response(await r.text(),{status:r.status,headers:r.headers});}if(req.method!=='GET')return json({error:'GET or POST required'},405,{'Content-Type':'application/json'});const normalizedPath=path.replace(/\/+$/,'')||'/';const rawPath=u.pathname.replace(/\/+$/,'')||'/';if(normalizedPath==='/inbox'||/^\/users\/[^/]+\/inbox$/.test(normalizedPath)||rawPath===functionPrefix+'/inbox'||/^\/functions\/v1\/mastodon-federation\/users\/[^/]+\/inbox$/.test(rawPath))return json({error:'Method not allowed'},405,{'Content-Type':'application/json','Allow':'POST, OPTIONS'});if(path.endsWith('.well-known/webfinger')){const resource=u.searchParams.get('resource')||'',m=resource.match(/^acct:([^@]+)@([^@]+)$/i);if(!m)return json({error:'Invalid resource'},400,{'Content-Type':'application/jrd+json'});if(m[2].toLowerCase()!==new URL(ROOT).hostname.toLowerCase())return json({error:'Unknown host'},404,{'Content-Type':'application/jrd+json'});const username=decodeURIComponent(m[1]);const localProfile=await db.from('profiles').select('id,username,account_status').eq('username',username).maybeSingle();if(localProfile.error)throw localProfile.error;if(!localProfile.data||localProfile.data.account_status!=='active')return json({error:'Actor not found'},404,{'Content-Type':'application/jrd+json'});const a=await actor(username);if(!a?.actor_id)return json({error:'Actor not found'},404,{'Content-Type':'application/jrd+json'});const id=a.actor_id;return json({subject:`acct:${a.username}@${new URL(ROOT).hostname}`,aliases:[id],links:[{rel:'self',type:'application/activity+json',href:id},{rel:'http://webfinger.net/rel/profile-page',type:'text/html',href:id}]},200,{'Content-Type':'application/jrd+json; charset=utf-8'});}if(path.endsWith('/.well-known/nodeinfo'))return json({links:[{rel:'http://nodeinfo.diaspora.software/ns/schema/2.1',href:`${ROOT}/nodeinfo/2.1`},{rel:'http://nodeinfo.diaspora.software/ns/schema/2.0',href:`${ROOT}/nodeinfo/2.0`}]},200,{'Content-Type':'application/json'});if(path.endsWith('/nodeinfo/2.0')||path.endsWith('/nodeinfo/2.1')){const [users,posts]=await Promise.all([db.from('profiles').select('id',{count:'exact',head:true}),db.from('posts').select('id',{count:'exact',head:true}).is('deleted_at',null)]);const version=path.endsWith('/2.1')?'2.1':'2.0';const body:any={version,software:{name:'testagram',version:'1.0.0'},protocols:['activitypub'],usage:{users:{total:users.count||0,activeMonth:users.count||0,activeHalfyear:users.count||0},localPosts:posts.count||0},openRegistrations:true,metadata:{}};if(version==='2.1')body.services={inbound:[],outbound:[]};return json(body,200,{'Content-Type':version==='2.1'?'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"':'application/json'});}if(u.pathname.includes('/users/')){const tail=u.pathname.split('/users/')[1]||'';const parts=tail.split('/').filter(Boolean);const username=decodeURIComponent(parts[0]||'');const sub=parts[1]||'';if(username){const a=await actor(username);if(!a)return json({error:'Actor not found'},404,{'Content-Type':'application/json'});if(!sub)return json(actorJson(a));if(sub==='outbox')return outbox(a,u);if(sub==='followers'||sub==='following')return collection(a,sub,u);}}return json({error:'Not found'},404,{'Content-Type':'application/json'});}catch(e){console.error('[mastodon-federation]',e);return json({error:e instanceof Error?e.message:'Federation endpoint failed'},500,{'Content-Type':'application/json','Cache-Control':'no-store'});}});
+Deno.serve(async req=>{if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type,accept,date,digest,signature,signature-input,content-digest,host'}});try{const u=new URL(req.url);const functionPrefix='/functions/v1/mastodon-federation';const path=u.pathname.startsWith(functionPrefix)?(u.pathname.slice(functionPrefix.length)||'/'):u.pathname;if(req.method==='POST'){const raw=await req.text();const r=await fetch(`${SUPABASE_URL}/functions/v1/federation-inbox`,{method:'POST',headers:req.headers,body:raw});return new Response(await r.text(),{status:r.status,headers:r.headers});}if(req.method!=='GET')return json({error:'GET or POST required'},405,{'Content-Type':'application/json'});const normalizedPath=path.replace(/\/+$/,'')||'/';const rawPath=u.pathname.replace(/\/+$/,'')||'/';if(normalizedPath==='/inbox'||/^\/users\/[^/]+\/inbox$/.test(normalizedPath)||rawPath===functionPrefix+'/inbox'||/^\/functions\/v1\/mastodon-federation\/users\/[^/]+\/inbox$/.test(rawPath))return json({error:'Method not allowed'},405,{'Content-Type':'application/json','Allow':'POST, OPTIONS'});if(path.endsWith('.well-known/webfinger')){const resource=u.searchParams.get('resource')||'',m=resource.match(/^acct:([^@]+)@([^@]+)$/i);if(!m)return json({error:'Invalid resource'},400,{'Content-Type':'application/jrd+json'});if(m[2].toLowerCase()!==new URL(ROOT).hostname.toLowerCase())return json({error:'Unknown host'},404,{'Content-Type':'application/jrd+json'});const username=decodeURIComponent(m[1]);const localProfile=await db.from('profiles').select('id,username,account_status').eq('username',username).maybeSingle();if(localProfile.error)throw localProfile.error;if(!localProfile.data||localProfile.data.account_status!=='active')return json({error:'Actor not found'},404,{'Content-Type':'application/jrd+json'});const a=await actor(username);if(!a?.actor_id)return json({error:'Actor not found'},404,{'Content-Type':'application/jrd+json'});const id=a.actor_id;return json({subject:`acct:${a.username}@${new URL(ROOT).hostname}`,aliases:[id],links:[{rel:'self',type:'application/activity+json',href:id},{rel:'http://webfinger.net/rel/profile-page',type:'text/html',href:id}]},200,{'Content-Type':'application/jrd+json; charset=utf-8'});}if(path.endsWith('/.well-known/nodeinfo'))return json({links:[{rel:'http://nodeinfo.diaspora.software/ns/schema/2.1',href:`${ROOT}/nodeinfo/2.1`},{rel:'http://nodeinfo.diaspora.software/ns/schema/2.0',href:`${ROOT}/nodeinfo/2.0`}]},200,{'Content-Type':'application/json','Cache-Control':'public, max-age=300, stale-while-revalidate=300','CDN-Cache-Control':'public, max-age=300'});if(path.endsWith('/nodeinfo/2.0')||path.endsWith('/nodeinfo/2.1')){const stats=await getNodeInfoStats();const version=path.endsWith('/2.1')?'2.1':'2.0';const body:any={version,software:{name:'testagram',version:'1.0.0'},protocols:['activitypub'],usage:{users:{total:stats.users,activeMonth:stats.users,activeHalfyear:stats.users},localPosts:stats.posts},openRegistrations:true,metadata:{}};if(version==='2.1')body.services={inbound:[],outbound:[]};return json(body,200,{'Content-Type':version==='2.1'?'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"':'application/json','Cache-Control':'public, max-age=300, stale-while-revalidate=300','CDN-Cache-Control':'public, max-age=300'});}if(u.pathname.includes('/users/')){const tail=u.pathname.split('/users/')[1]||'';const parts=tail.split('/').filter(Boolean);const username=decodeURIComponent(parts[0]||'');const sub=parts[1]||'';if(username){const a=await actor(username);if(!a)return json({error:'Actor not found'},404,{'Content-Type':'application/json'});if(!sub)return json(actorJson(a));if(sub==='outbox')return outbox(a,u);if(sub==='followers'||sub==='following')return collection(a,sub,u);}}return json({error:'Not found'},404,{'Content-Type':'application/json'});}catch(e){console.error('[mastodon-federation]',e);return json({error:e instanceof Error?e.message:'Federation endpoint failed'},500,{'Content-Type':'application/json','Cache-Control':'no-store'});}});

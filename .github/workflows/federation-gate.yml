@@ -72,10 +72,32 @@ jobs:
           get "/users/crissbeat/outbox" 200 "application/activity+json"
           get "/users/crissbeat/followers" 200 "application/activity+json"
           get "/users/crissbeat/following" 200 "application/activity+json"
-          curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat" | python3 -c "import json,sys; a=json.load(sys.stdin); required=['id','inbox','outbox','followers','following','publicKey']; missing=[k for k in required if not a.get(k)]; assert not missing, 'actor contract missing: '+str(missing); assert a['id']=='https://testagram.site/users/crissbeat'; print('Actor identity contract passed.')"
-          curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/jrd+json" "$base/.well-known/webfinger?resource=acct:crissbeat@testagram.site" | python3 -c "import json,sys; f=json.load(sys.stdin); assert f.get('subject')=='acct:crissbeat@testagram.site'; assert any(x.get('rel')=='self' and x.get('href')=='https://testagram.site/users/crissbeat' for x in f.get('links',[])); print('WebFinger resolution contract passed.')"
+          fetch_json() {
+            local path="$1" accept="$2" body
+            body="$(mktemp)"
+            # Retry transient edge/origin stalls, but bound the entire retry
+            # window. Save the body first so curl failures cannot cascade into
+            # a misleading JSONDecodeError from an empty pipeline.
+            if ! curl --retry 2 --retry-all-errors --retry-delay 1 --retry-max-time 40 \
+              -fsS --max-redirs 0 --connect-timeout 8 --max-time 15 \
+              -H "Accept: $accept" -o "$body" "$base$path"; then
+              echo "::error::Production ActivityPub JSON endpoint failed after bounded retries: $path" >&2
+              head -c 1000 "$body" >&2 || true
+              rm -f "$body"
+              return 1
+            fi
+            printf '%s\n' "$body"
+          }
+          actor_body="$(fetch_json "/users/crissbeat" "application/activity+json")"
+          python3 -c "import json,sys; a=json.load(open(sys.argv[1])); required=['id','inbox','outbox','followers','following','publicKey']; missing=[k for k in required if not a.get(k)]; assert not missing, 'actor contract missing: '+str(missing); assert a['id']=='https://testagram.site/users/crissbeat'; print('Actor identity contract passed.')" "$actor_body"
+          rm -f "$actor_body"
+          finger_body="$(fetch_json "/.well-known/webfinger?resource=acct:crissbeat@testagram.site" "application/jrd+json")"
+          python3 -c "import json,sys; f=json.load(open(sys.argv[1])); assert f.get('subject')=='acct:crissbeat@testagram.site'; assert any(x.get('rel')=='self' and x.get('href')=='https://testagram.site/users/crissbeat' for x in f.get('links',[])); print('WebFinger resolution contract passed.')" "$finger_body"
+          rm -f "$finger_body"
           for collection in outbox followers following; do
-            curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat/$collection" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('type') in ('OrderedCollection','OrderedCollectionPage'), 'invalid collection type: '+str(d.get('type')); assert d.get('id'), 'collection id missing'; print('ActivityPub collection contract passed.')"
+            collection_body="$(fetch_json "/users/crissbeat/$collection" "application/activity+json")"
+            python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d.get('type') in ('OrderedCollection','OrderedCollectionPage'), 'invalid collection type: '+str(d.get('type')); assert d.get('id'), 'collection id missing'; print('ActivityPub collection contract passed.')" "$collection_body"
+            rm -f "$collection_body"
           done
           # These active local profiles previously had no canonical ActivityPub
           # actor/key. WebFinger must provision them instead of returning a
@@ -84,9 +106,13 @@ jobs:
             get "/.well-known/webfinger?resource=acct:${username}@testagram.site" 200 "application/jrd+json"
             get "/users/${username}" 200 "application/activity+json"
             get "/users/${username}/outbox" 200 "application/activity+json"
-            curl --retry 3 --retry-all-errors --retry-delay 1 -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/${username}" | python3 -c "import json,sys; a=json.load(sys.stdin); assert a.get('id')=='https://testagram.site/users/'+sys.argv[1]; assert a.get('publicKey',{}).get('publicKeyPem'), 'local actor has no signing key'; print('Local actor signing-key contract passed for '+sys.argv[1]+'.')" "${username}"
+            actor_body="$(fetch_json "/users/${username}" "application/activity+json")"
+            python3 -c "import json,sys; a=json.load(open(sys.argv[1])); assert a.get('id')=='https://testagram.site/users/'+sys.argv[2]; assert a.get('publicKey',{}).get('publicKeyPem'), 'local actor has no signing key'; print('Local actor signing-key contract passed for '+sys.argv[2]+'.')" "${actor_body}" "${username}"
+            rm -f "${actor_body}"
           done
-          curl --retry 3 --retry-all-errors --retry-delay 1 -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/fricana/outbox?page=true&limit=5" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('type')=='OrderedCollectionPage', 'local outbox page is not an OrderedCollectionPage'; items=d.get('orderedItems',[]); assert items and items[0].get('type')=='Create' and items[0].get('object',{}).get('type')=='Note', 'local public posts are missing from the ActivityPub outbox'; print('Local public post discovery contract passed.')"
+          outbox_body="$(fetch_json "/users/fricana/outbox?page=true&limit=5" "application/activity+json")"
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d.get('type')=='OrderedCollectionPage', 'local outbox page is not an OrderedCollectionPage'; items=d.get('orderedItems',[]); assert items and items[0].get('type')=='Create' and items[0].get('object',{}).get('type')=='Note', 'local public posts are missing from the ActivityPub outbox'; print('Local public post discovery contract passed.')" "${outbox_body}"
+          rm -f "${outbox_body}"
           unsigned_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -X POST -H "Content-Type: application/activity+json" --data '{"@context":"https://www.w3.org/ns/activitystreams","id":"https://remote.example/activities/probe","type":"Create","actor":"https://remote.example/users/probe","object":{"id":"https://remote.example/objects/probe","type":"Note","attributedTo":"https://remote.example/users/probe","content":"contract probe","to":["https://www.w3.org/ns/activitystreams#Public"]}}' -o /dev/null -w '%{http_code}' "$base/users/crissbeat/inbox")"
           echo "Unsigned inbox POST -> HTTP $unsigned_status"
           [[ "$unsigned_status" == "401" ]] || { echo "Inbox accepted or misclassified an unsigned activity." >&2; exit 1; }

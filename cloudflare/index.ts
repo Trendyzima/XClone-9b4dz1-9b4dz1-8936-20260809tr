@@ -358,28 +358,52 @@ async function proxySupabase(request: Request, targetPath: string) {
   const isFederationProxy =
     targetPath.startsWith('/functions/v1/mastodon-federation/') ||
     targetPath.startsWith('/functions/v1/federation-inbox/');
+  const pathname = new URL(request.url).pathname;
+  // NodeInfo and actor documents contain public metadata, not feed content or
+  // follower-only data. Cache them briefly at the edge so a slow database read
+  // cannot make every federation peer wait on repeated identical lookups.
+  const isPublicFederationMetadata = request.method === 'GET' && (
+    pathname === '/.well-known/nodeinfo' ||
+    /^\/nodeinfo\/2\.[01]$/.test(pathname) ||
+    /^\/users\/[^/]+$/.test(pathname)
+  );
+  const metadataTtl = /^\/nodeinfo\//.test(pathname) || pathname === '/.well-known/nodeinfo' ? 300 : 60;
 
   const response = await fetch(target, {
     method: request.method,
     headers,
     body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
     redirect: 'manual',
-    ...(isFederationProxy
+    ...(isPublicFederationMetadata
       ? {
-          cache: 'no-store',
           cf: {
+            cacheEverything: true,
             cacheTtlByStatus: {
-              '200-599': -1,
+              '200-299': metadataTtl,
+              '300-599': -1,
             },
           },
         }
-      : {}),
+      : isFederationProxy
+        ? {
+            cache: 'no-store',
+            cf: {
+              cacheTtlByStatus: {
+                '200-599': -1,
+              },
+            },
+          }
+        : {}),
   });
 
   const out = new Headers(response.headers);
   out.delete('content-length');
   out.delete('transfer-encoding');
-  if (isFederationProxy) {
+  if (isPublicFederationMetadata) {
+    const policy = `public, max-age=${metadataTtl}, stale-while-revalidate=${metadataTtl}`;
+    out.set('Cache-Control', policy);
+    out.set('CDN-Cache-Control', policy);
+  } else if (isFederationProxy) {
     out.set('Cache-Control', 'no-store');
     out.set('CDN-Cache-Control', 'no-store');
   }
@@ -491,7 +515,7 @@ function applyPublicApiCache(response: Response, request: Request, url: URL) {
   if (request.method !== 'GET' || request.headers.has('authorization') || !response.ok) return response;
   let policy: string | null = null;
   if (url.pathname === '/api/home-feed' || url.pathname === '/api/home-discovery') {
-    policy = 'public, max-age=15, s-maxage=15, stale-while-revalidate=60';
+    policy = 'public, max-age=15, s-maxage=30, stale-while-revalidate=300';
   } else if (url.pathname === '/api/news') {
     policy = 'public, max-age=30, s-maxage=30, stale-while-revalidate=120';
   } else if (url.pathname === '/api/live' && url.searchParams.get('action') === 'viewer') {

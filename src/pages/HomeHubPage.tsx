@@ -231,6 +231,10 @@ export default function HomeHubPage(){
         const response = await fetch('/api/home-feed?'+params.toString(), {
           headers: token ? { Authorization: 'Bearer '+token } : {},
           cache: 'no-store',
+          // Do not leave the first screen waiting indefinitely on a degraded
+          // aggregator. The catch below immediately enters the direct local
+          // post/thread fallback; cached feed content has already hydrated.
+          signal: AbortSignal.timeout(15000),
         });
         if (response.ok) {
           const payload = await response.json();
