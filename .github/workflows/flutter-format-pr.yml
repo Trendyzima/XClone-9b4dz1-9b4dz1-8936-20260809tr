@@ -44,6 +44,9 @@ jobs:
           git log -1 --format='formatter input commit: %H%n%s'
           flutter --version
           dart --version
+      - name: Resolve Flutter dependencies using the same CI preparation
+        working-directory: mobile
+        run: flutter pub get
       - name: Format Flutter sources and tests
         working-directory: mobile
         run: |
