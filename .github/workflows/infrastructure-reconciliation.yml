@@ -174,7 +174,21 @@ jobs:
           SQL
           then
             echo "::error::Authenticated PostgreSQL probe failed after IPv4 TCP connectivity was confirmed."
-            sed -E 's/(postgresql?:\\/\\/[^:]+:)[^@]+(@)/\\1***\\2/g' /tmp/db-connect-test.txt | tail -n 12
+            node <<'NODE'
+          const fs = require("node:fs");
+          const raw = process.env.SUPABASE_DB_URL || "";
+          let output = fs.readFileSync("/tmp/db-connect-test.txt", "utf8");
+          try {
+            const url = new URL(raw);
+            const secrets = [url.password];
+            try { secrets.push(decodeURIComponent(url.password)); } catch {}
+            for (const secret of secrets) {
+              if (secret) output = output.split(secret).join("[REDACTED]");
+            }
+          } catch {}
+          output = output.replace(/(postgres(?:ql)?:\/\/[^:\s/@]+:)[^@\s/]+(@)/gi, "$1[REDACTED]$2");
+          process.stdout.write(output.split("\n").slice(-12).join("\n"));
+          NODE
             exit 1
           fi
           echo "SUPABASE_DB_AUTHENTICATED=true"
