@@ -15,13 +15,13 @@ const SEED = [
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 const cleanDomain=(v:string)=>v.toLowerCase().trim().replace(/^https?:\/\//,"").replace(/\/$/,"").split("/")[0];
 const classify=(status:number|null,error:string)=>{
-  if(status===401||status===403||status===422)return "public_timeline_unavailable";
+  if(status===400||status===401||status===403||status===404||status===405||status===406||status===410||status===422)return "public_timeline_unavailable";
   if(status===429)return "rate_limited";
   if(status!==null&&status>=500)return "remote_5xx";
   if(error.toLowerCase().includes("timeout")||error.toLowerCase().includes("abort"))return "timeout";
   return "network_or_contract";
 };
-const SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const SYNC_INTERVAL_MS = 30 * 60 * 1000;
 const UNAVAILABLE_RECHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const backoff=(failureClass:string,attempts:number,retryAfter?:string|null)=>{
   if(failureClass==="public_timeline_unavailable")return UNAVAILABLE_RECHECK_INTERVAL_MS;
