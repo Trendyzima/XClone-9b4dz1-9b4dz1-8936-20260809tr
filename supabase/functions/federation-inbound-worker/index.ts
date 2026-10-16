@@ -175,9 +175,9 @@ Deno.serve(async(req)=>{
     const {data:publicInstances,error:publicError}=await db.from("federated_instances")
       .select("id,domain,base_url,consecutive_failures,next_sync_at")
       .eq("public_timeline_available",true)
-      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(40);
+      .order("next_sync_at",{ascending:true,nullsFirst:true}).limit(24);
     if(publicError)throw publicError;
-    const duePublic=dueNow(publicInstances).slice(0,40);
+    const duePublic=dueNow(publicInstances).slice(0,24);
     // Probe only a small number of unknown/unavailable instances per cycle.
     // Known public sources get the bulk of the capacity; unsupported instances
     // are rechecked daily rather than every two hours.
@@ -189,7 +189,7 @@ Deno.serve(async(req)=>{
     const dueOther=dueNow(otherInstances).slice(0,2);
     const due=[...duePublic,...dueOther];
     const results:any[]=[];
-    // At most 42 instances per run, with bounded concurrency. The cron caller
+    // At most 26 instances per run, with bounded concurrency. The cron caller
     // now allows 120 seconds, enough for the eight-second remote HTTP deadline
     // across these batches without an unbounded burst against remote servers.
     const concurrency=6;
