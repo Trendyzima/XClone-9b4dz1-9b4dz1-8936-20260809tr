@@ -249,7 +249,7 @@ Deno.serve(async (request) => {
             .is("deleted_at", null)
             .eq("tombstone", false)
             .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
-                .order("published_at", { ascending: false, nullsFirst: false })
+            .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit);
           privateQuery = applyFeedCursor(privateQuery, before);
@@ -276,7 +276,7 @@ Deno.serve(async (request) => {
             .in("visibility", ["public", "unlisted"])
             .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
             .in("actor_uri", [...hydratedActorAliases])
-                .order("published_at", { ascending: false, nullsFirst: false })
+            .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit);
           followedQuery = applyFeedCursor(followedQuery, before);
@@ -309,7 +309,7 @@ Deno.serve(async (request) => {
             .eq("tombstone", false)
             .in("visibility", ["public", "unlisted"])
             .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
-                .in("id", objectIds)
+            .in("id", objectIds)
             .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit * 3);
