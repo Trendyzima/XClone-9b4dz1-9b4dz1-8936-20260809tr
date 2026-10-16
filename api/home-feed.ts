@@ -213,6 +213,7 @@ export default async function handler(request: RequestLike) {
           .from('follows')
           .select('following_id,status')
           .eq('follower_id', auth.id)
+          .abortSignal(AbortSignal.timeout(5000))
       : { data: [], error: null };
     if (localFollowError) console.warn('[home-feed] local follows', localFollowError);
     const followedLocalIds = [...new Set((localFollowRows || [])
@@ -225,8 +226,8 @@ export default async function handler(request: RequestLike) {
     // immediately, just like followed accounts and federated follows.
     const [hashtagFollowRows, communityMemberRows] = auth
       ? await Promise.all([
-          admin.from('hashtag_follows').select('hashtag_id').eq('user_id', auth.id).limit(100),
-          admin.from('community_members').select('community_id,status').eq('user_id', auth.id).limit(100),
+          admin.from('hashtag_follows').select('hashtag_id').eq('user_id', auth.id).limit(100).abortSignal(AbortSignal.timeout(5000)),
+          admin.from('community_members').select('community_id,status').eq('user_id', auth.id).limit(100).abortSignal(AbortSignal.timeout(5000)),
         ])
       : [{ data: [], error: null }, { data: [], error: null }];
     const followedHashtagIds = [...new Set((hashtagFollowRows.data || []).map((r: any) => String(r.hashtag_id || '')).filter(Boolean))];
@@ -239,7 +240,7 @@ export default async function handler(request: RequestLike) {
       ? admin.from('content_recommendations')
         .select('recommended_post_id,score,reason,source')
         .eq('user_id', auth.id).eq('shown', false)
-        .order('score', { ascending: false }).limit(sourceLimit)
+         .order('score', { ascending: false }).limit(sourceLimit).abortSignal(AbortSignal.timeout(8000))
       : Promise.resolve({ data: [], error: null });
 
     const postsQuery = admin.from('posts')
@@ -286,6 +287,14 @@ export default async function handler(request: RequestLike) {
       communityPostsQuery?.lt('created_at', cursor.post);
     }
     if (cursor.thread) { threadsQuery.lt('created_at', cursor.thread); followingThreadsQuery?.lt('created_at', cursor.thread); }
+    // Each source is independently bounded. One slow PostgREST query must not
+    // hold the entire first page hostage when other lanes have usable content.
+    postsQuery.abortSignal(AbortSignal.timeout(8000));
+    followingPostsQuery?.abortSignal(AbortSignal.timeout(8000));
+    threadsQuery.abortSignal(AbortSignal.timeout(8000));
+    followingThreadsQuery?.abortSignal(AbortSignal.timeout(8000));
+    followedHashtagPostsQuery?.abortSignal(AbortSignal.timeout(8000));
+    communityPostsQuery?.abortSignal(AbortSignal.timeout(8000));
 
     const includeFederated = url.searchParams.get('includeFederated') !== '0';
     const fedQuery = new URLSearchParams({ limit: String(sourceLimit) });
