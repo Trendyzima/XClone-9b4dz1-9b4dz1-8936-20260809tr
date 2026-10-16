@@ -67,9 +67,7 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
       setState(() => _loadingMore = true);
     }
     try {
-      var request = _db
-          .from('space_recordings')
-          .select(
+      var request = _db.from('space_recordings').select(
             'id,title,audio_url,video_url,has_video,duration,listener_count,created_at,profiles(id,username,avatar_url,verified_tier),spaces(title,description,category,artwork_url,episode_number,tags,subscriber_only)',
           );
       final q = _query.text.trim().replaceAll(',', ' ');
@@ -116,150 +114,150 @@ class _PodcastSearchPageState extends State<PodcastSearchPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Search podcasts')),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: TextField(
-            controller: _query,
-            onChanged: (_) => _scheduleSearch(),
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _load(reset: true),
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Search recordings and episodes',
-              suffixIcon: IconButton(
-                onPressed: () {
-                  _query.clear();
-                  _load(reset: true);
-                },
-                icon: const Icon(Icons.clear),
+        appBar: AppBar(title: const Text('Search podcasts')),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                controller: _query,
+                onChanged: (_) => _scheduleSearch(),
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _load(reset: true),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search recordings and episodes',
+                  suffixIcon: IconButton(
+                    onPressed: () {
+                      _query.clear();
+                      _load(reset: true);
+                    },
+                    icon: const Icon(Icons.clear),
+                  ),
+                  border: const OutlineInputBorder(),
+                ),
               ),
-              border: const OutlineInputBorder(),
             ),
-          ),
-        ),
-        SizedBox(
-          height: 48,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: [
-              for (final c in _categories)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(c == 'all' ? 'All' : c[0].toUpperCase() + c.substring(1)),
-                    selected: _category == c,
-                    onSelected: (_) {
-                      setState(() => _category = c);
+            SizedBox(
+              height: 48,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: [
+                  for (final c in _categories)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        label: Text(c == 'all' ? 'All' : c[0].toUpperCase() + c.substring(1)),
+                        selected: _category == c,
+                        onSelected: (_) {
+                          setState(() => _category = c);
+                          _load(reset: true);
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  const Text('Length'),
+                  const SizedBox(width: 8),
+                  DropdownButton<String>(
+                    value: _duration,
+                    items: const [
+                      DropdownMenuItem(value: 'any', child: Text('Any')),
+                      DropdownMenuItem(value: 'short', child: Text('Under 15 min')),
+                      DropdownMenuItem(value: 'medium', child: Text('15–60 min')),
+                      DropdownMenuItem(value: 'long', child: Text('60+ min')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _duration = v);
+                        _load(reset: true);
+                      }
+                    },
+                  ),
+                  const Spacer(),
+                  const Text('Video'),
+                  Switch(
+                    value: _videoOnly,
+                    onChanged: (v) {
+                      setState(() => _videoOnly = v);
                       _load(reset: true);
                     },
                   ),
-                ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Row(
-            children: [
-              const Text('Length'),
-              const SizedBox(width: 8),
-              DropdownButton<String>(
-                value: _duration,
-                items: const [
-                  DropdownMenuItem(value: 'any', child: Text('Any')),
-                  DropdownMenuItem(value: 'short', child: Text('Under 15 min')),
-                  DropdownMenuItem(value: 'medium', child: Text('15–60 min')),
-                  DropdownMenuItem(value: 'long', child: Text('60+ min')),
                 ],
-                onChanged: (v) {
-                  if (v != null) {
-                    setState(() => _duration = v);
-                    _load(reset: true);
-                  }
-                },
               ),
-              const Spacer(),
-              const Text('Video'),
-              Switch(
-                value: _videoOnly,
-                onChanged: (v) {
-                  setState(() => _videoOnly = v);
-                  _load(reset: true);
-                },
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
-            ],
-          ),
-        ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          ),
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: () => _load(reset: true),
-                  child: ListView(
-                    padding: const EdgeInsets.all(12),
-                    children: [
-                      if (_items.isEmpty && _error == null)
-                        const Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Center(child: Text('No recordings match these filters.')),
-                        ),
-                      for (final item in _items)
-                        Card(
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              child: Icon(
-                                item['has_video'] == true
-                                    ? Icons.video_library_outlined
-                                    : Icons.headphones,
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: () => _load(reset: true),
+                      child: ListView(
+                        padding: const EdgeInsets.all(12),
+                        children: [
+                          if (_items.isEmpty && _error == null)
+                            const Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Center(child: Text('No recordings match these filters.')),
+                            ),
+                          for (final item in _items)
+                            Card(
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  child: Icon(
+                                    item['has_video'] == true
+                                        ? Icons.video_library_outlined
+                                        : Icons.headphones,
+                                  ),
+                                ),
+                                title: Text(
+                                  '${item['title'] ?? 'Untitled recording'}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '${(item['spaces'] is Map ? (item['spaces'] as Map)['title'] : null) ?? 'Audio space'} · ${_durationLabel(item['duration'])}\n${item['listener_count'] ?? 0} listeners',
+                                  maxLines: 2,
+                                ),
+                                isThreeLine: true,
+                                trailing: const Icon(Icons.play_circle_outline),
+                                onTap: () {
+                                  final id = '${item['id'] ?? ''}';
+                                  if (id.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Open this recording from its space or podcast page.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
                               ),
                             ),
-                            title: Text(
-                              '${item['title'] ?? 'Untitled recording'}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                          if (_hasMore)
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: OutlinedButton(
+                                onPressed: _loadingMore ? null : () => _load(reset: false),
+                                child: Text(_loadingMore ? 'Loading…' : 'Load more'),
+                              ),
                             ),
-                            subtitle: Text(
-                              '${(item['spaces'] is Map ? (item['spaces'] as Map)['title'] : null) ?? 'Audio space'} · ${_durationLabel(item['duration'])}\n${item['listener_count'] ?? 0} listeners',
-                              maxLines: 2,
-                            ),
-                            isThreeLine: true,
-                            trailing: const Icon(Icons.play_circle_outline),
-                            onTap: () {
-                              final id = '${item['id'] ?? ''}';
-                              if (id.isNotEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Open this recording from its space or podcast page.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                          ),
-                        ),
-                      if (_hasMore)
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: OutlinedButton(
-                            onPressed: _loadingMore ? null : () => _load(reset: false),
-                            child: Text(_loadingMore ? 'Loading…' : 'Load more'),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }

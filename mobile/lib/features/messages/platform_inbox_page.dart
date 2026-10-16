@@ -133,12 +133,16 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
   }
 
   Future<void> _markAllRead() async => _mutate('all', (userId) async {
-    await _db.from('platform_inbox').update({'read': true}).eq('user_id', userId).eq('read', false);
-  });
+        await _db
+            .from('platform_inbox')
+            .update({'read': true})
+            .eq('user_id', userId)
+            .eq('read', false);
+      });
 
   Future<void> _delete(String id) async => _mutate('delete:$id', (userId) async {
-    await _db.from('platform_inbox').delete().eq('id', id).eq('user_id', userId);
-  });
+        await _db.from('platform_inbox').delete().eq('id', id).eq('user_id', userId);
+      });
 
   Future<void> _generateDigest() async {
     if (_actionId != null) return;

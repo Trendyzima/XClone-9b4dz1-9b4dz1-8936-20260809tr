@@ -110,32 +110,28 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
     });
     try {
       if (_remote) {
-        final response = await _db.functions
-            .invoke(
-              'testagram-api',
-              body: {
-                'path': '/quote',
-                'method': 'POST',
-                'body': {'post_id': widget.postId, 'content': content},
-              },
-            )
-            .timeout(const Duration(seconds: 30));
+        final response = await _db.functions.invoke(
+          'testagram-api',
+          body: {
+            'path': '/quote',
+            'method': 'POST',
+            'body': {'post_id': widget.postId, 'content': content},
+          },
+        ).timeout(const Duration(seconds: 30));
         if (response.data is Map && (response.data as Map)['error'] != null) {
           throw StateError('The federation service rejected this quote.');
         }
       } else {
-        final result = await _db
-            .rpc(
-              'create_post_atomic',
-              params: {
-                'p_input': {
-                  'content': content,
-                  'quoted_post_id': widget.postId,
-                  'visibility': 'public',
-                },
-              },
-            )
-            .timeout(const Duration(seconds: 20));
+        final result = await _db.rpc(
+          'create_post_atomic',
+          params: {
+            'p_input': {
+              'content': content,
+              'quoted_post_id': widget.postId,
+              'visibility': 'public',
+            },
+          },
+        ).timeout(const Duration(seconds: 20));
         if (result is! Map || result['created'] != true || result['post_id'] == null) {
           throw StateError('The post service did not confirm the quote was created.');
         }
@@ -214,9 +210,8 @@ class _PostQuoteComposerPageState extends State<PostQuoteComposerPage> {
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed: _post == null || _sending || _text.text.trim().isEmpty
-                      ? null
-                      : _submit,
+                  onPressed:
+                      _post == null || _sending || _text.text.trim().isEmpty ? null : _submit,
                   icon: _sending
                       ? const SizedBox(
                           width: 18,

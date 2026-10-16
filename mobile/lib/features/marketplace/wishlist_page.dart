@@ -147,17 +147,17 @@ class _WishlistPageState extends State<WishlistPage> {
               child: ListTile(
                 leading:
                     product['image_url'] is String && '${product['image_url']}'.startsWith('http')
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          '${product['image_url']}',
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag_outlined),
-                        ),
-                      )
-                    : const CircleAvatar(child: Icon(Icons.shopping_bag_outlined)),
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              '${product['image_url']}',
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag_outlined),
+                            ),
+                          )
+                        : const CircleAvatar(child: Icon(Icons.shopping_bag_outlined)),
                 title: Text(
                   '${product['name'] ?? 'Product'}',
                   maxLines: 2,

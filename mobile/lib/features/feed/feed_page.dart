@@ -126,15 +126,12 @@ class _FeedPageState extends State<FeedPage> {
         )) {
           return;
         }
-        followingIds = follows
-            .map((row) => '${row['following_id']}')
-            .where((id) => id.isNotEmpty)
-            .toList();
+        followingIds =
+            follows.map((row) => '${row['following_id']}').where((id) => id.isNotEmpty).toList();
       }
       final postQuery = _client.from('posts').select('*');
-      var pagedQuery = _feedTab == 'Following'
-          ? postQuery.inFilter('author_id', followingIds)
-          : postQuery;
+      var pagedQuery =
+          _feedTab == 'Following' ? postQuery.inFilter('author_id', followingIds) : postQuery;
       // Keyset pagination is stable when new posts arrive while the reader
       // scrolls; offset pagination can skip or repeat rows between requests.
       final cursorFilter = FeedLoadPolicy.cursorFilter(
@@ -147,10 +144,10 @@ class _FeedPageState extends State<FeedPage> {
       final response = _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
           ? <dynamic>[]
           : await pagedQuery
-                .order('created_at', ascending: false)
-                .order('id', ascending: false)
-                .limit(_pageSize)
-                .timeout(const Duration(seconds: 15));
+              .order('created_at', ascending: false)
+              .order('id', ascending: false)
+              .limit(_pageSize)
+              .timeout(const Duration(seconds: 15));
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
@@ -169,9 +166,9 @@ class _FeedPageState extends State<FeedPage> {
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _client
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified,verified_tier')
-                .inFilter('id', ids);
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified,verified_tier')
+              .inFilter('id', ids);
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
@@ -543,8 +540,8 @@ class _FeedPageState extends State<FeedPage> {
               children: [
                 Text(
                   'Create a post',
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style:
+                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -708,12 +705,12 @@ class _FeedPageState extends State<FeedPage> {
                 FilledButton(
                   onPressed:
                       choosingMedia || (controller.text.trim().isEmpty && selectedMedia == null)
-                      ? null
-                      : () => Navigator.pop(sheetContext, {
-                          'content': controller.text.trim(),
-                          'media': selectedMedia,
-                          'isVideo': selectedIsVideo,
-                        }),
+                          ? null
+                          : () => Navigator.pop(sheetContext, {
+                                'content': controller.text.trim(),
+                                'media': selectedMedia,
+                                'isVideo': selectedIsVideo,
+                              }),
                   child: const Text('Publish post'),
                 ),
               ],
@@ -738,9 +735,7 @@ class _FeedPageState extends State<FeedPage> {
         final extension = MediaUploadPolicy.normalizeExtension(media.name, isVideo: isVideo);
         MediaUploadPolicy.validateSize(bytes.length, isVideo: isVideo);
         final path = '$_userId/${DateTime.now().microsecondsSinceEpoch}.$extension';
-        await _client.storage
-            .from('posts')
-            .uploadBinary(
+        await _client.storage.from('posts').uploadBinary(
               path,
               bytes,
               fileOptions: FileOptions(
@@ -918,9 +913,8 @@ class _FeedPageState extends State<FeedPage> {
                       service: _adService,
                     );
                   }
-                  final postIndex = _sponsoredAd != null && _posts.length >= 5 && index > 5
-                      ? index - 1
-                      : index;
+                  final postIndex =
+                      _sponsoredAd != null && _posts.length >= 5 && index > 5 ? index - 1 : index;
                   final post = _posts[postIndex];
                   return _PostCard(
                     post: post,
@@ -992,8 +986,7 @@ class _PostCard extends StatelessWidget {
     final content = '${post['content'] ?? ''}';
     final media = FeedMediaUrl.normalize(post['image_url']) ?? '';
     final video = FeedMediaUrl.normalize(post['video_url']) ?? '';
-    final verified =
-        profile['verified'] == true ||
+    final verified = profile['verified'] == true ||
         (profile['verified_tier'] != null && profile['verified_tier'] != 'none');
     final date = DateTime.tryParse('${post['created_at'] ?? ''}');
     return Card(
@@ -1007,9 +1000,8 @@ class _PostCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 21,
-                  backgroundImage: avatar.startsWith('http')
-                      ? CachedNetworkImageProvider(avatar)
-                      : null,
+                  backgroundImage:
+                      avatar.startsWith('http') ? CachedNetworkImageProvider(avatar) : null,
                   child: avatar.startsWith('http')
                       ? null
                       : Text(name.isNotEmpty ? name[0].toUpperCase() : 'T'),
@@ -1042,7 +1034,9 @@ class _PostCard extends StatelessWidget {
                       ),
                       Text(
                         '@${profile['username'] ?? 'testagram'} · ${date == null ? '' : _relativeDate(date)}',
-                        style: Theme.of(context).textTheme.bodySmall
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
                             ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
@@ -1175,10 +1169,10 @@ class _PostAction extends StatelessWidget {
   final bool active;
   @override
   Widget build(BuildContext context) => TextButton.icon(
-    onPressed: onTap,
-    icon: Icon(icon, size: 19, color: active ? Colors.redAccent : null),
-    label: Text(label, style: const TextStyle(fontSize: 12)),
-  );
+        onPressed: onTap,
+        icon: Icon(icon, size: 19, color: active ? Colors.redAccent : null),
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+      );
 }
 
 class _InlineVideo extends StatefulWidget {
@@ -1311,9 +1305,8 @@ class _InlineVideoState extends State<_InlineVideo> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: AspectRatio(
-        aspectRatio: controller?.value.isInitialized == true
-            ? controller!.value.aspectRatio
-            : 16 / 9,
+        aspectRatio:
+            controller?.value.isInitialized == true ? controller!.value.aspectRatio : 16 / 9,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -1338,16 +1331,16 @@ class _InlineVideoState extends State<_InlineVideo> {
                   child: _loading
                       ? const CircularProgressIndicator()
                       : controller?.value.isPlaying == true
-                      ? const Icon(
-                          Icons.pause_circle_outline_rounded,
-                          size: 54,
-                          color: Colors.white,
-                        )
-                      : const Icon(
-                          Icons.play_circle_outline_rounded,
-                          size: 54,
-                          color: Colors.white,
-                        ),
+                          ? const Icon(
+                              Icons.pause_circle_outline_rounded,
+                              size: 54,
+                              color: Colors.white,
+                            )
+                          : const Icon(
+                              Icons.play_circle_outline_rounded,
+                              size: 54,
+                              color: Colors.white,
+                            ),
                 ),
               ),
             ),
@@ -1462,87 +1455,91 @@ class _CommentsSheetState extends State<_CommentsSheet> {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.78,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Replies (${_replies.length})',
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
-              ],
-            ),
-          ),
-          if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
-          if (_loading && _replies.isEmpty)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
-          else
-            Expanded(
-              child: _replies.isEmpty
-                  ? const Center(child: Text('Be the first to reply.'))
-                  : ListView.builder(
-                      itemCount: _replies.length,
-                      itemBuilder: (context, index) {
-                        final reply = _replies[index];
-                        final profile =
-                            (reply['profile'] as Map?)?.cast<String, dynamic>() ??
-                            <String, dynamic>{};
-                        final name =
-                            '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
-                        final avatar = '${profile['avatar_url'] ?? ''}';
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: avatar.startsWith('http')
-                                ? CachedNetworkImageProvider(avatar)
-                                : null,
-                            child: avatar.startsWith('http')
-                                ? null
-                                : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
-                          ),
-                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          subtitle: Text('${reply['content'] ?? ''}'),
-                        );
-                      },
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.78,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Replies (${_replies.length})',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
                     ),
-            ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.viewInsetsOf(context).bottom + 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
+                    IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
+                  ],
+                ),
+              ),
+              if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
+              if (_loading && _replies.isEmpty)
+                const Expanded(child: Center(child: CircularProgressIndicator()))
+              else
                 Expanded(
-                  child: TextField(
-                    controller: _composer,
-                    minLines: 1,
-                    maxLines: 4,
-                    maxLength: 2000,
-                    decoration: const InputDecoration(hintText: 'Write a reply…', counterText: ''),
-                  ),
+                  child: _replies.isEmpty
+                      ? const Center(child: Text('Be the first to reply.'))
+                      : ListView.builder(
+                          itemCount: _replies.length,
+                          itemBuilder: (context, index) {
+                            final reply = _replies[index];
+                            final profile = (reply['profile'] as Map?)?.cast<String, dynamic>() ??
+                                <String, dynamic>{};
+                            final name =
+                                '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+                            final avatar = '${profile['avatar_url'] ?? ''}';
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: avatar.startsWith('http')
+                                    ? CachedNetworkImageProvider(avatar)
+                                    : null,
+                                child: avatar.startsWith('http')
+                                    ? null
+                                    : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
+                              ),
+                              title:
+                                  Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                              subtitle: Text('${reply['content'] ?? ''}'),
+                            );
+                          },
+                        ),
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _sending ? null : _send,
-                  icon: _sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send_rounded),
+              Padding(
+                padding:
+                    EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.viewInsetsOf(context).bottom + 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _composer,
+                        minLines: 1,
+                        maxLines: 4,
+                        maxLength: 2000,
+                        decoration:
+                            const InputDecoration(hintText: 'Write a reply…', counterText: ''),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: _sending ? null : _send,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_rounded),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }

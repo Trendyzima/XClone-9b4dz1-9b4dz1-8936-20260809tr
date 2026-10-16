@@ -186,83 +186,88 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   Widget _errorCard(ThemeData theme) => Card(
-    color: theme.colorScheme.errorContainer,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.error_outline),
-          const SizedBox(height: 8),
-          Text(_error!, style: theme.textTheme.bodyMedium),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try again'),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _balanceCard(ThemeData theme, WalletReadModel wallet) => Card(
-    clipBehavior: Clip.antiAlias,
-    child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [theme.colorScheme.primary, theme.colorScheme.primary.withValues(alpha: 0.72)],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        color: theme.colorScheme.errorContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text('Available balance', style: TextStyle(color: Colors.white70)),
+              const Icon(Icons.error_outline),
+              const SizedBox(height: 8),
+              Text(_error!, style: theme.textTheme.bodyMedium),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _loading ? null : _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
               ),
-              Text(wallet.status, style: const TextStyle(color: Colors.white)),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            formatWalletAmount(wallet.balance, wallet.currency),
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
+        ),
+      );
+
+  Widget _balanceCard(ThemeData theme, WalletReadModel wallet) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                theme.colorScheme.primary,
+                theme.colorScheme.primary.withValues(alpha: 0.72)
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Canonical wallet balance',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Available balance', style: TextStyle(color: Colors.white70)),
+                  ),
+                  Text(wallet.status, style: const TextStyle(color: Colors.white)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                formatWalletAmount(wallet.balance, wallet.currency),
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Canonical wallet balance',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _statsGrid(ThemeData theme, WalletReadModel wallet) => GridView.count(
-    crossAxisCount: MediaQuery.sizeOf(context).width > 600 ? 2 : 2,
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    mainAxisSpacing: 10,
-    crossAxisSpacing: 10,
-    childAspectRatio: 1.65,
-    children: [
-      _statCard(theme, 'Total deposited', wallet.totalDeposited, Icons.south_west, Colors.green),
-      _statCard(theme, 'Total withdrawn', wallet.totalWithdrawn, Icons.north_east, Colors.orange),
-    ],
-  );
+        crossAxisCount: MediaQuery.sizeOf(context).width > 600 ? 2 : 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.65,
+        children: [
+          _statCard(
+              theme, 'Total deposited', wallet.totalDeposited, Icons.south_west, Colors.green),
+          _statCard(
+              theme, 'Total withdrawn', wallet.totalWithdrawn, Icons.north_east, Colors.orange),
+        ],
+      );
 
   Widget _statCard(ThemeData theme, String label, double amount, IconData icon, Color color) =>
       Card(
@@ -290,47 +295,45 @@ class _WalletPageState extends State<WalletPage> {
       );
 
   Widget _actionGrid(BuildContext context) => GridView.count(
-    crossAxisCount: MediaQuery.sizeOf(context).width > 600 ? 4 : 2,
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    mainAxisSpacing: 10,
-    crossAxisSpacing: 10,
-    childAspectRatio: 1.75,
-    children: [
-      _action(context, 'Send money', Icons.send_outlined, '/wallet/send'),
-      _action(context, 'M-Pesa', Icons.phone_android, '/wallet/mpesa'),
-      _action(context, 'Savings', Icons.savings_outlined, '/wallet/savings'),
-      _action(context, 'Security', Icons.shield_outlined, '/wallet/security'),
-    ],
-  );
+        crossAxisCount: MediaQuery.sizeOf(context).width > 600 ? 4 : 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.75,
+        children: [
+          _action(context, 'Send money', Icons.send_outlined, '/wallet/send'),
+          _action(context, 'M-Pesa', Icons.phone_android, '/wallet/mpesa'),
+          _action(context, 'Savings', Icons.savings_outlined, '/wallet/savings'),
+          _action(context, 'Security', Icons.shield_outlined, '/wallet/security'),
+        ],
+      );
 
   Widget _action(BuildContext context, String label, IconData icon, String path) => Card(
-    child: InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => context.go(path),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(icon),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => context.go(path),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(icon),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+                const Icon(Icons.chevron_right, size: 18),
+              ],
             ),
-            const Icon(Icons.chevron_right, size: 18),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 
   Widget _historySummary(ThemeData theme) {
-    final incoming = _transactions
-        .where((t) => t.isIncoming)
-        .fold<double>(0, (sum, t) => sum + t.amount);
-    final outgoing = _transactions
-        .where((t) => !t.isIncoming)
-        .fold<double>(0, (sum, t) => sum + t.amount);
+    final incoming =
+        _transactions.where((t) => t.isIncoming).fold<double>(0, (sum, t) => sum + t.amount);
+    final outgoing =
+        _transactions.where((t) => !t.isIncoming).fold<double>(0, (sum, t) => sum + t.amount);
     return Row(
       children: [
         Expanded(child: _summaryChip(theme, 'Incoming', incoming, Colors.green)),
@@ -341,21 +344,22 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   Widget _summaryChip(ThemeData theme, String label, double amount, Color color) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 5),
-          Text(
-            formatWalletAmount(amount, _wallet?.currency ?? 'KES'),
-            style: theme.textTheme.titleSmall?.copyWith(color: color, fontWeight: FontWeight.w800),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 5),
+              Text(
+                formatWalletAmount(amount, _wallet?.currency ?? 'KES'),
+                style:
+                    theme.textTheme.titleSmall?.copyWith(color: color, fontWeight: FontWeight.w800),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _transactionTile(ThemeData theme, WalletTransactionReadModel item) {
     final incoming = item.isIncoming;
@@ -399,24 +403,24 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   Widget _emptyActivity(ThemeData theme) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const Icon(Icons.receipt_long_outlined, size: 40),
-          const SizedBox(height: 10),
-          Text(
-            'No transactions yet',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Icon(Icons.receipt_long_outlined, size: 40),
+              const SizedBox(height: 10),
+              Text(
+                'No transactions yet',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'When wallet activity is recorded, it will appear here.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'When wallet activity is recorded, it will appear here.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }

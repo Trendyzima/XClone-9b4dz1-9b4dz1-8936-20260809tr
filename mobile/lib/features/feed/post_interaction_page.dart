@@ -28,12 +28,12 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
   int _generation = 0;
 
   String get _title => switch (widget.kind) {
-    PostInteractionKind.likes => 'Likes',
-    PostInteractionKind.replies => 'Replies',
-    PostInteractionKind.reposts => 'Reposts',
-    PostInteractionKind.quotes => 'Quotes',
-    PostInteractionKind.quoteLikes => 'Likes on quotes',
-  };
+        PostInteractionKind.likes => 'Likes',
+        PostInteractionKind.replies => 'Replies',
+        PostInteractionKind.reposts => 'Reposts',
+        PostInteractionKind.quotes => 'Quotes',
+        PostInteractionKind.quoteLikes => 'Likes on quotes',
+      };
 
   String _displayName(Map<String, dynamic>? profile) {
     final displayName = profile?['display_name'];
@@ -132,9 +132,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             .toList();
         if (widget.kind == PostInteractionKind.replies ||
             widget.kind == PostInteractionKind.quotes) {
-          final table = widget.kind == PostInteractionKind.quotes
-              ? 'federated_quotes'
-              : 'federated_replies';
+          final table =
+              widget.kind == PostInteractionKind.quotes ? 'federated_quotes' : 'federated_replies';
           final ownRows = await _db
               .from(table)
               .select('id,user_id,object_uri,content,delivery_state,created_at')
@@ -142,10 +141,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
               .order('created_at', ascending: false)
               .limit(PostInteractionPolicy.boundedListLimit(100))
               .timeout(const Duration(seconds: 15));
-          final own = ownRows
-              .whereType<Map>()
-              .map((row) => Map<String, dynamic>.from(row))
-              .toList();
+          final own =
+              ownRows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
           final userIds = own
               .map((row) => '${row['user_id'] ?? ''}')
               .where((id) => id.isNotEmpty)
@@ -154,10 +151,10 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
           final ownProfiles = userIds.isEmpty
               ? <dynamic>[]
               : await _db
-                    .from('profiles')
-                    .select('id,username,display_name,avatar_url')
-                    .inFilter('id', userIds)
-                    .timeout(const Duration(seconds: 12));
+                  .from('profiles')
+                  .select('id,username,display_name,avatar_url')
+                  .inFilter('id', userIds)
+                  .timeout(const Duration(seconds: 12));
           final ownProfileById = <String, Map<String, dynamic>>{
             for (final profile in ownProfiles)
               '${profile['id']}': Map<String, dynamic>.from(profile),
@@ -170,9 +167,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
               'summary': null,
               'published_at': row['created_at'],
               'quote_uri': widget.kind == PostInteractionKind.quotes ? row['object_uri'] : null,
-              'in_reply_to_uri': widget.kind == PostInteractionKind.replies
-                  ? row['object_uri']
-                  : null,
+              'in_reply_to_uri':
+                  widget.kind == PostInteractionKind.replies ? row['object_uri'] : null,
               'delivery_state': row['delivery_state'],
               'profile': ownProfileById['${row['user_id']}'],
             });
@@ -186,10 +182,10 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
         final actors = actorUris.isEmpty
             ? <dynamic>[]
             : await _db
-                  .from('federated_actors')
-                  .select('actor_uri,username,domain,display_name,avatar_url')
-                  .inFilter('actor_uri', actorUris)
-                  .timeout(const Duration(seconds: 12));
+                .from('federated_actors')
+                .select('actor_uri,username,domain,display_name,avatar_url')
+                .inFilter('actor_uri', actorUris)
+                .timeout(const Duration(seconds: 12));
         final actorByUri = <String, Map<String, dynamic>>{
           for (final actor in actors) '${actor['actor_uri']}': Map<String, dynamic>.from(actor),
         };
@@ -203,7 +199,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
           if (widget.kind == PostInteractionKind.likes ||
               widget.kind == PostInteractionKind.reposts ||
               widget.kind == PostInteractionKind.quoteLikes) {
-            _notice = 'This remote server does not expose a complete public actor list for this interaction. The original post and available interaction counts are shown above.';
+            _notice =
+                'This remote server does not expose a complete public actor list for this interaction. The original post and available interaction counts are shown above.';
           }
           _loading = false;
         });
@@ -267,10 +264,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
         if (widget.kind == PostInteractionKind.quotes) {
           rows = quotes;
         } else {
-          final quoteIds = quotes
-              .map((quote) => '${quote['id'] ?? ''}')
-              .where((id) => id.isNotEmpty)
-              .toList();
+          final quoteIds =
+              quotes.map((quote) => '${quote['id'] ?? ''}').where((id) => id.isNotEmpty).toList();
           if (quoteIds.isEmpty) {
             rows = [];
           } else {
@@ -295,10 +290,10 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
       final profiles = userIds.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified')
-                .inFilter('id', userIds)
-                .timeout(const Duration(seconds: 12));
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified')
+              .inFilter('id', userIds)
+              .timeout(const Duration(seconds: 12));
       final profileById = <String, Map<String, dynamic>>{
         for (final profile in profiles) '${profile['id']}': Map<String, dynamic>.from(profile),
       };
@@ -341,31 +336,27 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
     });
     try {
       if (PostInteractionPolicy.isRemotePostId(widget.postId)) {
-        final response = await _db.functions
-            .invoke(
-              'testagram-api',
-              body: {
-                'path': '/reply',
-                'method': 'POST',
-                'body': {'post_id': widget.postId, 'content': content},
-              },
-            )
-            .timeout(const Duration(seconds: 30));
+        final response = await _db.functions.invoke(
+          'testagram-api',
+          body: {
+            'path': '/reply',
+            'method': 'POST',
+            'body': {'post_id': widget.postId, 'content': content},
+          },
+        ).timeout(const Duration(seconds: 30));
         if (response.data is Map &&
             (response.data as Map)['error'] != null &&
             (response.data as Map)['ok'] != true) {
           throw StateError('The federation service rejected this reply.');
         }
       } else {
-        final result = await _db
-            .rpc(
-              'capability_dispatch',
-              params: {
-                'p_capability': 'testagram.replies.create',
-                'p_input': {'post_id': widget.postId, 'content': content},
-              },
-            )
-            .timeout(const Duration(seconds: 20));
+        final result = await _db.rpc(
+          'capability_dispatch',
+          params: {
+            'p_capability': 'testagram.replies.create',
+            'p_input': {'post_id': widget.postId, 'content': content},
+          },
+        ).timeout(const Duration(seconds: 20));
         if (result is! Map || result['created'] != true) {
           throw StateError('The reply service did not confirm the reply.');
         }
@@ -397,8 +388,8 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
           icon: const Icon(Icons.arrow_back),
         ),
       ),
-      bottomNavigationBar:
-          widget.kind == PostInteractionKind.replies && _db.auth.currentUser != null
+      bottomNavigationBar: widget.kind == PostInteractionKind.replies &&
+              _db.auth.currentUser != null
           ? SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -423,8 +414,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                     const SizedBox(width: 8),
                     IconButton.filled(
                       tooltip: 'Send reply',
-                      onPressed:
-                          _sendingReply ||
+                      onPressed: _sendingReply ||
                               PostInteractionPolicy.validateComposerText(_replyText.text) != null
                           ? null
                           : _sendReply,
@@ -444,109 +434,113 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_error!, textAlign: TextAlign.center),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: _load,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(12),
-                children: [
-                  if (_rootPost != null)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Original post', style: Theme.of(context).textTheme.labelLarge),
-                            const SizedBox(height: 6),
-                            SelectableText(
-                              '${_rootPost!['content'] ?? _rootPost!['summary'] ?? ''}',
-                            ),
-                            if (_rootPost!['published_at'] != null ||
-                                _rootPost!['created_at'] != null)
-                              Text(
-                                '${_rootPost!['published_at'] ?? _rootPost!['created_at']}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            if (_rootPost!['like_count'] != null ||
-                                _rootPost!['likes_count'] != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Text(
-                                  '${_rootPost!['like_count'] ?? _rootPost!['likes_count'] ?? 0} likes · ${_rootPost!['reply_count'] ?? _rootPost!['replies_count'] ?? 0} replies · ${_rootPost!['announce_count'] ?? _rootPost!['reposts_count'] ?? 0} reposts',
-                                  style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(12),
+                    children: [
+                      if (_rootPost != null)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Original post',
+                                    style: Theme.of(context).textTheme.labelLarge),
+                                const SizedBox(height: 6),
+                                SelectableText(
+                                  '${_rootPost!['content'] ?? _rootPost!['summary'] ?? ''}',
                                 ),
-                              ),
-                          ],
+                                if (_rootPost!['published_at'] != null ||
+                                    _rootPost!['created_at'] != null)
+                                  Text(
+                                    '${_rootPost!['published_at'] ?? _rootPost!['created_at']}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                if (_rootPost!['like_count'] != null ||
+                                    _rootPost!['likes_count'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      '${_rootPost!['like_count'] ?? _rootPost!['likes_count'] ?? 0} likes · ${_rootPost!['reply_count'] ?? _rootPost!['replies_count'] ?? 0} replies · ${_rootPost!['announce_count'] ?? _rootPost!['reposts_count'] ?? 0} reposts',
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  if (_notice != null)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(_notice!, textAlign: TextAlign.center),
-                    ),
-                  if (_items.isEmpty && _notice == null)
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text('No ${_title.toLowerCase()} yet.', textAlign: TextAlign.center),
-                    ),
-                  ..._items.map((item) {
-                    final profile = item['profile'] as Map<String, dynamic>?;
-                    final name = _displayName(profile);
-                    final username = '${profile?['username'] ?? ''}';
-                    final avatar = '${profile?['avatar_url'] ?? ''}';
-                    final detail = switch (widget.kind) {
-                      PostInteractionKind.replies =>
-                        '${item['content'] ?? 'Replied to this post'}${item['delivery_state'] == null ? '' : ' · ${item['delivery_state']}'}',
-                      PostInteractionKind.quotes =>
-                        '${item['content'] ?? 'Quoted this post'}${item['delivery_state'] == null ? '' : ' · ${item['delivery_state']}'}',
-                      PostInteractionKind.quoteLikes =>
-                        'Liked a quote: ${item['quote_content'] ?? ''}',
-                      PostInteractionKind.reposts => 'Reposted this post',
-                      PostInteractionKind.likes => 'Liked this post',
-                    };
-                    return Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
-                          child: avatar.startsWith('http')
-                              ? null
-                              : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
+                      if (_notice != null)
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(_notice!, textAlign: TextAlign.center),
                         ),
-                        title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (username.isNotEmpty) Text('@$username'),
-                            Text(detail, maxLines: 3, overflow: TextOverflow.ellipsis),
-                          ],
+                      if (_items.isEmpty && _notice == null)
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child:
+                              Text('No ${_title.toLowerCase()} yet.', textAlign: TextAlign.center),
                         ),
-                        isThreeLine: username.isNotEmpty,
-                        onTap: username.isEmpty ? null : () => context.push('/profile/$username'),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
+                      ..._items.map((item) {
+                        final profile = item['profile'] as Map<String, dynamic>?;
+                        final name = _displayName(profile);
+                        final username = '${profile?['username'] ?? ''}';
+                        final avatar = '${profile?['avatar_url'] ?? ''}';
+                        final detail = switch (widget.kind) {
+                          PostInteractionKind.replies =>
+                            '${item['content'] ?? 'Replied to this post'}${item['delivery_state'] == null ? '' : ' · ${item['delivery_state']}'}',
+                          PostInteractionKind.quotes =>
+                            '${item['content'] ?? 'Quoted this post'}${item['delivery_state'] == null ? '' : ' · ${item['delivery_state']}'}',
+                          PostInteractionKind.quoteLikes =>
+                            'Liked a quote: ${item['quote_content'] ?? ''}',
+                          PostInteractionKind.reposts => 'Reposted this post',
+                          PostInteractionKind.likes => 'Liked this post',
+                        };
+                        return Card(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundImage:
+                                  avatar.startsWith('http') ? NetworkImage(avatar) : null,
+                              child: avatar.startsWith('http')
+                                  ? null
+                                  : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
+                            ),
+                            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (username.isNotEmpty) Text('@$username'),
+                                Text(detail, maxLines: 3, overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                            isThreeLine: username.isNotEmpty,
+                            onTap:
+                                username.isEmpty ? null : () => context.push('/profile/$username'),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
     );
   }
 }

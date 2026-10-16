@@ -33,14 +33,14 @@ class MediaUploadPolicy {
   }
 
   static String contentType(String extension) => switch (extension.toLowerCase()) {
-    'jpg' || 'jpeg' => 'image/jpeg',
-    'png' => 'image/png',
-    'webp' => 'image/webp',
-    'heic' => 'image/heic',
-    'heif' => 'image/heif',
-    'mov' => 'video/quicktime',
-    'webm' => 'video/webm',
-    'mp4' || 'm4v' => 'video/mp4',
-    _ => throw const FormatException('Unsupported media format.'),
-  };
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'heic' => 'image/heic',
+        'heif' => 'image/heif',
+        'mov' => 'video/quicktime',
+        'webm' => 'video/webm',
+        'mp4' || 'm4v' => 'video/mp4',
+        _ => throw const FormatException('Unsupported media format.'),
+      };
 }

@@ -52,16 +52,16 @@ class _ReferralPageState extends State<ReferralPage> {
         _credits = status is Map ? int.tryParse('${status['earned_credits'] ?? 0}') ?? 0 : 0;
         _referrals = referrals is Map && referrals['items'] is List
             ? (referrals['items'] as List)
-                  .whereType<Map>()
-                  .map((e) => Map<String, dynamic>.from(e))
-                  .toList()
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
             : const [];
         _leaders = leaders is Map && leaders['items'] is List
             ? (leaders['items'] as List)
-                  .whereType<Map>()
-                  .map((e) => Map<String, dynamic>.from(e))
-                  .take(10)
-                  .toList()
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .take(10)
+                .toList()
             : const [];
         _loading = false;
       });

@@ -165,16 +165,16 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
   }
 
   Widget _detail(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 120,
-          child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 120,
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
+            Expanded(child: SelectableText(value)),
+          ],
         ),
-        Expanded(child: SelectableText(value)),
-      ],
-    ),
-  );
+      );
 }

@@ -47,11 +47,8 @@ class _OrdersPageState extends State<OrdersPage> {
           .order('created_at', ascending: false)
           .limit(100)
           .timeout(const Duration(seconds: 15));
-      final ids = rows
-          .map((r) => '${r['product_id'] ?? ''}')
-          .where((id) => id.isNotEmpty)
-          .toSet()
-          .toList();
+      final ids =
+          rows.map((r) => '${r['product_id'] ?? ''}').where((id) => id.isNotEmpty).toSet().toList();
       final products = ids.isEmpty
           ? <dynamic>[]
           : await _db.from('products').select('id,name').inFilter('id', ids);
@@ -106,7 +103,9 @@ class _OrdersPageState extends State<OrdersPage> {
               Expanded(
                 child: Text(
                   'Orders',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),

@@ -65,9 +65,8 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
         }
         return;
       }
-      final result = await _db
-          .rpc('testagram_list_job_applications', params: {'p_status': null})
-          .timeout(const Duration(seconds: 15));
+      final result = await _db.rpc('testagram_list_job_applications',
+          params: {'p_status': null}).timeout(const Duration(seconds: 15));
       final rows = result is List
           ? result.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList()
           : <Map<String, dynamic>>[];
@@ -99,12 +98,10 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
       _error = null;
     });
     try {
-      await _db
-          .rpc(
-            'testagram_review_job_application',
-            params: {'p_application_id': id, 'p_status': status, 'p_note': null},
-          )
-          .timeout(const Duration(seconds: 15));
+      await _db.rpc(
+        'testagram_review_job_application',
+        params: {'p_application_id': id, 'p_status': status, 'p_note': null},
+      ).timeout(const Duration(seconds: 15));
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Application moved to $status.')));
@@ -136,16 +133,14 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
       _error = null;
     });
     try {
-      await _db
-          .rpc(
-            'testagram_invite_admin',
-            params: {
-              'p_user_id': userId,
-              'p_role_name': roleName,
-              'p_note': 'Owner-approved invitation following recruitment application $id',
-            },
-          )
-          .timeout(const Duration(seconds: 15));
+      await _db.rpc(
+        'testagram_invite_admin',
+        params: {
+          'p_user_id': userId,
+          'p_role_name': roleName,
+          'p_note': 'Owner-approved invitation following recruitment application $id',
+        },
+      ).timeout(const Duration(seconds: 15));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${StaffRecruitmentPolicy.displayName(application)} invited.')),
@@ -300,9 +295,8 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
                         children: [
                           for (final status in StaffRecruitmentPolicy.reviewStatuses)
                             OutlinedButton(
-                              onPressed: _busyId == null
-                                  ? () => _review(application, status)
-                                  : null,
+                              onPressed:
+                                  _busyId == null ? () => _review(application, status) : null,
                               child: Text(status),
                             ),
                           if (StaffRecruitmentPolicy.canInvite('${application['status'] ?? ''}'))

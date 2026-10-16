@@ -43,9 +43,7 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
       _error = null;
     });
     try {
-      var query = _db
-          .from('communities')
-          .select(
+      var query = _db.from('communities').select(
             'id,name,display_name,description,icon_url,banner_url,is_private,member_count,post_count,created_at',
           );
       final q = _search.text.trim().replaceAll(',', ' ').replaceAll('%', '').replaceAll('_', ' ');
@@ -57,8 +55,8 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
             _sort == 'Newest'
                 ? 'created_at'
                 : _sort == 'Active'
-                ? 'post_count'
-                : 'member_count',
+                    ? 'post_count'
+                    : 'member_count',
             ascending: false,
           )
           .limit(50)
@@ -78,8 +76,8 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
         () => _communities = _tab == 'Joined'
             ? data.where((c) => _joined.contains('${c['id']}')).toList()
             : _tab == 'Discover'
-            ? data.where((c) => !_joined.contains('${c['id']}')).toList()
-            : data,
+                ? data.where((c) => !_joined.contains('${c['id']}')).toList()
+                : data,
       );
     } catch (_) {
       if (mounted) {
@@ -195,174 +193,177 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
-    onRefresh: _load,
-    child: ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        Row(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(14),
           children: [
-            Expanded(
-              child: Text(
-                'Communities',
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w900),
-              ),
-            ),
-            FilledButton.icon(
-              onPressed: _creating ? null : _create,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Create'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Text('Find your people. Join conversations that matter to you.'),
-        const SizedBox(height: 14),
-        TextField(
-          controller: _search,
-          decoration: InputDecoration(
-            hintText: 'Search communities',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: IconButton(
-              onPressed: () {
-                _search.clear();
-                _load();
-              },
-              icon: const Icon(Icons.close_rounded),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'Discover', label: Text('Discover')),
-            ButtonSegment(value: 'All', label: Text('All')),
-            ButtonSegment(value: 'Joined', label: Text('Joined')),
-          ],
-          selected: {_tab},
-          onSelectionChanged: (v) {
-            setState(() => _tab = v.first);
-            _load();
-          },
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: _sort,
-          decoration: const InputDecoration(labelText: 'Sort communities'),
-          items: const [
-            DropdownMenuItem(value: 'Popular', child: Text('Most members')),
-            DropdownMenuItem(value: 'Active', child: Text('Most active')),
-            DropdownMenuItem(value: 'Newest', child: Text('Newest')),
-          ],
-          onChanged: (v) {
-            if (v != null) {
-              setState(() => _sort = v);
-              _load();
-            }
-          },
-        ),
-        if (_loading) const Padding(padding: EdgeInsets.all(18), child: LinearProgressIndicator()),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+            Row(
               children: [
-                Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry')),
+                Expanded(
+                  child: Text(
+                    'Communities',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: _creating ? null : _create,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Create'),
+                ),
               ],
             ),
-          ),
-        ..._communities.map((c) {
-          final id = '${c['id']}';
-          final slug = '${c['name'] ?? ''}';
-          final title = '${c['display_name'] ?? slug}';
-          final icon = '${c['icon_url'] ?? ''}';
-          final banner = '${c['banner_url'] ?? ''}';
-          final joined = _joined.contains(id);
-          return Card(
-            margin: const EdgeInsets.only(top: 10),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => context.go('/c/${Uri.encodeComponent(slug)}'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (banner.startsWith('http'))
-                    SizedBox(
-                      height: 92,
-                      width: double.infinity,
-                      child: CachedNetworkImage(
-                        imageUrl: banner,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          radius: 25,
-                          backgroundImage: icon.startsWith('http')
-                              ? CachedNetworkImageProvider(icon)
-                              : null,
-                          child: icon.startsWith('http')
-                              ? null
-                              : Text(title.isEmpty ? 'T' : title[0].toUpperCase()),
+            const SizedBox(height: 8),
+            const Text('Find your people. Join conversations that matter to you.'),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _search,
+              decoration: InputDecoration(
+                hintText: 'Search communities',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: IconButton(
+                  onPressed: () {
+                    _search.clear();
+                    _load();
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'Discover', label: Text('Discover')),
+                ButtonSegment(value: 'All', label: Text('All')),
+                ButtonSegment(value: 'Joined', label: Text('Joined')),
+              ],
+              selected: {_tab},
+              onSelectionChanged: (v) {
+                setState(() => _tab = v.first);
+                _load();
+              },
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _sort,
+              decoration: const InputDecoration(labelText: 'Sort communities'),
+              items: const [
+                DropdownMenuItem(value: 'Popular', child: Text('Most members')),
+                DropdownMenuItem(value: 'Active', child: Text('Most active')),
+                DropdownMenuItem(value: 'Newest', child: Text('Newest')),
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _sort = v);
+                  _load();
+                }
+              },
+            ),
+            if (_loading)
+              const Padding(padding: EdgeInsets.all(18), child: LinearProgressIndicator()),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Text(_error!),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ],
+                ),
+              ),
+            ..._communities.map((c) {
+              final id = '${c['id']}';
+              final slug = '${c['name'] ?? ''}';
+              final title = '${c['display_name'] ?? slug}';
+              final icon = '${c['icon_url'] ?? ''}';
+              final banner = '${c['banner_url'] ?? ''}';
+              final joined = _joined.contains(id);
+              return Card(
+                margin: const EdgeInsets.only(top: 10),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => context.go('/c/${Uri.encodeComponent(slug)}'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (banner.startsWith('http'))
+                        SizedBox(
+                          height: 92,
+                          width: double.infinity,
+                          child: CachedNetworkImage(
+                            imageUrl: banner,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                          ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                              ),
-                              Text('c/$slug', style: Theme.of(context).textTheme.bodySmall),
-                              if ('${c['description'] ?? ''}'.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: Text(
-                                    '${c['description']}',
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 25,
+                              backgroundImage:
+                                  icon.startsWith('http') ? CachedNetworkImageProvider(icon) : null,
+                              child: icon.startsWith('http')
+                                  ? null
+                                  : Text(title.isEmpty ? 'T' : title[0].toUpperCase()),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style:
+                                        const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                                   ),
-                                ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${c['member_count'] ?? 0} members · ${c['post_count'] ?? 0} posts',
-                                style: Theme.of(context).textTheme.bodySmall,
+                                  Text('c/$slug', style: Theme.of(context).textTheme.bodySmall),
+                                  if ('${c['description'] ?? ''}'.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(
+                                        '${c['description']}',
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '${c['member_count'] ?? 0} members · ${c['post_count'] ?? 0} posts',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            if (_uid != null)
+                              OutlinedButton(
+                                onPressed: () => _membership(c),
+                                child: Text(joined ? 'Joined' : 'Join'),
+                              ),
+                          ],
                         ),
-                        if (_uid != null)
-                          OutlinedButton(
-                            onPressed: () => _membership(c),
-                            child: Text(joined ? 'Joined' : 'Join'),
-                          ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              );
+            }),
+            if (!_loading && _communities.isEmpty && _error == null)
+              Padding(
+                padding: const EdgeInsets.all(28),
+                child: Center(
+                  child: Text(
+                    _tab == 'Joined'
+                        ? 'You have not joined any communities yet.'
+                        : 'No communities found. Try another search.',
+                  ),
+                ),
               ),
-            ),
-          );
-        }),
-        if (!_loading && _communities.isEmpty && _error == null)
-          Padding(
-            padding: const EdgeInsets.all(28),
-            child: Center(
-              child: Text(
-                _tab == 'Joined'
-                    ? 'You have not joined any communities yet.'
-                    : 'No communities found. Try another search.',
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
+          ],
+        ),
+      );
 }

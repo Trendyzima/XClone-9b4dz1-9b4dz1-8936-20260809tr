@@ -59,9 +59,8 @@ class _AdReviewPageState extends State<AdReviewPage> {
       return;
     }
     try {
-      final governance = await _db
-          .rpc('testagram_get_governance')
-          .timeout(const Duration(seconds: 12));
+      final governance =
+          await _db.rpc('testagram_get_governance').timeout(const Duration(seconds: 12));
       final state = governance is Map ? Map<String, dynamic>.from(governance) : <String, dynamic>{};
       final permissions = state['permissions'] is List
           ? (state['permissions'] as List).map((v) => '$v').toSet()
@@ -76,9 +75,8 @@ class _AdReviewPageState extends State<AdReviewPage> {
         }
         return;
       }
-      final result = await _db
-          .rpc('testagram_admin_list_ad_review_queue', params: {'p_status': _filter})
-          .timeout(const Duration(seconds: 15));
+      final result = await _db.rpc('testagram_admin_list_ad_review_queue',
+          params: {'p_status': _filter}).timeout(const Duration(seconds: 15));
       final rows = result is List
           ? result.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList()
           : <Map<String, dynamic>>[];
@@ -130,16 +128,14 @@ class _AdReviewPageState extends State<AdReviewPage> {
       _error = null;
     });
     try {
-      final result = await _db
-          .rpc(
-            'testagram_admin_review_ad_campaign',
-            params: {
-              'p_campaign_id': id,
-              'p_decision': decision,
-              'p_note': note.isEmpty ? null : note,
-            },
-          )
-          .timeout(const Duration(seconds: 20));
+      final result = await _db.rpc(
+        'testagram_admin_review_ad_campaign',
+        params: {
+          'p_campaign_id': id,
+          'p_decision': decision,
+          'p_note': note.isEmpty ? null : note,
+        },
+      ).timeout(const Duration(seconds: 20));
       final resultMap = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
       if (mounted) {
         final campaignStatus = '${resultMap['campaign_status'] ?? 'updated'}';
@@ -157,7 +153,8 @@ class _AdReviewPageState extends State<AdReviewPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Review was rejected. Verify your advertising role and complete MFA verification, then retry.',
+          () => _error =
+              'Review was rejected. Verify your advertising role and complete MFA verification, then retry.',
         );
       }
     } finally {
@@ -191,66 +188,66 @@ class _AdReviewPageState extends State<AdReviewPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_error!),
-                    const SizedBox(height: 12),
-                    FilledButton(onPressed: _load, child: const Text('Retry')),
-                  ],
-                ),
-              ),
-            )
-          : !_authorized
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock_outline, size: 44),
-                    SizedBox(height: 12),
-                    Text('Advertising administration permission required.'),
-                  ],
-                ),
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Campaign review is server-authorized. Approval does not mark a campaign paid: serving is only enabled after verified funding. Review actions require an MFA-verified session.',
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!),
+                        const SizedBox(height: 12),
+                        FilledButton(onPressed: _load, child: const Text('Retry')),
+                      ],
+                    ),
+                  ),
+                )
+              : !_authorized
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock_outline, size: 44),
+                            SizedBox(height: 12),
+                            Text('Advertising administration permission required.'),
+                          ],
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Text(
+                                'Campaign review is server-authorized. Approval does not mark a campaign paid: serving is only enabled after verified funding. Review actions require an MFA-verified session.',
+                              ),
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              for (final filter in AdReviewPolicy.filters)
+                                ChoiceChip(
+                                  label: Text(filter[0].toUpperCase() + filter.substring(1)),
+                                  selected: _filter == filter,
+                                  onSelected: (_) => _changeFilter(filter),
+                                ),
+                            ],
+                          ),
+                          if (_campaigns.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Center(child: Text('No campaigns in this queue.')),
+                            ),
+                          for (final campaign in _campaigns) _campaignCard(campaign),
+                        ],
                       ),
                     ),
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final filter in AdReviewPolicy.filters)
-                        ChoiceChip(
-                          label: Text(filter[0].toUpperCase() + filter.substring(1)),
-                          selected: _filter == filter,
-                          onSelected: (_) => _changeFilter(filter),
-                        ),
-                    ],
-                  ),
-                  if (_campaigns.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: Text('No campaigns in this queue.')),
-                    ),
-                  for (final campaign in _campaigns) _campaignCard(campaign),
-                ],
-              ),
-            ),
     );
   }
 

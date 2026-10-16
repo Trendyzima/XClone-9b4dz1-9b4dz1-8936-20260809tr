@@ -45,12 +45,10 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
       final endpoint = Uri.parse(AppConfig.supabaseUrl)
           .resolve('/functions/v1/testagram-rss-feed')
           .replace(queryParameters: {'id': widget.articleId});
-      final response = await http
-          .get(
-            endpoint,
-            headers: {'Accept': 'application/json', 'apikey': AppConfig.supabasePublishableKey},
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await http.get(
+        endpoint,
+        headers: {'Accept': 'application/json', 'apikey': AppConfig.supabasePublishableKey},
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('The publisher feed returned ${response.statusCode}.');
       }
@@ -126,7 +124,9 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
               Expanded(
                 child: Text(
                   'News story',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -185,7 +185,9 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                             Expanded(
                               child: Text(
                                 source,
-                                style: Theme.of(context).textTheme.labelLarge
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                             ),
@@ -201,7 +203,9 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                         const SizedBox(height: 10),
                         Text(
                           title,
-                          style: Theme.of(context).textTheme.headlineSmall
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         if (published != null)

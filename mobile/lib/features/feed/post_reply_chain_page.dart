@@ -178,33 +178,28 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
     });
     try {
       if (_remote) {
-        final response = await _db.functions
-            .invoke(
-              'testagram-api',
-              body: {
-                'path': '/reply',
-                'method': 'POST',
-                'body': {
-                  'post_id': widget.postId,
-                  'content': content,
-                  'parent_reply_id': widget.replyId,
-                },
-              },
-            )
-            .timeout(const Duration(seconds: 30));
+        final response = await _db.functions.invoke(
+          'testagram-api',
+          body: {
+            'path': '/reply',
+            'method': 'POST',
+            'body': {
+              'post_id': widget.postId,
+              'content': content,
+              'parent_reply_id': widget.replyId,
+            },
+          },
+        ).timeout(const Duration(seconds: 30));
         if (response.data is Map && (response.data as Map)['error'] != null) {
           throw StateError('The federation service rejected this reply.');
         }
       } else {
-        await _db
-            .from('replies')
-            .insert({
-              'post_id': widget.postId,
-              'user_id': user.id,
-              'content': content,
-              'parent_reply_id': widget.replyId,
-            })
-            .timeout(const Duration(seconds: 20));
+        await _db.from('replies').insert({
+          'post_id': widget.postId,
+          'user_id': user.id,
+          'content': content,
+          'parent_reply_id': widget.replyId,
+        }).timeout(const Duration(seconds: 20));
       }
       _text.clear();
       await _load();
@@ -312,9 +307,8 @@ class _PostReplyChainPageState extends State<PostReplyChainPage> {
                   ),
                   const SizedBox(height: 8),
                   FilledButton.icon(
-                    onPressed: _selected == null || _sending || _text.text.trim().isEmpty
-                        ? null
-                        : _send,
+                    onPressed:
+                        _selected == null || _sending || _text.text.trim().isEmpty ? null : _send,
                     icon: _sending
                         ? const SizedBox(
                             width: 18,

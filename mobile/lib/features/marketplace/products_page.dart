@@ -38,9 +38,7 @@ class _ProductsPageState extends State<ProductsPage> {
       _wishlisted.clear();
     });
     try {
-      var query = _db
-          .from('marketplace_public_products')
-          .select(
+      var query = _db.from('marketplace_public_products').select(
             'id,seller_id,name,description,price_minor,currency,status,created_at,available_inventory,local_delivery,delivery_fee_minor,delivery_eta,sales_count,media_url,seller_username,seller_display_name,seller_avatar_url',
           );
       if (widget.productId != null) {
@@ -53,10 +51,10 @@ class _ProductsPageState extends State<ProductsPage> {
       final orderColumn = _sort == 'Newest'
           ? 'created_at'
           : _sort == 'Price: low to high'
-          ? 'price_minor'
-          : _sort == 'Price: high to low'
-          ? 'price_minor'
-          : 'sales_count';
+              ? 'price_minor'
+              : _sort == 'Price: high to low'
+                  ? 'price_minor'
+                  : 'sales_count';
       final rows = await query
           .order(orderColumn, ascending: _sort == 'Price: low to high')
           .limit(widget.productId == null ? 60 : 1)
@@ -267,7 +265,9 @@ class _ProductsPageState extends State<ProductsPage> {
               Expanded(
                 child: Text(
                   detail ? 'Product details' : 'Marketplace',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -367,7 +367,9 @@ class _ProductsPageState extends State<ProductsPage> {
                       children: [
                         Text(
                           '${p['name'] ?? 'Product'}',
-                          style: Theme.of(context).textTheme.titleLarge
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 4),
@@ -378,7 +380,9 @@ class _ProductsPageState extends State<ProductsPage> {
                         const SizedBox(height: 8),
                         Text(
                           '$currency ${amount.toStringAsFixed(2)}',
-                          style: Theme.of(context).textTheme.titleMedium
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         if ('${p['description'] ?? ''}'.isNotEmpty)

@@ -59,17 +59,17 @@ class _HashtagsPageState extends State<HashtagsPage> {
         final rows = ids.isEmpty
             ? <dynamic>[]
             : await _db
-                  .from('posts')
-                  .select('id,author_id,content,created_at,likes_count,views_count')
-                  .inFilter('id', ids)
-                  .order('created_at', ascending: false);
+                .from('posts')
+                .select('id,author_id,content,created_at,likes_count,views_count')
+                .inFilter('id', ids)
+                .order('created_at', ascending: false);
         final authors = rows.map((r) => '${r['author_id']}').toSet().toList();
         final profiles = authors.isEmpty
             ? <dynamic>[]
             : await _db
-                  .from('profiles')
-                  .select('id,username,display_name,avatar_url')
-                  .inFilter('id', authors);
+                .from('profiles')
+                .select('id,username,display_name,avatar_url')
+                .inFilter('id', authors);
         final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
         final posts = rows.map((r) {
           final p = Map<String, dynamic>.from(r as Map);
@@ -124,7 +124,9 @@ class _HashtagsPageState extends State<HashtagsPage> {
               Expanded(
                 child: Text(
                   detail ? '#${widget.tag!.replaceFirst(RegExp(r'^#'), '')}' : 'Hashtags',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -261,63 +263,64 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
-    onRefresh: _load,
-    child: ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        Text(
-          'Leaderboard',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 4),
-        const Text('Creators ranked by their current follower counts.'),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry')),
-              ],
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(14),
+          children: [
+            Text(
+              'Leaderboard',
+              style:
+                  Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
-          ),
-        ..._creators.asMap().entries.map((entry) {
-          final index = entry.key;
-          final c = entry.value;
-          final name = '${c['display_name'] ?? c['username'] ?? 'Creator'}';
-          final avatar = '${c['avatar_url'] ?? ''}';
-          return Card(
-            margin: const EdgeInsets.only(bottom: 7),
-            child: ListTile(
-              leading: SizedBox(
-                width: 58,
-                child: Row(
+            const SizedBox(height: 4),
+            const Text('Creators ranked by their current follower counts.'),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
                   children: [
-                    Text('#${index + 1}', style: const TextStyle(fontWeight: FontWeight.w900)),
-                    const SizedBox(width: 5),
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
-                      child: avatar.startsWith('http')
-                          ? null
-                          : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
-                    ),
+                    Text(_error!),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
                   ],
                 ),
               ),
-              title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text('@${c['username'] ?? 'creator'}'),
-              trailing: Text('${c['follower_count'] ?? 0} followers'),
-              onTap: () => context.go('/profile/${c['username']}'),
-            ),
-          );
-        }),
-      ],
-    ),
-  );
+            ..._creators.asMap().entries.map((entry) {
+              final index = entry.key;
+              final c = entry.value;
+              final name = '${c['display_name'] ?? c['username'] ?? 'Creator'}';
+              final avatar = '${c['avatar_url'] ?? ''}';
+              return Card(
+                margin: const EdgeInsets.only(bottom: 7),
+                child: ListTile(
+                  leading: SizedBox(
+                    width: 58,
+                    child: Row(
+                      children: [
+                        Text('#${index + 1}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                        const SizedBox(width: 5),
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
+                          child: avatar.startsWith('http')
+                              ? null
+                              : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),
+                        ),
+                      ],
+                    ),
+                  ),
+                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text('@${c['username'] ?? 'creator'}'),
+                  trailing: Text('${c['follower_count'] ?? 0} followers'),
+                  onTap: () => context.go('/profile/${c['username']}'),
+                ),
+              );
+            }),
+          ],
+        ),
+      );
 }

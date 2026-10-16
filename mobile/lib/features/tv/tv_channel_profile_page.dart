@@ -236,9 +236,8 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                             title: Text(
                               'Hosted by ${owner['display_name'] ?? owner['username'] ?? 'Testagram creator'}',
                             ),
-                            subtitle: owner['username'] == null
-                                ? null
-                                : Text('@${owner['username']}'),
+                            subtitle:
+                                owner['username'] == null ? null : Text('@${owner['username']}'),
                             onTap: owner['username'] == null
                                 ? null
                                 : () => context.go('/profile/${owner['username']}'),

@@ -123,7 +123,8 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Live exchange rates could not be loaded. Check your connection and retry; no rate has been guessed.';
+        _error =
+            'Live exchange rates could not be loaded. Check your connection and retry; no rate has been guessed.';
       });
     }
   }

@@ -115,9 +115,9 @@ class _SpacesPageState extends State<SpacesPage> {
         final profiles = hosts.isEmpty
             ? <dynamic>[]
             : await _db
-                  .from('profiles')
-                  .select('id,username,display_name,avatar_url,verified')
-                  .inFilter('id', hosts);
+                .from('profiles')
+                .select('id,username,display_name,avatar_url,verified')
+                .inFilter('id', hosts);
         final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
         for (final space in spaces) {
           space['host'] = byId['${space['host_id']}'];
@@ -348,7 +348,9 @@ class _SpacesPageState extends State<SpacesPage> {
               Expanded(
                 child: Text(
                   'Live Spaces',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -430,9 +432,8 @@ class _SpacesPageState extends State<SpacesPage> {
                 children: [
                   CircleAvatar(
                     backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
-                    child: avatar.startsWith('http')
-                        ? null
-                        : const Icon(Icons.person_outline_rounded),
+                    child:
+                        avatar.startsWith('http') ? null : const Icon(Icons.person_outline_rounded),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -487,20 +488,20 @@ class _SpacesPageState extends State<SpacesPage> {
   }
 
   Widget _recordingCard(Map<String, dynamic> r) => Card(
-    margin: const EdgeInsets.only(bottom: 8),
-    child: ListTile(
-      leading: const CircleAvatar(child: Icon(Icons.headphones_rounded)),
-      title: Text(
-        '${r['title'] ?? 'Space recording'}',
-        style: const TextStyle(fontWeight: FontWeight.w800),
-      ),
-      subtitle: Text('${r['created_at'] ?? ''} · ${r['duration'] ?? 0}s'),
-      trailing: IconButton(
-        onPressed: () => _openRecording(r),
-        icon: const Icon(Icons.play_arrow_rounded),
-      ),
-    ),
-  );
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.headphones_rounded)),
+          title: Text(
+            '${r['title'] ?? 'Space recording'}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          subtitle: Text('${r['created_at'] ?? ''} · ${r['duration'] ?? 0}s'),
+          trailing: IconButton(
+            onPressed: () => _openRecording(r),
+            icon: const Icon(Icons.play_arrow_rounded),
+          ),
+        ),
+      );
 
   Widget _buildDetail(BuildContext context) {
     final s = _detail;
@@ -531,7 +532,9 @@ class _SpacesPageState extends State<SpacesPage> {
               Expanded(
                 child: Text(
                   'Space details',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -545,7 +548,9 @@ class _SpacesPageState extends State<SpacesPage> {
                 children: [
                   Text(
                     '${s['title']}',
-                    style: Theme.of(context).textTheme.titleLarge
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   Text(
@@ -588,8 +593,8 @@ class _SpacesPageState extends State<SpacesPage> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'Recordings',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900),
+                style:
+                    Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
           ..._recordings.map(_recordingCard),
@@ -624,7 +629,9 @@ class _SpacesPageState extends State<SpacesPage> {
             Expanded(
               child: Text(
                 'Space recording',
-                style: Theme.of(context).textTheme.headlineSmall
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
                     ?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
@@ -640,8 +647,8 @@ class _SpacesPageState extends State<SpacesPage> {
                 const SizedBox(height: 12),
                 Text(
                   '${recording['title'] ?? 'Space recording'}',
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900),
+                  style:
+                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 8),
                 Text('Created: ${recording['created_at'] ?? '—'}'),

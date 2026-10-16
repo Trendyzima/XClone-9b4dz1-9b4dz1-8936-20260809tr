@@ -97,43 +97,45 @@ class _ProfileFeaturesPageState extends State<ProfileFeaturesPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Profile features'),
-      actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
-    ),
-    body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text(
-                  'Choose which optional features appear on your profile. Changes are saved to your account.',
-                ),
-                if (_saving) const LinearProgressIndicator(),
-                if (_error != null)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.error_outline),
-                      title: Text(_error!),
-                      trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+        appBar: AppBar(
+          title: const Text('Profile features'),
+          actions: [
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text(
+                      'Choose which optional features appear on your profile. Changes are saved to your account.',
                     ),
-                  ),
-                const SizedBox(height: 12),
-                ..._features.map(
-                  (f) => Card(
-                    child: SwitchListTile(
-                      value: _settings[f.$1] ?? true,
-                      onChanged: _saving ? null : (value) => _toggle(f.$1, value),
-                      title: Text(f.$2),
-                      subtitle: Text(f.$3),
-                      secondary: const Icon(Icons.tune),
+                    if (_saving) const LinearProgressIndicator(),
+                    if (_error != null)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.error_outline),
+                          title: Text(_error!),
+                          trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    ..._features.map(
+                      (f) => Card(
+                        child: SwitchListTile(
+                          value: _settings[f.$1] ?? true,
+                          onChanged: _saving ? null : (value) => _toggle(f.$1, value),
+                          title: Text(f.$2),
+                          subtitle: Text(f.$3),
+                          secondary: const Icon(Icons.tune),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-  );
+              ),
+      );
 }

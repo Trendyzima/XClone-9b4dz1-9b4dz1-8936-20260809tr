@@ -197,8 +197,7 @@ class _DesktopNavigation extends StatelessWidget {
                   for (final item in TestagramShell._destinations)
                     _NavItem(
                       item: item,
-                      selected:
-                          item.path == location ||
+                      selected: item.path == location ||
                           (item.path != '/' && location.startsWith(item.path)),
                     ),
                   const Padding(
@@ -462,16 +461,16 @@ class _AppearanceMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<ThemeMode>(
-    tooltip: 'Appearance',
-    initialValue: themeMode,
-    onSelected: onThemeChanged,
-    icon: const Icon(Icons.contrast_rounded),
-    itemBuilder: (_) => const [
-      PopupMenuItem(value: ThemeMode.system, child: Text('System appearance')),
-      PopupMenuItem(value: ThemeMode.light, child: Text('Light appearance')),
-      PopupMenuItem(value: ThemeMode.dark, child: Text('Dark appearance')),
-    ],
-  );
+        tooltip: 'Appearance',
+        initialValue: themeMode,
+        onSelected: onThemeChanged,
+        icon: const Icon(Icons.contrast_rounded),
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: ThemeMode.system, child: Text('System appearance')),
+          PopupMenuItem(value: ThemeMode.light, child: Text('Light appearance')),
+          PopupMenuItem(value: ThemeMode.dark, child: Text('Dark appearance')),
+        ],
+      );
 }
 
 class _Destination {

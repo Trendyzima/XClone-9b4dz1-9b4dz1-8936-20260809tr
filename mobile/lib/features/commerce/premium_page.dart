@@ -67,9 +67,8 @@ class _PremiumPageState extends State<PremiumPage> {
       _error = null;
     });
     try {
-      final result = await _db.functions
-          .invoke('premium-paypal-create-order', body: {'plan': _plan})
-          .timeout(const Duration(seconds: 25));
+      final result = await _db.functions.invoke('premium-paypal-create-order',
+          body: {'plan': _plan}).timeout(const Duration(seconds: 25));
       final data = result.data;
       if (result.status < 200 || result.status >= 300 || data is! Map || data['error'] != null) {
         throw StateError(
@@ -89,9 +88,8 @@ class _PremiumPageState extends State<PremiumPage> {
     } catch (e) {
       if (mounted) {
         setState(
-          () => _error = e is StateError
-              ? e.message
-              : 'Could not start secure checkout. Please retry.',
+          () => _error =
+              e is StateError ? e.message : 'Could not start secure checkout. Please retry.',
         );
       }
     } finally {
@@ -105,9 +103,8 @@ class _PremiumPageState extends State<PremiumPage> {
       _error = null;
     });
     try {
-      final result = await _db.functions
-          .invoke('premium-paypal-capture-order', body: {'orderId': orderId})
-          .timeout(const Duration(seconds: 30));
+      final result = await _db.functions.invoke('premium-paypal-capture-order',
+          body: {'orderId': orderId}).timeout(const Duration(seconds: 30));
       final data = result.data;
       if (result.status < 200 || result.status >= 300 || data is Map && data['error'] != null) {
         throw StateError(
@@ -118,7 +115,8 @@ class _PremiumPageState extends State<PremiumPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Payment could not be verified. Your Premium status was not changed locally. Refresh after checkout or contact support.',
+          () => _error =
+              'Payment could not be verified. Your Premium status was not changed locally. Refresh after checkout or contact support.',
         );
       }
     } finally {
@@ -147,9 +145,8 @@ class _PremiumPageState extends State<PremiumPage> {
       _error = null;
     });
     try {
-      final result = await _db
-          .rpc('cancel_premium_subscription')
-          .timeout(const Duration(seconds: 15));
+      final result =
+          await _db.rpc('cancel_premium_subscription').timeout(const Duration(seconds: 15));
       if (result != true) {
         throw StateError('No active subscription was cancelled.');
       }
@@ -217,9 +214,8 @@ class _PremiumPageState extends State<PremiumPage> {
                         ButtonSegment(value: 'annual', label: Text('Annual · USD 39.99')),
                       ],
                       selected: {_plan},
-                      onSelectionChanged: _busy
-                          ? null
-                          : (value) => setState(() => _plan = value.first),
+                      onSelectionChanged:
+                          _busy ? null : (value) => setState(() => _plan = value.first),
                     ),
                     const SizedBox(height: 12),
                     FilledButton.icon(

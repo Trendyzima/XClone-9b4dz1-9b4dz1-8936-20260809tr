@@ -8,7 +8,8 @@ class TeamChatPolicy {
     required bool isOwner,
     required bool isRegulator,
     required bool hasActiveAssignment,
-  }) => isOwner || isRegulator || hasActiveAssignment;
+  }) =>
+      isOwner || isRegulator || hasActiveAssignment;
 
   static bool canModerate({required bool isOwner, required bool isRegulator}) =>
       isOwner || isRegulator;

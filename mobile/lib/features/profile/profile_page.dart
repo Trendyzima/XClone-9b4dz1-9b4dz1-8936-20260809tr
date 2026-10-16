@@ -58,10 +58,10 @@ class _ProfilePageState extends State<ProfilePage> {
       final profile = widget.username == null
           ? await _client.from('profiles').select('*').eq('id', uid!).maybeSingle()
           : await _client
-                .from('profiles')
-                .select('*')
-                .eq('username', widget.username!)
-                .maybeSingle();
+              .from('profiles')
+              .select('*')
+              .eq('username', widget.username!)
+              .maybeSingle();
       if (profile == null) throw Exception('This profile could not be found.');
       final targetId = '${profile['id']}';
       final results = await Future.wait([
@@ -114,9 +114,8 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       // Load each profile section from its canonical data source. Do not
       // silently show the ordinary timeline for a different section.
-      var sectionItems = (results[0] as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
+      var sectionItems =
+          (results[0] as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
       var sectionRecords = <Map<String, dynamic>>[];
       var profileViews7d = 0;
       var postImpressions30d = 0;
@@ -235,10 +234,10 @@ class _ProfilePageState extends State<ProfilePage> {
           final tipProfiles = personIds.isEmpty
               ? <dynamic>[]
               : await _client
-                    .from('profiles')
-                    .select('id,username,display_name,avatar_url')
-                    .inFilter('id', personIds)
-                    .timeout(const Duration(seconds: 15));
+                  .from('profiles')
+                  .select('id,username,display_name,avatar_url')
+                  .inFilter('id', personIds)
+                  .timeout(const Duration(seconds: 15));
           final profilesById = <String, Map<String, dynamic>>{
             for (final row in tipProfiles) '${row['id']}': Map<String, dynamic>.from(row as Map),
           };
@@ -486,9 +485,8 @@ class _ProfilePageState extends State<ProfilePage> {
             child: ListTile(
               leading: CircleAvatar(
                 backgroundImage: cover.startsWith('https://') ? NetworkImage(cover) : null,
-                child: cover.startsWith('https://')
-                    ? null
-                    : const Icon(Icons.library_books_rounded),
+                child:
+                    cover.startsWith('https://') ? null : const Icon(Icons.library_books_rounded),
               ),
               title: Text('${item['title'] ?? item['name'] ?? 'Untitled series'}'),
               subtitle: Text(
@@ -580,8 +578,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ];
         }
-        final topPosts = [..._posts]
-          ..sort(
+        final topPosts = [..._posts]..sort(
             (a, b) => ((b['views_count'] as num?)?.toInt() ?? 0).compareTo(
               (a['views_count'] as num?)?.toInt() ?? 0,
             ),
@@ -622,9 +619,7 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: EdgeInsets.all(16),
               child: Text('Publish posts to start seeing content performance.'),
             ),
-          ...topPosts
-              .take(5)
-              .map(
+          ...topPosts.take(5).map(
                 (post) => Card(
                   margin: const EdgeInsets.only(top: 8),
                   child: ListTile(
@@ -646,25 +641,26 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _metricCard(BuildContext context, String label, String value, IconData icon) => SizedBox(
-    width: 155,
-    child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 20),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        width: 155,
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 20),
+                const SizedBox(height: 10),
+                Text(
+                  value,
+                  style:
+                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+              ],
             ),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 
   Future<void> _toggleFollow() async {
     if (_isOwnProfile || _followBusy) return;
@@ -975,13 +971,13 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: picking
                   ? null
                   : () => Navigator.pop(dialogContext, {
-                      'display_name': name.text.trim(),
-                      'bio': bio.text.trim(),
-                      'website': website.text.trim(),
-                      'location': location.text.trim(),
-                      'avatar': avatarFile,
-                      'cover': coverFile,
-                    }),
+                        'display_name': name.text.trim(),
+                        'bio': bio.text.trim(),
+                        'website': website.text.trim(),
+                        'location': location.text.trim(),
+                        'avatar': avatarFile,
+                        'cover': coverFile,
+                      }),
               child: const Text('Save'),
             ),
           ],
@@ -1010,8 +1006,7 @@ class _ProfilePageState extends State<ProfilePage> {
         update['cover_url'] = await _uploadProfileMedia(cover, 'cover');
       }
       final result = await _client
-          .rpc('profile_update', params: {'p_input': update})
-          .timeout(const Duration(seconds: 20));
+          .rpc('profile_update', params: {'p_input': update}).timeout(const Duration(seconds: 20));
       if (result is! Map || result['updated'] != true) {
         throw Exception('The server did not confirm the profile update.');
       }
@@ -1067,9 +1062,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   if (cover.startsWith('http')) const SizedBox(height: 12),
                   CircleAvatar(
                     radius: 42,
-                    backgroundImage: avatar.startsWith('http')
-                        ? CachedNetworkImageProvider(avatar)
-                        : null,
+                    backgroundImage:
+                        avatar.startsWith('http') ? CachedNetworkImageProvider(avatar) : null,
                     child: avatar.startsWith('http')
                         ? null
                         : Text(
@@ -1080,7 +1074,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 12),
                   Text(
                     name,
-                    style: Theme.of(context).textTheme.titleLarge
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   Text(
@@ -1169,7 +1165,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   onTap: '${person['username'] ?? ''}'.isEmpty
                       ? null
                       : () =>
-                            context.go('/profile/${Uri.encodeComponent('${person['username']}')}'),
+                          context.go('/profile/${Uri.encodeComponent('${person['username']}')}'),
                 ),
               ),
             ),
@@ -1224,12 +1220,12 @@ class _Stat extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) => Column(
-    children: [
-      Text(
-        value,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-      ),
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-    ],
-  );
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      );
 }

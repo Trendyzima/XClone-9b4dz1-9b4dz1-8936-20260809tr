@@ -112,12 +112,12 @@ class SponsoredAdService {
   }
 
   Map<String, String> get _headers => {
-    'apikey': publishableKey,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    if ((accessTokenProvider?.call() ?? accessToken)?.isNotEmpty == true)
-      'Authorization': 'Bearer ${accessTokenProvider?.call() ?? accessToken}',
-  };
+        'apikey': publishableKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        if ((accessTokenProvider?.call() ?? accessToken)?.isNotEmpty == true)
+          'Authorization': 'Bearer ${accessTokenProvider?.call() ?? accessToken}',
+      };
 
   Future<SponsoredAd?> requestAd({
     required String slotCode,
@@ -175,14 +175,12 @@ class SponsoredAdService {
     final pending = _eventsInFlight[key];
     if (pending != null) return pending;
 
-    final request = _sendEvent(ad: ad, eventType: eventType, metadata: metadata)
-        .then((success) {
-          if (success) _recordedEvents.add(key);
-          return success;
-        })
-        .whenComplete(() {
-          _eventsInFlight.remove(key);
-        });
+    final request = _sendEvent(ad: ad, eventType: eventType, metadata: metadata).then((success) {
+      if (success) _recordedEvents.add(key);
+      return success;
+    }).whenComplete(() {
+      _eventsInFlight.remove(key);
+    });
     _eventsInFlight[key] = request;
     return request;
   }

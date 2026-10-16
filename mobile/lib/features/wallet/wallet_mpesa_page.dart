@@ -166,11 +166,10 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         _status = 'pending';
         _submitting = false;
         _elapsedSeconds = 0;
-        _message =
-            (data['error'] ??
-                    data['customer_message'] ??
-                    'Payment prompt sent. Enter your M-Pesa PIN on your phone.')
-                .toString();
+        _message = (data['error'] ??
+                data['customer_message'] ??
+                'Payment prompt sent. Enter your M-Pesa PIN on your phone.')
+            .toString();
       });
       _beginPolling();
     } catch (error) {
@@ -374,7 +373,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                       onPressed: () {
                         _pollTimer?.cancel();
                         setState(() {
-                          _message = 'Automatic checks paused. Check this same request again before starting another payment.';
+                          _message =
+                              'Automatic checks paused. Check this same request again before starting another payment.';
                         });
                       },
                       child: const Text('Pause auto-checks'),
@@ -398,8 +398,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                       _status == 'completed'
                           ? Icons.check_circle
                           : _status == 'failed'
-                          ? Icons.error_outline
-                          : Icons.info_outline,
+                              ? Icons.error_outline
+                              : Icons.info_outline,
                     ),
                     const SizedBox(width: 10),
                     Expanded(child: Text(_message!)),

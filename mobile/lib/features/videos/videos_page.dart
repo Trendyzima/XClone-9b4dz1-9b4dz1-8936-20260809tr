@@ -104,9 +104,9 @@ class _VideosPageState extends State<VideosPage> {
       final profiles = authorIds.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified')
-                .inFilter('id', authorIds);
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified')
+              .inFilter('id', authorIds);
       final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
       for (final video in page) {
         video['profile'] = byId['${video['author_id'] ?? video['user_id']}'];
@@ -205,8 +205,8 @@ class _VideosPageState extends State<VideosPage> {
     final title = widget.watchLaterOnly
         ? 'Watch Later'
         : widget.shortsMode
-        ? 'Shorts'
-        : 'Videos';
+            ? 'Shorts'
+            : 'Videos';
     return Column(
       children: [
         Padding(
@@ -216,7 +216,9 @@ class _VideosPageState extends State<VideosPage> {
               Expanded(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -247,44 +249,45 @@ class _VideosPageState extends State<VideosPage> {
           child: _videos.isEmpty && _loading
               ? const Center(child: CircularProgressIndicator())
               : _videos.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('No videos found yet.'),
-                      TextButton(onPressed: () => _load(reset: true), child: const Text('Refresh')),
-                    ],
-                  ),
-                )
-              : PageView.builder(
-                  controller: _pager,
-                  scrollDirection: Axis.vertical,
-                  itemCount: _videos.length + (_hasMore ? 1 : 0),
-                  onPageChanged: (index) {
-                    setState(() => _active = index);
-                    if (index >= _videos.length - 3 && !_loading && _hasMore) {
-                      _load();
-                    }
-                  },
-                  itemBuilder: (context, index) {
-                    if (index >= _videos.length) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final video = _videos[index];
-                    return _VideoCard(
-                      video: video,
-                      active: index == _active,
-                      shortsMode: widget.shortsMode,
-                      liked: _liked.contains('${video['id']}'),
-                      saved: _saved.contains('${video['id']}'),
-                      onLike: () => _toggleLike(video),
-                      onSave: () => _toggleSaved(video),
-                      onShare: () => Share.share(
-                        'Watch this Testagram video: https://testagram.site/videos?id=${video['id']}',
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('No videos found yet.'),
+                          TextButton(
+                              onPressed: () => _load(reset: true), child: const Text('Refresh')),
+                        ],
                       ),
-                    );
-                  },
-                ),
+                    )
+                  : PageView.builder(
+                      controller: _pager,
+                      scrollDirection: Axis.vertical,
+                      itemCount: _videos.length + (_hasMore ? 1 : 0),
+                      onPageChanged: (index) {
+                        setState(() => _active = index);
+                        if (index >= _videos.length - 3 && !_loading && _hasMore) {
+                          _load();
+                        }
+                      },
+                      itemBuilder: (context, index) {
+                        if (index >= _videos.length) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final video = _videos[index];
+                        return _VideoCard(
+                          video: video,
+                          active: index == _active,
+                          shortsMode: widget.shortsMode,
+                          liked: _liked.contains('${video['id']}'),
+                          saved: _saved.contains('${video['id']}'),
+                          onLike: () => _toggleLike(video),
+                          onSave: () => _toggleSaved(video),
+                          onShare: () => Share.share(
+                            'Watch this Testagram video: https://testagram.site/videos?id=${video['id']}',
+                          ),
+                        );
+                      },
+                    ),
         ),
       ],
     );
@@ -389,11 +392,11 @@ class _VideoCardState extends State<_VideoCard> {
                               ],
                             )
                           : controller != null && controller.value.isInitialized
-                          ? AspectRatio(
-                              aspectRatio: controller.value.aspectRatio,
-                              child: VideoPlayer(controller),
-                            )
-                          : const CircularProgressIndicator(),
+                              ? AspectRatio(
+                                  aspectRatio: controller.value.aspectRatio,
+                                  child: VideoPlayer(controller),
+                                )
+                              : const CircularProgressIndicator(),
                     ),
                   ),
                   Positioned(

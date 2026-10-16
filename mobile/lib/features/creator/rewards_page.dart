@@ -66,10 +66,8 @@ class _RewardsPageState extends State<RewardsPage> {
       final daily = results[2] as Map<String, dynamic>?;
       if (!mounted) return;
       setState(() {
-        _events = (results[0] as List)
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
+        _events =
+            (results[0] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
         _credits = int.tryParse('${wallet?['credits'] ?? 0}') ?? 0;
         _streak = int.tryParse('${daily?['streak_day'] ?? 0}') ?? 0;
         _lastClaim = DateTime.tryParse('${daily?['last_claimed_at'] ?? ''}');

@@ -192,8 +192,8 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
               _saving
                   ? 'Saving securely…'
                   : _pinSet
-                  ? 'Update PIN'
-                  : 'Set wallet PIN',
+                      ? 'Update PIN'
+                      : 'Set wallet PIN',
             ),
           ),
           const SizedBox(height: 8),
@@ -208,10 +208,10 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
   }
 
   Widget _message(String message, Color background, Color foreground) => Card(
-    color: background,
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Text(message, style: TextStyle(color: foreground)),
-    ),
-  );
+        color: background,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(message, style: TextStyle(color: foreground)),
+        ),
+      );
 }

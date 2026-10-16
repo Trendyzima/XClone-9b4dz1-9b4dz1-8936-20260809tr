@@ -255,25 +255,25 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
 
   @override
   Widget build(BuildContext context) => Stack(
-    fit: StackFit.expand,
-    children: [
-      HtmlElementView(viewType: _viewType),
-      if (_error != null)
-        Positioned(
-          left: 14,
-          right: 14,
-          bottom: 14,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: const Color(0xDD101010),
-              borderRadius: BorderRadius.circular(12),
+        fit: StackFit.expand,
+        children: [
+          HtmlElementView(viewType: _viewType),
+          if (_error != null)
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 14,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xDD101010),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(_error!, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                ),
+              ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(_error!, style: const TextStyle(color: Colors.white, fontSize: 12)),
-            ),
-          ),
-        ),
-    ],
-  );
+        ],
+      );
 }

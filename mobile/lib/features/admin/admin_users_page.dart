@@ -142,102 +142,105 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       body: _loading && _users.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : user == null
-          ? _empty(
-              context,
-              Icons.lock_outline_rounded,
-              'Sign in required',
-              'Sign in to continue.',
-              FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
-            )
-          : (!_authorized && _error == null)
-          ? _empty(
-              context,
-              Icons.admin_panel_settings_outlined,
-              'Owner access required',
-              'Blocking and unblocking accounts is restricted to the system owner.',
-              FilledButton.tonal(
-                onPressed: () => context.go('/admin/governance'),
-                child: const Text('Open Governance'),
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(14),
-                children: [
-                  Text(
-                    'Accounts',
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Showing the latest ${_users.length} profiles; changes are saved through the existing profile policy.',
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _search,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      hintText: 'Search username, email, or ID',
-                      suffixIcon: _search.text.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: 'Clear search',
-                              onPressed: _search.clear,
-                              icon: const Icon(Icons.clear_rounded),
-                            ),
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    MaterialBanner(
-                      content: Text(_error!),
-                      actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  if (_filtered.isEmpty && _error == null)
-                    const Card(child: ListTile(title: Text('No matching users.'))),
-                  ..._filtered.map((user) {
-                    final id = '${user['id'] ?? ''}';
-                    final blocked = AdminUsersPolicy.isBlocked(user);
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Text(
-                            '${user['username'] ?? '?'}'.isEmpty
-                                ? '?'
-                                : '${user['username'] ?? '?'}'[0].toUpperCase(),
-                          ),
-                        ),
-                        title: Text(
-                          '@${user['username'] ?? 'unknown'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${user['email'] ?? 'No email'}\n${user['follower_count'] ?? 0} followers · ${blocked ? 'Blocked' : 'Active'}',
-                        ),
-                        isThreeLine: true,
-                        trailing: IconButton(
-                          tooltip: blocked ? 'Unblock user' : 'Block user',
-                          onPressed: _busy.contains(id) ? null : () => _toggleBlock(user),
-                          icon: _busy.contains(id)
-                              ? const SizedBox.square(
-                                  dimension: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Icon(blocked ? Icons.lock_open_rounded : Icons.block_rounded),
-                        ),
+              ? _empty(
+                  context,
+                  Icons.lock_outline_rounded,
+                  'Sign in required',
+                  'Sign in to continue.',
+                  FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
+                )
+              : (!_authorized && _error == null)
+                  ? _empty(
+                      context,
+                      Icons.admin_panel_settings_outlined,
+                      'Owner access required',
+                      'Blocking and unblocking accounts is restricted to the system owner.',
+                      FilledButton.tonal(
+                        onPressed: () => context.go('/admin/governance'),
+                        child: const Text('Open Governance'),
                       ),
-                    );
-                  }),
-                ],
-              ),
-            ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.all(14),
+                        children: [
+                          Text(
+                            'Accounts',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Showing the latest ${_users.length} profiles; changes are saved through the existing profile policy.',
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _search,
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              hintText: 'Search username, email, or ID',
+                              suffixIcon: _search.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      onPressed: _search.clear,
+                                      icon: const Icon(Icons.clear_rounded),
+                                    ),
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 12),
+                            MaterialBanner(
+                              content: Text(_error!),
+                              actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          if (_filtered.isEmpty && _error == null)
+                            const Card(child: ListTile(title: Text('No matching users.'))),
+                          ..._filtered.map((user) {
+                            final id = '${user['id'] ?? ''}';
+                            final blocked = AdminUsersPolicy.isBlocked(user);
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  child: Text(
+                                    '${user['username'] ?? '?'}'.isEmpty
+                                        ? '?'
+                                        : '${user['username'] ?? '?'}'[0].toUpperCase(),
+                                  ),
+                                ),
+                                title: Text(
+                                  '@${user['username'] ?? 'unknown'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '${user['email'] ?? 'No email'}\n${user['follower_count'] ?? 0} followers · ${blocked ? 'Blocked' : 'Active'}',
+                                ),
+                                isThreeLine: true,
+                                trailing: IconButton(
+                                  tooltip: blocked ? 'Unblock user' : 'Block user',
+                                  onPressed: _busy.contains(id) ? null : () => _toggleBlock(user),
+                                  icon: _busy.contains(id)
+                                      ? const SizedBox.square(
+                                          dimension: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : Icon(
+                                          blocked ? Icons.lock_open_rounded : Icons.block_rounded),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
     );
   }
 

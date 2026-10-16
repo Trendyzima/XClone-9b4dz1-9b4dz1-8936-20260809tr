@@ -54,15 +54,11 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
     if (uri == null || uri.scheme != 'https') return;
     final controller = VideoPlayerController.networkUrl(uri);
     _controller = controller;
-    _initialization = controller
-        .initialize()
-        .timeout(const Duration(seconds: 20))
-        .then((_) {
-          if (mounted) setState(() {});
-        })
-        .catchError((Object _) {
-          if (mounted) setState(() {});
-        });
+    _initialization = controller.initialize().timeout(const Duration(seconds: 20)).then((_) {
+      if (mounted) setState(() {});
+    }).catchError((Object _) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _disposePlayer() {
@@ -139,9 +135,8 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
             return SizedBox(
               height: 190,
               child: Center(
-                child: snapshot.hasError
-                    ? _unavailable(context)
-                    : const CircularProgressIndicator(),
+                child:
+                    snapshot.hasError ? _unavailable(context) : const CircularProgressIndicator(),
               ),
             );
           }
@@ -227,23 +222,23 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
   }
 
   Widget _unavailable(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 88),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.broken_image_outlined),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'This attachment is unavailable from its source server.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+        constraints: const BoxConstraints(minHeight: 88),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
         ),
-      ],
-    ),
-  );
+        child: Row(
+          children: [
+            const Icon(Icons.broken_image_outlined),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'This attachment is unavailable from its source server.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      );
 }

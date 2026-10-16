@@ -130,8 +130,7 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery:
-                state.uri.queryParameters['reset'] == '1' ||
+            recovery: state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
             returnTo: AuthRedirectPolicy.safeReturnPath(state.uri.queryParameters['returnTo']),
           ),

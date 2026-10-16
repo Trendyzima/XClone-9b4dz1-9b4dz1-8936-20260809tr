@@ -68,16 +68,16 @@ class _ExplorePageState extends State<ExplorePage> {
       }
       final peopleQuery = viewerId == null
           ? _client
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified,verified_tier')
-                .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
-                .limit(20)
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified,verified_tier')
+              .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
+              .limit(20)
           : _client
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified,verified_tier')
-                .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
-                .neq('id', viewerId)
-                .limit(20);
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified,verified_tier')
+              .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
+              .neq('id', viewerId)
+              .limit(20);
       final postsQuery = _client
           .from('posts')
           .select('id,content,created_at,user_id,author_id,likes_count')
@@ -91,12 +91,10 @@ class _ExplorePageState extends State<ExplorePage> {
       ]);
       if (!mounted || generation != _searchGeneration) return;
 
-      final people = (results[0] as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
-      final posts = (results[1] as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
+      final people =
+          (results[0] as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final posts =
+          (results[1] as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
 
       if (viewerId != null && people.isNotEmpty) {
         final followRows = await _client
@@ -264,9 +262,8 @@ class _ExplorePageState extends State<ExplorePage> {
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundImage: avatar.startsWith('http')
-                      ? CachedNetworkImageProvider(avatar)
-                      : null,
+                  backgroundImage:
+                      avatar.startsWith('http') ? CachedNetworkImageProvider(avatar) : null,
                   child: avatar.startsWith('http')
                       ? null
                       : Text(name.isEmpty ? 'T' : name[0].toUpperCase()),

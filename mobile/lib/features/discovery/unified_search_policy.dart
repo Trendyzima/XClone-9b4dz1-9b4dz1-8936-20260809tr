@@ -30,9 +30,9 @@ class UnifiedSearchPolicy {
       ])
         key: raw[key] is List
             ? (raw[key] as List)
-                  .whereType<Map>()
-                  .map((row) => Map<String, dynamic>.from(row))
-                  .toList(growable: false)
+                .whereType<Map>()
+                .map((row) => Map<String, dynamic>.from(row))
+                .toList(growable: false)
             : <Map<String, dynamic>>[],
       'next_cursor': raw['next_cursor'] is String || raw['next_cursor'] is num
           ? '${raw['next_cursor']}'

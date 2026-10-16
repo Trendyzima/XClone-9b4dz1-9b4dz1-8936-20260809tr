@@ -78,9 +78,8 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
       _error = null;
     });
     try {
-      final adminResponse = await _db
-          .rpc('is_platform_ad_admin')
-          .timeout(const Duration(seconds: 12));
+      final adminResponse =
+          await _db.rpc('is_platform_ad_admin').timeout(const Duration(seconds: 12));
       if (adminResponse != true) {
         throw StateError('Platform ad administrator access is required.');
       }
@@ -288,20 +287,20 @@ class _AdPerformancePageState extends State<AdPerformancePage> {
   }
 
   Widget _summaryCard(String label, String value, IconData icon) => SizedBox(
-    width: 155,
-    child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon),
-            const SizedBox(height: 8),
-            Text(value, style: Theme.of(context).textTheme.titleLarge),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
+        width: 155,
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon),
+                const SizedBox(height: 8),
+                Text(value, style: Theme.of(context).textTheme.titleLarge),
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }

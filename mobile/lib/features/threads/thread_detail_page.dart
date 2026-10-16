@@ -62,27 +62,27 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url')
-                .inFilter('id', ids);
+              .from('profiles')
+              .select('id,username,display_name,avatar_url')
+              .inFilter('id', ids);
       final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
       final uid = _uid;
       final likeRows = uid == null
           ? <dynamic>[]
           : await _db
-                .from('thread_likes')
-                .select('id')
-                .eq('thread_id', widget.threadId)
-                .eq('user_id', uid)
-                .limit(1);
+              .from('thread_likes')
+              .select('id')
+              .eq('thread_id', widget.threadId)
+              .eq('user_id', uid)
+              .limit(1);
       final repostRows = uid == null
           ? <dynamic>[]
           : await _db
-                .from('thread_reposts')
-                .select('id')
-                .eq('thread_id', widget.threadId)
-                .eq('user_id', uid)
-                .limit(1);
+              .from('thread_reposts')
+              .select('id')
+              .eq('thread_id', widget.threadId)
+              .eq('user_id', uid)
+              .limit(1);
       final replies = replyRows.map((r) {
         final v = Map<String, dynamic>.from(r as Map);
         v['profile'] = byId['${v['user_id']}'];
@@ -164,169 +164,172 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
-    onRefresh: _load,
-    child: ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        Row(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(14),
           children: [
-            IconButton(
-              onPressed: () => context.go('/threads'),
-              icon: const Icon(Icons.arrow_back_rounded),
-            ),
-            Expanded(
-              child: Text(
-                widget.repliesOnly ? 'Replies' : 'Thread',
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w900),
-              ),
-            ),
-          ],
-        ),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
+            Row(
               children: [
-                Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry')),
+                IconButton(
+                  onPressed: () => context.go('/threads'),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    widget.repliesOnly ? 'Replies' : 'Thread',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
               ],
             ),
-          ),
-        if (!_loading && _thread != null) ...[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Text(_error!),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ],
+                ),
+              ),
+            if (!_loading && _thread != null) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        child: Text(
-                          _initial(
-                            '${_thread!['profile']?['display_name'] ?? _thread!['profile']?['username'] ?? 'T'}',
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            child: Text(
+                              _initial(
+                                '${_thread!['profile']?['display_name'] ?? _thread!['profile']?['username'] ?? 'T'}',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${_thread!['profile']?['display_name'] ?? _thread!['profile']?['username'] ?? 'Testagram user'}',
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                Text(
+                                  '@${_thread!['profile']?['username'] ?? 'user'}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if ('${_thread!['title'] ?? ''}'.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Text(
+                            '${_thread!['title']}',
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
                           ),
                         ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(
+                          '${_thread!['body'] ?? ''}',
+                          style: const TextStyle(fontSize: 16, height: 1.5),
+                        ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${_thread!['profile']?['display_name'] ?? _thread!['profile']?['username'] ?? 'Testagram user'}',
-                              style: const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            Text(
-                              '@${_thread!['profile']?['username'] ?? 'user'}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _toggle('thread_likes', _liked),
+                            icon: const Icon(Icons.favorite_border),
+                            label: Text('${_thread!['likes_count'] ?? 0} Likes'),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _toggle('thread_reposts', _reposted),
+                            icon: const Icon(Icons.repeat_rounded),
+                            label: Text('${_thread!['reposts_count'] ?? 0} Reposts'),
+                          ),
+                          const Spacer(),
+                          Text('${_replies.length} replies'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Join the conversation',
+                style:
+                    Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _reply,
+                        maxLength: 2000,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          hintText: 'Write a thoughtful reply…',
+                          border: InputBorder.none,
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.icon(
+                          onPressed: _sending ? null : _sendReply,
+                          icon: const Icon(Icons.send_rounded),
+                          label: Text(_sending ? 'Sending…' : 'Reply'),
                         ),
                       ),
                     ],
                   ),
-                  if ('${_thread!['title'] ?? ''}'.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        '${_thread!['title']}',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text(
-                      '${_thread!['body'] ?? ''}',
-                      style: const TextStyle(fontSize: 16, height: 1.5),
-                    ),
-                  ),
-                  const Divider(height: 24),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => _toggle('thread_likes', _liked),
-                        icon: const Icon(Icons.favorite_border),
-                        label: Text('${_thread!['likes_count'] ?? 0} Likes'),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => _toggle('thread_reposts', _reposted),
-                        icon: const Icon(Icons.repeat_rounded),
-                        label: Text('${_thread!['reposts_count'] ?? 0} Reposts'),
-                      ),
-                      const Spacer(),
-                      Text('${_replies.length} replies'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Join the conversation',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: _reply,
-                    maxLength: 2000,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      hintText: 'Write a thoughtful reply…',
-                      border: InputBorder.none,
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      onPressed: _sending ? null : _sendReply,
-                      icon: const Icon(Icons.send_rounded),
-                      label: Text(_sending ? 'Sending…' : 'Reply'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_replies.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: Text('No replies yet. Be the first.')),
-            ),
-          ..._replies.map((r) {
-            final p = (r['profile'] as Map<String, dynamic>?) ?? {};
-            return Card(
-              margin: const EdgeInsets.only(top: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  child: Text(_initial('${p['display_name'] ?? p['username'] ?? 'T'}')),
                 ),
-                title: Text(
-                  '${p['display_name'] ?? p['username'] ?? 'Testagram user'}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 5),
-                  child: Text('${r['content'] ?? ''}'),
-                ),
-                isThreeLine: true,
               ),
-            );
-          }),
-        ],
-      ],
-    ),
-  );
+              if (_replies.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: Text('No replies yet. Be the first.')),
+                ),
+              ..._replies.map((r) {
+                final p = (r['profile'] as Map<String, dynamic>?) ?? {};
+                return Card(
+                  margin: const EdgeInsets.only(top: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      child: Text(_initial('${p['display_name'] ?? p['username'] ?? 'T'}')),
+                    ),
+                    title: Text(
+                      '${p['display_name'] ?? p['username'] ?? 'Testagram user'}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Text('${r['content'] ?? ''}'),
+                    ),
+                    isThreeLine: true,
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      );
 }

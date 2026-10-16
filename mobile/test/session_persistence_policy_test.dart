@@ -4,12 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:testagram/core/auth/session_persistence_policy.dart';
 
 Map<String, dynamic> session({String access = 'access-1', String refresh = 'refresh-1'}) => {
-  'access_token': access,
-  'refresh_token': refresh,
-  'token_type': 'bearer',
-  'expires_in': 3600,
-  'user': {'id': 'user-1', 'email': 'user@example.test'},
-};
+      'access_token': access,
+      'refresh_token': refresh,
+      'token_type': 'bearer',
+      'expires_in': 3600,
+      'user': {'id': 'user-1', 'email': 'user@example.test'},
+    };
 
 void main() {
   group('SessionPersistencePolicy', () {

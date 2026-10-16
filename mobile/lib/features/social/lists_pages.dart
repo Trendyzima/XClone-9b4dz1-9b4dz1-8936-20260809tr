@@ -279,17 +279,15 @@ class _ListDetailPageState extends State<ListDetailPage> {
         ),
       ]);
       final list = result[0] == null ? null : Map<String, dynamic>.from(result[0] as Map);
-      final rows = (result[1] as List)
-          .whereType<Map>()
-          .map((r) => Map<String, dynamic>.from(r))
-          .toList();
+      final rows =
+          (result[1] as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
       final ids = rows.map((r) => '${r['user_id']}').toList();
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified')
-                .inFilter('id', ids);
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified')
+              .inFilter('id', ids);
       final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p)};
       final timeline = result[2] is List ? result[2] as List : <dynamic>[];
       if (mounted) {

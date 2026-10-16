@@ -54,14 +54,10 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
             .order('created_at', ascending: false)
             .limit(500),
       ]);
-      final blockedRows = (responses[0] as List)
-          .whereType<Map>()
-          .map((r) => Map<String, dynamic>.from(r))
-          .toList();
-      final mutedRows = (responses[1] as List)
-          .whereType<Map>()
-          .map((r) => Map<String, dynamic>.from(r))
-          .toList();
+      final blockedRows =
+          (responses[0] as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
+      final mutedRows =
+          (responses[1] as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
       final ids = <String>{
         ...blockedRows.map((r) => '${r['blocked_id']}'),
         ...mutedRows.map((r) => '${r['muted_id']}'),
@@ -69,9 +65,9 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified')
-                .inFilter('id', ids.toList());
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified')
+              .inFilter('id', ids.toList());
       final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p)};
       if (!mounted) return;
       setState(() {

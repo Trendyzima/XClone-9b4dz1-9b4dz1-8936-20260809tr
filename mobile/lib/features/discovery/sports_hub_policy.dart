@@ -75,14 +75,14 @@ class SportsHubPolicy {
   }
 
   static bool isLive(String status) => RegExp(
-    r'live|in.?play|half.?time|\bht\b|1st half|2nd half|\b[12]h\b|quarter|\bq[1-4]\b|set [1-5]|innings',
-    caseSensitive: false,
-  ).hasMatch(status);
+        r'live|in.?play|half.?time|\bht\b|1st half|2nd half|\b[12]h\b|quarter|\bq[1-4]\b|set [1-5]|innings',
+        caseSensitive: false,
+      ).hasMatch(status);
 
   static bool isFinished(String status) => RegExp(
-    r'^(ft|aet|pen|finished|full.?time|completed|ended|final|after extra time|after penalties)$',
-    caseSensitive: false,
-  ).hasMatch(status.trim());
+        r'^(ft|aet|pen|finished|full.?time|completed|ended|final|after extra time|after penalties)$',
+        caseSensitive: false,
+      ).hasMatch(status.trim());
 
   static bool isUpcoming(Map<String, dynamic> match, DateTime now) {
     final current = status(match);

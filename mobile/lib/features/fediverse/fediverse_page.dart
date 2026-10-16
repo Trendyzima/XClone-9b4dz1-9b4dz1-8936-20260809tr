@@ -141,10 +141,10 @@ class _FediversePageState extends State<FediversePage> {
       final actors = actorUris.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('federated_actors')
-                .select('actor_uri,username,domain,display_name,avatar_url')
-                .inFilter('actor_uri', actorUris)
-                .timeout(const Duration(seconds: 10));
+              .from('federated_actors')
+              .select('actor_uri,username,domain,display_name,avatar_url')
+              .inFilter('actor_uri', actorUris)
+              .timeout(const Duration(seconds: 10));
       final byUri = <String, Map<String, dynamic>>{
         for (final actor in actors)
           '${actor['actor_uri']}': Map<String, dynamic>.from(actor as Map),
@@ -235,17 +235,14 @@ class _FediversePageState extends State<FediversePage> {
           .limit(_feedPageSize)
           .timeout(const Duration(seconds: 15));
       final posts = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
-      final actorUris = posts
-          .map((p) => '${p['actor_uri'] ?? ''}')
-          .where((v) => v.isNotEmpty)
-          .toSet()
-          .toList();
+      final actorUris =
+          posts.map((p) => '${p['actor_uri'] ?? ''}').where((v) => v.isNotEmpty).toSet().toList();
       final actors = actorUris.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('federated_actors')
-                .select('actor_uri,username,domain,display_name,avatar_url')
-                .inFilter('actor_uri', actorUris);
+              .from('federated_actors')
+              .select('actor_uri,username,domain,display_name,avatar_url')
+              .inFilter('actor_uri', actorUris);
       final byUri = {
         for (final a in actors) '${a['actor_uri']}': Map<String, dynamic>.from(a as Map),
       };
@@ -282,11 +279,9 @@ class _FediversePageState extends State<FediversePage> {
             }..remove('');
             _pendingPosts = staged.values.toList()
               ..sort((a, b) {
-                final aTime =
-                    DateTime.tryParse('${a['published_at'] ?? a['created_at'] ?? ''}') ??
+                final aTime = DateTime.tryParse('${a['published_at'] ?? a['created_at'] ?? ''}') ??
                     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
-                final bTime =
-                    DateTime.tryParse('${b['published_at'] ?? b['created_at'] ?? ''}') ??
+                final bTime = DateTime.tryParse('${b['published_at'] ?? b['created_at'] ?? ''}') ??
                     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
                 return bTime.compareTo(aTime);
               });
@@ -367,22 +362,22 @@ class _FediversePageState extends State<FediversePage> {
   }
 
   bool get _isProfileSection => const {
-    'profile',
-    'posts',
-    'featured',
-    'threads',
-    'replies',
-    'media',
-    'videos',
-    'podcasts',
-    'series',
-    'likes',
-    'tips',
-    'gifts',
-    'profile-analytics',
-    'followers',
-    'following',
-  }.contains(widget.section);
+        'profile',
+        'posts',
+        'featured',
+        'threads',
+        'replies',
+        'media',
+        'videos',
+        'podcasts',
+        'series',
+        'likes',
+        'tips',
+        'gifts',
+        'profile-analytics',
+        'followers',
+        'following',
+      }.contains(widget.section);
 
   bool get _sectionNeedsDedicatedBackend =>
       widget.actorUri == null &&
@@ -435,9 +430,9 @@ class _FediversePageState extends State<FediversePage> {
     }
     // Fragments are client-side only and should not create duplicate cache keys.
     final cacheableSource = parsed.replace(fragment: '').toString();
-    return Uri.parse(_db.rest.url.replaceFirst('/rest/v1', ''))
-        .replace(path: '/functions/v1/federated-media', queryParameters: {'url': cacheableSource})
-        .toString();
+    return Uri.parse(_db.rest.url.replaceFirst('/rest/v1', '')).replace(
+        path: '/functions/v1/federated-media',
+        queryParameters: {'url': cacheableSource}).toString();
   }
 
   String _attachmentMediaType(Map<String, dynamic> attachment) {
@@ -466,9 +461,8 @@ class _FediversePageState extends State<FediversePage> {
   List<Widget> _renderAttachments(dynamic value) {
     if (value is! List) return const [];
     return value.take(4).map((item) {
-      final attachment = item is Map
-          ? Map<String, dynamic>.from(item)
-          : <String, dynamic>{'url': item};
+      final attachment =
+          item is Map ? Map<String, dynamic>.from(item) : <String, dynamic>{'url': item};
       final source = _localizedMediaUrl(attachment);
       if (source.isEmpty) return const SizedBox.shrink();
       return Padding(
@@ -487,8 +481,8 @@ class _FediversePageState extends State<FediversePage> {
     return InkWell(
       onTap: const {'followers', 'following'}.contains(route) && widget.actorUri != null
           ? () => context.push(
-              '/fediverse/profile/$route?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
-            )
+                '/fediverse/profile/$route?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
+              )
           : null,
       child: Text(
         '$display $label',
@@ -551,25 +545,22 @@ class _FediversePageState extends State<FediversePage> {
 
   Future<void> _loadMastodonTimeline({String? query}) async {
     final action = query == null || query.trim().isEmpty ? 'public_timeline' : 'search';
-    final response = await _db.functions
-        .invoke(
-          'megalodon-gateway',
-          body: {
-            'action': action,
-            'instance': _mastodonInstance,
-            'limit': 30,
-            if (action == 'search') 'query': query!.trim(),
-            if (action == 'search') 'type': 'statuses',
-          },
-        )
-        .timeout(const Duration(seconds: 15));
+    final response = await _db.functions.invoke(
+      'megalodon-gateway',
+      body: {
+        'action': action,
+        'instance': _mastodonInstance,
+        'limit': 30,
+        if (action == 'search') 'query': query!.trim(),
+        if (action == 'search') 'type': 'statuses',
+      },
+    ).timeout(const Duration(seconds: 15));
     final data = response.data;
     if (data is! Map || data['ok'] != true) {
       throw StateError('Mastodon timeline service returned an invalid response.');
     }
     final result = data['result'];
-    final statuses =
-        data['statuses'] ??
+    final statuses = data['statuses'] ??
         (result is Map ? result['statuses'] : null) ??
         (result is List ? result : null);
     if (statuses is! List) {
@@ -636,22 +627,19 @@ class _FediversePageState extends State<FediversePage> {
       _surfaceMessage = 'This profile has no valid HTTPS ActivityPub actor URL.';
       return;
     }
-    final response = await _db.functions
-        .invoke(
-          'testagram-api',
-          body: {
-            'path': '/federated-profile',
-            'method': 'GET',
-            'params': {
-              'actor_uri': actorUri,
-              'limit':
-                  const {'followers', 'following', 'featured', 'likes'}.contains(widget.section)
-                  ? 1
-                  : 80,
-            },
-          },
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await _db.functions.invoke(
+      'testagram-api',
+      body: {
+        'path': '/federated-profile',
+        'method': 'GET',
+        'params': {
+          'actor_uri': actorUri,
+          'limit': const {'followers', 'following', 'featured', 'likes'}.contains(widget.section)
+              ? 1
+              : 80,
+        },
+      },
+    ).timeout(const Duration(seconds: 20));
     final data = response.data;
     if (data is! Map || data['ok'] != true) {
       throw StateError('Remote profile service returned an invalid response.');
@@ -667,8 +655,7 @@ class _FediversePageState extends State<FediversePage> {
     final responseCounts = data['counts'] is Map
         ? Map<String, dynamic>.from(data['counts'] as Map)
         : <String, dynamic>{};
-    final profileFollowers =
-        _remoteCount(
+    final profileFollowers = _remoteCount(
           actor['followers'] is Map
               ? (actor['followers'] as Map)['totalItems']
               : actor['followers'] ?? actor['followers_count'] ?? actor['followersCount'],
@@ -679,8 +666,7 @@ class _FediversePageState extends State<FediversePage> {
               responseCounts['followers'] ??
               responseCounts['followers_count'],
         );
-    final profileFollowing =
-        _remoteCount(
+    final profileFollowing = _remoteCount(
           actor['following'] is Map
               ? (actor['following'] as Map)['totalItems']
               : actor['following'] ?? actor['following_count'] ?? actor['followingCount'],
@@ -732,38 +718,36 @@ class _FediversePageState extends State<FediversePage> {
           _posts = [];
           _surfaceRows = [];
           _surfaceMetrics = {};
-          _surfaceMessage = 'Tips and gifts are Testagram-native features and are not exposed as public ActivityPub profile data.';
+          _surfaceMessage =
+              'Tips and gifts are Testagram-native features and are not exposed as public ActivityPub profile data.';
         });
       }
       return;
     }
     if (const {'followers', 'following', 'featured', 'likes'}.contains(widget.section)) {
-      final response = await _db.functions
-          .invoke(
-            'testagram-api',
-            body: {
-              'path': '/federated-collection',
-              'method': 'GET',
-              'params': {'actor_uri': actorUri, 'kind': widget.section, 'limit': 30},
-            },
-          )
-          .timeout(const Duration(seconds: 25));
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {'actor_uri': actorUri, 'kind': widget.section, 'limit': 30},
+        },
+      ).timeout(const Duration(seconds: 25));
       final result = response.data;
       if (result is! Map || result['ok'] != true) {
         throw StateError('Remote ${widget.section} collection is unavailable.');
       }
       final rows = result['items'] is List
           ? (result['items'] as List)
-                .whereType<Map>()
-                .map((row) => Map<String, dynamic>.from(row))
-                .toList()
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
           : <Map<String, dynamic>>[];
       if (!mounted) return;
       setState(() {
         _surfaceRows = rows;
-        _relationshipCursor = result['next_cursor'] is String
-            ? result['next_cursor'] as String
-            : null;
+        _relationshipCursor =
+            result['next_cursor'] is String ? result['next_cursor'] as String : null;
         final total = _remoteCount(
           result['totalItems'] ?? result['total_items'] ?? result['total'],
         );
@@ -782,8 +766,8 @@ class _FediversePageState extends State<FediversePage> {
         _surfaceMessage = result['unavailable'] == true
             ? 'This remote instance does not publish a public ${widget.section} collection.'
             : rows.isEmpty
-            ? 'No public ${widget.section} were returned. The remote instance may hide this collection.'
-            : null;
+                ? 'No public ${widget.section} were returned. The remote instance may hide this collection.'
+                : null;
         _posts = [];
       });
       return;
@@ -804,8 +788,8 @@ class _FediversePageState extends State<FediversePage> {
       final attachments = object['attachment'] is List
           ? object['attachment'] as List
           : object['attachment'] == null
-          ? const []
-          : [object['attachment']];
+              ? const []
+              : [object['attachment']];
       posts.add(<String, dynamic>{
         'id': uri,
         'uri': uri,
@@ -857,11 +841,11 @@ class _FediversePageState extends State<FediversePage> {
           if (_remoteProfile['following_count'] is num)
             'Following reported': (_remoteProfile['following_count'] as num).toInt(),
         };
-        _surfaceMessage = 'Counts marked reported come from the remote server; loaded totals only describe the public items fetched here.';
+        _surfaceMessage =
+            'Counts marked reported come from the remote server; loaded totals only describe the public items fetched here.';
       } else {
-        _surfaceMessage = posts.isEmpty
-            ? 'No public posts were returned for this federated profile.'
-            : null;
+        _surfaceMessage =
+            posts.isEmpty ? 'No public posts were returned for this federated profile.' : null;
       }
     });
   }
@@ -874,34 +858,31 @@ class _FediversePageState extends State<FediversePage> {
     }
     setState(() => _loadingMoreRelationships = true);
     try {
-      final response = await _db.functions
-          .invoke(
-            'testagram-api',
-            body: {
-              'path': '/federated-collection',
-              'method': 'GET',
-              'params': {
-                'actor_uri': actorUri,
-                'kind': widget.section,
-                'limit': 30,
-                'cursor': cursor,
-              },
-            },
-          )
-          .timeout(const Duration(seconds: 25));
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-collection',
+          'method': 'GET',
+          'params': {
+            'actor_uri': actorUri,
+            'kind': widget.section,
+            'limit': 30,
+            'cursor': cursor,
+          },
+        },
+      ).timeout(const Duration(seconds: 25));
       final result = response.data;
       if (result is! Map || result['ok'] != true) {
         throw StateError('Could not load more remote relationships.');
       }
       final rows = result['items'] is List
           ? (result['items'] as List)
-                .whereType<Map>()
-                .map((row) => Map<String, dynamic>.from(row))
-                .toList()
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
           : <Map<String, dynamic>>[];
-      final seen = _surfaceRows
-          .map((row) => '${row['actor_uri'] ?? row['id'] ?? row['url']}')
-          .toSet();
+      final seen =
+          _surfaceRows.map((row) => '${row['actor_uri'] ?? row['id'] ?? row['url']}').toSet();
       if (mounted) {
         setState(() {
           _surfaceRows.addAll(
@@ -910,9 +891,8 @@ class _FediversePageState extends State<FediversePage> {
               return key.isNotEmpty && seen.add(key);
             }),
           );
-          _relationshipCursor = result['next_cursor'] is String
-              ? result['next_cursor'] as String
-              : null;
+          _relationshipCursor =
+              result['next_cursor'] is String ? result['next_cursor'] as String : null;
         });
       }
     } catch (error) {
@@ -933,16 +913,14 @@ class _FediversePageState extends State<FediversePage> {
     }
     setState(() => _loadingMoreRemoteTimeline = true);
     try {
-      final response = await _db.functions
-          .invoke(
-            'testagram-api',
-            body: {
-              'path': '/federated-profile',
-              'method': 'GET',
-              'params': {'actor_uri': actorUri, 'limit': 60, 'cursor': cursor},
-            },
-          )
-          .timeout(const Duration(seconds: 25));
+      final response = await _db.functions.invoke(
+        'testagram-api',
+        body: {
+          'path': '/federated-profile',
+          'method': 'GET',
+          'params': {'actor_uri': actorUri, 'limit': 60, 'cursor': cursor},
+        },
+      ).timeout(const Duration(seconds: 25));
       final data = response.data;
       if (data is! Map || data['ok'] != true) {
         throw StateError('Remote timeline pagination failed.');
@@ -960,8 +938,8 @@ class _FediversePageState extends State<FediversePage> {
         final attachments = object['attachment'] is List
             ? object['attachment'] as List
             : object['attachment'] == null
-            ? const []
-            : [object['attachment']];
+                ? const []
+                : [object['attachment']];
         rows.add({
           'id': uri,
           'uri': uri,
@@ -992,9 +970,8 @@ class _FediversePageState extends State<FediversePage> {
       if (mounted) {
         setState(() {
           _posts.addAll(rows.where((row) => seen.add('${row['uri'] ?? row['id']}')));
-          _remoteTimelineCursor = data['next_cursor'] is String
-              ? data['next_cursor'] as String
-              : null;
+          _remoteTimelineCursor =
+              data['next_cursor'] is String ? data['next_cursor'] as String : null;
         });
       }
     } catch (error) {
@@ -1195,9 +1172,8 @@ class _FediversePageState extends State<FediversePage> {
               )
               .toList();
         } else if (widget.section == 'podcasts') {
-          items = items
-              .where((row) => '${row['object_type'] ?? ''}'.toLowerCase() == 'audio')
-              .toList();
+          items =
+              items.where((row) => '${row['object_type'] ?? ''}'.toLowerCase() == 'audio').toList();
         } else if (widget.section == 'series') {
           items = items
               .where((row) => '${row['object_type'] ?? ''}'.toLowerCase() == 'series')
@@ -1316,7 +1292,9 @@ class _FediversePageState extends State<FediversePage> {
                 Expanded(
                   child: Text(
                     widget.title,
-                    style: Theme.of(context).textTheme.headlineSmall
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                 ),
@@ -1368,7 +1346,9 @@ class _FediversePageState extends State<FediversePage> {
               Expanded(
                 child: Text(
                   widget.title,
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -1414,10 +1394,10 @@ class _FediversePageState extends State<FediversePage> {
                               radius: 28,
                               backgroundImage:
                                   _localizedMediaUrl(_remoteProfile['avatar_url']).isNotEmpty
-                                  ? CachedNetworkImageProvider(
-                                      _localizedMediaUrl(_remoteProfile['avatar_url']),
-                                    )
-                                  : null,
+                                      ? CachedNetworkImageProvider(
+                                          _localizedMediaUrl(_remoteProfile['avatar_url']),
+                                        )
+                                      : null,
                               child: _localizedMediaUrl(_remoteProfile['avatar_url']).isNotEmpty
                                   ? null
                                   : const Icon(Icons.person_rounded),
@@ -1429,14 +1409,16 @@ class _FediversePageState extends State<FediversePage> {
                                 children: [
                                   Text(
                                     '${_remoteProfile['display_name'] ?? _remoteProfile['username']}',
-                                    style: Theme.of(context).textTheme.titleLarge
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
                                         ?.copyWith(fontWeight: FontWeight.w900),
                                   ),
                                   Text(
                                     '@${_remoteProfile['username']}@${_remoteProfile['domain']}',
                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -1493,29 +1475,29 @@ class _FediversePageState extends State<FediversePage> {
                             (_remoteProfile['fields'] as List).isNotEmpty) ...[
                           const SizedBox(height: 12),
                           ...(_remoteProfile['fields'] as List).whereType<Map>().map(
-                            (field) => Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    width: 100,
-                                    child: Text(
-                                      '${field['name'] ?? 'Field'}',
-                                      style: const TextStyle(fontWeight: FontWeight.w700),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      _plainRemoteContent(
-                                        '${field['value'] ?? field['content'] ?? ''}',
+                                (field) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 100,
+                                        child: Text(
+                                          '${field['name'] ?? 'Field'}',
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                        ),
                                       ),
-                                    ),
+                                      Expanded(
+                                        child: Text(
+                                          _plainRemoteContent(
+                                            '${field['value'] ?? field['content'] ?? ''}',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
-                          ),
                         ],
                         if (_remoteProfile['also_known_as'] is List &&
                             (_remoteProfile['also_known_as'] as List).isNotEmpty)
@@ -1591,8 +1573,7 @@ class _FediversePageState extends State<FediversePage> {
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
                         label: Text(entry.$1),
-                        selected:
-                            widget.section == entry.$2 ||
+                        selected: widget.section == entry.$2 ||
                             (widget.section == 'profile' && entry.$2 == 'posts'),
                         onSelected: (_) => context.push(
                           '/fediverse/profile/${entry.$2}?actor=${Uri.encodeQueryComponent(widget.actorUri!)}&handle=${Uri.encodeQueryComponent(widget.handle ?? '')}',
@@ -1648,7 +1629,9 @@ class _FediversePageState extends State<FediversePage> {
                   title: Text(entry.key),
                   trailing: Text(
                     '${entry.value}',
-                    style: Theme.of(context).textTheme.titleLarge
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                 ),
@@ -1688,16 +1671,15 @@ class _FediversePageState extends State<FediversePage> {
               final subtitle =
                   '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
               final detail = '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
-              final isRelationship =
-                  const {'followers', 'following'}.contains(widget.section) &&
+              final isRelationship = const {'followers', 'following'}.contains(widget.section) &&
                   widget.actorUri != null;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   onTap: isRelationship && row['actor_uri'] is String
                       ? () => context.push(
-                          '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
-                        )
+                            '/fediverse/profile?actor=${Uri.encodeComponent('${row['actor_uri']}')}&handle=${Uri.encodeComponent('@${row['username'] ?? 'remote'}@${row['domain'] ?? ''}')}',
+                          )
                       : null,
                   leading: isRelationship && _localizedMediaUrl(row['avatar_url']).isNotEmpty
                       ? CircleAvatar(
@@ -1709,10 +1691,10 @@ class _FediversePageState extends State<FediversePage> {
                           widget.section == 'inbox'
                               ? Icons.inbox_rounded
                               : widget.section == 'relay'
-                              ? Icons.outbox_rounded
-                              : widget.section == 'controls'
-                              ? Icons.shield_rounded
-                              : Icons.public_rounded,
+                                  ? Icons.outbox_rounded
+                                  : widget.section == 'controls'
+                                      ? Icons.shield_rounded
+                                      : Icons.public_rounded,
                         ),
                   title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(
@@ -1736,18 +1718,18 @@ class _FediversePageState extends State<FediversePage> {
                           icon: const Icon(Icons.check_circle_outline_rounded),
                         )
                       : widget.section == 'relay'
-                      ? Icon(
-                          row['delivered'] == true
-                              ? Icons.check_circle_rounded
-                              : Icons.schedule_rounded,
-                        )
-                      : widget.section == 'controls'
-                      ? IconButton(
-                          tooltip: 'Remove safety control',
-                          onPressed: () => _removeSafetyControl(row),
-                          icon: const Icon(Icons.delete_outline_rounded),
-                        )
-                      : null,
+                          ? Icon(
+                              row['delivered'] == true
+                                  ? Icons.check_circle_rounded
+                                  : Icons.schedule_rounded,
+                            )
+                          : widget.section == 'controls'
+                              ? IconButton(
+                                  tooltip: 'Remove safety control',
+                                  onPressed: () => _removeSafetyControl(row),
+                                  icon: const Icon(Icons.delete_outline_rounded),
+                                )
+                              : null,
                 ),
               );
             }),

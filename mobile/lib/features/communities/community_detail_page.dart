@@ -140,131 +140,136 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
-    onRefresh: _load,
-    child: ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        Row(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(14),
           children: [
-            IconButton(
-              onPressed: () => context.go('/communities'),
-              icon: const Icon(Icons.arrow_back_rounded),
-            ),
-            Expanded(
-              child: Text(
-                'Community',
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w900),
-              ),
-            ),
-          ],
-        ),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
+            Row(
               children: [
-                Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry')),
-              ],
-            ),
-          ),
-        if (!_loading && _community != null) ...[
-          if ('${_community!['banner_url'] ?? ''}'.startsWith('http'))
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.network(
-                '${_community!['banner_url']}',
-                height: 130,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-              ),
-            ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_community!['display_name'] ?? _community!['name']}',
-                    style: Theme.of(context).textTheme.titleLarge
+                IconButton(
+                  onPressed: () => context.go('/communities'),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    'Community',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
-                  Text('c/${_community!['name']}'),
-                  const SizedBox(height: 8),
-                  Text('${_community!['description'] ?? 'A Testagram community.'}'),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_community!['member_count'] ?? 0} members · ${_community!['post_count'] ?? 0} posts',
-                  ),
-                  const SizedBox(height: 12),
-                  if (_uid != null)
-                    FilledButton(
-                      onPressed: _working ? null : _toggleMembership,
-                      child: Text(_joined ? 'Leave community' : 'Join community'),
-                    ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-          if (_joined)
-            Card(
-              child: Padding(
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null)
+              Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    TextField(
-                      controller: _composer,
-                      maxLength: 2000,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        hintText: 'Share with this community…',
-                        border: InputBorder.none,
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: FilledButton.icon(
-                        onPressed: _working ? null : _publish,
-                        icon: const Icon(Icons.send_rounded),
-                        label: const Text('Publish'),
-                      ),
-                    ),
+                    Text(_error!),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
                   ],
                 ),
               ),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text(
-              'Community posts',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-            ),
-          ),
-          if (_posts.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: Text('No posts yet.')),
-            ),
-          ..._posts.map(
-            (p) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text('${p['content'] ?? ''}'),
-                subtitle: Text('${p['created_at'] ?? ''}'),
-                onTap: () => context.go('/post/${p['id']}'),
+            if (!_loading && _community != null) ...[
+              if ('${_community!['banner_url'] ?? ''}'.startsWith('http'))
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.network(
+                    '${_community!['banner_url']}',
+                    height: 130,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_community!['display_name'] ?? _community!['name']}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      Text('c/${_community!['name']}'),
+                      const SizedBox(height: 8),
+                      Text('${_community!['description'] ?? 'A Testagram community.'}'),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_community!['member_count'] ?? 0} members · ${_community!['post_count'] ?? 0} posts',
+                      ),
+                      const SizedBox(height: 12),
+                      if (_uid != null)
+                        FilledButton(
+                          onPressed: _working ? null : _toggleMembership,
+                          child: Text(_joined ? 'Leave community' : 'Join community'),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
-      ],
-    ),
-  );
+              if (_joined)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _composer,
+                          maxLength: 2000,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            hintText: 'Share with this community…',
+                            border: InputBorder.none,
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: _working ? null : _publish,
+                            icon: const Icon(Icons.send_rounded),
+                            label: const Text('Publish'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Community posts',
+                  style:
+                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (_posts.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: Text('No posts yet.')),
+                ),
+              ..._posts.map(
+                (p) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    title: Text('${p['content'] ?? ''}'),
+                    subtitle: Text('${p['created_at'] ?? ''}'),
+                    onTap: () => context.go('/post/${p['id']}'),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
 }

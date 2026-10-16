@@ -61,12 +61,10 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       _discoveryError = null;
     });
     try {
-      final response = await _db
-          .rpc(
-            'testagram_search_unified',
-            params: {'p_q': '', 'p_kind': 'all', 'p_limit': 8, 'p_offset': 0, 'p_sort': 'latest'},
-          )
-          .timeout(const Duration(seconds: 18));
+      final response = await _db.rpc(
+        'testagram_search_unified',
+        params: {'p_q': '', 'p_kind': 'all', 'p_limit': 8, 'p_offset': 0, 'p_sort': 'latest'},
+      ).timeout(const Duration(seconds: 18));
       if (!mounted) return;
       setState(() {
         _discoveryResults = UnifiedSearchPolicy.normalize(response);
@@ -175,18 +173,16 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     try {
       // Call the same canonical RPC as the web client. Supabase supplies the
       // current JWT; the function's grants and RLS remain authoritative.
-      final response = await _db
-          .rpc(
-            'testagram_search_unified',
-            params: {
-              'p_q': query,
-              'p_kind': UnifiedSearchPolicy.kinds[_tab] ?? 'all',
-              'p_limit': 40,
-              'p_offset': append ? _offset : 0,
-              'p_sort': _sort.toLowerCase().replaceAll(' ', '_'),
-            },
-          )
-          .timeout(const Duration(seconds: 18));
+      final response = await _db.rpc(
+        'testagram_search_unified',
+        params: {
+          'p_q': query,
+          'p_kind': UnifiedSearchPolicy.kinds[_tab] ?? 'all',
+          'p_limit': 40,
+          'p_offset': append ? _offset : 0,
+          'p_sort': _sort.toLowerCase().replaceAll(' ', '_'),
+        },
+      ).timeout(const Duration(seconds: 18));
       if (!mounted || generation != _requestGeneration) return;
       final normalized = UnifiedSearchPolicy.normalize(response);
       setState(() {
@@ -197,8 +193,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     } catch (error) {
       if (!mounted || generation != _requestGeneration) return;
       final message = error.toString().toLowerCase();
-      final authFailure =
-          message.contains('jwt') ||
+      final authFailure = message.contains('jwt') ||
           message.contains('401') ||
           message.contains('unauthorized') ||
           message.contains('not authenticated');
@@ -287,7 +282,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           'replies': <dynamic>[],
           'fediverse': <dynamic>[],
         });
-        _notice = 'Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.';
+        _notice =
+            'Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.';
         _error = null;
         _offset = 0;
         _hasMore = false;
@@ -315,8 +311,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           ...((data['posts'] as List<Map<String, dynamic>>?) ?? const []),
           ...((data['fediverse'] as List<Map<String, dynamic>>?) ?? const []),
         ]) {
-          final remote =
-              row['uri'] ??
+          final remote = row['uri'] ??
               row['remote_status_uri'] ??
               (row['is_federated'] == true ? row['id'] : null);
           final identity = remote != null
@@ -348,8 +343,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       'instances',
     ]) {
       for (final row in (data[group] as List<Map<String, dynamic>>?) ?? const []) {
-        final canonical =
-            row['uri'] ??
+        final canonical = row['uri'] ??
             row['remote_status_uri'] ??
             (row['is_federated'] == true ? row['id'] : null) ??
             (_groupForRow(row) == 'users' ? row['actor_uri'] : null);
@@ -368,8 +362,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
 
   String _rowIdentity(Map<String, dynamic> row) {
     final group = _groupForRow(row);
-    final canonical =
-        row['uri'] ??
+    final canonical = row['uri'] ??
         row['remote_status_uri'] ??
         (row['is_federated'] == true ? row['id'] : null) ??
         (group == 'users' ? row['actor_uri'] : null);
@@ -615,36 +608,53 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   Widget _resultCard(Map<String, dynamic> row) {
     final group = _groupForRow(row);
     final title = switch (group) {
-      'users' => UnifiedSearchPolicy.firstText(row, [
-        'display_name',
-        'username',
-      ], fallback: 'Testagram user'),
-      'hashtags' =>
-        '#${UnifiedSearchPolicy.firstText(row, ['tag', 'name'], fallback: 'topic').replaceFirst(RegExp(r'^#'), '')}',
-      'posts' => UnifiedSearchPolicy.firstText(row, [
-        'content',
-        'summary',
-        'title',
-      ], fallback: 'Post'),
+      'users' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'display_name',
+            'username',
+          ],
+          fallback: 'Testagram user'),
+      'hashtags' => '#${UnifiedSearchPolicy.firstText(row, [
+            'tag',
+            'name'
+          ], fallback: 'topic').replaceFirst(RegExp(r'^#'), '')}',
+      'posts' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'content',
+            'summary',
+            'title',
+          ],
+          fallback: 'Post'),
       'threads' => UnifiedSearchPolicy.firstText(row, ['title', 'body'], fallback: 'Thread'),
-      'communities' => UnifiedSearchPolicy.firstText(row, [
-        'display_name',
-        'name',
-        'slug',
-      ], fallback: 'Community'),
+      'communities' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'display_name',
+            'name',
+            'slug',
+          ],
+          fallback: 'Community'),
       'replies' => UnifiedSearchPolicy.firstText(row, ['content'], fallback: 'Reply'),
-      'fediverse' => UnifiedSearchPolicy.firstText(row, [
-        'content',
-        'summary',
-        'display_name',
-        'username',
-      ], fallback: 'Fediverse item'),
-      _ => UnifiedSearchPolicy.firstText(row, [
-        'title',
-        'name',
-        'content',
-        'username',
-      ], fallback: 'Search result'),
+      'fediverse' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'content',
+            'summary',
+            'display_name',
+            'username',
+          ],
+          fallback: 'Fediverse item'),
+      _ => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'title',
+            'name',
+            'content',
+            'username',
+          ],
+          fallback: 'Search result'),
     };
     final subtitle = switch (group) {
       'users' =>
@@ -667,10 +677,10 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     final avatar = group == 'users'
         ? '${row['avatar_url'] ?? ''}'
         : group == 'posts' && row['user_profiles'] is Map
-        ? '${(row['user_profiles'] as Map)['avatar_url'] ?? ''}'
-        : group == 'threads' && row['profiles'] is Map
-        ? '${(row['profiles'] as Map)['avatar_url'] ?? ''}'
-        : '';
+            ? '${(row['user_profiles'] as Map)['avatar_url'] ?? ''}'
+            : group == 'threads' && row['profiles'] is Map
+                ? '${(row['profiles'] as Map)['avatar_url'] ?? ''}'
+                : '';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -726,16 +736,16 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   }
 
   IconData _iconFor(String group) => switch (group) {
-    'users' => Icons.person_outline_rounded,
-    'hashtags' => Icons.tag_rounded,
-    'posts' => Icons.article_outlined,
-    'threads' => Icons.forum_outlined,
-    'communities' => Icons.groups_2_outlined,
-    'replies' => Icons.reply_rounded,
-    'fediverse' => Icons.public_rounded,
-    'instances' => Icons.dns_outlined,
-    _ => Icons.search_rounded,
-  };
+        'users' => Icons.person_outline_rounded,
+        'hashtags' => Icons.tag_rounded,
+        'posts' => Icons.article_outlined,
+        'threads' => Icons.forum_outlined,
+        'communities' => Icons.groups_2_outlined,
+        'replies' => Icons.reply_rounded,
+        'fediverse' => Icons.public_rounded,
+        'instances' => Icons.dns_outlined,
+        _ => Icons.search_rounded,
+      };
 
   Future<void> _openExternalUrl(String value) async {
     final uri = Uri.tryParse(value);

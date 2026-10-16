@@ -72,17 +72,16 @@ class _AuthPageState extends State<AuthPage> {
     });
     try {
       final identifier = _email.text.trim();
-      final response =
-          await (identifier.contains('@')
-                  ? _client.auth.signInWithPassword(
-                      email: identifier.toLowerCase(),
-                      password: _password.text,
-                    )
-                  : _client.auth.signInWithPassword(
-                      phone: _normalizeKenyaPhone(identifier),
-                      password: _password.text,
-                    ))
-              .timeout(const Duration(seconds: 15));
+      final response = await (identifier.contains('@')
+              ? _client.auth.signInWithPassword(
+                  email: identifier.toLowerCase(),
+                  password: _password.text,
+                )
+              : _client.auth.signInWithPassword(
+                  phone: _normalizeKenyaPhone(identifier),
+                  password: _password.text,
+                ))
+          .timeout(const Duration(seconds: 15));
       final user = response.user;
       if (user == null) {
         throw const AuthException('Sign-in returned no account. Please try again.');
@@ -100,8 +99,7 @@ class _AuthPageState extends State<AuthPage> {
   void _ensureFederationIdentity(User user) {
     final role = user.appMetadata['role'];
     final roles = user.appMetadata['roles'];
-    final shouldBackfillAll =
-        role == 'admin' ||
+    final shouldBackfillAll = role == 'admin' ||
         role == 'super_admin' ||
         role == 'owner' ||
         (roles is List &&
@@ -134,8 +132,7 @@ class _AuthPageState extends State<AuthPage> {
         await _client.auth.signOut();
         throw const AuthException('Testagram is available only to users aged 18 or older.');
       }
-      final accepted =
-          result != null &&
+      final accepted = result != null &&
           result['legal_terms_accepted_at'] != null &&
           result['legal_privacy_accepted_at'] != null &&
           result['legal_content_policy_accepted_at'] != null &&
@@ -182,9 +179,8 @@ class _AuthPageState extends State<AuthPage> {
       _error = null;
     });
     try {
-      final response = await _client
-          .rpc('accept_testagram_legal', params: {'p_birth_date': _dob.text})
-          .timeout(const Duration(seconds: 12));
+      final response = await _client.rpc('accept_testagram_legal',
+          params: {'p_birth_date': _dob.text}).timeout(const Duration(seconds: 12));
       if (response == null || response == false) {
         // Some Postgres functions return void (null) on success.
       }
@@ -327,7 +323,9 @@ class _AuthPageState extends State<AuthPage> {
                           Text(
                             legalStep ? 'Finish account setup' : 'Welcome back',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.headlineSmall
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
                                 ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
                           ),
                           const SizedBox(height: 8),

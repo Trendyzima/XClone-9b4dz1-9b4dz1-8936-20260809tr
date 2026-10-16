@@ -27,14 +27,14 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
   }
 
   String get title => switch (section) {
-    'audit' => 'Governance Audit',
-    'employees' => 'Governance Administrators',
-    'features' => 'Governance Permissions',
-    'wallets' => 'Wallet Oversight',
-    'analytics' => 'Platform Analytics',
-    'platform' => 'Platform Overview',
-    _ => 'Regulator Console',
-  };
+        'audit' => 'Governance Audit',
+        'employees' => 'Governance Administrators',
+        'features' => 'Governance Permissions',
+        'wallets' => 'Wallet Oversight',
+        'analytics' => 'Platform Analytics',
+        'platform' => 'Platform Overview',
+        _ => 'Regulator Console',
+      };
 
   @override
   void initState() {
@@ -66,12 +66,10 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
       return;
     }
     try {
-      final response = await db
-          .rpc('testagram_get_governance')
-          .timeout(const Duration(seconds: 12));
-      final governance = response is Map
-          ? Map<String, dynamic>.from(response)
-          : <String, dynamic>{};
+      final response =
+          await db.rpc('testagram_get_governance').timeout(const Duration(seconds: 12));
+      final governance =
+          response is Map ? Map<String, dynamic>.from(response) : <String, dynamic>{};
       final allowed = governance['is_owner'] == true;
       if (!allowed) {
         if (mounted && run == generation) {
@@ -90,19 +88,14 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
       List<Map<String, dynamic>> nextRows = const [];
       Map<String, int> nextCounts = const {};
       if (section == 'audit') {
-        final result = await db
-            .rpc('testagram_governance_audit', params: {'p_limit': 100})
-            .timeout(const Duration(seconds: 20));
-        nextRows = (result as List)
-            .whereType<Map>()
-            .map((r) => Map<String, dynamic>.from(r))
-            .toList();
+        final result = await db.rpc('testagram_governance_audit',
+            params: {'p_limit': 100}).timeout(const Duration(seconds: 20));
+        nextRows =
+            (result as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
       } else if (section == 'employees') {
         final result = await db.rpc('testagram_list_admins').timeout(const Duration(seconds: 20));
-        nextRows = (result as List)
-            .whereType<Map>()
-            .map((r) => Map<String, dynamic>.from(r))
-            .toList();
+        nextRows =
+            (result as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
       } else if (section == 'wallets') {
         final result = await db
             .from('user_wallets')
@@ -150,7 +143,8 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
     } catch (_) {
       if (mounted && run == generation) {
         setState(
-          () => error = 'This regulator view could not load. Confirm the relevant migration and owner authorization, then retry.',
+          () => error =
+              'This regulator view could not load. Confirm the relevant migration and owner authorization, then retry.',
         );
       }
     } finally {
@@ -166,10 +160,12 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
       const SizedBox(height: 6),
       Text(switch (section) {
         'audit' => 'Recent governance actions returned by the audited server RPC.',
-        'employees' => 'Active governance administrator assignments; this is not the separate employee payroll roster.',
+        'employees' =>
+          'Active governance administrator assignments; this is not the separate employee payroll roster.',
         'features' => 'Explicit permission keys assigned to the current owner/admin session.',
         'wallets' => 'Read-only wallet credits from the owner-restricted data view.',
-        _ => 'Live counts from the current database. These are not estimated revenue or inferred engagement metrics.',
+        _ =>
+          'Live counts from the current database. These are not estimated revenue or inferred engagement metrics.',
       }),
     ];
     if (error != null) {
@@ -245,8 +241,8 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
           section == 'audit'
               ? 'Recent audit events'
               : section == 'employees'
-              ? 'Governance administrators'
-              : 'Wallets (latest 100)',
+                  ? 'Governance administrators'
+                  : 'Wallets (latest 100)',
           style: theme.textTheme.titleLarge,
         ),
       );
@@ -296,44 +292,44 @@ class _RegulatorConsolePageState extends State<RegulatorConsolePage> {
       body: loading && rows.isEmpty && counts.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : signedOut
-          ? _gate(
-              'Sign in required',
-              'Sign in to continue.',
-              FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
-            )
-          : denied
-          ? _gate(
-              'Owner access required',
-              'Privileged regulator data is locked unless the server confirms platform-owner access.',
-              FilledButton.tonal(
-                onPressed: () => context.go('/admin/governance'),
-                child: const Text('Open governance'),
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(padding: const EdgeInsets.all(16), children: body),
-            ),
+              ? _gate(
+                  'Sign in required',
+                  'Sign in to continue.',
+                  FilledButton(onPressed: () => context.go('/auth'), child: const Text('Sign in')),
+                )
+              : denied
+                  ? _gate(
+                      'Owner access required',
+                      'Privileged regulator data is locked unless the server confirms platform-owner access.',
+                      FilledButton.tonal(
+                        onPressed: () => context.go('/admin/governance'),
+                        child: const Text('Open governance'),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(padding: const EdgeInsets.all(16), children: body),
+                    ),
     );
   }
 
   Widget _gate(String title, String detail, Widget action) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.shield_outlined, size: 42),
-          const SizedBox(height: 12),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(detail, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          action,
-        ],
-      ),
-    ),
-  );
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.shield_outlined, size: 42),
+              const SizedBox(height: 12),
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(detail, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              action,
+            ],
+          ),
+        ),
+      );
 }
 
 class IdentityVerificationStatusPage extends StatefulWidget {
@@ -364,9 +360,8 @@ class _IdentityVerificationStatusPageState extends State<IdentityVerificationSta
       return;
     }
     try {
-      final result = await db
-          .rpc('get_my_identity_verification_status')
-          .timeout(const Duration(seconds: 12));
+      final result =
+          await db.rpc('get_my_identity_verification_status').timeout(const Duration(seconds: 12));
       if (mounted) {
         setState(() => status = result is Map ? '${result['status'] ?? 'pending'}' : 'pending');
       }
@@ -384,35 +379,36 @@ class _IdentityVerificationStatusPageState extends State<IdentityVerificationSta
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Identity Verification'),
-      actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
-    ),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: loading
-            ? const CircularProgressIndicator()
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.verified_user_outlined, size: 48),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Identity status: ${status ?? 'unavailable'}',
-                    style: Theme.of(context).textTheme.titleLarge,
+        appBar: AppBar(
+          title: const Text('Identity Verification'),
+          actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: loading
+                ? const CircularProgressIndicator()
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.verified_user_outlined, size: 48),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Identity status: ${status ?? 'unavailable'}',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        error ??
+                            'Status is read from the authenticated identity service. Identity documents and national-ID numbers are not requested or stored by this screen.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      if (error != null)
+                        FilledButton.tonal(onPressed: _load, child: const Text('Retry')),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    error ?? 'Status is read from the authenticated identity service. Identity documents and national-ID numbers are not requested or stored by this screen.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  if (error != null)
-                    FilledButton.tonal(onPressed: _load, child: const Text('Retry')),
-                ],
-              ),
-      ),
-    ),
-  );
+          ),
+        ),
+      );
 }

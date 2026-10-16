@@ -129,87 +129,89 @@ class _TrendingTopicPageState extends State<TrendingTopicPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Trending topic'),
-      actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
-    ),
-    body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('#$_tag', style: Theme.of(context).textTheme.headlineMedium),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${_trend?['category'] ?? 'Trending'} · ${_trend?['posts_count'] ?? _hashtag?['usage_count'] ?? 0} posts',
+        appBar: AppBar(
+          title: const Text('Trending topic'),
+          actions: [
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('#$_tag', style: Theme.of(context).textTheme.headlineMedium),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${_trend?['category'] ?? 'Trending'} · ${_trend?['posts_count'] ?? _hashtag?['usage_count'] ?? 0} posts',
+                            ),
+                            if (_trend?['description'] is String)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text('${_trend!['description']}'),
+                              ),
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                onPressed: _working ? null : _toggleFollow,
+                                icon: Icon(_following ? Icons.check : Icons.add),
+                                label: Text(_following ? 'Following' : 'Follow hashtag'),
+                              ),
+                            ),
+                          ],
                         ),
-                        if (_trend?['description'] is String)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text('${_trend!['description']}'),
-                          ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: OutlinedButton.icon(
-                            onPressed: _working ? null : _toggleFollow,
-                            icon: Icon(_following ? Icons.check : Icons.add),
-                            label: Text(_following ? 'Following' : 'Follow hashtag'),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    if (_error != null)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.error_outline),
+                          title: Text(_error!),
+                          trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+                        ),
+                      ),
+                    Text('Recent posts', style: Theme.of(context).textTheme.titleLarge),
+                    if (_posts.isEmpty && _error == null)
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('No recent posts found for this topic.'),
+                      ),
+                    for (final post in _posts)
+                      Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              ('${(post['profiles'] is Map ? (post['profiles'] as Map)['username'] : 'U') ?? 'U'}')
+                                  .characters
+                                  .first
+                                  .toUpperCase(),
+                            ),
+                          ),
+                          title: Text(
+                            '${(post['profiles'] is Map ? (post['profiles'] as Map)['username'] : null) ?? 'Testagram user'}',
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              '${post['content'] ?? ''}\n♥ ${post['likes_count'] ?? 0}   ↻ ${post['reposts_count'] ?? 0}   ◯ ${post['replies_count'] ?? 0}',
+                              maxLines: 6,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          isThreeLine: true,
+                        ),
+                      ),
+                  ],
                 ),
-                if (_error != null)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.error_outline),
-                      title: Text(_error!),
-                      trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
-                    ),
-                  ),
-                Text('Recent posts', style: Theme.of(context).textTheme.titleLarge),
-                if (_posts.isEmpty && _error == null)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('No recent posts found for this topic.'),
-                  ),
-                for (final post in _posts)
-                  Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text(
-                          ('${(post['profiles'] is Map ? (post['profiles'] as Map)['username'] : 'U') ?? 'U'}')
-                              .characters
-                              .first
-                              .toUpperCase(),
-                        ),
-                      ),
-                      title: Text(
-                        '${(post['profiles'] is Map ? (post['profiles'] as Map)['username'] : null) ?? 'Testagram user'}',
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          '${post['content'] ?? ''}\n♥ ${post['likes_count'] ?? 0}   ↻ ${post['reposts_count'] ?? 0}   ◯ ${post['replies_count'] ?? 0}',
-                          maxLines: 6,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      isThreeLine: true,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-  );
+              ),
+      );
 }

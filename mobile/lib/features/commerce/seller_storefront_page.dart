@@ -74,81 +74,84 @@ class _SellerStorefrontPageState extends State<SellerStorefrontPage> {
   }
 
   String _price(Map<String, dynamic> p) => MigrationBatchPolicy.formatMinorPrice(
-    p['price_minor'],
-    currency: '${p['currency'] ?? 'KES'}',
-  );
+        p['price_minor'],
+        currency: '${p['currency'] ?? 'KES'}',
+      );
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text('${widget.username} store'),
-      actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
-    ),
-    body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_seller != null)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 30,
-                            backgroundImage: _seller!['avatar_url'] is String
-                                ? NetworkImage(_seller!['avatar_url'] as String)
-                                : null,
-                            child: _seller!['avatar_url'] is String
-                                ? null
-                                : const Icon(Icons.store),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${_seller!['display_name'] ?? _seller!['username']}',
-                                  style: Theme.of(context).textTheme.titleLarge,
+        appBar: AppBar(
+          title: Text('${widget.username} store'),
+          actions: [
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (_seller != null)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 30,
+                                backgroundImage: _seller!['avatar_url'] is String
+                                    ? NetworkImage(_seller!['avatar_url'] as String)
+                                    : null,
+                                child: _seller!['avatar_url'] is String
+                                    ? null
+                                    : const Icon(Icons.store),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${_seller!['display_name'] ?? _seller!['username']}',
+                                      style: Theme.of(context).textTheme.titleLarge,
+                                    ),
+                                    Text('@${_seller!['username']}'),
+                                    if (_seller!['bio'] is String) Text('${_seller!['bio']}'),
+                                  ],
                                 ),
-                                Text('@${_seller!['username']}'),
-                                if (_seller!['bio'] is String) Text('${_seller!['bio']}'),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                if (_error != null)
-                  Card(
-                    child: ListTile(leading: const Icon(Icons.info_outline), title: Text(_error!)),
-                  ),
-                Text('Products', style: Theme.of(context).textTheme.titleLarge),
-                if (_products.isEmpty && _error == null)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('This seller has no active products right now.'),
-                  ),
-                for (final p in _products)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.shopping_bag_outlined),
-                      title: Text('${p['name'] ?? 'Product'}'),
-                      subtitle: Text(
-                        '${p['description'] ?? ''}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    if (_error != null)
+                      Card(
+                        child:
+                            ListTile(leading: const Icon(Icons.info_outline), title: Text(_error!)),
                       ),
-                      trailing: Text(_price(p), style: Theme.of(context).textTheme.titleSmall),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-  );
+                    Text('Products', style: Theme.of(context).textTheme.titleLarge),
+                    if (_products.isEmpty && _error == null)
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('This seller has no active products right now.'),
+                      ),
+                    for (final p in _products)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.shopping_bag_outlined),
+                          title: Text('${p['name'] ?? 'Product'}'),
+                          subtitle: Text(
+                            '${p['description'] ?? ''}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Text(_price(p), style: Theme.of(context).textTheme.titleSmall),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      );
 }

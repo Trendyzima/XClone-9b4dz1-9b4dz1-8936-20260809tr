@@ -69,11 +69,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
       final profile = authorId.isEmpty
           ? null
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified,verified_tier')
-                .eq('id', authorId)
-                .maybeSingle()
-                .timeout(const Duration(seconds: 12));
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified,verified_tier')
+              .eq('id', authorId)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 12));
       final replyRows = await _db
           .from('replies')
           .select('id,user_id,post_id,content,created_at')
@@ -90,10 +90,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
       final replyProfiles = replyUserIds.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified')
-                .inFilter('id', replyUserIds)
-                .timeout(const Duration(seconds: 12));
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified')
+              .inFilter('id', replyUserIds)
+              .timeout(const Duration(seconds: 12));
       final replyProfilesById = <String, Map<String, dynamic>>{
         for (final row in replyProfiles) '${row['id']}': Map<String, dynamic>.from(row as Map),
       };
@@ -282,8 +282,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
     try {
       await _db
           .from('replies')
-          .insert({'post_id': widget.postId, 'user_id': uid, 'content': body})
-          .timeout(const Duration(seconds: 15));
+          .insert({'post_id': widget.postId, 'user_id': uid, 'content': body}).timeout(
+              const Duration(seconds: 15));
       _reply.clear();
       await _load();
     } catch (_) {
@@ -346,7 +346,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
               Expanded(
                 child: Text(
                   widget.repliesOnly ? 'Post replies' : 'Post',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -389,9 +391,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     Row(
                       children: [
                         CircleAvatar(
-                          backgroundImage: avatar.startsWith('https://')
-                              ? NetworkImage(avatar)
-                              : null,
+                          backgroundImage:
+                              avatar.startsWith('https://') ? NetworkImage(avatar) : null,
                           child: avatar.startsWith('https://') ? null : Text(_initial(name)),
                         ),
                         const SizedBox(width: 10),
@@ -555,9 +556,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 margin: const EdgeInsets.only(top: 6),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundImage: replyAvatar.startsWith('https://')
-                        ? NetworkImage(replyAvatar)
-                        : null,
+                    backgroundImage:
+                        replyAvatar.startsWith('https://') ? NetworkImage(replyAvatar) : null,
                     child: replyAvatar.startsWith('https://') ? null : Text(_initial(replyName)),
                   ),
                   title: Text(replyName, style: const TextStyle(fontWeight: FontWeight.w700)),

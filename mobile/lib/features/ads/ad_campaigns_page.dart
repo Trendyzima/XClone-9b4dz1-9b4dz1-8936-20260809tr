@@ -129,11 +129,11 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       final creativeRows = ids.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('testagram_ad_creatives')
-                .select('id,campaign_id,headline,asset_url,click_through_url')
-                .inFilter('campaign_id', ids)
-                .order('created_at', ascending: true)
-                .timeout(const Duration(seconds: 15));
+              .from('testagram_ad_creatives')
+              .select('id,campaign_id,headline,asset_url,click_through_url')
+              .inFilter('campaign_id', ids)
+              .order('created_at', ascending: true)
+              .timeout(const Duration(seconds: 15));
       final creatives = <String, Map<String, dynamic>>{};
       for (final row in creativeRows) {
         final creative = Map<String, dynamic>.from(row as Map);
@@ -141,9 +141,8 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       }
       final metrics = <String, Map<String, dynamic>>{};
       for (final id in ids) {
-        final result = await _db
-            .rpc('get_my_ad_campaign_metrics', params: {'p_campaign_id': id})
-            .timeout(const Duration(seconds: 15));
+        final result = await _db.rpc('get_my_ad_campaign_metrics',
+            params: {'p_campaign_id': id}).timeout(const Duration(seconds: 15));
         metrics[id] = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
       }
       if (!mounted || generation != _loadGeneration) return;
@@ -215,32 +214,30 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       _error = null;
     });
     try {
-      final result = await _db.functions
-          .invoke(
-            'testagram-ad-campaign',
-            body: <String, dynamic>{
-              'name': title,
-              'headline': title,
-              'description': description,
-              'click_through_url': url.toString(),
-              'budget_kes': budget,
-              if (dailyBudget != null) 'daily_budget_kes': dailyBudget,
-              'objective': _objective,
-              'cta': _cta,
-              'start_at': start.toUtc().toIso8601String(),
-              'end_at': end.toUtc().toIso8601String(),
-              'format': _format,
-              'targeting': {
-                'countries': <String>[],
-                'devices': <String>[],
-                'genres': <String>[],
-                'keywords': <String>[],
-                'segments': <String>[],
-                'interests': _selectedInterests.map((v) => v.toLowerCase()).toList(),
-              },
-            },
-          )
-          .timeout(const Duration(seconds: 30));
+      final result = await _db.functions.invoke(
+        'testagram-ad-campaign',
+        body: <String, dynamic>{
+          'name': title,
+          'headline': title,
+          'description': description,
+          'click_through_url': url.toString(),
+          'budget_kes': budget,
+          if (dailyBudget != null) 'daily_budget_kes': dailyBudget,
+          'objective': _objective,
+          'cta': _cta,
+          'start_at': start.toUtc().toIso8601String(),
+          'end_at': end.toUtc().toIso8601String(),
+          'format': _format,
+          'targeting': {
+            'countries': <String>[],
+            'devices': <String>[],
+            'genres': <String>[],
+            'keywords': <String>[],
+            'segments': <String>[],
+            'interests': _selectedInterests.map((v) => v.toLowerCase()).toList(),
+          },
+        },
+      ).timeout(const Duration(seconds: 30));
       final data = result.data;
       if (result.status < 200 ||
           result.status >= 300 ||
@@ -313,12 +310,10 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       _paymentFailed = false;
     });
     try {
-      final result = await _db.functions
-          .invoke(
-            'mpesa-ad-payment',
-            body: {'ad_id': campaignId, 'amount_kes': budget.ceil(), 'phone': phone},
-          )
-          .timeout(const Duration(seconds: 30));
+      final result = await _db.functions.invoke(
+        'mpesa-ad-payment',
+        body: {'ad_id': campaignId, 'amount_kes': budget.ceil(), 'phone': phone},
+      ).timeout(const Duration(seconds: 30));
       final data = result.data;
       if (result.status < 200 ||
           result.status >= 300 ||
@@ -385,8 +380,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
               .maybeSingle()
               .timeout(const Duration(seconds: 12));
           final amount = double.tryParse(_budget.text.trim()) ?? 0;
-          final valid =
-              payment['checkout_request_id'] == checkoutId &&
+          final valid = payment['checkout_request_id'] == checkoutId &&
               payment['campaign_id'] == campaignId &&
               payment['user_id'] == uid &&
               payment['mpesa_receipt_number'] != null &&
@@ -425,7 +419,8 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       if (_pollAttempts >= 24) {
         setState(() {
           _checkingPayment = false;
-          _error = 'Payment verification is delayed. Your campaign has not been marked paid. Retry verification later.';
+          _error =
+              'Payment verification is delayed. Your campaign has not been marked paid. Retry verification later.';
         });
       } else {
         _pollPayment();
@@ -667,16 +662,15 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
             if (_error != null && !_checkingPayment)
               Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
             FilledButton.icon(
-              onPressed: _submitting || _checkingPayment || _paymentVerified
-                  ? null
-                  : _requestPayment,
+              onPressed:
+                  _submitting || _checkingPayment || _paymentVerified ? null : _requestPayment,
               icon: const Icon(Icons.phone_android),
               label: Text(
                 _paymentVerified
                     ? 'Campaign activated'
                     : _paymentFailed
-                    ? 'Retry M-Pesa payment'
-                    : 'Pay with M-Pesa',
+                        ? 'Retry M-Pesa payment'
+                        : 'Pay with M-Pesa',
               ),
             ),
             if (_paymentVerified)
@@ -711,182 +705,185 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       body: _loading && _campaigns.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _campaigns.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_error!, textAlign: TextAlign.center),
-                    const SizedBox(height: 12),
-                    FilledButton(onPressed: _loadCampaigns, child: const Text('Retry')),
-                  ],
-                ),
-              ),
-            )
-          : _campaigns.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.campaign_outlined, size: 48),
-                    const SizedBox(height: 12),
-                    Text(
-                      analytics ? 'No campaign analytics yet' : 'No campaigns yet',
-                      style: theme.textTheme.titleLarge,
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        FilledButton(onPressed: _loadCampaigns, child: const Text('Retry')),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Create a campaign to see verified delivery and spend metrics.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: () => context.go('/create-ad'),
-                      child: const Text('Create campaign'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadCampaigns,
-              child: ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-                    ),
-                  ..._campaigns.map((campaign) {
-                    final id = '${campaign['id']}';
-                    final creative = _creatives[id] ?? const <String, dynamic>{};
-                    final metric = _metrics[id] ?? const <String, dynamic>{};
-                    final currency = '${campaign['currency'] ?? 'KES'}';
-                    final payment = '${campaign['payment_status'] ?? 'pending'}';
-                    final status = '${campaign['status'] ?? 'draft'}';
-                    final impressions = int.tryParse('${metric['impressions'] ?? 0}') ?? 0;
-                    final clicks = int.tryParse('${metric['clicks'] ?? 0}') ?? 0;
-                    final ctr = double.tryParse('${metric['ctr'] ?? 0}') ?? 0;
-                    final spend = metric['spend_micros'] ?? 0;
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      clipBehavior: Clip.antiAlias,
+                  ),
+                )
+              : _campaigns.isEmpty
+                  ? Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(24),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const CircleAvatar(child: Icon(Icons.campaign_outlined)),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${campaign['name'] ?? 'Untitled campaign'}',
-                                        style: theme.textTheme.titleMedium,
-                                      ),
-                                      if (creative['headline'] != null)
-                                        Text(
-                                          '${creative['headline']}',
-                                          style: theme.textTheme.bodyMedium,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                Chip(
-                                  label: Text(
-                                    payment != 'funded'
-                                        ? 'Awaiting payment'
-                                        : status.replaceAll('_', ' '),
-                                  ),
-                                ),
-                              ],
+                            const Icon(Icons.campaign_outlined, size: 48),
+                            const SizedBox(height: 12),
+                            Text(
+                              analytics ? 'No campaign analytics yet' : 'No campaigns yet',
+                              style: theme.textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Create a campaign to see verified delivery and spend metrics.',
+                              textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 12),
-                            if (creative['asset_url'] != null &&
-                                '${creative['asset_url']}'.startsWith('https://'))
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  '${creative['asset_url']}',
-                                  height: 160,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                                ),
-                              ),
-                            if (analytics) ...[
-                              const Divider(height: 24),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: [
-                                  _metric(theme, 'Impressions', impressions.toString()),
-                                  _metric(theme, 'Clicks', clicks.toString()),
-                                  _metric(theme, 'CTR', '${ctr.toStringAsFixed(2)}%'),
-                                  _metric(theme, 'Spend', _money(spend, currency)),
-                                ],
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                const Expanded(child: Text('Lifetime budget')),
-                                Text(
-                                  _money(campaign['lifetime_budget_micros'], currency),
-                                  style: theme.textTheme.titleSmall,
-                                ),
-                              ],
+                            FilledButton(
+                              onPressed: () => context.go('/create-ad'),
+                              child: const Text('Create campaign'),
                             ),
-                            if (creative['click_through_url'] != null)
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: () async {
-                                    final uri = Uri.tryParse('${creative['click_through_url']}');
-                                    if (uri != null &&
-                                        {'https', 'http'}.contains(uri.scheme) &&
-                                        uri.host.isNotEmpty) {
-                                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                    }
-                                  },
-                                  icon: const Icon(Icons.open_in_new, size: 16),
-                                  label: const Text('Open landing page'),
-                                ),
-                              ),
                           ],
                         ),
                       ),
-                    );
-                  }),
-                ],
-              ),
-            ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadCampaigns,
+                      child: ListView(
+                        padding: const EdgeInsets.all(12),
+                        children: [
+                          if (_error != null)
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child:
+                                  Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+                            ),
+                          ..._campaigns.map((campaign) {
+                            final id = '${campaign['id']}';
+                            final creative = _creatives[id] ?? const <String, dynamic>{};
+                            final metric = _metrics[id] ?? const <String, dynamic>{};
+                            final currency = '${campaign['currency'] ?? 'KES'}';
+                            final payment = '${campaign['payment_status'] ?? 'pending'}';
+                            final status = '${campaign['status'] ?? 'draft'}';
+                            final impressions = int.tryParse('${metric['impressions'] ?? 0}') ?? 0;
+                            final clicks = int.tryParse('${metric['clicks'] ?? 0}') ?? 0;
+                            final ctr = double.tryParse('${metric['ctr'] ?? 0}') ?? 0;
+                            final spend = metric['spend_micros'] ?? 0;
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              clipBehavior: Clip.antiAlias,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const CircleAvatar(child: Icon(Icons.campaign_outlined)),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${campaign['name'] ?? 'Untitled campaign'}',
+                                                style: theme.textTheme.titleMedium,
+                                              ),
+                                              if (creative['headline'] != null)
+                                                Text(
+                                                  '${creative['headline']}',
+                                                  style: theme.textTheme.bodyMedium,
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        Chip(
+                                          label: Text(
+                                            payment != 'funded'
+                                                ? 'Awaiting payment'
+                                                : status.replaceAll('_', ' '),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (creative['asset_url'] != null &&
+                                        '${creative['asset_url']}'.startsWith('https://'))
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          '${creative['asset_url']}',
+                                          height: 160,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                        ),
+                                      ),
+                                    if (analytics) ...[
+                                      const Divider(height: 24),
+                                      Wrap(
+                                        spacing: 10,
+                                        runSpacing: 10,
+                                        children: [
+                                          _metric(theme, 'Impressions', impressions.toString()),
+                                          _metric(theme, 'Clicks', clicks.toString()),
+                                          _metric(theme, 'CTR', '${ctr.toStringAsFixed(2)}%'),
+                                          _metric(theme, 'Spend', _money(spend, currency)),
+                                        ],
+                                      ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        const Expanded(child: Text('Lifetime budget')),
+                                        Text(
+                                          _money(campaign['lifetime_budget_micros'], currency),
+                                          style: theme.textTheme.titleSmall,
+                                        ),
+                                      ],
+                                    ),
+                                    if (creative['click_through_url'] != null)
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                          onPressed: () async {
+                                            final uri =
+                                                Uri.tryParse('${creative['click_through_url']}');
+                                            if (uri != null &&
+                                                {'https', 'http'}.contains(uri.scheme) &&
+                                                uri.host.isNotEmpty) {
+                                              await launchUrl(uri,
+                                                  mode: LaunchMode.externalApplication);
+                                            }
+                                          },
+                                          icon: const Icon(Icons.open_in_new, size: 16),
+                                          label: const Text('Open landing page'),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
     );
   }
 
   Widget _metric(ThemeData theme, String label, String value) => Container(
-    width: 145,
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      border: Border.all(color: theme.dividerColor),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 4),
-        Text(label, style: theme.textTheme.bodySmall),
-      ],
-    ),
-  );
+        width: 145,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.dividerColor),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(label, style: theme.textTheme.bodySmall),
+          ],
+        ),
+      );
 }

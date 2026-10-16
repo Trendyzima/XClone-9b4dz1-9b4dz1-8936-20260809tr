@@ -78,9 +78,8 @@ class _BookmarksPageState extends State<BookmarksPage> {
     if (_removing.contains(postId)) return;
     setState(() => _removing.add(postId));
     try {
-      await _db
-          .rpc('testagram_bookmark_remove', params: {'p_post_id': postId})
-          .timeout(const Duration(seconds: 15));
+      await _db.rpc('testagram_bookmark_remove',
+          params: {'p_post_id': postId}).timeout(const Duration(seconds: 15));
       if (mounted) {
         setState(() {
           _items.removeWhere((item) => '${item['id']}' == postId);
@@ -98,93 +97,95 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
-    onRefresh: _load,
-    child: ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          'Saved posts',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 6),
-        Text(['Posts you bookmarked for later.', 'Only you can manage your saved list.'].join(' ')),
-        const SizedBox(height: 12),
-        if (_loading && _items.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(28),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry')),
-              ],
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              'Saved posts',
+              style:
+                  Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
-          ),
-        if (!_loading && _items.isEmpty && _error == null)
-          const Padding(
-            padding: EdgeInsets.all(28),
-            child: Center(child: Text('No saved posts yet.')),
-          ),
-        ..._items.map((post) {
-          final id = '${post['id']}';
-          final body = '${post['content'] ?? post['body'] ?? ''}';
-          final image = '${post['image_url'] ?? ''}';
-          final video = '${post['video_url'] ?? ''}';
-          return Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            clipBehavior: Clip.antiAlias,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(body.isEmpty ? 'Media post' : body),
-                  if (image.startsWith('https://'))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: Image.network(
-                        image,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ),
-                  if (video.startsWith('https://'))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: SelectableText('Video: $video'),
-                    ),
-                  const SizedBox(height: 8),
-                  Row(
+            const SizedBox(height: 6),
+            Text(['Posts you bookmarked for later.', 'Only you can manage your saved list.']
+                .join(' ')),
+            const SizedBox(height: 12),
+            if (_loading && _items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Text(_error!),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ],
+                ),
+              ),
+            if (!_loading && _items.isEmpty && _error == null)
+              const Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: Text('No saved posts yet.')),
+              ),
+            ..._items.map((post) {
+              final id = '${post['id']}';
+              final body = '${post['content'] ?? post['body'] ?? ''}';
+              final image = '${post['image_url'] ?? ''}';
+              final video = '${post['video_url'] ?? ''}';
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          '${post['created_at'] ?? ''}',
-                          style: Theme.of(context).textTheme.bodySmall,
+                      Text(body.isEmpty ? 'Media post' : body),
+                      if (image.startsWith('https://'))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Image.network(
+                            image,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
                         ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _removing.contains(id) ? null : () => _remove(id),
-                        icon: _removing.contains(id)
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.bookmark_remove_outlined),
-                        label: const Text('Remove'),
+                      if (video.startsWith('https://'))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: SelectableText('Video: $video'),
+                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${post['created_at'] ?? ''}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _removing.contains(id) ? null : () => _remove(id),
+                            icon: _removing.contains(id)
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.bookmark_remove_outlined),
+                            label: const Text('Remove'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
-    ),
-  );
+                ),
+              );
+            }),
+          ],
+        ),
+      );
 }

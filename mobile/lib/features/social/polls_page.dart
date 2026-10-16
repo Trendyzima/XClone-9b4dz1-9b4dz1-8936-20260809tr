@@ -159,7 +159,8 @@ class _PollsPageState extends State<PollsPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Your vote was not recorded. You may already have voted, or the poll may have closed.',
+          () => _error =
+              'Your vote was not recorded. You may already have voted, or the poll may have closed.',
         );
       }
     } finally {
@@ -256,8 +257,8 @@ class _PollsPageState extends State<PollsPage> {
                                 onPressed: _busy
                                     ? null
                                     : () => setState(() {
-                                        _options.removeAt(i).dispose();
-                                      }),
+                                          _options.removeAt(i).dispose();
+                                        }),
                                 icon: const Icon(Icons.remove_circle_outline),
                               ),
                           ],
@@ -316,12 +317,10 @@ class _PollsPageState extends State<PollsPage> {
   }
 
   Widget _pollCard(Map<String, dynamic> poll, ThemeData theme) {
-    final options = (poll['options'] as List? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    final options =
+        (poll['options'] as List? ?? const []).whereType<Map<String, dynamic>>().toList();
     final total = int.tryParse('${poll['total_votes'] ?? 0}') ?? 0;
-    final open =
-        '${poll['effective_status']}' == 'open' &&
+    final open = '${poll['effective_status']}' == 'open' &&
         (poll['ends_at'] == null ||
             DateTime.tryParse('${poll['ends_at']}')?.isAfter(DateTime.now()) == true);
     return Card(

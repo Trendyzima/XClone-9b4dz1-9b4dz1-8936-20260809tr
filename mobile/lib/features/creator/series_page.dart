@@ -97,14 +97,11 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
     }
     setState(() => _working = true);
     try {
-      await _db
-          .from('post_series')
-          .insert({
-            'owner_id': user.id,
-            'title': title.text.trim(),
-            'description': description.text.trim().isEmpty ? null : description.text.trim(),
-          })
-          .timeout(const Duration(seconds: 15));
+      await _db.from('post_series').insert({
+        'owner_id': user.id,
+        'title': title.text.trim(),
+        'description': description.text.trim().isEmpty ? null : description.text.trim(),
+      }).timeout(const Duration(seconds: 15));
       if (mounted) await _load();
     } catch (_) {
       if (mounted) {
@@ -218,65 +215,67 @@ class _CreatorSeriesPageState extends State<CreatorSeriesPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Creator series'),
-      actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
-    ),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: _working ? null : _create,
-      icon: const Icon(Icons.add),
-      label: const Text('New series'),
-    ),
-    body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-              children: [
-                const Text(
-                  'Organize your posts into ordered collections. Series access is limited to the signed-in owner under the current database policy.',
-                ),
-                if (_working) const LinearProgressIndicator(),
-                if (_error != null)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.error_outline),
-                      title: Text(_error!),
-                      trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+        appBar: AppBar(
+          title: const Text('Creator series'),
+          actions: [
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _working ? null : _create,
+          icon: const Icon(Icons.add),
+          label: const Text('New series'),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                  children: [
+                    const Text(
+                      'Organize your posts into ordered collections. Series access is limited to the signed-in owner under the current database policy.',
                     ),
-                  ),
-                if (_series.isEmpty && _error == null)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('You have not created a series yet.'),
-                    ),
-                  ),
-                for (final s in _series)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.auto_stories_outlined),
-                      title: Text('${s['title'] ?? 'Untitled series'}'),
-                      subtitle: Text('${s['description'] ?? 'No description'}'),
-                      onTap: () => _showItems(s),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (v) {
-                          if (v == 'delete') {
-                            _delete(s);
-                          } else {
-                            _showItems(s);
-                          }
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'open', child: Text('View episodes')),
-                          PopupMenuItem(value: 'delete', child: Text('Delete series')),
-                        ],
+                    if (_working) const LinearProgressIndicator(),
+                    if (_error != null)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.error_outline),
+                          title: Text(_error!),
+                          trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+                        ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-  );
+                    if (_series.isEmpty && _error == null)
+                      const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('You have not created a series yet.'),
+                        ),
+                      ),
+                    for (final s in _series)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.auto_stories_outlined),
+                          title: Text('${s['title'] ?? 'Untitled series'}'),
+                          subtitle: Text('${s['description'] ?? 'No description'}'),
+                          onTap: () => _showItems(s),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (v) {
+                              if (v == 'delete') {
+                                _delete(s);
+                              } else {
+                                _showItems(s);
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'open', child: Text('View episodes')),
+                              PopupMenuItem(value: 'delete', child: Text('Delete series')),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      );
 }

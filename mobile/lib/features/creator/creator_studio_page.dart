@@ -264,7 +264,9 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                     children: [
                       Text(
                         'Earnings',
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 6),
@@ -276,9 +278,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                       if (_earnings.isEmpty)
                         const Text('No earnings recorded yet.')
                       else
-                        ..._earnings
-                            .take(12)
-                            .map(
+                        ..._earnings.take(12).map(
                               (e) => ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 dense: true,
@@ -304,7 +304,9 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                     children: [
                       Text(
                         'Monthly tip goal',
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 8),
@@ -343,14 +345,12 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
                 padding: const EdgeInsets.only(top: 16, bottom: 6),
                 child: Text(
                   'Your content',
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900),
+                  style:
+                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
             if (tab == 'overview' || tab == 'videos')
-              ..._posts
-                  .where((p) => tab != 'videos' || p['is_video'] == true)
-                  .map(
+              ..._posts.where((p) => tab != 'videos' || p['is_video'] == true).map(
                     (p) => Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
@@ -411,22 +411,23 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
   }
 
   Widget _stat(String label, String value) => SizedBox(
-    width: 155,
-    child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        width: 155,
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style:
+                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }

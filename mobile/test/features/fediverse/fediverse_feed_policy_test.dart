@@ -3,10 +3,10 @@ import 'package:testagram/features/fediverse/fediverse_feed_policy.dart';
 import 'package:testagram/features/fediverse/fediverse_content.dart';
 
 Map<String, dynamic> post(String uri, String publishedAt, {String? content}) => {
-  'uri': uri,
-  'published_at': publishedAt,
-  if (content != null) 'content': content,
-};
+      'uri': uri,
+      'published_at': publishedAt,
+      if (content != null) 'content': content,
+    };
 
 void main() {
   group('reconcileFediverseFeed', () {

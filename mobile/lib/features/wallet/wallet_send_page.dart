@@ -337,10 +337,10 @@ class _WalletSendPageState extends State<WalletSendPage> {
                   onTap: _sending
                       ? null
                       : () => setState(() {
-                          _recipient = user;
-                          _searchController.text = '@${user['username'] ?? ''}';
-                          _users = const [];
-                        }),
+                            _recipient = user;
+                            _searchController.text = '@${user['username'] ?? ''}';
+                            _users = const [];
+                          }),
                 ),
               ),
             ),
@@ -402,10 +402,10 @@ class _WalletSendPageState extends State<WalletSendPage> {
   }
 
   Widget _message(String message, Color background, Color foreground) => Card(
-    color: background,
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Text(message, style: TextStyle(color: foreground)),
-    ),
-  );
+        color: background,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(message, style: TextStyle(color: foreground)),
+        ),
+      );
 }

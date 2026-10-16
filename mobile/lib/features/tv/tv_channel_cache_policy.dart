@@ -51,8 +51,8 @@ class TvChannelCachePolicy {
     final seen = <String>{};
     for (final channel in channels) {
       if (channel['_sourceType'] != 'catalog') continue;
-      final url = '${channel['playback_url'] ?? channel['stream_url'] ?? channel['url'] ?? ''}'
-          .trim();
+      final url =
+          '${channel['playback_url'] ?? channel['stream_url'] ?? channel['url'] ?? ''}'.trim();
       if (!isPublicCacheUrl(url)) continue;
       final id = '${channel['id'] ?? url}';
       if (!seen.add(id)) continue;

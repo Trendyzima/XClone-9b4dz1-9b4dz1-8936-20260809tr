@@ -74,9 +74,8 @@ class _GovernancePageState extends State<GovernancePage> {
         db.rpc('testagram_get_governance'),
         db.rpc('testagram_is_owner'),
       ]);
-      final data = response[0] is Map
-          ? Map<String, dynamic>.from(response[0] as Map)
-          : <String, dynamic>{};
+      final data =
+          response[0] is Map ? Map<String, dynamic>.from(response[0] as Map) : <String, dynamic>{};
       final isOwner = response[1] == true || data['is_owner'] == true;
       if (!mounted) return;
       setState(() {
@@ -163,10 +162,8 @@ class _GovernancePageState extends State<GovernancePage> {
       final result = await Future.wait<dynamic>(requests);
       if (!mounted) return;
       setState(() {
-        admins = (result[0] as List)
-            .whereType<Map>()
-            .map((r) => Map<String, dynamic>.from(r))
-            .toList();
+        admins =
+            (result[0] as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
         audit = canAudit && result.length > 1
             ? (result[1] as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList()
             : const [];
@@ -174,7 +171,8 @@ class _GovernancePageState extends State<GovernancePage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => error = 'Governance records could not be loaded. Server-side permissions remain authoritative.',
+          () => error =
+              'Governance records could not be loaded. Server-side permissions remain authoritative.',
         );
       }
     } finally {
@@ -198,10 +196,8 @@ class _GovernancePageState extends State<GovernancePage> {
       );
       if (mounted) {
         setState(
-          () => matches = (result as List)
-              .whereType<Map>()
-              .map((r) => Map<String, dynamic>.from(r))
-              .toList(),
+          () => matches =
+              (result as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList(),
         );
       }
     } catch (_) {
@@ -240,7 +236,8 @@ class _GovernancePageState extends State<GovernancePage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => error = 'Appointment was not confirmed. The server allows only the system owner to appoint staff.',
+          () => error =
+              'Appointment was not confirmed. The server allows only the system owner to appoint staff.',
         );
       }
     } finally {
@@ -384,110 +381,111 @@ class _GovernancePageState extends State<GovernancePage> {
   }
 
   Widget _pinCard(ThemeData theme) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.key_outlined, size: 36),
-          const SizedBox(height: 8),
-          Text(
-            pinExists ? 'Administrator PIN required' : 'Set your administrator PIN',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.key_outlined, size: 36),
+              const SizedBox(height: 8),
+              Text(
+                pinExists ? 'Administrator PIN required' : 'Set your administrator PIN',
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                pinExists
+                    ? 'Enter your 4–6 digit PIN. Repeated failures can trigger a server-enforced lockout.'
+                    : 'Set a 4–6 digit PIN before opening the privileged workspace.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pin,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Administrator PIN',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: working ? null : submitPin,
+                  child:
+                      Text(working ? 'Verifying…' : (pinExists ? 'Unlock workspace' : 'Set PIN')),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            pinExists
-                ? 'Enter your 4–6 digit PIN. Repeated failures can trigger a server-enforced lockout.'
-                : 'Set a 4–6 digit PIN before opening the privileged workspace.',
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: pin,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            decoration: const InputDecoration(
-              labelText: 'Administrator PIN',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: working ? null : submitPin,
-              child: Text(working ? 'Verifying…' : (pinExists ? 'Unlock workspace' : 'Set PIN')),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _appointmentCard() => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Appoint an administrator',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Only the system owner can appoint staff. The server enforces roles and audit logging.',
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: query,
-            decoration: const InputDecoration(
-              labelText: 'Search username or display name',
-              border: OutlineInputBorder(),
-            ),
-            onSubmitted: (_) => searchUsers(),
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: selectedRole,
-            decoration: const InputDecoration(
-              labelText: 'Governance role',
-              border: OutlineInputBorder(),
-            ),
-            items: roles.entries
-                .map((r) => DropdownMenuItem(value: r.key, child: Text(r.value)))
-                .toList(),
-            onChanged: working
-                ? null
-                : (value) {
-                    if (value != null) {
-                      setState(() => selectedRole = value);
-                    }
-                  },
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: working ? null : searchUsers,
-              icon: const Icon(Icons.search),
-              label: const Text('Search users'),
-            ),
-          ),
-          for (final user in matches)
-            ListTile(
-              leading: const Icon(Icons.person_add_alt_1),
-              title: Text('@${user['username'] ?? 'unknown'}'),
-              subtitle: Text('${user['display_name'] ?? ''}'),
-              trailing: IconButton(
-                tooltip: 'Appoint administrator',
-                onPressed: working ? null : () => appoint(user),
-                icon: const Icon(Icons.add_circle_outline),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Appoint an administrator',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
               ),
-            ),
-        ],
-      ),
-    ),
-  );
+              const SizedBox(height: 6),
+              const Text(
+                'Only the system owner can appoint staff. The server enforces roles and audit logging.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: query,
+                decoration: const InputDecoration(
+                  labelText: 'Search username or display name',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => searchUsers(),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: selectedRole,
+                decoration: const InputDecoration(
+                  labelText: 'Governance role',
+                  border: OutlineInputBorder(),
+                ),
+                items: roles.entries
+                    .map((r) => DropdownMenuItem(value: r.key, child: Text(r.value)))
+                    .toList(),
+                onChanged: working
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => selectedRole = value);
+                        }
+                      },
+              ),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: working ? null : searchUsers,
+                  icon: const Icon(Icons.search),
+                  label: const Text('Search users'),
+                ),
+              ),
+              for (final user in matches)
+                ListTile(
+                  leading: const Icon(Icons.person_add_alt_1),
+                  title: Text('@${user['username'] ?? 'unknown'}'),
+                  subtitle: Text('${user['display_name'] ?? ''}'),
+                  trailing: IconButton(
+                    tooltip: 'Appoint administrator',
+                    onPressed: working ? null : () => appoint(user),
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
 
   Widget _adminTile(Map<String, dynamic> item) {
     final username = '${item['username'] ?? '?'}';

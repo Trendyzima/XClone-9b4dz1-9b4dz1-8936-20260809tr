@@ -96,7 +96,8 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Could not cancel this post. It may already have been processed. Refresh and check its status.',
+          () => _error =
+              'Could not cancel this post. It may already have been processed. Refresh and check its status.',
         );
       }
     } finally {
@@ -179,9 +180,8 @@ class _ScheduledPostsPageState extends State<ScheduledPostsPage> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton.icon(
-                                  onPressed: _deleting == '${post['id']}'
-                                      ? null
-                                      : () => _cancel(post),
+                                  onPressed:
+                                      _deleting == '${post['id']}' ? null : () => _cancel(post),
                                   icon: const Icon(Icons.delete_outline),
                                   label: Text(
                                     _deleting == '${post['id']}' ? 'Cancelling…' : 'Cancel',
