@@ -834,7 +834,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 onError={(event) => {
                   // HLS playback uses MediaSource; replacing its blob src with a
                   // direct URL bypasses the virtual CDN loader and HLS recovery.
-                  if (/\\.m3u8(?:[?#]|$)/i.test(rawVideoUrl || resolvedVideoUrl)) return;
+                  if (/\.m3u8(?:[?#]|$)/i.test(rawVideoUrl || resolvedVideoUrl)) return;
                   const source = event.currentTarget.currentSrc || event.currentTarget.src;
                   const next = nextMediaCandidate(rawVideoUrl || resolvedVideoUrl, source);
                   if (next && event.currentTarget.dataset.fallback !== next) {
