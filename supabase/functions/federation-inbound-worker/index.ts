@@ -99,10 +99,14 @@ async function syncDomain(instance:any){
     };
   }).filter(Boolean);
   let upsertedCount=0;
-  if(rows.length){
-    const stored=await db.from("federated_objects").upsert(rows,{onConflict:"uri",ignoreDuplicates:false}).select("id");
+  // Keep each PostgREST write small: this table has per-row hashtag-index
+  // triggers, and a 40-object upsert can exceed the database statement timeout
+  // when several instance batches finish together.
+  for(let offset=0;offset<rows.length;offset+=10){
+    const chunk=rows.slice(offset,offset+10);
+    const stored=await db.from("federated_objects").upsert(chunk,{onConflict:"uri",ignoreDuplicates:false}).select("id");
     if(stored.error)throw new Error(`database upsert failed: ${stored.error.message}`);
-    upsertedCount=stored.data?.length ?? rows.length;
+    upsertedCount+=stored.data?.length ?? chunk.length;
   }
   const successAt=new Date().toISOString();
   await db.from("federated_instances").update({
@@ -114,7 +118,7 @@ async function syncDomain(instance:any){
     domain,last_attempt_at:successAt,last_synced_at:successAt,last_success_at:successAt,
     last_error:null,objects_fetched:statuses.length,objects_upserted:upsertedCount,duration_ms:Date.now()-started,updated_at:successAt
   },{onConflict:"domain"});
-  const actorUpsert = await db.from("federated_actors").upsert(statuses.map((s:any)=>s.account||{}).map((a:any)=>{
+  const actorRows=statuses.map((s:any)=>s.account||{}).map((a:any)=>{
     const actorUri=String(
       a.uri ||
       a.pleroma?.ap_id ||
@@ -136,8 +140,14 @@ async function syncDomain(instance:any){
       fetched_at:successAt,
       updated_at:successAt
     };
-  }).filter(Boolean),{onConflict:"actor_uri",ignoreDuplicates:false});
-  if(actorUpsert.error) console.warn("[federation-inbound] actor index update failed",actorUpsert.error.message);
+  }).filter(Boolean);
+  for(let offset=0;offset<actorRows.length;offset+=10){
+    const actorUpsert=await db.from("federated_actors").upsert(actorRows.slice(offset,offset+10),{onConflict:"actor_uri",ignoreDuplicates:false});
+    if(actorUpsert.error){
+      console.warn("[federation-inbound] actor index update failed",actorUpsert.error.message);
+      break;
+    }
+  }
   return {domain,status:200,stored:upsertedCount,fetched:statuses.length,durationMs:Date.now()-started};
 }
 
@@ -189,10 +199,10 @@ Deno.serve(async(req)=>{
     const dueOther=dueNow(otherInstances).slice(0,2);
     const due=[...duePublic,...dueOther];
     const results:any[]=[];
-    // At most 26 instances per run, with bounded concurrency. The cron caller
+    // At most 26 instances per run, with bounded concurrency. The smaller write chunks reduce database lock/trigger pressure. The cron caller
     // now allows 120 seconds, enough for the eight-second remote HTTP deadline
     // across these batches without an unbounded burst against remote servers.
-    const concurrency=6;
+    const concurrency=4;
     for(let i=0;i<due.length;i+=concurrency){
       const batch=due.slice(i,i+concurrency);
       const settled=await Promise.all(batch.map(async(instance:any)=>{
