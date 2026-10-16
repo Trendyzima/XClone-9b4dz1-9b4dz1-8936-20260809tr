@@ -5445,6 +5445,11 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Schedules the bounded inbound Fediverse worker every five minutes and increases its pg_net timeout to 120 seconds to match the worker's bounded concurrency batch."
+    },
+    "supabase/migrations/20261016110000_fediverse_ingestion_batch_tuning.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Sets the inbound Fediverse worker to a two-minute cadence after the worker was bounded to 42 sources per run and emits per-batch progress telemetry."
     }
   }
 }
