@@ -2,6 +2,7 @@ name: TV Channel Health Monitor
 
 on:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/tv-health-monitor.yml'
   schedule:
@@ -59,9 +60,10 @@ jobs:
           const channels=data.channels||[];
           const endpoint=process.env.SUPABASE_URL+'/functions/v1/tv-health';
           const token=process.env.GITHUB_OIDC_TOKEN;
-          const batchSize=500;
-          const maxPerRun=5000;
-          const alwaysProbe=Math.min(1000, channels.length);
+          // Keep this scheduled workload subordinate to interactive production traffic.
+          const batchSize=50;
+          const maxPerRun=500;
+          const alwaysProbe=Math.min(100, channels.length);
           const rotating=channels.slice(alwaysProbe).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
           const runSlot=Math.floor(Date.now()/900000); // 15-minute schedule slot
           const rotatingPerRun=Math.min(maxPerRun-alwaysProbe, rotating.length);
