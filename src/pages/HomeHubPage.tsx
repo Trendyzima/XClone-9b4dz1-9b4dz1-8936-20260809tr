@@ -288,28 +288,27 @@ export default function HomeHubPage(){
       }
 
       const fallbackLimit = 12;
-      let fallbackPosts = supabase.from('posts')
+      // The direct fallback has its own explicit offset cursor. Never interpret
+      // the aggregator's opaque cursor as an offset, but do continue fallback
+      // pages when the aggregator itself is unavailable.
+      const parsedFallbackOffset = cursorOverride?.startsWith('fallback:')
+        ? Number.parseInt(cursorOverride.slice('fallback:'.length), 10)
+        : 0;
+      const fallbackOffset = Number.isSafeInteger(parsedFallbackOffset) && parsedFallbackOffset >= 0
+        ? parsedFallbackOffset
+        : 0;
+      const fallbackPosts = supabase.from('posts')
         .select('*, '+profileSelect)
         .is('community_id', null)
         .is('deleted_at', null)
         .order('created_at', {ascending:false})
-        .range(0, fallbackLimit-1);
-      if (cursorOverride) {
-        // The aggregator cursor is opaque, so do not guess a created_at value
-        // from it. A fresh first page is safer than rendering an empty feed.
-        fallbackPosts = supabase.from('posts')
-          .select('*, '+profileSelect)
-          .is('community_id', null)
-          .is('deleted_at', null)
-          .order('created_at', {ascending:false})
-          .range(0, fallbackLimit-1);
-      }
+        .range(fallbackOffset, fallbackOffset + fallbackLimit - 1);
       const fallbackThreads = supabase.from('threads')
         .select('*')
         .eq('visibility','public')
         .is('deleted_at',null)
         .order('created_at',{ascending:false})
-        .range(0, fallbackLimit-1);
+        .range(fallbackOffset, fallbackOffset + fallbackLimit - 1);
       const [{data:postData,error:postError},{data:threadData,error:threadError}] =
         await Promise.all([fallbackPosts,fallbackThreads]);
       if (postError) console.warn('[home-hub] direct post fallback', postError);
@@ -326,6 +325,9 @@ export default function HomeHubPage(){
       if (includeFederated && token) {
         try {
           const fedParams = new URLSearchParams({ limit: '24' });
+          if (cursorOverride?.startsWith('fallback:') && federatedCursorRef.current) {
+            fedParams.set('before', federatedCursorRef.current);
+          }
           const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
             headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
             cache: 'no-store',
@@ -342,9 +344,12 @@ export default function HomeHubPage(){
         }
       }
 
-      setNextCursor(null);
-      nextCursorRef.current=null;
-      setHasMore(fallbackItems.length > 6 || Boolean(federatedCursorRef.current));
+      const hasMoreFallbackRows = (postData?.length ?? 0) >= fallbackLimit
+        || (threadData?.length ?? 0) >= fallbackLimit;
+      const fallbackCursor = hasMoreFallbackRows ? 'fallback:' + (fallbackOffset + fallbackLimit) : null;
+      setNextCursor(fallbackCursor);
+      nextCursorRef.current = fallbackCursor;
+      setHasMore(Boolean(fallbackCursor) || Boolean(federatedCursorRef.current));
       return fallbackItems;
     }
 
