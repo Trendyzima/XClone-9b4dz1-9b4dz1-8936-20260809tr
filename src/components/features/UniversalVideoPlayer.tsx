@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { getOfflineMediaUrl, cacheMedia, isOffline } from '@/lib/offlineMediaCache';
+import VirtualCdnLoader from '@/services/virtualCdnLoader';
 
 export interface UniversalVideoPlayerProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
   src: string;
@@ -124,15 +125,17 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
           objectUrlRef.current = cachedUrl;
           playbackSrc = cachedUrl;
         }
-      } else if (!isHls(src)) {
-        // Warm the persistent cache in the background; never delay first paint.
+      } else if (!isHls(src) && active) {
+        // Only persist the video currently in view. Prefetching every mounted
+        // feed card downloads too much data on long, lazy-mounted timelines.
         void cacheMedia(src, 'video');
       }
 
       if (cancelled) return;
       if (isHls(playbackSrc) && Hls.isSupported()) {
         const hls = new Hls({
-        autoStartLoad: true,
+        loader: VirtualCdnLoader as any,
+        autoStartLoad: active || props.preload === 'auto',
         enableWorker: true,
         lowLatencyMode: false,
         startFragPrefetch: true,
@@ -164,7 +167,11 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         },
       });
       hlsRef.current = hls;
-      hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(playbackSrc));
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        hls.loadSource(playbackSrc);
+        if (active || props.preload === 'auto') hls.startLoad();
+        else hls.stopLoad();
+      });
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && retryCountRef.current < retryLimit) {
@@ -245,10 +252,12 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
     if (!video) return;
     if (!active) {
       video.pause();
+      if (props.preload !== 'auto') hlsRef.current?.stopLoad();
       return;
     }
+    hlsRef.current?.startLoad();
     if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) void play();
-  }, [active, play]);
+  }, [active, play, props.preload]);
 
   useEffect(() => {
     const video = videoRef.current;
