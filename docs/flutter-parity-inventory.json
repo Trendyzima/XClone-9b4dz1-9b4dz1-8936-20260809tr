@@ -5440,6 +5440,11 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Repairs only explicit upstream visibility values for ingested Fediverse statuses; preserves private/direct visibility and adds an index for public-feed cursor reads."
+    },
+    "supabase/migrations/20261016104000_fediverse_ingestion_cadence_and_queue_priority.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Schedules the bounded inbound Fediverse worker every five minutes and increases its pg_net timeout to 120 seconds to match the worker's bounded concurrency batch."
     }
   }
 }
