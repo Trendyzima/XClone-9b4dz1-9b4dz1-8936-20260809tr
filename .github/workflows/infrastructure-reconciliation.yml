@@ -186,8 +186,8 @@ jobs:
               if (secret) output = output.split(secret).join("[REDACTED]");
             }
           } catch {}
-          output = output.replace(/(postgres(?:ql)?:\\/\\/[^:\\s/@]+:)[^@\\s/]+(@)/gi, "$1[REDACTED]$2");
-          process.stdout.write(output.split("\\n").slice(-12).join("\\n"));
+          output = output.replace(/(postgres(?:ql)?:\/\/[^:\s/@]+:)[^@\s/]+(@)/gi, "$1[REDACTED]$2");
+          process.stdout.write(output.split("\n").slice(-12).join("\n"));
           NODE
             exit 1
           fi
