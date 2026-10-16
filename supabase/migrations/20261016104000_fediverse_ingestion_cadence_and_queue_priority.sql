@@ -1,5 +1,5 @@
 -- Keep Fediverse home content fresh while prioritizing known-good public instances.
--- The worker is bounded to 128 instances and 12 concurrent remote requests; the
+-- The worker is bounded to 84 instances and 12 concurrent remote requests; the
 -- 120-second pg_net timeout allows the full bounded batch to finish.
 do $$
 declare
