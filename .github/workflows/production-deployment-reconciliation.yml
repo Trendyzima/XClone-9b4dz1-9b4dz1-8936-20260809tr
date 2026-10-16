@@ -1044,7 +1044,12 @@ jobs:
             "/users/crissbeat/outbox"
           )
           for endpoint in "${FEDERATION_ENDPOINTS[@]}"; do
-            status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30               -H 'Accept: application/activity+json, application/ld+json;q=0.9, application/json;q=0.8'               -o /tmp/testagram-federation-response -w '%{http_code}'               "$APP_ORIGIN$endpoint")"
+            echo "Checking production ActivityPub endpoint: $endpoint"
+            if ! status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30               -H 'Accept: application/activity+json, application/ld+json;q=0.9, application/json;q=0.8'               -o /tmp/testagram-federation-response -w '%{http_code}'               "$APP_ORIGIN$endpoint")"; then
+              echo "::error::Production ActivityPub endpoint $endpoint timed out or failed transport."
+              head -c 2000 /tmp/testagram-federation-response || true
+              exit 1
+            fi
             [[ "$status" == "200" ]] || {
               echo "::error::Production ActivityPub endpoint $endpoint returned HTTP $status."
               head -c 2000 /tmp/testagram-federation-response || true
