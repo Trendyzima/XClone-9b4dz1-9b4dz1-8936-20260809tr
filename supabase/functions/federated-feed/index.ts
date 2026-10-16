@@ -305,7 +305,7 @@ Deno.serve(async (request) => {
           const objectIds = [...new Set((mentions || []).map((m: any) => String(m.object_id || "")).filter(Boolean))];
           if (!objectIds.length) return [];
 
-          const { data: hashtagObjects, error: hashtagObjectsError } = await admin
+          const hashtagObjectsQuery = admin
             .from("federated_objects")
             .select(baseSelect)
             .is("deleted_at", null)
