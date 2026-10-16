@@ -49,7 +49,7 @@ requireText(richText, /const routeHashtag[\s\S]*navigate\('\/hashtag\/'[\s\S]*co
   'Fediverse rich text must route hashtags and remote mentions into canonical Testagram surfaces.');
 
 
-requireText(federationWorker, /\.eq\("public_timeline_available",true\)[\s\S]*\.limit\(40\)[\s\S]*\.limit\(2\)/,
+requireText(federationWorker, /\.eq\("public_timeline_available",true\)[\s\S]*\.limit\(24\)[\s\S]*\.limit\(2\)/,
   'Fediverse ingestion must prioritize known public instances and bound exploratory polling of unknown instances.');
 requireText(federationWorker, /status===400[\s\S]*status===404[\s\S]*status===422/,
   'Unsupported remote timeline responses must be removed from the hot sync queue.');
