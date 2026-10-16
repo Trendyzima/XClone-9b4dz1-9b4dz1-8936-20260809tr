@@ -66,7 +66,7 @@ requireText(postCard, /<UniversalVideoPlayer[\s\S]*active=\{videoInView && !show
   'Home feed video cards must autoplay muted only when visible and preload nearby media.');
 requireText(home, /FederatedHashtagDiscovery surface="home"/,
   'The infinite home surface must retain hashtag discovery alongside posts.');
-requireText(home, /i===5[\s\S]*<TrendingVideosSection variant="compact" \\/>[\s\S]*<SyndicatedNewsRail \\/>[\s\S]*<CommunitySpotlightStrip \\/>/,
+requireText(home, /i===5[\s\S]*<TrendingVideosSection variant="compact" \/>[\s\S]*<SyndicatedNewsRail \/>[\s\S]*<CommunitySpotlightStrip \/>/,
   'After the first six feed entries, Home must lazily interleave video discovery, syndicated news, and public communities without blocking the first posts.');
 requireText(home, /<FeedAdCard/,
   'The infinite home surface must retain native-style in-feed ads alongside posts and TV content.');
