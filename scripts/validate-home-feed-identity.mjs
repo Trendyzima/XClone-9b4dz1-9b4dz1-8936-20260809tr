@@ -16,6 +16,7 @@ const federationWorker = read('supabase/functions/federation-inbound-worker/inde
 const federatedFeed = read('supabase/functions/federated-feed/index.ts');
 const supabaseConfig = read('supabase/config.toml');
 const visibilityRepair = read('supabase/migrations/20261016101000_federated_public_timeline_visibility_repair.sql');
+const ingestionCadence = read('supabase/migrations/20261016104000_fediverse_ingestion_cadence_and_queue_priority.sql');
 const videoPlayer = read('src/components/features/UniversalVideoPlayer.tsx');
 const postCard = read('src/components/features/PostCard.tsx');
 
@@ -47,6 +48,12 @@ requireText(richText, /const routeHashtag[\s\S]*navigate\('\/hashtag\/'[\s\S]*co
   'Fediverse rich text must route hashtags and remote mentions into canonical Testagram surfaces.');
 
 
+requireText(federationWorker, /\.eq\("public_timeline_available",true\)[\s\S]*\.limit\(120\)[\s\S]*\.limit\(8\)/,
+  'Fediverse ingestion must prioritize known public instances and bound exploratory polling of unknown instances.');
+requireText(federationWorker, /UNAVAILABLE_RECHECK_INTERVAL_MS = 24 \* 60 \* 60 \* 1000/,
+  'Instances that do not expose public timelines must be rechecked daily rather than monopolizing the ingestion queue.');
+requireText(ingestionCadence, /schedule := '\*\/5 \* \* \* \*'[\s\S]*timeout_milliseconds := 120000/,
+  'The inbound worker cron cadence and HTTP timeout must match its bounded processing batch.');
 requireText(federationWorker, /function normalizeTimelineVisibility\(value:any\)[\s\S]*visibility:normalizeTimelineVisibility\(s\.visibility\)/,
   'Public timeline ingestion must persist the upstream visibility instead of falling back to the database direct-only default.');
 requireText(visibilityRepair, /instance_id is not null[\s\S]*raw_object->>'visibility'[\s\S]*visibility is distinct from/,
