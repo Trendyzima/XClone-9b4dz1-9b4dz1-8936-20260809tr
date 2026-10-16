@@ -116,7 +116,7 @@ Deno.serve(async (request) => {
           .from("hashtags")
           .select("id,tag")
           .in("id", followedHashtagIds).abortSignal(AbortSignal.timeout(4000));
-        if (hashtagError) throw hashtagError;
+        if (hashtagError) console.warn("[federated-feed] hashtag metadata degraded", hashtagError);
         followedHashtagTags = (followedHashtags || [])
           .map((r: any) => String(r.tag || "").replace(/^#/, "").trim().toLowerCase())
           .filter(Boolean);
