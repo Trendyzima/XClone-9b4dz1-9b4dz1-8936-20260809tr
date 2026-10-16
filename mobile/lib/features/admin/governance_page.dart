@@ -447,7 +447,7 @@ class _GovernancePageState extends State<GovernancePage> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: selectedRole,
+                initialValue: selectedRole,
                 decoration: const InputDecoration(
                   labelText: 'Governance role',
                   border: OutlineInputBorder(),
