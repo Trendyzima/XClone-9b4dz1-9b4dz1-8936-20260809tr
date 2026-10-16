@@ -515,7 +515,7 @@ function applyPublicApiCache(response: Response, request: Request, url: URL) {
   if (request.method !== 'GET' || request.headers.has('authorization') || !response.ok) return response;
   let policy: string | null = null;
   if (url.pathname === '/api/home-feed' || url.pathname === '/api/home-discovery') {
-    policy = 'public, max-age=15, s-maxage=15, stale-while-revalidate=60';
+    policy = 'public, max-age=15, s-maxage=30, stale-while-revalidate=300';
   } else if (url.pathname === '/api/news') {
     policy = 'public, max-age=30, s-maxage=30, stale-while-revalidate=120';
   } else if (url.pathname === '/api/live' && url.searchParams.get('action') === 'viewer') {
