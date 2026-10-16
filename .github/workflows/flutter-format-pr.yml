@@ -47,8 +47,8 @@ jobs:
       - name: Format Flutter sources and tests
         working-directory: mobile
         run: |
-          dart format lib test
-          dart format --output=none --set-exit-if-changed lib test
+          dart format --page-width=100 lib test
+          dart format --page-width=100 --output=none --set-exit-if-changed lib test
       - name: Commit formatter changes if needed
         shell: bash
         run: |
