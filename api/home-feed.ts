@@ -240,7 +240,7 @@ export default async function handler(request: RequestLike) {
       ? admin.from('content_recommendations')
         .select('recommended_post_id,score,reason,source')
         .eq('user_id', auth.id).eq('shown', false)
-         .order('score', { ascending: false }).limit(sourceLimit).abortSignal(AbortSignal.timeout(8000))
+        .order('score', { ascending: false }).limit(sourceLimit).abortSignal(AbortSignal.timeout(8000))
       : Promise.resolve({ data: [], error: null });
 
     const postsQuery = admin.from('posts')
