@@ -23,9 +23,9 @@ function searchDisplayText(value: unknown): string {
   const source = String(value ?? '');
   if (!source) return '';
   return source
-    .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')
-    .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')
-    .replace(/<br\\s*\\/?>(?=.)/gi, ' ')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>(?=.)/gi, ' ')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
@@ -33,7 +33,7 @@ function searchDisplayText(value: unknown): string {
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 function normalizeRemoteStatus(status: any, domain: string) {
