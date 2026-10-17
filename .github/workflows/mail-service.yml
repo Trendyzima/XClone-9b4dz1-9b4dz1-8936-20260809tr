@@ -44,13 +44,16 @@ jobs:
           cache: npm
           cache-dependency-path: services/mail/package.json
       - run: npm install --package-lock-only
+      - name: Export generated mail dependency lockfile for reproducibility
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-mail-lockfile-bootstrap
+          path: services/mail/package-lock.json
+          if-no-files-found: error
       - run: npm ci
       - name: Audit production mail dependencies
         run: |
-          set +e
-          npm audit --omit=dev --json > /tmp/testagram-mail-audit.json
-          audit_status=$?
-          set -e
+          npm audit --omit=dev --json > /tmp/testagram-mail-audit.json || true
           node --input-type=module <<'NODE'
           import fs from "node:fs";
           const report = JSON.parse(fs.readFileSync("/tmp/testagram-mail-audit.json", "utf8"));
