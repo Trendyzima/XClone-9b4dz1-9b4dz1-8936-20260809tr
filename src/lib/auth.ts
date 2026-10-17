@@ -104,7 +104,17 @@ async function finalizeAuthenticatedSessionInternal(user: User, options: { requi
     try { window.localStorage.removeItem(LEGAL_CONSENT_STORAGE_KEY); } catch {}
   }
 
-  return mapSupabaseUserWithCanonicalProfile(user);
+  // Legal/age policy has been checked successfully above. Profile hydration is
+  // secondary to establishing a valid session, so a transient profile-plane
+  // outage must not turn a correct password into a failed login.
+  try {
+    return await withAuthTimeout(mapSupabaseUserWithCanonicalProfile(user), 'Profile setup', 8_000);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message || '');
+    const transient = /timed? ?out|timeout|failed to fetch|network|connection terminated|statement timeout|gateway timeout|service unavailable|context deadline exceeded|request_timeout|\b(408|500|502|503|504)\b/i.test(message);
+    if (!transient) throw error;
+    return mapSupabaseUser(user);
+  }
 }
 
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
@@ -132,9 +142,9 @@ export async function finalizeAuthenticatedSession(user: User, options: { requir
   return withAuthTimeout(finalizeAuthenticatedSessionInternal(user, options), 'Account setup');
 }
 
-async function withAuthTimeout<T>(operation: PromiseLike<T> | Promise<T>, label: string): Promise<T> {
+async function withAuthTimeout<T>(operation: PromiseLike<T> | Promise<T>, label: string, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`${label} timed out while waiting for the authentication service. This may be a temporary server issue; wait a moment before retrying.`)), AUTH_REQUEST_TIMEOUT_MS); });
+  const timeout = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`${label} timed out while waiting for the authentication service. This may be a temporary server issue; wait a moment before retrying.`)), timeoutMs); });
   try { return await Promise.race([Promise.resolve(operation), timeout]); } finally { if (timeoutId) clearTimeout(timeoutId); }
 }
 
