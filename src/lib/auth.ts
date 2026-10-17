@@ -108,7 +108,7 @@ async function finalizeAuthenticatedSessionInternal(user: User, options: { requi
   // secondary to establishing a valid session, so a transient profile-plane
   // outage must not turn a correct password into a failed login.
   try {
-    return await withAuthTimeout(mapSupabaseUserWithCanonicalProfile(user), 'Profile setup', 8_000);
+    return await withAuthTimeout(mapSupabaseUserWithCanonicalProfile(user), 'Profile setup', 5_000);
   } catch (error) {
     const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message || '');
     const transient = /timed? ?out|timeout|failed to fetch|network|connection terminated|statement timeout|gateway timeout|service unavailable|context deadline exceeded|request_timeout|\b(408|500|502|503|504)\b/i.test(message);
