@@ -16,7 +16,16 @@ import { identitySignup } from '@/lib/identitySignup';
 type AuthMode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
 
 function friendlyAuthError(error: unknown, fallback: string) {
-  const message = error instanceof Error ? error.message : '';
+  const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message || '');
+  const details = error && typeof error === 'object' ? error as { status?: number; statusCode?: number; code?: string } : {};
+  const status = details.status ?? details.statusCode;
+  const code = String(details.code || '');
+  if (status === 429 || /rate.?limit|too many requests/i.test(`${code} ${message}`)) {
+    return 'Too many attempts. Wait a little before trying again.';
+  }
+  if ([408, 500, 502, 503, 504].includes(Number(status)) || /request_timeout|gateway timeout|service unavailable|upstream.*timeout/i.test(`${code} ${message}`)) {
+    return 'Testagram authentication is temporarily unable to complete the request. This appears to be a service-side problem, not necessarily your password or connection. Please wait a moment and try again.';
+  }
   const safeMessages: Record<string, string> = {
     AGE_RESTRICTION: 'You must be at least 18 years old to create a Testagram account.',
     LEGAL_ACCEPTANCE_REQUIRED: 'Please review and accept the required policies before continuing.',
@@ -34,7 +43,7 @@ function friendlyAuthError(error: unknown, fallback: string) {
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
     TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
   };
-  return safeMessages[message] || (message.includes('timed out') ? 'The request took too long. Check your connection and try again.' : fallback);
+  return safeMessages[message] || (message.toLowerCase().includes('timed out') ? 'The authentication service did not respond in time. This may be a temporary server issue; wait a moment before retrying.' : fallback);
 }
 
 function getSafeReturnTo() {
