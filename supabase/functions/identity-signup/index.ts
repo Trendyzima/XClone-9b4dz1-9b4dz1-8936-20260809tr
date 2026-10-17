@@ -1,30 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-function trustedMailUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "mail.testagram.site" ||
-      url.port ||
-      url.username ||
-      url.password ||
-      (url.pathname !== "" && url.pathname !== "/") ||
-      url.search ||
-      url.hash
-    ) return "";
-    return url.origin;
-  } catch {
-    return "";
-  }
-}
+import { enqueueTestagramMail } from "../_shared/testagram-mail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
 const SERVICE_KEY = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
-const TESTAGRAM_MAIL_URL = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
-const TESTAGRAM_MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
 const FROM = "Testagram <noreply@testagram.site>";
 
@@ -95,7 +75,6 @@ function escapeHtml(value: unknown) {
   return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 async function sendOtp(email: string, code: string) {
-  if (!TESTAGRAM_MAIL_URL || !TESTAGRAM_MAIL_TOKEN) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
   const safeEmail = escapeHtml(email);
   const html = `<!doctype html><html><body style="margin:0;background:#f4f7f8;font-family:Arial,sans-serif;color:#172026">
   <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 8px 30px rgba(0,0,0,.07)">
@@ -105,16 +84,10 @@ async function sendOtp(email: string, code: string) {
   <p style="font-size:13px;color:#667085">This code expires in 10 minutes. Testagram will not create your account until identity verification is approved.</p>
   <p style="font-size:12px;color:#98a2b3">Sent to ${safeEmail}</p></div></body></html>`;
   const idempotencyKey = await sha256("testagram-email-otp|" + email + "|" + code);
-  const res = await fetch(TESTAGRAM_MAIL_URL + "/emails", {
-    method: "POST",
-    redirect: "error",
-    headers: { Authorization: "Bearer " + TESTAGRAM_MAIL_TOKEN, "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ from: FROM, to: [email], subject: "Confirm your Testagram email", html, text: `Testagram verification code: ${code}. It expires in 10 minutes.` }),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error("TESTAGRAM_MAIL_HTTP_" + res.status + (detail ? "_" + detail.slice(0, 120) : ""));
-  }
+  await enqueueTestagramMail({
+    from: FROM, to: [email], subject: "Confirm your Testagram email", html,
+    text: `Testagram verification code: ${code}. It expires in 10 minutes.`,
+  }, idempotencyKey, { supabaseUrl: SUPABASE_URL, serviceKey: SERVICE_KEY });
 }
 async function getIntent(token: string, allowCompletedUser = false) {
   const hash = await tokenHash(token);
