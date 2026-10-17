@@ -4,7 +4,8 @@ First-party transactional email service inspired by the useful API patterns in t
 
 ## API
 
-- `GET /health`
+- `GET /health` (liveness only)
+- `GET /ready` (checks configuration, database access, and authenticated SMTP relay readiness)
 - `POST /emails`
 - `GET /emails/:id`
 - `DELETE /emails/:id`
