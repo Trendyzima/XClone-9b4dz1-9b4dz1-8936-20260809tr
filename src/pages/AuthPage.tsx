@@ -194,7 +194,7 @@ export default function AuthPage() {
   };
 
   const finishLogin = async (user: any) => {
-    let finalized;
+    let finalized: ReturnType<typeof mapSupabaseUser>;
     try {
       finalized = await finalizeAuthenticatedSession(user);
     } catch (error) {
@@ -218,7 +218,7 @@ export default function AuthPage() {
     // successful sign-in while database/RPC capacity is degraded.
     void applyPendingReferral();
     navigate(getSafeReturnTo(), { replace: true });
-  };;
+  };
 
   const handlePasswordSignIn = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true);
