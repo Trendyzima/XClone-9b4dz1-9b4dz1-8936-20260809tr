@@ -15,6 +15,7 @@ requireText(/const isNodeInfoPath = request\.method === 'GET'[\s\S]*\/\^\\\/node
 requireText(/if \(!isNodeInfoPath\) throw error[\s\S]*return nodeInfoFallback\(pathname\)/, 'Non-NodeInfo proxy failures must not be hidden by the fallback.');
 requireText(/if \(isNodeInfoPath && response\.status >= 500\)[\s\S]*return nodeInfoFallback\(pathname\)/, 'NodeInfo upstream 5xx responses must degrade to protocol-safe metadata.');
 if (!source.includes("if (pathname === '/.well-known/webfinger') return '/functions/v1/mastodon-federation/.well-known/webfinger'")) failures.push('Canonical WebFinger lookup must proxy to the ActivityPub handler.');
+requireText(/pathname === '\/.well-known\/webfinger'/, 'Public WebFinger lookups must be eligible for short-lived edge caching.');
 requireText(/if \(pathname === '\/.well-known\/nodeinfo'\) return '\/functions\/v1\/mastodon-federation\/.well-known\/nodeinfo'/, 'Canonical NodeInfo discovery route must proxy to the ActivityPub handler.');
 requireText(/if \(pathname === '\/nodeinfo\/2\.0'\) return '\/functions\/v1\/mastodon-federation\/nodeinfo\/2\.0'/, 'NodeInfo 2.0 route must proxy to the ActivityPub handler.');
 requireText(/if \(pathname === '\/nodeinfo\/2\.1'\) return '\/functions\/v1\/mastodon-federation\/nodeinfo\/2\.1'/, 'NodeInfo 2.1 route must proxy to the ActivityPub handler.');
