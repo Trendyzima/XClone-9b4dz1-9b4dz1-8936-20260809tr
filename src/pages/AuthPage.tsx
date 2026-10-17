@@ -28,11 +28,11 @@ function friendlyAuthError(error: unknown, fallback: string) {
     PASSWORD_TOO_SHORT: 'Use a password with at least 8 characters.',
     EMAIL_NOT_VERIFIED: 'Verify your email before continuing.',
     IDENTITY_NOT_APPROVED: 'Your identity must be approved before creating the account.',
-    IDENTITY_SERVICE_UNAVAILABLE: 'Authentication services are temporarily unavailable. Please try again shortly.',
     IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
     IDENTITY_NETWORK_ERROR: 'Could not reach the authentication service. Check your connection and try again.',
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
     IDENTITY_SERVICE_UNAVAILABLE: 'Sign-in is temporarily unavailable. Please try again in a moment.',
+    TESTAGRAM_MAIL_QUEUE_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
     TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
   };
   return safeMessages[message] || (message.includes('timed out') ? 'The request took too long. Check your connection and try again.' : fallback);
