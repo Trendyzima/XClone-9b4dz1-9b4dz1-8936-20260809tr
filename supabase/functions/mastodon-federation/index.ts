@@ -17,15 +17,19 @@ async function getNodeInfoStats(){
   // discovery wait for Supabase's gateway/database timeout.
   const stale=nodeInfoStatsCache;
   let timeoutId:ReturnType<typeof setTimeout>|undefined;
+  const controller=new AbortController();
   const deadline=new Promise<never>((_,reject)=>{
-    timeoutId=setTimeout(()=>reject(new Error('NodeInfo statistics query exceeded its 1500ms budget')),1500);
+    timeoutId=setTimeout(()=>{
+      controller.abort();
+      reject(new Error('NodeInfo statistics query exceeded its 1500ms budget'));
+    },1500);
   });
   try{
     const stats=await Promise.race([
       (async()=>{
         const [users,posts]=await Promise.all([
-          db.from('profiles').select('id',{count:'planned',head:true}),
-          db.from('posts').select('id',{count:'planned',head:true}).is('deleted_at',null)
+          db.from('profiles').select('id',{count:'planned',head:true}).abortSignal(controller.signal),
+          db.from('posts').select('id',{count:'planned',head:true}).is('deleted_at',null).abortSignal(controller.signal)
         ]);
         if(users.error)throw users.error;
         if(posts.error)throw posts.error;
