@@ -3,6 +3,8 @@ import { Webhook } from "npm:standardwebhooks@1";
 const BRAND_URL = "https://testagram.site";
 const LOGO_URL = "https://testagram.site/app-icon.jpg";
 const FROM = "Testagram <noreply@testagram.site>";
+const MAIL_URL = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
+const MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 
 type EmailData = {
   email_action_type?: string;
@@ -67,18 +69,26 @@ ${url ? `<p style="font-size:12px;line-height:1.55;color:#667085;word-break:brea
 </table></td></tr></table></body></html>`;
 }
 
-async function sendOne(apiKey: string, to: string, subject: string, html: string, text: string) {
-  const response = await fetch("https://api.resend.com/emails", {
+async function sendOne(to: string, subject: string, html: string, text: string) {
+  if (!MAIL_URL || !MAIL_TOKEN) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
+  const fingerprint = new TextEncoder().encode(`testagram-auth-email|\${to.toLowerCase()}|\${subject}|\${text}`);
+  const digest = await crypto.subtle.digest("SHA-256", fingerprint);
+  const idempotencyKey = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  const response = await fetch(`${MAIL_URL}/emails`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${MAIL_TOKEN}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
     body: JSON.stringify({ from: FROM, to: [to], subject, html, text }),
   });
-  const body = await response.text();
   if (!response.ok) {
-    console.error("RESEND_REJECTED", JSON.stringify({ status: response.status, body: body.slice(0, 500) }));
-    throw new Error(`RESEND_HTTP_${response.status}`);
+    const detail = await response.text().catch(() => "");
+    console.error("TESTAGRAM_MAIL_REJECTED", JSON.stringify({ status: response.status, detail: detail.slice(0, 300) }));
+    throw new Error(`TESTAGRAM_MAIL_HTTP_${response.status}`);
   }
-  console.log("RESEND_ACCEPTED", JSON.stringify({ status: response.status }));
+  console.log("TESTAGRAM_MAIL_ACCEPTED", JSON.stringify({ status: response.status }));
 }
 
 function json(body: unknown, status = 200) {
@@ -91,9 +101,8 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") return new Response("not allowed", { status: 405 });
 
     const secretRaw = Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "";
-    const resendKey = Deno.env.get("RESEND_API_KEY") ?? "";
-    if (!secretRaw || !resendKey) {
-      console.error("AUTH_EMAIL_CONFIG_MISSING", JSON.stringify({ requestId, hasHookSecret: !!secretRaw, hasResendKey: !!resendKey }));
+    if (!secretRaw || !MAIL_URL || !MAIL_TOKEN) {
+      console.error("AUTH_EMAIL_CONFIG_MISSING", JSON.stringify({ requestId, hasHookSecret: !!secretRaw, hasMailUrl: !!MAIL_URL, hasMailToken: !!MAIL_TOKEN }));
       return json({ error: "EMAIL_TRANSPORT_NOT_CONFIGURED" }, 503);
     }
 
@@ -121,18 +130,18 @@ Deno.serve(async (req) => {
       const newEmail = String(user.new_email);
       if (!newEmail.includes("@")) throw new Error("INVALID_NEW_RECIPIENT");
       if (data.token_new && data.token_hash) {
-        await sendOne(resendKey, newEmail, copy.subject, brandedHtml({ email: newEmail, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: confirmationUrl(supabaseUrl, String(data.token_hash), actionType, redirectTo), token: data.token_new }), `Testagram: ${copy.intro} ${data.token_new}`);
-        if (data.token && data.token_hash_new) await sendOne(resendKey, email, "Confirm your Testagram email change", brandedHtml({ email, title: "Confirm your email change", intro: "A request was made to change the email address on your Testagram account. Confirm it if this was you.", button: "Confirm email change", actionUrl: confirmationUrl(supabaseUrl, String(data.token_hash_new), actionType, redirectTo), token: data.token }), "Testagram: confirm your email change using the verification code in this email.");
+        await sendOne(newEmail, copy.subject, brandedHtml({ email: newEmail, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: confirmationUrl(supabaseUrl, String(data.token_hash), actionType, redirectTo), token: data.token_new }), `Testagram: ${copy.intro} ${data.token_new}`);
+        if (data.token && data.token_hash_new) await sendOne(email, "Confirm your Testagram email change", brandedHtml({ email, title: "Confirm your email change", intro: "A request was made to change the email address on your Testagram account. Confirm it if this was you.", button: "Confirm email change", actionUrl: confirmationUrl(supabaseUrl, String(data.token_hash_new), actionType, redirectTo), token: data.token }), "Testagram: confirm your email change using the verification code in this email.");
       } else if (data.token_hash && (data.token || data.token_new)) {
         const token = String(data.token ?? data.token_new);
-        await sendOne(resendKey, newEmail, copy.subject, brandedHtml({ email: newEmail, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: confirmationUrl(supabaseUrl, String(data.token_hash), actionType, redirectTo), token }), `Testagram: ${copy.intro} ${token}`);
+        await sendOne(newEmail, copy.subject, brandedHtml({ email: newEmail, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: confirmationUrl(supabaseUrl, String(data.token_hash), actionType, redirectTo), token }), `Testagram: ${copy.intro} ${token}`);
       } else throw new Error("INCOMPLETE_EMAIL_CHANGE_PAYLOAD");
     } else if (data.token_hash) {
       const verifyType = actionType === "signup" ? "signup" : actionType === "recovery" ? "recovery" : actionType === "invite" ? "invite" : actionType === "magiclink" ? "magiclink" : actionType;
       const url = confirmationUrl(supabaseUrl, String(data.token_hash), verifyType, redirectTo);
-      await sendOne(resendKey, email, copy.subject, brandedHtml({ email, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: url, token: data.token }), `Testagram: ${copy.intro} Verification code: ${data.token ?? "Use the secure link in this email."}`);
+      await sendOne(email, copy.subject, brandedHtml({ email, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: url, token: data.token }), `Testagram: ${copy.intro} Verification code: ${data.token ?? "Use the secure link in this email."}`);
     } else {
-      await sendOne(resendKey, email, copy.subject, brandedHtml({ email, title: copy.title, intro: copy.intro, button: copy.button }), `Testagram: ${copy.intro}`);
+      await sendOne(email, copy.subject, brandedHtml({ email, title: copy.title, intro: copy.intro, button: copy.button }), `Testagram: ${copy.intro}`);
     }
 
     console.log("AUTH_EMAIL_SUCCESS", JSON.stringify({ requestId, actionType }));
@@ -140,7 +149,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
     console.error("AUTH_EMAIL_FAILURE", JSON.stringify({ requestId, error: message }));
-    const status = message.startsWith("RESEND_HTTP_") ? 502 : message.includes("INVALID") || message.includes("Incomplete") ? 400 : 401;
+    const status = message.startsWith("TESTAGRAM_MAIL_HTTP_") ? 502 : message.includes("INVALID") || message.includes("Incomplete") ? 400 : 401;
     return json({ error: "AUTH_EMAIL_DELIVERY_FAILED", request_id: requestId }, status);
   }
 });
