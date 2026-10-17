@@ -236,11 +236,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         if (event === 'SIGNED_IN') {
           trackTestagramEvent(TestagramEvent.LOGGED_IN, { auth_event: event });
+          // Password, OTP, and PKCE callbacks on /auth are finalized by AuthPage.
+          // Hydrating here as well duplicates several profile/legal RPCs during
+          // sign-in and can amplify database saturation exactly when auth is hot.
+          // Keep INITIAL_SESSION hydration below: it is needed for existing sessions.
+          if (normalizedPathname() === '/auth') return;
         }
         if (event === 'USER_UPDATED') {
           trackTestagramEvent(TestagramEvent.PROFILE_UPDATED, { source: 'auth_user_updated' });
         }
-        // AuthPage already performs the legal/account finalization during sign-in.\n        // Re-running it here with requireFreshLegalConsent would reject the newly\n        // authenticated session after the local consent record has been consumed.\n        hydrateUser(session.user, false);
+        hydrateUser(session.user, false);
       }
     });
 

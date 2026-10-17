@@ -23,8 +23,11 @@ function friendlyAuthError(error: unknown, fallback: string) {
   if (status === 429 || /rate.?limit|too many requests/i.test(`${code} ${message}`)) {
     return 'Too many attempts. Wait a little before trying again.';
   }
-  if ([408, 500, 502, 503, 504].includes(Number(status)) || /request_timeout|gateway timeout|service unavailable|upstream.*timeout/i.test(`${code} ${message}`)) {
-    return 'Testagram authentication is temporarily unable to complete the request. This appears to be a service-side problem, not necessarily your password or connection. Please wait a moment and try again.';
+  const cause = details && typeof (details as any).cause === 'object' ? (details as any).cause as { message?: unknown; code?: unknown; status?: number; statusCode?: number } : undefined;
+  const diagnostic = [code, message, cause?.code, cause?.message].map((value) => String(value || '')).join(' ');
+  const nestedStatus = cause?.status ?? cause?.statusCode;
+  if ([408, 500, 502, 503, 504].includes(Number(status ?? nestedStatus)) || /request_timeout|request took too long|timed? ?out|context deadline exceeded|gateway timeout|service unavailable|upstream.*timeout|connection pool|statement timeout/i.test(diagnostic)) {
+    return 'Testagram authentication is taking too long to respond. The service may be experiencing a server-side delay; this does not necessarily mean your password is wrong. Wait a moment before retrying.';
   }
   const safeMessages: Record<string, string> = {
     AGE_RESTRICTION: 'You must be at least 18 years old to create a Testagram account.',
@@ -194,7 +197,9 @@ export default function AuthPage() {
     const finalized = await finalizeAuthenticatedSession(user);
     login(finalized);
     setLoading(false);
-    await applyPendingReferral();
+    // Referral bookkeeping is best-effort and must never hold up an otherwise
+    // successful sign-in while database/RPC capacity is degraded.
+    void applyPendingReferral();
     // Existing-account login never launches KYC. Identity verification is only
     // entered from the explicit account-creation flow.
     navigate(getSafeReturnTo(), { replace: true });
