@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
 import type { ComponentProps, ComponentType } from 'react';
-import { AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,19 +16,7 @@ import { identitySignup } from '@/lib/identitySignup';
 type AuthMode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
 
 function friendlyAuthError(error: unknown, fallback: string) {
-  const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message || '');
-  const details = error && typeof error === 'object' ? error as { status?: number; statusCode?: number; code?: string } : {};
-  const status = details.status ?? details.statusCode;
-  const code = String(details.code || '');
-  if (status === 429 || /rate.?limit|too many requests/i.test(`${code} ${message}`)) {
-    return 'Too many attempts. Wait a little before trying again.';
-  }
-  const cause = details && typeof (details as any).cause === 'object' ? (details as any).cause as { message?: unknown; code?: unknown; status?: number; statusCode?: number } : undefined;
-  const diagnostic = [code, message, cause?.code, cause?.message].map((value) => String(value || '')).join(' ');
-  const nestedStatus = cause?.status ?? cause?.statusCode;
-  if ([408, 500, 502, 503, 504].includes(Number(status ?? nestedStatus)) || /request_timeout|request took too long|timed? ?out|context deadline exceeded|gateway timeout|service unavailable|upstream.*timeout|connection pool|statement timeout/i.test(diagnostic)) {
-    return 'Testagram authentication is taking too long to respond. The service may be experiencing a server-side delay; this does not necessarily mean your password is wrong. Wait a moment before retrying.';
-  }
+  const message = error instanceof Error ? error.message : '';
   const safeMessages: Record<string, string> = {
     AGE_RESTRICTION: 'You must be at least 18 years old to create a Testagram account.',
     LEGAL_ACCEPTANCE_REQUIRED: 'Please review and accept the required policies before continuing.',
@@ -42,12 +29,12 @@ function friendlyAuthError(error: unknown, fallback: string) {
     EMAIL_NOT_VERIFIED: 'Verify your email before continuing.',
     IDENTITY_NOT_APPROVED: 'Your identity must be approved before creating the account.',
     IDENTITY_SERVICE_UNAVAILABLE: 'Authentication services are temporarily unavailable. Please try again shortly.',
-    IDENTITY_REQUEST_TIMEOUT: 'Testagram could not confirm the request in time. This can be a temporary authentication-service delay, not an incorrect password. Wait briefly, then retry.',
+    IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
     IDENTITY_NETWORK_ERROR: 'Could not reach the authentication service. Check your connection and try again.',
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
     TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
   };
-  return safeMessages[message] || (message.toLowerCase().includes('timed out') ? 'The authentication service did not respond in time. This may be a temporary server issue; wait a moment before retrying.' : fallback);
+  return safeMessages[message] || (message.includes('timed out') ? 'The request took too long. Check your connection and try again.' : fallback);
 }
 
 function getSafeReturnTo() {
@@ -83,8 +70,6 @@ export default function AuthPage() {
   const [otpPurpose, setOtpPurpose] = useState<'signin' | 'signup'>('signin');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
-  const [authNotice, setAuthNotice] = useState<{ title: string; description: string; pendingSetup?: boolean } | null>(null);
-  const [pendingAuthUser, setPendingAuthUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const { toast } = useToast();
@@ -200,80 +185,16 @@ export default function AuthPage() {
     const finalized = await finalizeAuthenticatedSession(user);
     login(finalized);
     setLoading(false);
-    // Referral bookkeeping is best-effort and must never hold up an otherwise
-    // successful sign-in while database/RPC capacity is degraded.
-    void applyPendingReferral();
+    await applyPendingReferral();
+    // Existing-account login never launches KYC. Identity verification is only
+    // entered from the explicit account-creation flow.
     navigate(getSafeReturnTo(), { replace: true });
   };
 
-  const isTransientAuthError = (error: unknown) => {
-    const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message || '');
-    const details = error && typeof error === 'object' ? error as { status?: number; statusCode?: number; code?: string } : {};
-    return !['AGE_RESTRICTION', 'LEGAL_ACCEPTANCE_REQUIRED', 'SESSION_EXPIRED'].includes(message) &&
-      ([408, 429, 500, 502, 503, 504].includes(Number(details.status ?? details.statusCode)) ||
-        /IDENTITY_REQUEST_TIMEOUT|request_timeout|timed? ?out|context deadline exceeded|gateway timeout|service unavailable|connection terminated|failed to fetch|network error|statement timeout/i.test(message));
-  };
-
   const handlePasswordSignIn = async (event: FormEvent) => {
-    event.preventDefault();
-    setLoading(true);
-    setAuthNotice(null);
-    setPendingAuthUser(null);
-    let user: User;
-    try {
-      user = await authService.signInWithPassword(email, password);
-    } catch (error: unknown) {
-      setLoading(false);
-      setAuthNotice({
-        title: 'Could not confirm sign-in',
-        description: friendlyAuthError(error, 'Check your details and try again. If this keeps happening, the authentication service may be temporarily unavailable.'),
-      });
-      return;
-    }
-
-    try {
-      await finishLogin(user);
-    } catch (error: unknown) {
-      setLoading(false);
-      if (isTransientAuthError(error)) {
-        setPendingAuthUser(user);
-        setAuthNotice({
-          title: 'Your password was accepted',
-          description: 'Testagram signed you in, but account setup is responding slowly. Your session is being preserved. Retry account setup instead of submitting your password again.',
-          pendingSetup: true,
-        });
-        return;
-      }
-      setAuthNotice({
-        title: 'Account setup needs attention',
-        description: friendlyAuthError(error, 'We could not finish setting up your account. Please review the message and try again.'),
-      });
-    }
-  };
-
-  const retryPendingAccountSetup = async () => {
-    if (!pendingAuthUser || loading) return;
-    setLoading(true);
-    setAuthNotice(null);
-    try {
-      await finishLogin(pendingAuthUser);
-      setPendingAuthUser(null);
-    } catch (error: unknown) {
-      setLoading(false);
-      if (isTransientAuthError(error)) {
-        setAuthNotice({
-          title: 'Account setup is still delayed',
-          description: 'Your password was accepted and your session is preserved. Wait a moment and retry account setup.',
-          pendingSetup: true,
-        });
-        return;
-      }
-      setPendingAuthUser(null);
-      setAuthNotice({
-        title: 'Account setup needs attention',
-        description: friendlyAuthError(error, 'We could not finish setting up your account.'),
-      });
-    }
+    event.preventDefault(); setLoading(true);
+    try { await finishLogin(await authService.signInWithPassword(email, password)); }
+    catch (error: any) { setLoading(false); toast({ title: 'Sign-in failed', description: friendlyAuthError(error, 'Check your details and try again.'), variant: 'destructive' }); }
   };
 
   const startIdentitySignup = async () => {
@@ -401,8 +322,6 @@ export default function AuthPage() {
 
   const go = (next: AuthMode) => {
     setLoading(false);
-    setAuthNotice(null);
-    setPendingAuthUser(null);
     setPassword('');
     setConfirmation('');
     if (mode === 'reset' && next !== 'reset') {
@@ -456,19 +375,6 @@ export default function AuthPage() {
             <div className="mx-auto my-auto w-full max-w-md">
               <div className="mb-8 mt-8 lg:mt-0"><p className="mb-2 text-xs font-black uppercase tracking-[.18em] text-primary">Testagram account</p><h2 className="text-3xl font-black tracking-tight sm:text-4xl">{title}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{subtitle}</p></div>
 
-              {authNotice && (
-                <div role="alert" aria-live="polite" className={'mb-5 rounded-2xl border p-4 text-sm ' + (authNotice.pendingSetup ? 'border-amber-500/30 bg-amber-500/5' : 'border-destructive/30 bg-destructive/5')}>
-                  <div className="flex items-start gap-2.5">
-                    <AlertCircle className={'mt-0.5 h-5 w-5 shrink-0 ' + (authNotice.pendingSetup ? 'text-amber-600' : 'text-destructive')} />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-foreground">{authNotice.title}</p>
-                      <p className="mt-1 leading-6 text-muted-foreground">{authNotice.description}</p>
-                      {authNotice.pendingSetup && <Button type="button" onClick={retryPendingAccountSetup} disabled={loading} className="mt-3 h-10 rounded-xl font-bold">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Retry account setup'}</Button>}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {(mode === 'signin' || mode === 'signup') && (
                 <>
                   <div className="mb-6 grid grid-cols-2 rounded-2xl bg-muted p-1">
@@ -479,7 +385,7 @@ export default function AuthPage() {
                   <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-3.5">
                     {mode === 'signup' && <Field icon={Sparkles} type="text" autoComplete="username" placeholder="Username (optional)" value={username} onChange={e => setUsername(e.target.value)} />}
                     <Field icon={Mail} type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
-                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
+                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
                     <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in with password' : 'Continue to email verification'}</Button>
                   </form>
 
