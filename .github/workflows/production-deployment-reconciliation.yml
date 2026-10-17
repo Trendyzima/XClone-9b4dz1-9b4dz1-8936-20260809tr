@@ -1022,8 +1022,8 @@ jobs:
               if (endpoint === "/.well-known/nodeinfo") {
                 const links = Array.isArray(body.links) ? body.links : [];
                 const has = (version) => links.some((link) =>
-                  link?.rel === 'http://nodeinfo.diaspora.software/ns/schema/' + version &&
-                  link?.href === 'https://testagram.site/nodeinfo/' + version
+                  link?.rel === "http://nodeinfo.diaspora.software/ns/schema/" + version &&
+                  link?.href === "https://testagram.site/nodeinfo/" + version
                 );
                 if (!has("2.0") || !has("2.1")) fail("NodeInfo discovery links must use the canonical Testagram origin.");
               } else if (endpoint.startsWith("/.well-known/webfinger?")) {
@@ -1038,7 +1038,7 @@ jobs:
                 const version = endpoint.endsWith("/2.1") ? "2.1" : "2.0";
                 if (body.version !== version || !Array.isArray(body.protocols) || !body.protocols.includes("activitypub") ||
                     typeof body.usage?.users?.total !== "number" || typeof body.usage?.localPosts !== "number") {
-                  fail('NodeInfo ' + version + ' response does not match the expected schema.');
+                  fail("NodeInfo " + version + " response does not match the expected schema.");
                 }
                 if (version === "2.1" && (!Array.isArray(body.services?.inbound) || !Array.isArray(body.services?.outbound))) {
                   fail("NodeInfo 2.1 must include inbound/outbound services arrays.");
@@ -1056,7 +1056,7 @@ jobs:
                   fail("Fediverse outbox must be a valid ActivityPub collection on the canonical origin.");
                 }
               }
-              console.log('Production federation schema passed: ' + endpoint);
+              console.log("Production federation schema passed: " + endpoint);
             '
           done
           for inbox_endpoint in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
