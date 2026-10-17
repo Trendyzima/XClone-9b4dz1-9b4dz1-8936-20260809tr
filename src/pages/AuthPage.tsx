@@ -200,8 +200,6 @@ export default function AuthPage() {
     // Referral bookkeeping is best-effort and must never hold up an otherwise
     // successful sign-in while database/RPC capacity is degraded.
     void applyPendingReferral();
-    // Existing-account login never launches KYC. Identity verification is only
-    // entered from the explicit account-creation flow.
     navigate(getSafeReturnTo(), { replace: true });
   };
 
@@ -399,7 +397,7 @@ export default function AuthPage() {
                   <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-3.5">
                     {mode === 'signup' && <Field icon={Sparkles} type="text" autoComplete="username" placeholder="Username (optional)" value={username} onChange={e => setUsername(e.target.value)} />}
                     <Field icon={Mail} type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
-                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
+                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
                     <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in with password' : 'Continue to email verification'}</Button>
                   </form>
 
