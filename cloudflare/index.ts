@@ -367,6 +367,9 @@ function nodeInfoFallback(pathname: string) {
   }
 
   const version = pathname.endsWith('/2.1') ? '2.1' : '2.0';
+  if (version === '2.1') {
+    headers.set('content-type', 'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"; charset=utf-8');
+  }
   const body: Record<string, unknown> = {
     version,
     software: { name: 'testagram', version: '1.0.0' },
