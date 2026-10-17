@@ -6,13 +6,25 @@ on:
     paths:
       - 'services/mail/**'
       - 'supabase/migrations/**testagram_owned_mail.sql'
+      - 'supabase/migrations/**auth_magic_link_rate_limit.sql'
+      - 'supabase/functions/testagram-auth-email/**'
+      - 'supabase/functions/testagram-magic-link/**'
+      - 'supabase/functions/testagram-security-email/**'
+      - 'api/email/send.ts'
       - '.github/workflows/mail-service.yml'
+      - '.github/workflows/production-deployment-reconciliation.yml'
   push:
     branches: [main, "ci/**"]
     paths:
       - 'services/mail/**'
       - 'supabase/migrations/**testagram_owned_mail.sql'
+      - 'supabase/migrations/**auth_magic_link_rate_limit.sql'
+      - 'supabase/functions/testagram-auth-email/**'
+      - 'supabase/functions/testagram-magic-link/**'
+      - 'supabase/functions/testagram-security-email/**'
+      - 'api/email/send.ts'
       - '.github/workflows/mail-service.yml'
+      - '.github/workflows/production-deployment-reconciliation.yml'
 
 permissions:
   contents: read
@@ -30,9 +42,30 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: services/mail/package.json
-      - run: npm install --package-lock-only
+          cache-dependency-path: services/mail/package-lock.json
       - run: npm ci
+      - name: Audit production mail dependencies
+        run: |
+          npm audit --omit=dev --json > /tmp/testagram-mail-audit.json || true
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const report = JSON.parse(fs.readFileSync("/tmp/testagram-mail-audit.json", "utf8"));
+          const all = Object.entries(report.vulnerabilities || {}).map(([name, item]) => ({
+            name,
+            severity: item.severity,
+            isDirect: item.isDirect,
+            range: item.range,
+            fixAvailable: item.fixAvailable,
+            via: (item.via || []).map((entry) => typeof entry === "string" ? entry : entry.title || entry.name || entry.url || "unknown advisory"),
+          }));
+          for (const item of all) console.log("MAIL_DEPENDENCY_AUDIT", JSON.stringify(item));
+          const blocking = all.filter((item) => ["high", "critical"].includes(item.severity));
+          if (blocking.length) {
+            console.error("High/critical production dependency vulnerabilities block release.");
+            process.exit(1);
+          }
+          console.log("No high/critical production dependency vulnerabilities found.");
+          NODE
       - run: npm run typecheck
       - run: npm run build
       - name: Smoke test compiled service
@@ -43,8 +76,20 @@ jobs:
           attempt=0
           while [ "$attempt" -lt 20 ]; do
             attempt=$((attempt + 1))
-            if curl -fsS http://127.0.0.1:8080/health; then exit 0; fi
+            if curl -fsS http://127.0.0.1:8080/health; then break; fi
             sleep 0.25
           done
-          cat /tmp/testagram-mail.log
-          exit 1
+          if [ "$attempt" -eq 20 ]; then
+            cat /tmp/testagram-mail.log
+            exit 1
+          fi
+          code="$(curl --silent --output /tmp/testagram-mail-not-ready.json --write-out '%{http_code}' http://127.0.0.1:8080/ready)"
+          test "$code" = "503"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const readiness = JSON.parse(fs.readFileSync("/tmp/testagram-mail-not-ready.json", "utf8"));
+          if (readiness?.ok !== false || readiness?.ready !== false || readiness?.service !== "testagram-mail") {
+            throw new Error("Mail service did not fail closed when dependencies are absent: " + JSON.stringify(readiness));
+          }
+          console.log("Readiness correctly fails closed when production dependencies are absent.");
+          NODE
