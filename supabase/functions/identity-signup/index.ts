@@ -1,10 +1,29 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+function trustedMailUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "mail.testagram.site" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "" && url.pathname !== "/") ||
+      url.search ||
+      url.hash
+    ) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
 const SERVICE_KEY = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
-const TESTAGRAM_MAIL_URL = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
+const TESTAGRAM_MAIL_URL = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
 const TESTAGRAM_MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
 const FROM = "Testagram <noreply@testagram.site>";
@@ -88,6 +107,7 @@ async function sendOtp(email: string, code: string) {
   const idempotencyKey = await sha256("testagram-email-otp|" + email + "|" + code);
   const res = await fetch(TESTAGRAM_MAIL_URL + "/emails", {
     method: "POST",
+    redirect: "error",
     headers: { Authorization: "Bearer " + TESTAGRAM_MAIL_TOKEN, "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ from: FROM, to: [email], subject: "Confirm your Testagram email", html, text: `Testagram verification code: ${code}. It expires in 10 minutes.` }),
   });

@@ -41,6 +41,10 @@ async function mx(domain:string){const rows=await dns.resolveMx(domain).catch(()
 function transporter(host:string,port:number,secure:boolean){
   return nodemailer.createTransport({
     host,port,secure,
+    // Authentication mail must never silently fall back to plaintext SMTP.
+    // Port 587/25 use STARTTLS; implicit TLS uses secure=true.
+    requireTLS: !secure,
+    tls: { minVersion: "TLSv1.2", rejectUnauthorized: true },
     auth:SMTP_USER?{user:SMTP_USER,pass:SMTP_PASS}:undefined,
     dkim:DKIM_DOMAIN&&DKIM_SELECTOR&&DKIM_PRIVATE_KEY?{domainName:DKIM_DOMAIN,keySelector:DKIM_SELECTOR,privateKey:DKIM_PRIVATE_KEY}:undefined,
     connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000
@@ -54,9 +58,12 @@ async function deliver(row:MailRow){
   if(!DIRECT_SMTP){
     if(!SMTP_HOST)throw new Error("SMTP_NOT_CONFIGURED");
     const t=transporter(SMTP_HOST,SMTP_PORT,SMTP_SECURE);
-    const info=await t.sendMail(messageBase);
-    t.close();
-    return info.messageId||null;
+    try {
+      const info=await t.sendMail(messageBase);
+      return info.messageId||null;
+    } finally {
+      t.close();
+    }
   }
   const recipients=[...row.to_addresses,...row.cc_addresses,...row.bcc_addresses];
   const groups=new Map<string,string[]>();
@@ -72,9 +79,14 @@ async function deliver(row:MailRow){
     for(const host of hosts){
       try{
         const t=transporter(host,25,false);
-        const info=await t.sendMail({...messageBase,to:addresses,cc:undefined,bcc:undefined});
-        t.close();
-        lastMessageId=info.messageId||lastMessageId;
+        let deliveredMessageId: string | null = null;
+        try {
+          const info=await t.sendMail({...messageBase,to:addresses,cc:undefined,bcc:undefined});
+          deliveredMessageId=info.messageId||null;
+        } finally {
+          t.close();
+        }
+        lastMessageId=deliveredMessageId||lastMessageId;
         sent=true; break;
       }catch(e){last=e instanceof Error?e.message:String(e);}
     }

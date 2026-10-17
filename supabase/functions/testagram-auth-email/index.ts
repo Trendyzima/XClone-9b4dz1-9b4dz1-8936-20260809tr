@@ -1,9 +1,28 @@
 import { Webhook } from "npm:standardwebhooks@1";
 
+function trustedMailUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "mail.testagram.site" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "" && url.pathname !== "/") ||
+      url.search ||
+      url.hash
+    ) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 const BRAND_URL = "https://testagram.site";
 const LOGO_URL = "https://testagram.site/app-icon.jpg";
 const FROM = "Testagram <noreply@testagram.site>";
-const MAIL_URL = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
+const MAIL_URL = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
 const MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 
 type EmailData = {
@@ -76,6 +95,7 @@ async function sendOne(to: string, subject: string, html: string, text: string) 
   const idempotencyKey = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
   const response = await fetch(`${MAIL_URL}/emails`, {
     method: "POST",
+    redirect: "error",
     headers: {
       Authorization: `Bearer ${MAIL_TOKEN}`,
       "Content-Type": "application/json",

@@ -67,6 +67,17 @@ jobs:
           console.log("No high/critical production dependency vulnerabilities found.");
           NODE
       - run: npm run typecheck
+      - name: Verify SMTP encryption is fail-closed
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const source = fs.readFileSync("src/index.ts", "utf8");
+          assert.ok(source.includes("requireTLS: !secure"), "non-implicit SMTP must require STARTTLS");
+          assert.ok(source.includes('minVersion: "TLSv1.2"'), "SMTP must require TLS 1.2 or newer");
+          assert.ok(source.includes("rejectUnauthorized: true"), "SMTP must validate relay certificates");
+          console.log("SMTP transport requires STARTTLS and authenticated TLS 1.2+.");
+          NODE
       - run: npm run build
       - name: Smoke test compiled service
         run: |
