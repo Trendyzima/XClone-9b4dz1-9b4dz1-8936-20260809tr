@@ -36,9 +36,10 @@ function headers(key: string) {
  * This keeps auth independent of public mail DNS, reverse proxies and a second
  * HTTP gateway while retaining idempotency and durable retry semantics.
  */
-export async function enqueueTestagramMail(input: MailPayload, idempotencyKey: string): Promise<string> {
-  const url = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
-  const key = Deno.env.get("SUPABASE_SECRET_KEY")
+export async function enqueueTestagramMail(input: MailPayload, idempotencyKey: string, config: { supabaseUrl?: string; serviceKey?: string } = {}): Promise<string> {
+  const url = (config.supabaseUrl ?? Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
+  const key = config.serviceKey
+    ?? Deno.env.get("SUPABASE_SECRET_KEY")
     ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
     ?? "";
   if (!url || !key) throw new Error("TESTAGRAM_MAIL_QUEUE_NOT_CONFIGURED");
