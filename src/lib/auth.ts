@@ -122,7 +122,7 @@ export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<A
   return { ...mapped, username: profile.username, avatar: profile.avatar_url || mapped.avatar, verified: !!profile.verified_tier && profile.verified_tier !== 'none', identityVerificationStatus: profile.identity_verification_status ?? 'pending', identityVerifiedAt: profile.identity_verified_at ?? undefined };
 }
 
-const AUTH_REQUEST_TIMEOUT_MS = 12_000;
+const AUTH_REQUEST_TIMEOUT_MS = 22_000;
 const CANONICAL_AUTH_REDIRECT_URL = 'https://testagram.site/auth';
 
 export async function finalizeAuthenticatedSession(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
@@ -134,7 +134,7 @@ export async function finalizeAuthenticatedSession(user: User, options: { requir
 
 async function withAuthTimeout<T>(operation: PromiseLike<T> | Promise<T>, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), AUTH_REQUEST_TIMEOUT_MS); });
+  const timeout = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`${label} timed out while waiting for the authentication service. This may be a temporary server issue; wait a moment before retrying.`)), AUTH_REQUEST_TIMEOUT_MS); });
   try { return await Promise.race([Promise.resolve(operation), timeout]); } finally { if (timeoutId) clearTimeout(timeoutId); }
 }
 
