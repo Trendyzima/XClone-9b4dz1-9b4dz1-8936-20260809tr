@@ -5450,6 +5450,41 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Sets the inbound Fediverse worker to a two-minute cadence after the worker was bounded to 26 sources per run and emits per-batch progress telemetry."
+    },
+    "supabase/migrations/20261016193000_federated_instances_public_timeline_schedule_index.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Adds a composite index for bounded public-timeline Fediverse instance scheduling by availability and next_sync_at."
+    },
+    "supabase/migrations/20261016201000_postgrest_schema_cache_timeout_recovery.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Raises the authenticator role statement timeout to 30 seconds and requests a PostgREST schema reload to recover catalog-cache loading."
+    },
+    "supabase/migrations/20261016220347_postgrest_pool_recycle_after_schema_timeout.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Reasserts the bounded 30-second authenticator timeout and reloads PostgREST config and schema for cache recovery."
+    },
+    "supabase/migrations/20261016220902_postgrest_schema_cache_extended_timeout.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Raises the finite authenticator statement timeout to 60 seconds and reloads PostgREST config and schema after continued catalog introspection timeouts."
+    },
+    "supabase/migrations/20261016221733_reduce_background_dispatch_pressure_during_postgrest_recovery.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Staggers selected background dispatch cron schedules to reduce overlapping retry pressure during PostgREST schema-cache recovery while keeping queues enabled."
+    },
+    "supabase/migrations/20261016222236_postgrest_schema_cache_emergency_headroom.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Raises the finite authenticator statement timeout to 120 seconds for emergency PostgREST schema-cache recovery and reloads config and schema."
+    },
+    "supabase/migrations/20261017004500_fix_marketplace_inventory_reservation_expiry_column.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Adds an expiry index and repairs the marketplace inventory reservation expiry function to use the table’s actual column contract."
     }
   }
 }
