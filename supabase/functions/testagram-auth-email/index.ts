@@ -1,29 +1,9 @@
 import { Webhook } from "npm:standardwebhooks@1";
-
-function trustedMailUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "mail.testagram.site" ||
-      url.port ||
-      url.username ||
-      url.password ||
-      (url.pathname !== "" && url.pathname !== "/") ||
-      url.search ||
-      url.hash
-    ) return "";
-    return url.origin;
-  } catch {
-    return "";
-  }
-}
+import { enqueueTestagramMail } from "../_shared/testagram-mail.ts";
 
 const BRAND_URL = "https://testagram.site";
 const LOGO_URL = "https://testagram.site/app-icon.jpg";
 const FROM = "Testagram <noreply@testagram.site>";
-const MAIL_URL = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
-const MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 
 type EmailData = {
   email_action_type?: string;
@@ -89,26 +69,11 @@ ${url ? `<p style="font-size:12px;line-height:1.55;color:#667085;word-break:brea
 }
 
 async function sendOne(to: string, subject: string, html: string, text: string) {
-  if (!MAIL_URL || !MAIL_TOKEN) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
   const fingerprint = new TextEncoder().encode(`testagram-auth-email|${to.toLowerCase()}|${subject}|${html}|${text}`);
   const digest = await crypto.subtle.digest("SHA-256", fingerprint);
   const idempotencyKey = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-  const response = await fetch(`${MAIL_URL}/emails`, {
-    method: "POST",
-    redirect: "error",
-    headers: {
-      Authorization: `Bearer ${MAIL_TOKEN}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-    },
-    body: JSON.stringify({ from: FROM, to: [to], subject, html, text }),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    console.error("TESTAGRAM_MAIL_REJECTED", JSON.stringify({ status: response.status, detail: detail.slice(0, 300) }));
-    throw new Error(`TESTAGRAM_MAIL_HTTP_${response.status}`);
-  }
-  console.log("TESTAGRAM_MAIL_ACCEPTED", JSON.stringify({ status: response.status }));
+  await enqueueTestagramMail({ from: FROM, to: [to], subject, html, text }, idempotencyKey);
+  console.log("TESTAGRAM_MAIL_QUEUED", JSON.stringify({ recipientCount: 1 }));
 }
 
 function json(body: unknown, status = 200) {
@@ -121,8 +86,8 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") return new Response("not allowed", { status: 405 });
 
     const secretRaw = Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "";
-    if (!secretRaw || !MAIL_URL || !MAIL_TOKEN) {
-      console.error("AUTH_EMAIL_CONFIG_MISSING", JSON.stringify({ requestId, hasHookSecret: !!secretRaw, hasMailUrl: !!MAIL_URL, hasMailToken: !!MAIL_TOKEN }));
+    if (!secretRaw) {
+      console.error("AUTH_EMAIL_CONFIG_MISSING", JSON.stringify({ requestId, hasHookSecret: !!secretRaw }));
       return json({ error: "EMAIL_TRANSPORT_NOT_CONFIGURED" }, 503);
     }
 

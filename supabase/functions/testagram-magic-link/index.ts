@@ -1,24 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-
-function trustedMailUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "mail.testagram.site" ||
-      url.port ||
-      url.username ||
-      url.password ||
-      (url.pathname !== "" && url.pathname !== "/") ||
-      url.search ||
-      url.hash
-    ) return "";
-    return url.origin;
-  } catch {
-    return "";
-  }
-}
+import { enqueueTestagramMail } from "../_shared/testagram-mail.ts";
 
 const BRAND_URL = "https://testagram.site";
 const FROM = "Testagram <noreply@testagram.site>";
@@ -107,32 +89,16 @@ async function sha256Hex(value: string) {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function sendEmail(email: string, actionUrl: string) {
-  const mailUrl = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
-  const mailToken = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
-  if (!mailUrl || !mailToken) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
+async function sendEmail(email: string, actionUrl: string, supabaseUrl: string, adminKey: string) {
   const idempotencyKey = await sha256Hex("testagram-magic-link|" + email + "|" + actionUrl);
-  const response = await fetch(mailUrl + "/emails", {
-    method: "POST",
-    redirect: "error",
-    headers: {
-      Authorization: "Bearer " + mailToken,
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-    },
-    body: JSON.stringify({
-      from: FROM,
-      to: [email],
-      subject: "Your Testagram sign-in link",
-      html: brandedHtml(email, actionUrl),
-      text: "Use this secure Testagram sign-in link: " + actionUrl + "\n\nIf you did not request this, you can safely ignore this email.",
-    }),
-  });
-  if (!response.ok) {
-    console.error("MAGIC_LINK_MAIL_REJECTED", JSON.stringify({ status: response.status }));
-    throw new Error("TESTAGRAM_MAIL_HTTP_" + response.status);
-  }
-  console.log("MAGIC_LINK_MAIL_ACCEPTED", JSON.stringify({ status: response.status }));
+  await enqueueTestagramMail({
+    from: FROM,
+    to: [email],
+    subject: "Your Testagram sign-in link",
+    html: brandedHtml(email, actionUrl),
+    text: "Use this secure Testagram sign-in link: " + actionUrl + "\\n\\nIf you did not request this, you can safely ignore this email.",
+  }, idempotencyKey, { supabaseUrl, serviceKey: adminKey });
+  console.log("MAGIC_LINK_MAIL_QUEUED", JSON.stringify({ recipientCount: 1 }));
 }
 
 Deno.serve(async (req) => {
@@ -143,10 +109,8 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const adminKey = Deno.env.get("SUPABASE_SECRET_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const mailUrl = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
-    const mailToken = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
-    if (!supabaseUrl || !adminKey || !mailUrl || !mailToken) {
-      console.error("MAGIC_LINK_CONFIG_MISSING", JSON.stringify({ requestId, hasSupabaseUrl: !!supabaseUrl, hasAdminKey: !!adminKey, hasMailUrl: !!mailUrl, hasMailToken: !!mailToken }));
+    if (!supabaseUrl || !adminKey) {
+      console.error("MAGIC_LINK_CONFIG_MISSING", JSON.stringify({ requestId, hasSupabaseUrl: !!supabaseUrl, hasAdminKey: !!adminKey }));
       return json({ error: "EMAIL_TRANSPORT_NOT_CONFIGURED" }, 503);
     }
 
@@ -158,7 +122,7 @@ Deno.serve(async (req) => {
     // Deliberately bypass the /auth/v1/otp email-send path. generate_link creates
     // the Auth magic-link state; Testagram's mail gateway is the only transport.
     const actionLink = await generateMagicLink(supabaseUrl, adminKey, email, redirectTo);
-    await sendEmail(email, actionLink);
+    await sendEmail(email, actionLink, supabaseUrl, adminKey);
 
     console.log("MAGIC_LINK_SENT", JSON.stringify({ requestId }));
     return json({ ok: true });
