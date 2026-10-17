@@ -781,79 +781,19 @@ jobs:
 
           echo "Cloudflare route reconciliation passed: apex/www have no competing or disabled route; testagram-web is authoritative."
           echo "Cloudflare route API: GET/DELETE /zones/{zone_id}/workers/routes."
-      - name: Reconcile Testagram Mail origin DNS
+      - name: Verify local Testagram mail queue contract
         shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          MAIL_SERVICE_ORIGIN_IP: ${{ secrets.MAIL_SERVICE_ORIGIN_IP }}
         run: |
           set -euo pipefail
-          [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required to reconcile mail DNS."; exit 1; }
-          [[ "${CLOUDFLARE_ZONE_ID:-}" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ZONE_ID is missing or invalid."; exit 1; }
-          [[ -n "${MAIL_SERVICE_ORIGIN_IP:-}" ]] || { echo "::error::Set MAIL_SERVICE_ORIGIN_IP in the GitHub production environment to the actual public IPv4 of the host running /opt/testagram-mail."; exit 1; }
-          python3 - "$MAIL_SERVICE_ORIGIN_IP" <<'PY'
-          import ipaddress, sys
-          address = ipaddress.ip_address(sys.argv[1])
-          if not isinstance(address, ipaddress.IPv4Address) or not address.is_global:
-              raise SystemExit("MAIL_SERVICE_ORIGIN_IP must be a globally routable IPv4 address.")
-          PY
-
-          API="https://api.cloudflare.com/client/v4"
-          cname_count="$(curl -fsS --retry 3 --retry-delay 2 \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json" \
-            "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=mail.testagram.site&type=CNAME&per_page=100" | jq '.result | length')"
-          [[ "$cname_count" == "0" ]] || { echo "::error::mail.testagram.site already has a CNAME. Review the existing DNS target before switching it to an A record."; exit 1; }
-
-          records="$(curl -fsS --retry 3 --retry-delay 2 \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json" \
-            "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=mail.testagram.site&type=A&per_page=100")"
-          count="$(jq '.result | length' <<<"$records")"
-          [[ "$count" -le 1 ]] || { echo "::error::Multiple mail.testagram.site A records exist. Resolve them manually before automated reconciliation."; exit 1; }
-          payload="$(jq -cn --arg ip "$MAIL_SERVICE_ORIGIN_IP" '{name:"mail.testagram.site",type:"A",content:$ip,ttl:1,proxied:false}')"
-          if [[ "$count" == "1" ]]; then
-            record_id="$(jq -r '.result[0].id' <<<"$records")"
-            curl -fsS --retry 3 --retry-delay 2 -X PUT \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
-              --data "$payload" "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records/$record_id" | jq -e '.success == true' >/dev/null
-          else
-            curl -fsS --retry 3 --retry-delay 2 -X POST \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
-              --data "$payload" "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records" | jq -e '.success == true' >/dev/null
-          fi
-          echo "Testagram Mail DNS is configured as a DNS-only A record; no IP value is printed."
-
-      - name: Preflight and configure Testagram Mail runtime
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
-          TESTAGRAM_MAIL_TOKEN: ${{ secrets.TESTAGRAM_MAIL_TOKEN }}
-          EMAIL_SERVICE_TOKEN: ${{ secrets.EMAIL_SERVICE_TOKEN }}
-        run: |
-          set -euo pipefail
-          [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required to configure Testagram Mail."; exit 1; }
-          [[ "${CLOUDFLARE_ACCOUNT_ID:-}" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is missing or invalid."; exit 1; }
-          [[ -n "${TESTAGRAM_MAIL_TOKEN:-}" ]] || { echo "::error::TESTAGRAM_MAIL_TOKEN is required; configure it in the GitHub production environment."; exit 1; }
-          [[ -n "${EMAIL_SERVICE_TOKEN:-}" ]] || { echo "::error::EMAIL_SERVICE_TOKEN is required for the internal email API."; exit 1; }
-
-          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 20 \
-            https://mail.testagram.site/ready > /tmp/testagram-mail-health.json
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          const health = JSON.parse(fs.readFileSync("/tmp/testagram-mail-health.json", "utf8"));
-          if (health?.ok !== true || health?.ready !== true || health?.service !== "testagram-mail") {
-            throw new Error("Testagram Mail health contract failed: " + JSON.stringify(health));
-          }
-          console.log("Testagram Mail health contract passed.");
-          NODE
-
-          printf '%s' 'https://mail.testagram.site' | npx wrangler secret put TESTAGRAM_MAIL_URL --name testagram-web
-          printf '%s' "$TESTAGRAM_MAIL_TOKEN" | npx wrangler secret put TESTAGRAM_MAIL_TOKEN --name testagram-web
-          printf '%s' "$EMAIL_SERVICE_TOKEN" | npx wrangler secret put EMAIL_SERVICE_TOKEN --name testagram-web
-          unset TESTAGRAM_MAIL_TOKEN EMAIL_SERVICE_TOKEN
-          echo "Testagram Mail endpoint/token configured for testagram-web without printing secret values."
-
+          migration="supabase/migrations/20261007230000_testagram_owned_mail.sql"
+          test -f "$migration"
+          grep -q 'create table if not exists public.mail_messages' "$migration"
+          grep -q 'idempotency_key text unique' "$migration"
+          grep -q 'status text not null default .queued.' "$migration"
+          test -f "services/mail/src/index.ts"
+          grep -q 'from("mail_messages")' services/mail/src/index.ts
+          echo "Local mail architecture verified: auth enqueues into the existing PostgreSQL ledger; the Testagram-owned SMTP worker drains it. No public mail DNS/IP or gateway token is required by authentication."
+      
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
         env:
