@@ -119,11 +119,13 @@ async function outbox(a:any,u:URL){
     }
     return json({'@context':AP,id:outboxId,type:'OrderedCollection',totalItems:0,first:{id:firstUrl,type:'OrderedCollectionPage'}});
   }
-  // Page requests only need bounded rows for orderedItems and the next cursor.
-  // Exact counts force a full matching-row count on every page and can push
-  // production ActivityPub outbox requests beyond the edge timeout.
+  // The collection document is requested before any page and is part of the
+  // production federation health contract. An exact count scans every matching
+  // post and can exceed the edge gateway's 30s timeout under production load.
+  // ActivityStreams permits totalItems as an estimate; use PostgreSQL's planner
+  // estimate so discovery stays bounded and the actual page remains authoritative.
   if(u.searchParams.get('page')!=='true'){
-    const count=await db.from('posts').select('id',{count:'exact',head:true}).or(`author_id.eq.${a.user_id},user_id.eq.${a.user_id}`).is('deleted_at',null);
+    const count=await db.from('posts').select('id',{count:'planned',head:true}).or(`author_id.eq.${a.user_id},user_id.eq.${a.user_id}`).is('deleted_at',null);
     if(count.error)throw count.error;
     return json({'@context':AP,id:outboxId,type:'OrderedCollection',totalItems:Number(count.count||0),first:{id:firstUrl,type:'OrderedCollectionPage'}});
   }
