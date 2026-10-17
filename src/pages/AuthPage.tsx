@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 import type { ComponentProps, ComponentType } from 'react';
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +42,7 @@ function friendlyAuthError(error: unknown, fallback: string) {
     EMAIL_NOT_VERIFIED: 'Verify your email before continuing.',
     IDENTITY_NOT_APPROVED: 'Your identity must be approved before creating the account.',
     IDENTITY_SERVICE_UNAVAILABLE: 'Authentication services are temporarily unavailable. Please try again shortly.',
-    IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
+    IDENTITY_REQUEST_TIMEOUT: 'Testagram could not confirm the request in time. This can be a temporary authentication-service delay, not an incorrect password. Wait briefly, then retry.',
     IDENTITY_NETWORK_ERROR: 'Could not reach the authentication service. Check your connection and try again.',
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
     TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
@@ -82,6 +83,8 @@ export default function AuthPage() {
   const [otpPurpose, setOtpPurpose] = useState<'signin' | 'signup'>('signin');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authNotice, setAuthNotice] = useState<{ title: string; description: string; pendingSetup?: boolean } | null>(null);
+  const [pendingAuthUser, setPendingAuthUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const { toast } = useToast();
@@ -203,10 +206,74 @@ export default function AuthPage() {
     navigate(getSafeReturnTo(), { replace: true });
   };
 
+  const isTransientAuthError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message || '');
+    const details = error && typeof error === 'object' ? error as { status?: number; statusCode?: number; code?: string } : {};
+    return !['AGE_RESTRICTION', 'LEGAL_ACCEPTANCE_REQUIRED', 'SESSION_EXPIRED'].includes(message) &&
+      ([408, 429, 500, 502, 503, 504].includes(Number(details.status ?? details.statusCode)) ||
+        /IDENTITY_REQUEST_TIMEOUT|request_timeout|timed? ?out|context deadline exceeded|gateway timeout|service unavailable|connection terminated|failed to fetch|network error|statement timeout/i.test(message));
+  };
+
   const handlePasswordSignIn = async (event: FormEvent) => {
-    event.preventDefault(); setLoading(true);
-    try { await finishLogin(await authService.signInWithPassword(email, password)); }
-    catch (error: any) { setLoading(false); toast({ title: 'Sign-in failed', description: friendlyAuthError(error, 'Check your details and try again.'), variant: 'destructive' }); }
+    event.preventDefault();
+    setLoading(true);
+    setAuthNotice(null);
+    setPendingAuthUser(null);
+    let user: User;
+    try {
+      user = await authService.signInWithPassword(email, password);
+    } catch (error: unknown) {
+      setLoading(false);
+      setAuthNotice({
+        title: 'Could not confirm sign-in',
+        description: friendlyAuthError(error, 'Check your details and try again. If this keeps happening, the authentication service may be temporarily unavailable.'),
+      });
+      return;
+    }
+
+    try {
+      await finishLogin(user);
+    } catch (error: unknown) {
+      setLoading(false);
+      if (isTransientAuthError(error)) {
+        setPendingAuthUser(user);
+        setAuthNotice({
+          title: 'Your password was accepted',
+          description: 'Testagram signed you in, but account setup is responding slowly. Your session is being preserved. Retry account setup instead of submitting your password again.',
+          pendingSetup: true,
+        });
+        return;
+      }
+      setAuthNotice({
+        title: 'Account setup needs attention',
+        description: friendlyAuthError(error, 'We could not finish setting up your account. Please review the message and try again.'),
+      });
+    }
+  };
+
+  const retryPendingAccountSetup = async () => {
+    if (!pendingAuthUser || loading) return;
+    setLoading(true);
+    setAuthNotice(null);
+    try {
+      await finishLogin(pendingAuthUser);
+      setPendingAuthUser(null);
+    } catch (error: unknown) {
+      setLoading(false);
+      if (isTransientAuthError(error)) {
+        setAuthNotice({
+          title: 'Account setup is still delayed',
+          description: 'Your password was accepted and your session is preserved. Wait a moment and retry account setup.',
+          pendingSetup: true,
+        });
+        return;
+      }
+      setPendingAuthUser(null);
+      setAuthNotice({
+        title: 'Account setup needs attention',
+        description: friendlyAuthError(error, 'We could not finish setting up your account.'),
+      });
+    }
   };
 
   const startIdentitySignup = async () => {
@@ -334,6 +401,8 @@ export default function AuthPage() {
 
   const go = (next: AuthMode) => {
     setLoading(false);
+    setAuthNotice(null);
+    setPendingAuthUser(null);
     setPassword('');
     setConfirmation('');
     if (mode === 'reset' && next !== 'reset') {
@@ -386,6 +455,19 @@ export default function AuthPage() {
 
             <div className="mx-auto my-auto w-full max-w-md">
               <div className="mb-8 mt-8 lg:mt-0"><p className="mb-2 text-xs font-black uppercase tracking-[.18em] text-primary">Testagram account</p><h2 className="text-3xl font-black tracking-tight sm:text-4xl">{title}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{subtitle}</p></div>
+
+              {authNotice && (
+                <div role="alert" aria-live="polite" className={'mb-5 rounded-2xl border p-4 text-sm ' + (authNotice.pendingSetup ? 'border-amber-500/30 bg-amber-500/5' : 'border-destructive/30 bg-destructive/5')}>
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className={'mt-0.5 h-5 w-5 shrink-0 ' + (authNotice.pendingSetup ? 'text-amber-600' : 'text-destructive')} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-foreground">{authNotice.title}</p>
+                      <p className="mt-1 leading-6 text-muted-foreground">{authNotice.description}</p>
+                      {authNotice.pendingSetup && <Button type="button" onClick={retryPendingAccountSetup} disabled={loading} className="mt-3 h-10 rounded-xl font-bold">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Retry account setup'}</Button>}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {(mode === 'signin' || mode === 'signup') && (
                 <>
