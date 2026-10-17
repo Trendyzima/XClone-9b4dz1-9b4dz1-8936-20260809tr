@@ -1,9 +1,28 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.51.0";
 
+function trustedMailUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "mail.testagram.site" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "" && url.pathname !== "/") ||
+      url.search ||
+      url.hash
+    ) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 const URL = Deno.env.get("SUPABASE_URL") ?? "";
 const KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const MAIL_URL = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
+const MAIL_URL = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
 const MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 
 const json = (body: Record<string, unknown>, status = 200) =>
@@ -65,6 +84,7 @@ Deno.serve(async (req) => {
     const idempotencyKey = hex(digest);
     const response = await fetch(MAIL_URL + "/emails", {
       method: "POST",
+      redirect: "error",
       headers: {
         Authorization: "Bearer " + MAIL_TOKEN,
         "Content-Type": "application/json",
