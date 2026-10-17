@@ -1,6 +1,25 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
+function trustedMailUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "mail.testagram.site" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "" && url.pathname !== "/") ||
+      url.search ||
+      url.hash
+    ) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 const BRAND_URL = "https://testagram.site";
 const FROM = "Testagram <noreply@testagram.site>";
 
@@ -89,12 +108,13 @@ async function sha256Hex(value: string) {
 }
 
 async function sendEmail(email: string, actionUrl: string) {
-  const mailUrl = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
+  const mailUrl = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
   const mailToken = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
   if (!mailUrl || !mailToken) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
   const idempotencyKey = await sha256Hex("testagram-magic-link|" + email + "|" + actionUrl);
   const response = await fetch(mailUrl + "/emails", {
     method: "POST",
+    redirect: "error",
     headers: {
       Authorization: "Bearer " + mailToken,
       "Content-Type": "application/json",
@@ -123,7 +143,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const adminKey = Deno.env.get("SUPABASE_SECRET_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const mailUrl = Deno.env.get("TESTAGRAM_MAIL_URL") ?? "";
+    const mailUrl = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
     const mailToken = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
     if (!supabaseUrl || !adminKey || !mailUrl || !mailToken) {
       console.error("MAGIC_LINK_CONFIG_MISSING", JSON.stringify({ requestId, hasSupabaseUrl: !!supabaseUrl, hasAdminKey: !!adminKey, hasMailUrl: !!mailUrl, hasMailToken: !!mailToken }));
