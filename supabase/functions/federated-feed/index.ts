@@ -6,9 +6,12 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("
 const ANON = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false, autoRefreshToken: false } });
 
+import { corsHeaders as sharedCorsHeaders } from "../_shared/cors.ts";
+
+// Keep the feed's HTTP surface read-only while sharing the repository-wide
+// allow-origin and allow-header policy with other Supabase Edge Functions.
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  ...sharedCorsHeaders,
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 
