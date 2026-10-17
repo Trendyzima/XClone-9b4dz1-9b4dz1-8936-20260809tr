@@ -1,6 +1,25 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash } from 'node:crypto';
 
+function trustedMailUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "mail.testagram.site" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "" && url.pathname !== "/") ||
+      url.search ||
+      url.hash
+    ) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 const MAX_BODY_BYTES = 1_048_576;
 
 function json(res: ServerResponse, status: number, payload: unknown) {
@@ -14,7 +33,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' });
 
   const serviceToken = String(process.env.EMAIL_SERVICE_TOKEN || '');
-  const mailUrl = String(process.env.TESTAGRAM_MAIL_URL || 'https://mail.testagram.site').replace(/\/$/, '');
+  const mailUrl = trustedMailUrl(String(process.env.TESTAGRAM_MAIL_URL || 'https://mail.testagram.site'));
   const mailToken = String(process.env.TESTAGRAM_MAIL_TOKEN || '');
   const authorization = String(req.headers.authorization || '');
   if (!serviceToken || !mailUrl || !mailToken) return json(res, 503, { ok: false, error: 'EMAIL_SERVICE_NOT_CONFIGURED' });
@@ -55,6 +74,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   try {
     response = await fetch(mailUrl + '/emails', {
       method: 'POST',
+      redirect: 'error',
       headers: {
         Authorization: 'Bearer ' + mailToken,
         'Content-Type': 'application/json',
