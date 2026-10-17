@@ -45,6 +45,31 @@ jobs:
           cache-dependency-path: services/mail/package.json
       - run: npm install --package-lock-only
       - run: npm ci
+      - name: Audit production mail dependencies
+        run: |
+          set +e
+          npm audit --omit=dev --json > /tmp/testagram-mail-audit.json
+          audit_status=$?
+          set -e
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const report = JSON.parse(fs.readFileSync("/tmp/testagram-mail-audit.json", "utf8"));
+          const all = Object.entries(report.vulnerabilities || {}).map(([name, item]) => ({
+            name,
+            severity: item.severity,
+            isDirect: item.isDirect,
+            range: item.range,
+            fixAvailable: item.fixAvailable,
+            via: (item.via || []).map((entry) => typeof entry === "string" ? entry : entry.title || entry.name || entry.url || "unknown advisory"),
+          }));
+          for (const item of all) console.log("MAIL_DEPENDENCY_AUDIT", JSON.stringify(item));
+          const blocking = all.filter((item) => ["high", "critical"].includes(item.severity));
+          if (blocking.length) {
+            console.error("High/critical production dependency vulnerabilities block release.");
+            process.exit(1);
+          }
+          console.log("No high/critical production dependency vulnerabilities found.");
+          NODE
       - run: npm run typecheck
       - run: npm run build
       - name: Smoke test compiled service
