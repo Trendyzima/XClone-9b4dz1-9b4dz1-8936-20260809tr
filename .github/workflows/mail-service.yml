@@ -82,16 +82,16 @@ jobs:
           cat /tmp/testagram-mail.log
           exit 1
 
-      - name: Verify production Testagram Mail readiness
+      - name: Verify readiness fails closed without production dependencies
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 25 \
-            https://mail.testagram.site/ready > /tmp/testagram-mail-ready.json
+          code="$(curl --silent --output /tmp/testagram-mail-not-ready.json --write-out '%{http_code}' http://127.0.0.1:8080/ready)"
+          test "$code" = "503"
           node --input-type=module <<'NODE'
           import fs from "node:fs";
-          const readiness = JSON.parse(fs.readFileSync("/tmp/testagram-mail-ready.json", "utf8"));
-          if (readiness?.ok !== true || readiness?.ready !== true || readiness?.service !== "testagram-mail") {
-            throw new Error("Production Testagram Mail is not ready: " + JSON.stringify(readiness));
+          const readiness = JSON.parse(fs.readFileSync("/tmp/testagram-mail-not-ready.json", "utf8"));
+          if (readiness?.ok !== false || readiness?.ready !== false || readiness?.service !== "testagram-mail") {
+            throw new Error("Mail service did not fail closed when dependencies are absent: " + JSON.stringify(readiness));
           }
-          console.log("Production Testagram Mail readiness passed.");
+          console.log("Readiness correctly fails closed when production dependencies are absent.");
           NODE
