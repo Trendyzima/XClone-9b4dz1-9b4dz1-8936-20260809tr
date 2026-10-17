@@ -1,29 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.51.0";
-
-function trustedMailUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "mail.testagram.site" ||
-      url.port ||
-      url.username ||
-      url.password ||
-      (url.pathname !== "" && url.pathname !== "/") ||
-      url.search ||
-      url.hash
-    ) return "";
-    return url.origin;
-  } catch {
-    return "";
-  }
-}
+import { enqueueTestagramMail } from "../_shared/testagram-mail.ts";
 
 const URL = Deno.env.get("SUPABASE_URL") ?? "";
 const KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const MAIL_URL = trustedMailUrl(Deno.env.get("TESTAGRAM_MAIL_URL") ?? "");
-const MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -37,7 +17,7 @@ const esc = (v: unknown) => String(v ?? "").replaceAll("&", "&amp;").replaceAll(
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-  if (!URL || !KEY || !MAIL_URL || !MAIL_TOKEN) return json({ error: "security_email_not_configured" }, 503);
+  if (!URL || !KEY) return json({ error: "security_email_not_configured" }, 503);
 
   try {
     const raw = await req.text();
@@ -82,20 +62,7 @@ Deno.serve(async (req) => {
 
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("testagram-security-email|" + raw));
     const idempotencyKey = hex(digest);
-    const response = await fetch(MAIL_URL + "/emails", {
-      method: "POST",
-      redirect: "error",
-      headers: {
-        Authorization: "Bearer " + MAIL_TOKEN,
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
-      },
-      body: JSON.stringify({ from, to: [to], subject, text, html }),
-    });
-    if (!response.ok) {
-      console.error("SECURITY_EMAIL_REJECTED", JSON.stringify({ status: response.status }));
-      throw new Error("TESTAGRAM_MAIL_HTTP_" + response.status);
-    }
+    await enqueueTestagramMail({ from, to: [to], subject, text, html }, idempotencyKey, { supabaseUrl: URL, serviceKey: KEY });
     return json({ ok: true });
   } catch (error) {
     console.error("SECURITY_EMAIL_FAILURE", error instanceof Error ? error.message : "unknown");
