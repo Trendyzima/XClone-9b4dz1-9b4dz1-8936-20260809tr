@@ -6,13 +6,25 @@ on:
     paths:
       - 'services/mail/**'
       - 'supabase/migrations/**testagram_owned_mail.sql'
+      - 'supabase/migrations/**auth_magic_link_rate_limit.sql'
+      - 'supabase/functions/testagram-auth-email/**'
+      - 'supabase/functions/testagram-magic-link/**'
+      - 'supabase/functions/testagram-security-email/**'
+      - 'api/email/send.ts'
       - '.github/workflows/mail-service.yml'
+      - '.github/workflows/production-deployment-reconciliation.yml'
   push:
     branches: [main, "ci/**"]
     paths:
       - 'services/mail/**'
       - 'supabase/migrations/**testagram_owned_mail.sql'
+      - 'supabase/migrations/**auth_magic_link_rate_limit.sql'
+      - 'supabase/functions/testagram-auth-email/**'
+      - 'supabase/functions/testagram-magic-link/**'
+      - 'supabase/functions/testagram-security-email/**'
+      - 'api/email/send.ts'
       - '.github/workflows/mail-service.yml'
+      - '.github/workflows/production-deployment-reconciliation.yml'
 
 permissions:
   contents: read
@@ -35,6 +47,20 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - name: Verify production Testagram Mail readiness
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 25 \
+            https://mail.testagram.site/ready > /tmp/testagram-mail-ready.json
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const readiness = JSON.parse(fs.readFileSync("/tmp/testagram-mail-ready.json", "utf8"));
+          if (readiness?.ok !== true || readiness?.ready !== true || readiness?.service !== "testagram-mail") {
+            throw new Error("Production Testagram Mail is not ready: " + JSON.stringify(readiness));
+          }
+          console.log("Production Testagram Mail readiness passed.");
+          NODE
+
       - name: Smoke test compiled service
         run: |
           TESTAGRAM_MAIL_TOKEN=ci-token           SUPABASE_URL=https://example.invalid           SUPABASE_SECRET_KEY=ci-secret           node dist/index.js >/tmp/testagram-mail.log 2>&1 &
