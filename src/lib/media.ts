@@ -58,6 +58,7 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
   }
 
   const intent = await selfHostedMediaRequest('/api/media/upload-intent', {
+    name: file.name,
     content_type: mime,
     visibility: 'public',
     size_bytes: file.size,
