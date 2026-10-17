@@ -993,6 +993,7 @@ jobs:
           # discovery/actor endpoints are still served by a stale/competing route.
           declare -a FEDERATION_ENDPOINTS=(
             "/.well-known/nodeinfo"
+            "/.well-known/webfinger?resource=acct:crissbeat@testagram.site"
             "/nodeinfo/2.0"
             "/nodeinfo/2.1"
             "/users/crissbeat"
@@ -1010,6 +1011,53 @@ jobs:
               head -c 2000 /tmp/testagram-federation-response || true
               exit 1
             }
+
+            # Status alone is not sufficient: verify protocol shape and canonical
+            # origin so a stale HTML route or cross-origin actor cannot pass.
+            ENDPOINT="$endpoint" node --input-type=module -e '
+              import fs from "node:fs";
+              const endpoint = process.env.ENDPOINT;
+              const body = JSON.parse(fs.readFileSync("/tmp/testagram-federation-response", "utf8"));
+              const fail = (message) => { console.error("::error::" + message); process.exit(1); };
+              if (endpoint === "/.well-known/nodeinfo") {
+                const links = Array.isArray(body.links) ? body.links : [];
+                const has = (version) => links.some((link) =>
+                  link?.rel === "http://nodeinfo.diaspora.software/ns/schema/" + version &&
+                  link?.href === "https://testagram.site/nodeinfo/" + version
+                );
+                if (!has("2.0") || !has("2.1")) fail("NodeInfo discovery links must use the canonical Testagram origin.");
+              } else if (endpoint.startsWith("/.well-known/webfinger?")) {
+                const links = Array.isArray(body.links) ? body.links : [];
+                if (body.subject !== "acct:crissbeat@testagram.site" ||
+                    !links.some((link) => link?.rel === "self" &&
+                      link?.type === "application/activity+json" &&
+                      link?.href === "https://testagram.site/users/crissbeat")) {
+                  fail("WebFinger must resolve the canonical Testagram handle to its ActivityPub actor.");
+                }
+              } else if (endpoint.startsWith("/nodeinfo/")) {
+                const version = endpoint.endsWith("/2.1") ? "2.1" : "2.0";
+                if (body.version !== version || !Array.isArray(body.protocols) || !body.protocols.includes("activitypub") ||
+                    typeof body.usage?.users?.total !== "number" || typeof body.usage?.localPosts !== "number") {
+                  fail("NodeInfo " + version + " response does not match the expected schema.");
+                }
+                if (version === "2.1" && (!Array.isArray(body.services?.inbound) || !Array.isArray(body.services?.outbound))) {
+                  fail("NodeInfo 2.1 must include inbound/outbound services arrays.");
+                }
+              } else if (endpoint === "/users/crissbeat") {
+                let actorUrl;
+                try { actorUrl = new URL(body.id); } catch { fail("Fediverse actor id is not a valid absolute URL."); }
+                if (actorUrl.origin !== "https://testagram.site" || !body.inbox || !body.outbox ||
+                    body.publicKey?.owner !== body.id || !body.publicKey?.publicKeyPem) {
+                  fail("Fediverse actor must expose canonical Testagram URLs, inbox/outbox, and its public key.");
+                }
+              } else if (endpoint.endsWith("/outbox")) {
+                if (!["OrderedCollection", "OrderedCollectionPage"].includes(body.type) ||
+                    typeof body.id !== "string" || !body.id.startsWith("https://testagram.site/users/")) {
+                  fail("Fediverse outbox must be a valid ActivityPub collection on the canonical origin.");
+                }
+              }
+              console.log("Production federation schema passed: " + endpoint);
+            '
           done
           for inbox_endpoint in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
             inbox_status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30               -o /tmp/testagram-inbox-response -w '%{http_code}' "$APP_ORIGIN$inbox_endpoint")"
@@ -1045,6 +1093,40 @@ jobs:
           }));
           NODE
 
+
+      # Probe the same federated aggregation path used by the live homepage.
+      # Keep the local-only probe above so a federation outage is reported
+      # separately rather than misdiagnosed as a total home-feed outage.
+      - name: Verify federated homepage feed contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          federated_feed_status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+            -o /tmp/testagram-home-feed-federated.json -w '%{http_code}' \
+            "$APP_ORIGIN/api/home-feed?limit=6&includeFederated=1")"
+          [[ "$federated_feed_status" == "200" ]] || {
+            echo "::error::Production home feed with federation enabled returned HTTP $federated_feed_status."
+            head -c 2000 /tmp/testagram-home-feed-federated.json || true
+            exit 1
+          }
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const payload = JSON.parse(fs.readFileSync("/tmp/testagram-home-feed-federated.json", "utf8"));
+          if (!payload || !Array.isArray(payload.items) || !payload.instrumentation) {
+            throw new Error("Federated home-feed contract is invalid: expected items and instrumentation.");
+          }
+          if (payload.instrumentation.federationError) {
+            throw new Error("Homepage federation source reported an error: " + payload.instrumentation.federationError);
+          }
+          console.log(JSON.stringify({
+            ok: true,
+            item_count: payload.items.length,
+            federated_candidates: payload.instrumentation.federatedCandidatesFetched,
+            federated_rendered: payload.instrumentation.federatedCandidatesRendered,
+            federation_latency_ms: payload.instrumentation.federationQueryLatencyMs,
+            api_contract: "home-feed-federation-v1"
+          }));
+          NODE
 
       - name: Verify Testagram Ads decision and event contracts
         if: steps.supabase-auth.outputs.available == 'true'

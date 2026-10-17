@@ -350,6 +350,38 @@ function supabaseRewrite(pathname: string) {
   return null;
 }
 
+function nodeInfoFallback(pathname: string) {
+  const headers = commonHeaders(new Headers({
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'public, max-age=30, stale-while-revalidate=300',
+    'cdn-cache-control': 'public, max-age=30, stale-while-revalidate=300',
+    'x-testagram-federation-fallback': 'nodeinfo-safe-metadata',
+  }));
+  if (pathname === '/.well-known/nodeinfo') {
+    return new Response(JSON.stringify({
+      links: [
+        { rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1', href: 'https://testagram.site/nodeinfo/2.1' },
+        { rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0', href: 'https://testagram.site/nodeinfo/2.0' },
+      ],
+    }), { status: 200, headers });
+  }
+
+  const version = pathname.endsWith('/2.1') ? '2.1' : '2.0';
+  if (version === '2.1') {
+    headers.set('content-type', 'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"; charset=utf-8');
+  }
+  const body: Record<string, unknown> = {
+    version,
+    software: { name: 'testagram', version: '1.0.0' },
+    protocols: ['activitypub'],
+    usage: { users: { total: 0, activeMonth: 0, activeHalfyear: 0 }, localPosts: 0 },
+    openRegistrations: true,
+    metadata: {},
+  };
+  if (version === '2.1') body.services = { inbound: [], outbound: [] };
+  return new Response(JSON.stringify(body), { status: 200, headers });
+}
+
 async function proxySupabase(request: Request, targetPath: string) {
   const target = new URL(targetPath + new URL(request.url).search, SUPABASE_ORIGIN);
   const headers = new Headers(request.headers);
@@ -364,37 +396,57 @@ async function proxySupabase(request: Request, targetPath: string) {
   // cannot make every federation peer wait on repeated identical lookups.
   const isPublicFederationMetadata = request.method === 'GET' && (
     pathname === '/.well-known/nodeinfo' ||
+    pathname === '/.well-known/webfinger' ||
     /^\/nodeinfo\/2\.[01]$/.test(pathname) ||
     /^\/users\/[^/]+$/.test(pathname)
   );
   const metadataTtl = /^\/nodeinfo\//.test(pathname) || pathname === '/.well-known/nodeinfo' ? 300 : 60;
 
-  const response = await fetch(target, {
-    method: request.method,
-    headers,
-    body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
-    redirect: 'manual',
-    ...(isPublicFederationMetadata
-      ? {
-          cf: {
-            cacheEverything: true,
-            cacheTtlByStatus: {
-              '200-299': metadataTtl,
-              '300-599': -1,
-            },
-          },
-        }
-      : isFederationProxy
+  const isNodeInfoPath = request.method === 'GET' && (
+    pathname === '/.well-known/nodeinfo' || /^\/nodeinfo\/2\.[01]$/.test(pathname)
+  );
+
+  let response: Response;
+  try {
+    response = await fetch(target, {
+      method: request.method,
+      headers,
+      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+      redirect: 'manual',
+      ...(isPublicFederationMetadata
         ? {
-            cache: 'no-store',
             cf: {
+              cacheEverything: true,
               cacheTtlByStatus: {
-                '200-599': -1,
+                '200-299': metadataTtl,
+                '300-599': -1,
               },
             },
           }
-        : {}),
-  });
+        : isFederationProxy
+          ? {
+              cache: 'no-store',
+              cf: {
+                cacheTtlByStatus: {
+                  '200-599': -1,
+                },
+              },
+            }
+          : {}),
+    });
+  } catch (error) {
+    if (!isNodeInfoPath) throw error;
+    console.warn('[testagram-federation] NodeInfo upstream unreachable; serving protocol-safe metadata', error);
+    return nodeInfoFallback(pathname);
+  }
+
+  // NodeInfo is discovery metadata, not authoritative account data. Keep the
+  // Fediverse discoverable during a transient Supabase/Edge Function outage
+  // instead of propagating a 5xx that makes the whole instance appear offline.
+  if (isNodeInfoPath && response.status >= 500) {
+    console.warn('[testagram-federation] NodeInfo upstream returned', response.status, '; serving protocol-safe metadata');
+    return nodeInfoFallback(pathname);
+  }
 
   const out = new Headers(response.headers);
   out.delete('content-length');
