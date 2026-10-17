@@ -393,6 +393,7 @@ async function proxySupabase(request: Request, targetPath: string) {
   // cannot make every federation peer wait on repeated identical lookups.
   const isPublicFederationMetadata = request.method === 'GET' && (
     pathname === '/.well-known/nodeinfo' ||
+    pathname === '/.well-known/webfinger' ||
     /^\/nodeinfo\/2\.[01]$/.test(pathname) ||
     /^\/users\/[^/]+$/.test(pathname)
   );
