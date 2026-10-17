@@ -119,7 +119,23 @@ export async function getPrivateMediaDownloadUrl(key: string): Promise<string> {
   return data.url;
 }
 
-export async function attachMediaToPost(mediaId:string,postId:string):Promise<MediaUploadResult>{return mediaFunction('attach',{media_id:mediaId,post_id:postId});}
+export async function attachMediaToPost(mediaId:string,postId:string):Promise<MediaUploadResult>{
+  if (selfHostedMediaBase()) {
+    const data = await selfHostedMediaRequest('/api/media/attach', { key: mediaId, post_id: postId });
+    return {
+      media_id: String(data.key ?? mediaId),
+      object_key: String(data.key ?? mediaId),
+      public_url: typeof data.public_url === 'string' ? data.public_url : null,
+      size_bytes: Number(data.size_bytes ?? 0),
+      mime_type: String(data.content_type ?? 'application/octet-stream'),
+      media_type: data.media_type === 'image' || data.media_type === 'video' ? data.media_type : 'file',
+      status: 'uploaded',
+      etag: typeof data.etag === 'string' ? data.etag : null,
+      post_id: postId,
+    };
+  }
+  return mediaFunction('attach',{media_id:mediaId,post_id:postId});
+}
 export async function deleteMedia(mediaId:string){
   if (selfHostedMediaBase()) return selfHostedMediaRequest('/api/media/delete', { key: mediaId });
   return mediaFunction('delete',{media_id:mediaId});
