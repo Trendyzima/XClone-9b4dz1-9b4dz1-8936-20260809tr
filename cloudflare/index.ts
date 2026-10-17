@@ -399,7 +399,7 @@ async function proxySupabase(request: Request, targetPath: string) {
   const metadataTtl = /^\/nodeinfo\//.test(pathname) || pathname === '/.well-known/nodeinfo' ? 300 : 60;
 
   const isNodeInfoPath = request.method === 'GET' && (
-    pathname === '/.well-known/nodeinfo' || /^\\/nodeinfo\\/2\\.[01]$/.test(pathname)
+    pathname === '/.well-known/nodeinfo' || /^\/nodeinfo\/2\.[01]$/.test(pathname)
   );
 
   let response: Response;
