@@ -73,9 +73,9 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const source = fs.readFileSync("src/index.ts", "utf8");
-          assert.match(source, /requireTLS:\\s*!secure/, "non-implicit SMTP must require STARTTLS");
-          assert.match(source, /minVersion:\\s*"TLSv1\\.2"/, "SMTP must require TLS 1.2 or newer");
-          assert.match(source, /rejectUnauthorized:\\s*true/, "SMTP must validate relay certificates");
+          assert.ok(source.includes("requireTLS: !secure"), "non-implicit SMTP must require STARTTLS");
+          assert.ok(source.includes('minVersion: "TLSv1.2"'), "SMTP must require TLS 1.2 or newer");
+          assert.ok(source.includes("rejectUnauthorized: true"), "SMTP must validate relay certificates");
           console.log("SMTP transport requires STARTTLS and authenticated TLS 1.2+.");
           NODE
       - run: npm run build
