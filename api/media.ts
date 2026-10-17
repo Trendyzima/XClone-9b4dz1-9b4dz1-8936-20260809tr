@@ -159,6 +159,8 @@ export default async function handler(req: any, res: any) {
     if (action === 'private-download' || action === 'private_download' || action === 'download') {
       return json(res, result.status, { url: data.url, expires_in: data.expires_in_seconds });
     }
+    const contentType = String(data.content_type ?? data.mime_type ?? body.mime_type ?? '');
+    const mediaType = data.media_type ?? (contentType.startsWith('image/') ? 'image' : contentType.startsWith('video/') ? 'video' : undefined);
     return json(res, result.status, {
       ...data,
       id: data.key ?? data.id,
@@ -167,6 +169,8 @@ export default async function handler(req: any, res: any) {
       storage_key: data.key ?? data.storage_key,
       public_url: data.public_url ?? data.media_url,
       size_bytes: data.size_bytes ?? data.byte_size,
+      media_type: mediaType,
+      status: data.status === 'ready' ? 'uploaded' : data.status,
     });
   } catch (error) {
     console.error('media backend proxy failed', error);
