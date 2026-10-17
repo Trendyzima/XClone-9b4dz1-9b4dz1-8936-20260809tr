@@ -993,6 +993,7 @@ jobs:
           # discovery/actor endpoints are still served by a stale/competing route.
           declare -a FEDERATION_ENDPOINTS=(
             "/.well-known/nodeinfo"
+            "/.well-known/webfinger?resource=acct:crissbeat@testagram.site"
             "/nodeinfo/2.0"
             "/nodeinfo/2.1"
             "/users/crissbeat"
@@ -1025,6 +1026,14 @@ jobs:
                   link?.href === `https://testagram.site/nodeinfo/${version}`
                 );
                 if (!has("2.0") || !has("2.1")) fail("NodeInfo discovery links must use the canonical Testagram origin.");
+              } else if (endpoint.startsWith("/.well-known/webfinger?")) {
+                const links = Array.isArray(body.links) ? body.links : [];
+                if (body.subject !== "acct:crissbeat@testagram.site" ||
+                    !links.some((link) => link?.rel === "self" &&
+                      link?.type === "application/activity+json" &&
+                      link?.href === "https://testagram.site/users/crissbeat")) {
+                  fail("WebFinger must resolve the canonical Testagram handle to its ActivityPub actor.");
+                }
               } else if (endpoint.startsWith("/nodeinfo/")) {
                 const version = endpoint.endsWith("/2.1") ? "2.1" : "2.0";
                 if (body.version !== version || !Array.isArray(body.protocols) || !body.protocols.includes("activitypub") ||
