@@ -2,6 +2,20 @@
 
 First-party transactional email service inspired by the useful API patterns in the Resend Node SDK, but independently implemented and owned by Testagram.
 
+## Authentication integration
+
+Supabase authentication Edge Functions enqueue messages directly into the private
+`public.mail_messages` table using server-side credentials and an idempotency key.
+The local `services/mail` worker polls that table and performs SMTP delivery with
+the existing retry/backoff policy. Authentication does **not** depend on
+`mail.testagram.site`, a public mail-origin IP, an Nginx route, or a mail-gateway
+Bearer token. The HTTP API remains available for internal integrations, but is not
+on the sign-in, OTP, magic-link, password-recovery, or security-email critical path.
+
+The local worker must run with valid `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and
+SMTP/DKIM configuration. `/health` and `/ready` remain diagnostics for the worker;
+they are not used as a remote authentication deployment gate.
+
 ## API
 
 - `GET /health` (liveness only)
