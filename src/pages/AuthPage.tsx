@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
+import { authService, finalizeAuthenticatedSession, mapSupabaseUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { clearPasswordRecoverySession, getPasswordRecoveryUserId, hasPasswordRecoveryMarker, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 import { useSEO } from '@/hooks/useSEO';
@@ -194,16 +194,31 @@ export default function AuthPage() {
   };
 
   const finishLogin = async (user: any) => {
-    const finalized = await finalizeAuthenticatedSession(user);
+    let finalized;
+    try {
+      finalized = await finalizeAuthenticatedSession(user);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message || '');
+      // Authentication may have succeeded and persisted a valid Supabase
+      // session while PostgREST/profile services are degraded. Keep that
+      // session usable instead of reporting a false sign-in failure. Explicit
+      // age and legal-policy gates remain blocking.
+      const isPolicyGate = /^(AGE_RESTRICTION|LEGAL_ACCEPTANCE_REQUIRED)$/.test(message);
+      const isTransientBackendFailure = /timed? ?out|timeout|failed to fetch|network|connection terminated|statement timeout|gateway timeout|service unavailable|context deadline exceeded|request_timeout|\\b(408|500|502|503|504)\\b/i.test(message);
+      if (isPolicyGate || !isTransientBackendFailure) throw error;
+      finalized = mapSupabaseUser(user);
+      toast({
+        title: 'You’re signed in',
+        description: 'Your session is active. Some account details are temporarily slow to load and will retry as you continue.',
+      });
+    }
     login(finalized);
     setLoading(false);
     // Referral bookkeeping is best-effort and must never hold up an otherwise
     // successful sign-in while database/RPC capacity is degraded.
     void applyPendingReferral();
-    // Existing-account login never launches KYC. Identity verification is only
-    // entered from the explicit account-creation flow.
     navigate(getSafeReturnTo(), { replace: true });
-  };
+  };;
 
   const handlePasswordSignIn = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true);
@@ -398,8 +413,8 @@ export default function AuthPage() {
 
                   <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-3.5">
                     {mode === 'signup' && <Field icon={Sparkles} type="text" autoComplete="username" placeholder="Username (optional)" value={username} onChange={e => setUsername(e.target.value)} />}
-                    <Field icon={Mail} type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
-                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
+                    <Field icon={Mail} type={mode === 'signin' ? 'text' : 'email'} inputMode={mode === 'signin' ? 'email' : undefined} autoComplete={mode === 'signin' ? 'username' : 'email'} placeholder={mode === 'signin' ? 'Email address or phone number' : 'Email address'} value={email} onChange={e => setEmail(e.target.value)} required />
+                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
                     <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in with password' : 'Continue to email verification'}</Button>
                   </form>
 
