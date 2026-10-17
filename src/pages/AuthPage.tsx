@@ -31,7 +31,6 @@ function friendlyAuthError(error: unknown, fallback: string) {
     IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
     IDENTITY_NETWORK_ERROR: 'Could not reach the authentication service. Check your connection and try again.',
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
-    IDENTITY_SERVICE_UNAVAILABLE: 'Sign-in is temporarily unavailable. Please try again in a moment.',
     TESTAGRAM_MAIL_QUEUE_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
     TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
   };
