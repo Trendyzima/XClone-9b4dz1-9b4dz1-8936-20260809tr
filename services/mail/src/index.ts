@@ -79,13 +79,14 @@ async function deliver(row:MailRow){
     for(const host of hosts){
       try{
         const t=transporter(host,25,false);
-        let info;
+        let deliveredMessageId: string | null = null;
         try {
-          info=await t.sendMail({...messageBase,to:addresses,cc:undefined,bcc:undefined});
+          const info=await t.sendMail({...messageBase,to:addresses,cc:undefined,bcc:undefined});
+          deliveredMessageId=info.messageId||null;
         } finally {
           t.close();
         }
-        lastMessageId=info.messageId||lastMessageId;
+        lastMessageId=deliveredMessageId||lastMessageId;
         sent=true; break;
       }catch(e){last=e instanceof Error?e.message:String(e);}
     }
