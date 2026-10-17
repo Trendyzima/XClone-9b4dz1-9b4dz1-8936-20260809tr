@@ -46,6 +46,9 @@ jobs:
           exit 1
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run validate:fediverse-profile
+      - run: npm run validate:home-feed-identity
+      - run: npm run validate:fediverse-edge
       - run: npm run build
 
   edge-functions:
