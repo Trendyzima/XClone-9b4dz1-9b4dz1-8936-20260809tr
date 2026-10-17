@@ -201,7 +201,7 @@ export default function AuthPage() {
     // successful sign-in while database/RPC capacity is degraded.
     void applyPendingReferral();
     navigate(getSafeReturnTo(), { replace: true });
-  };;
+  };
 
   const handlePasswordSignIn = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true);
