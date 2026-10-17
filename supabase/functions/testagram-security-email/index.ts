@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.51.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const TESTAGRAM_MAIL_URL = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
+const TESTAGRAM_MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
 const OWNER_EMAIL = "nahashonnyaga794@gmail.com";
 const FROM = "Testagram Security <noreply@testagram.site>";
 
@@ -31,21 +32,30 @@ function escapeHtml(value: unknown) {
 }
 
 async function sendEmail(subject: string, text: string, html: string, idempotencyKey: string) {
-  const response = await fetch("https://api.resend.com/emails", {
+  if (!TESTAGRAM_MAIL_URL || !TESTAGRAM_MAIL_TOKEN) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode("testagram-security-email|" + idempotencyKey),
+  );
+  const mailIdempotencyKey = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  const response = await fetch(TESTAGRAM_MAIL_URL + "/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: "Bearer " + TESTAGRAM_MAIL_TOKEN,
+      "Content-Type": "application/json",
+      "Idempotency-Key": mailIdempotencyKey,
+    },
     body: JSON.stringify({ from: FROM, to: [OWNER_EMAIL], subject, text, html }),
   });
   if (!response.ok) {
-    const body = await response.text();
-    console.error("SECURITY_EMAIL_REJECTED", JSON.stringify({ status: response.status, body: body.slice(0, 500), idempotencyKey }));
-    throw new Error(`RESEND_HTTP_${response.status}`);
+    console.error("SECURITY_EMAIL_REJECTED", JSON.stringify({ status: response.status }));
+    throw new Error("TESTAGRAM_MAIL_HTTP_" + response.status);
   }
 }
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-  if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !RESEND_API_KEY) return json({ error: "security_email_not_configured" }, 503);
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !TESTAGRAM_MAIL_URL || !TESTAGRAM_MAIL_TOKEN) return json({ error: "security_email_not_configured" }, 503);
 
   try {
     const raw = await req.text();
