@@ -781,6 +781,48 @@ jobs:
 
           echo "Cloudflare route reconciliation passed: apex/www have no competing or disabled route; testagram-web is authoritative."
           echo "Cloudflare route API: GET/DELETE /zones/{zone_id}/workers/routes."
+      - name: Reconcile Testagram Mail origin DNS
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          MAIL_SERVICE_ORIGIN_IP: ${{ secrets.MAIL_SERVICE_ORIGIN_IP }}
+        run: |
+          set -euo pipefail
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required to reconcile mail DNS."; exit 1; }
+          [[ "${CLOUDFLARE_ZONE_ID:-}" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ZONE_ID is missing or invalid."; exit 1; }
+          [[ -n "${MAIL_SERVICE_ORIGIN_IP:-}" ]] || { echo "::error::Set MAIL_SERVICE_ORIGIN_IP in the GitHub production environment to the actual public IPv4 of the host running /opt/testagram-mail."; exit 1; }
+          python3 - "$MAIL_SERVICE_ORIGIN_IP" <<'PY'
+          import ipaddress, sys
+          address = ipaddress.ip_address(sys.argv[1])
+          if not isinstance(address, ipaddress.IPv4Address) or not address.is_global:
+              raise SystemExit("MAIL_SERVICE_ORIGIN_IP must be a globally routable IPv4 address.")
+          PY
+
+          API="https://api.cloudflare.com/client/v4"
+          cname_count="$(curl -fsS --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json" \
+            "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=mail.testagram.site&type=CNAME&per_page=100" | jq '.result | length')"
+          [[ "$cname_count" == "0" ]] || { echo "::error::mail.testagram.site already has a CNAME. Review the existing DNS target before switching it to an A record."; exit 1; }
+
+          records="$(curl -fsS --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json" \
+            "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=mail.testagram.site&type=A&per_page=100")"
+          count="$(jq '.result | length' <<<"$records")"
+          [[ "$count" -le 1 ]] || { echo "::error::Multiple mail.testagram.site A records exist. Resolve them manually before automated reconciliation."; exit 1; }
+          payload="$(jq -cn --arg ip "$MAIL_SERVICE_ORIGIN_IP" '{name:"mail.testagram.site",type:"A",content:$ip,ttl:1,proxied:false}')"
+          if [[ "$count" == "1" ]]; then
+            record_id="$(jq -r '.result[0].id' <<<"$records")"
+            curl -fsS --retry 3 --retry-delay 2 -X PUT \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+              --data "$payload" "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records/$record_id" | jq -e '.success == true' >/dev/null
+          else
+            curl -fsS --retry 3 --retry-delay 2 -X POST \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+              --data "$payload" "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records" | jq -e '.success == true' >/dev/null
+          fi
+          echo "Testagram Mail DNS is configured as a DNS-only A record; no IP value is printed."
+
       - name: Preflight and configure Testagram Mail runtime
         shell: bash
         env:
