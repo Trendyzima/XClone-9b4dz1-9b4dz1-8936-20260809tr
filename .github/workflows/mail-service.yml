@@ -42,14 +42,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: services/mail/package.json
-      - run: npm install --package-lock-only
-      - name: Export generated mail dependency lockfile for reproducibility
-        uses: actions/upload-artifact@v4
-        with:
-          name: testagram-mail-lockfile-bootstrap
-          path: services/mail/package-lock.json
-          if-no-files-found: error
+          cache-dependency-path: services/mail/package-lock.json
       - run: npm ci
       - name: Audit production mail dependencies
         run: |
