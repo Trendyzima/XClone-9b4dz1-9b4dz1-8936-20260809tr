@@ -1313,23 +1313,17 @@ jobs:
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref for authentication mail deployment."; exit 1; }
 
           secrets="$(supabase secrets list --project-ref "$PROJECT_REF")"
-          for name in TESTAGRAM_MAIL_URL TESTAGRAM_MAIL_TOKEN SEND_EMAIL_HOOK_SECRET IDENTITY_PREAUTH_SECRET IDENTITY_ENGINE_SECRET; do
+          for name in SEND_EMAIL_HOOK_SECRET IDENTITY_PREAUTH_SECRET IDENTITY_ENGINE_SECRET; do
             printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])$name([[:space:]|]|$)" || {
-              echo "::error::$name is not configured in Supabase project secrets; refusing to deploy authentication mail functions."
+              echo "::error::$name is not configured in Supabase project secrets; refusing to deploy authentication functions."
               exit 1
             }
           done
 
-          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 20 \
-            https://mail.testagram.site/ready > /tmp/testagram-mail-health-edge.json
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          const health = JSON.parse(fs.readFileSync("/tmp/testagram-mail-health-edge.json", "utf8"));
-          if (health?.ok !== true || health?.ready !== true || health?.service !== "testagram-mail") {
-            throw new Error("Testagram Mail health contract failed before Edge Function deployment: " + JSON.stringify(health));
-          }
-          console.log("Testagram Mail health confirmed before auth function deployment.");
-          NODE
+          # The Edge Functions enqueue into the private mail_messages ledger using
+          # Supabase's server-side credentials. The existing local SMTP worker drains
+          # that queue. No public mail hostname, origin IP, or external gateway token.
+          echo "Auth mail deployment preflight passed: local PostgreSQL queue contract is used.";
 
           deploy_auth_mail_function() {
             local name="$1"
@@ -1351,13 +1345,13 @@ jobs:
             done
           }
 
-          # Reconcile all active auth email paths to the Testagram-owned mail service.
-          # The migration step above runs before this deployment step.
+          # Reconcile all auth mail paths to the local Testagram PostgreSQL queue.
+          # The mail ledger migration step above runs before this deployment step.
           deploy_auth_mail_function testagram-auth-email
           deploy_auth_mail_function testagram-magic-link
           deploy_auth_mail_function testagram-security-email
           deploy_auth_mail_function identity-signup
-          echo "Testagram authentication mail functions deployed after mail health and secret preflight."
+          echo "Testagram authentication Edge Functions deployed against the local mail queue."
 
 # Story media reconciliation CI trigger marker.
 
