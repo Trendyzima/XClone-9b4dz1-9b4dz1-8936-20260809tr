@@ -28,6 +28,33 @@ function escapeHtml(value: unknown) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
+async function hmacHex(secret: string, value: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function enforceMagicLinkRateLimit(supabaseUrl: string, adminKey: string, email: string, req: Request) {
+  const emailHash = await hmacHex(adminKey, "testagram-magic-link-email|" + email);
+  const forwarded = req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for")?.split(",")[0] || "";
+  const ip = forwarded.trim();
+  const ipHash = ip ? await hmacHex(adminKey, "testagram-magic-link-ip|" + ip) : null;
+  const admin = createClient(supabaseUrl, adminKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data, error } = await admin.rpc("consume_testagram_magic_link_rate_limit", {
+    p_email_hash: emailHash,
+    p_ip_hash: ipHash,
+  });
+  if (error) {
+    console.error("MAGIC_LINK_RATE_LIMIT_UNAVAILABLE", JSON.stringify({ code: error.code || "unknown" }));
+    throw new Error("MAGIC_LINK_RATE_LIMIT_UNAVAILABLE");
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  if (result?.allowed !== true) {
+    const retryAfter = Math.max(1, Number(result?.retry_after) || 60);
+    throw Object.assign(new Error("MAGIC_LINK_RATE_LIMITED"), { retryAfter });
+  }
+}
+
 function brandedHtml(email: string, actionUrl: string) {
   const safeEmail = escapeHtml(email);
   const safeUrl = escapeHtml(actionUrl);
@@ -106,6 +133,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const email = normalizeEmail(body?.email);
     const redirectTo = safeRedirect(body?.redirect_to);
+    await enforceMagicLinkRateLimit(supabaseUrl, adminKey, email, req);
 
     // Deliberately bypass the /auth/v1/otp email-send path. generate_link creates
     // the Auth magic-link state; Testagram's mail gateway is the only transport.
@@ -117,7 +145,18 @@ Deno.serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
     console.error("MAGIC_LINK_FAILURE", JSON.stringify({ requestId, error: message }));
-    const status = message === "INVALID_EMAIL" ? 400 : message.startsWith("TESTAGRAM_MAIL_HTTP_") ? 502 : message.startsWith("GENERATE_LINK_HTTP_") ? 502 : 500;
+    if (message === "MAGIC_LINK_RATE_LIMITED") {
+      const retryAfter = Math.max(1, Number((error as { retryAfter?: number })?.retryAfter) || 60);
+      return new Response(JSON.stringify({ error: "RATE_LIMITED", retry_after: retryAfter }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(retryAfter) },
+      });
+    }
+    const status = message === "INVALID_EMAIL" ? 400
+      : message === "MAGIC_LINK_RATE_LIMIT_UNAVAILABLE" ? 503
+      : message.startsWith("TESTAGRAM_MAIL_HTTP_") ? 502
+      : message.startsWith("GENERATE_LINK_HTTP_") ? 502
+      : 500;
     return json({ error: "MAGIC_LINK_SEND_FAILED", request_id: requestId }, status);
   }
 });
