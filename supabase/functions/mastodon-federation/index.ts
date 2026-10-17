@@ -8,18 +8,48 @@ const H={'Content-Type':'application/activity+json; charset=utf-8','Access-Contr
 const json=(v:unknown,s=200,extra:Record<string,string>={})=>new Response(JSON.stringify(v),{status:s,headers:{...H,...extra}});
 let nodeInfoStatsCache:{users:number;posts:number;expiresAt:number}|null=null;
 async function getNodeInfoStats(){
-  if(nodeInfoStatsCache&&nodeInfoStatsCache.expiresAt>Date.now())return nodeInfoStatsCache;
-  // NodeInfo is discovery metadata, not an accounting endpoint. Exact counts
-  // force full matching-row work and were timing out on production. PostgreSQL
-  // planner estimates keep this public endpoint bounded; cache them for 5 min.
-  const [users,posts]=await Promise.all([
-    db.from('profiles').select('id',{count:'planned',head:true}),
-    db.from('posts').select('id',{count:'planned',head:true}).is('deleted_at',null)
-  ]);
-  if(users.error)throw users.error;
-  if(posts.error)throw posts.error;
-  nodeInfoStatsCache={users:Number(users.count||0),posts:Number(posts.count||0),expiresAt:Date.now()+5*60*1000};
-  return nodeInfoStatsCache;
+  const now=Date.now();
+  if(nodeInfoStatsCache&&nodeInfoStatsCache.expiresAt>now)return nodeInfoStatsCache;
+
+  // Discovery metadata must remain available while the primary database is
+  // degraded. Preserve the last known values as stale-if-error data, and put a
+  // hard deadline around best-effort planner estimates. Never make federation
+  // discovery wait for Supabase's gateway/database timeout.
+  const stale=nodeInfoStatsCache;
+  let timeoutId:ReturnType<typeof setTimeout>|undefined;
+  const controller=new AbortController();
+  const deadline=new Promise<never>((_,reject)=>{
+    timeoutId=setTimeout(()=>{
+      controller.abort();
+      reject(new Error('NodeInfo statistics query exceeded its 1500ms budget'));
+    },1500);
+  });
+  try{
+    const stats=await Promise.race([
+      (async()=>{
+        const [users,posts]=await Promise.all([
+          db.from('profiles').select('id',{count:'planned',head:true}).abortSignal(controller.signal),
+          db.from('posts').select('id',{count:'planned',head:true}).is('deleted_at',null).abortSignal(controller.signal)
+        ]);
+        if(users.error)throw users.error;
+        if(posts.error)throw posts.error;
+        return {users:Number(users.count||0),posts:Number(posts.count||0),expiresAt:Date.now()+5*60*1000};
+      })(),
+      deadline
+    ]);
+    nodeInfoStatsCache=stats;
+    return stats;
+  }catch(error){
+    console.warn('[mastodon-federation] NodeInfo stats degraded; serving stale or safe fallback metadata',error);
+    if(stale)return stale;
+    // NodeInfo's usage fields are descriptive, not authorization decisions.
+    // Zero is safer than taking the entire protocol discovery endpoint offline.
+    const fallback={users:0,posts:0,expiresAt:Date.now()+30_000};
+    nodeInfoStatsCache=fallback;
+    return fallback;
+  }finally{
+    if(timeoutId)clearTimeout(timeoutId);
+  }
 }
 const str=(v:unknown)=>typeof v==='string'?v:'';const uri=(v:unknown)=>typeof v==='string'?v:v&&typeof v==='object'?str((v as any).id):'';
 const context=[AP,SEC,{toot:TOOT,discoverable:'toot:discoverable',indexable:'toot:indexable',featured:'toot:featured'}];
