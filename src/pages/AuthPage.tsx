@@ -28,10 +28,10 @@ function friendlyAuthError(error: unknown, fallback: string) {
     PASSWORD_TOO_SHORT: 'Use a password with at least 8 characters.',
     EMAIL_NOT_VERIFIED: 'Verify your email before continuing.',
     IDENTITY_NOT_APPROVED: 'Your identity must be approved before creating the account.',
-    IDENTITY_SERVICE_UNAVAILABLE: 'Authentication services are temporarily unavailable. Please try again shortly.',
     IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
     IDENTITY_NETWORK_ERROR: 'Could not reach the authentication service. Check your connection and try again.',
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
+    TESTAGRAM_MAIL_QUEUE_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
     TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
   };
   return safeMessages[message] || (message.includes('timed out') ? 'The request took too long. Check your connection and try again.' : fallback);
@@ -197,6 +197,26 @@ export default function AuthPage() {
     catch (error: any) { setLoading(false); toast({ title: 'Sign-in failed', description: friendlyAuthError(error, 'Check your details and try again.'), variant: 'destructive' }); }
   };
 
+  const handleMagicLink = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      await authService.sendMagicLink(email);
+      toast({
+        title: 'Check your email',
+        description: 'If your account can sign in by email, we sent a secure Testagram sign-in link. Open it on this device to continue.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Could not send sign-in link',
+        description: friendlyAuthError(error, 'Please try again in a moment.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const startIdentitySignup = async () => {
     const consent = readLegalConsent();
     if (!consent?.birthDate) {
@@ -224,23 +244,6 @@ export default function AuthPage() {
       await startIdentitySignup();
     } catch (error: any) {
       toast({ title: 'Could not start identity verification', description: friendlyAuthError(error, 'Please try again.'), variant: 'destructive' });
-    } finally { setLoading(false); }
-  };
-
-  const sendEmailOtp = async (event: FormEvent) => {
-    event.preventDefault(); setLoading(true);
-    try {
-      if (mode === 'signup') {
-        await startIdentitySignup();
-      } else {
-        await authService.sendEmailOtp(email, false);
-        setOtpPurpose('signin');
-        setOtp('');
-        setMode('otp');
-        toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
-      }
-    } catch (error: any) {
-      toast({ title: 'Code request failed', description: friendlyAuthError(error, 'We could not send the verification code.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
@@ -391,10 +394,12 @@ export default function AuthPage() {
 
                   {mode === 'signin' && <button onClick={() => go('recover')} className="mt-4 w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary">Forgot your password?</button>}
 
-                  <div className="my-6 flex items-center gap-3"><div className="h-px flex-1 bg-border" /><span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">or use email code</span><div className="h-px flex-1 bg-border" /></div>
-                  <form onSubmit={sendEmailOtp} className="space-y-3.5">
-                    <Field icon={Mail} type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
-                    <Button disabled={loading} type="submit" variant="outline" className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Email me a verification code'}</Button>
+                  <div className="my-6 flex items-center gap-3"><div className="h-px flex-1 bg-border" /><span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">or use email link</span><div className="h-px flex-1 bg-border" /></div>
+                  <form onSubmit={handleMagicLink} className="space-y-3.5">
+                    <Button disabled={loading || !email.trim()} type="submit" variant="outline" className="h-13 w-full rounded-2xl font-black">
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Mail className="mr-2 h-4 w-4" /> Email me a sign-in link</>}
+                    </Button>
+                    <p className="text-center text-xs leading-5 text-muted-foreground">We’ll send a secure, one-click link to the email above. No code to copy.</p>
                   </form>
                 </>
               )}

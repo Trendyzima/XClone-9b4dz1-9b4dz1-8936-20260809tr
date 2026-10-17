@@ -177,8 +177,24 @@ export class AuthService {
     return data.user;
   }
 
-  async sendMagicLink(email: string) {
-    return this.sendEmailOtp(email, false);
+  async sendMagicLink(emailInput: string) {
+    const identifier = normalizeIdentifier(emailInput);
+    if (identifier.kind !== 'email') throw new Error('Enter an email address for your sign-in link');
+    const { data, error } = await withAuthTimeout(
+      supabase.functions.invoke('testagram-magic-link', {
+        body: { email: identifier.value, redirect_to: CANONICAL_AUTH_REDIRECT_URL },
+      }),
+      'Sign-in link request',
+    );
+    if (error) {
+      const status = Number((error as any)?.context?.status || 0);
+      if (status === 429) throw new Error('RATE_LIMITED');
+      const message = String((error as any)?.message || '');
+      if (/failed to fetch|network|connection/i.test(message)) throw new Error('IDENTITY_NETWORK_ERROR');
+      throw new Error('IDENTITY_SERVICE_UNAVAILABLE');
+    }
+    if ((data as { ok?: boolean } | null)?.ok !== true) throw new Error('IDENTITY_SERVICE_UNAVAILABLE');
+    return identifier.value;
   }
 
   async sendOtp(email: string) {
