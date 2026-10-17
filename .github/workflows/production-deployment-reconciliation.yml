@@ -1094,6 +1094,40 @@ jobs:
           NODE
 
 
+      # Probe the same federated aggregation path used by the live homepage.
+      # Keep the local-only probe above so a federation outage is reported
+      # separately rather than misdiagnosed as a total home-feed outage.
+      - name: Verify federated homepage feed contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          federated_feed_status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+            -o /tmp/testagram-home-feed-federated.json -w '%{http_code}' \
+            "$APP_ORIGIN/api/home-feed?limit=6&includeFederated=1")"
+          [[ "$federated_feed_status" == "200" ]] || {
+            echo "::error::Production home feed with federation enabled returned HTTP $federated_feed_status."
+            head -c 2000 /tmp/testagram-home-feed-federated.json || true
+            exit 1
+          }
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const payload = JSON.parse(fs.readFileSync("/tmp/testagram-home-feed-federated.json", "utf8"));
+          if (!payload || !Array.isArray(payload.items) || !payload.instrumentation) {
+            throw new Error("Federated home-feed contract is invalid: expected items and instrumentation.");
+          }
+          if (payload.instrumentation.federationError) {
+            throw new Error("Homepage federation source reported an error: " + payload.instrumentation.federationError);
+          }
+          console.log(JSON.stringify({
+            ok: true,
+            item_count: payload.items.length,
+            federated_candidates: payload.instrumentation.federatedCandidatesFetched,
+            federated_rendered: payload.instrumentation.federatedCandidatesRendered,
+            federation_latency_ms: payload.instrumentation.federationQueryLatencyMs,
+            api_contract: "home-feed-federation-v1"
+          }));
+          NODE
+
       - name: Verify Testagram Ads decision and event contracts
         if: steps.supabase-auth.outputs.available == 'true'
         shell: bash
