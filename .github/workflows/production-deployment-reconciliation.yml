@@ -796,11 +796,11 @@ jobs:
           [[ -n "${EMAIL_SERVICE_TOKEN:-}" ]] || { echo "::error::EMAIL_SERVICE_TOKEN is required for the internal email API."; exit 1; }
 
           curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 20 \
-            https://mail.testagram.site/health > /tmp/testagram-mail-health.json
+            https://mail.testagram.site/ready > /tmp/testagram-mail-health.json
           node --input-type=module <<'NODE'
           import fs from "node:fs";
           const health = JSON.parse(fs.readFileSync("/tmp/testagram-mail-health.json", "utf8"));
-          if (health?.ok !== true || health?.service !== "testagram-mail") {
+          if (health?.ok !== true || health?.ready !== true || health?.service !== "testagram-mail") {
             throw new Error("Testagram Mail health contract failed: " + JSON.stringify(health));
           }
           console.log("Testagram Mail health contract passed.");
@@ -1339,11 +1339,11 @@ jobs:
           done
 
           curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 20 \
-            https://mail.testagram.site/health > /tmp/testagram-mail-health-edge.json
+            https://mail.testagram.site/ready > /tmp/testagram-mail-health-edge.json
           node --input-type=module <<'NODE'
           import fs from "node:fs";
           const health = JSON.parse(fs.readFileSync("/tmp/testagram-mail-health-edge.json", "utf8"));
-          if (health?.ok !== true || health?.service !== "testagram-mail") {
+          if (health?.ok !== true || health?.ready !== true || health?.service !== "testagram-mail") {
             throw new Error("Testagram Mail health contract failed before Edge Function deployment: " + JSON.stringify(health));
           }
           console.log("Testagram Mail health confirmed before auth function deployment.");
