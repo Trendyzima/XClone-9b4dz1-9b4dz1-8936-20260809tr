@@ -56,10 +56,23 @@ async function generateMagicLink(supabaseUrl: string, adminKey: string, email: s
   if (!actionLink) throw new Error("GENERATE_LINK_MISSING_ACTION_LINK");
   return actionLink;
 }
-async function sendEmail(resendKey: string, email: string, actionUrl: string) {
-  const response = await fetch("https://api.resend.com/emails", {
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function sendEmail(email: string, actionUrl: string) {
+  const mailUrl = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
+  const mailToken = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
+  if (!mailUrl || !mailToken) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
+  const idempotencyKey = await sha256Hex("testagram-magic-link|" + email + "|" + actionUrl);
+  const response = await fetch(mailUrl + "/emails", {
     method: "POST",
-    headers: { Authorization: "Bearer " + resendKey, "Content-Type": "application/json" },
+    headers: {
+      Authorization: "Bearer " + mailToken,
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
     body: JSON.stringify({
       from: FROM,
       to: [email],
@@ -68,12 +81,11 @@ async function sendEmail(resendKey: string, email: string, actionUrl: string) {
       text: "Use this secure Testagram sign-in link: " + actionUrl + "\n\nIf you did not request this, you can safely ignore this email.",
     }),
   });
-  const body = await response.text();
   if (!response.ok) {
-    console.error("MAGIC_LINK_RESEND_REJECTED", JSON.stringify({ status: response.status, body: body.slice(0, 500) }));
-    throw new Error("RESEND_HTTP_" + response.status);
+    console.error("MAGIC_LINK_MAIL_REJECTED", JSON.stringify({ status: response.status }));
+    throw new Error("TESTAGRAM_MAIL_HTTP_" + response.status);
   }
-  console.log("MAGIC_LINK_RESEND_ACCEPTED", JSON.stringify({ status: response.status }));
+  console.log("MAGIC_LINK_MAIL_ACCEPTED", JSON.stringify({ status: response.status }));
 }
 
 Deno.serve(async (req) => {
@@ -84,9 +96,10 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const adminKey = Deno.env.get("SUPABASE_SECRET_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const resendKey = Deno.env.get("RESEND_API_KEY") ?? "";
-    if (!supabaseUrl || !adminKey || !resendKey) {
-      console.error("MAGIC_LINK_CONFIG_MISSING", JSON.stringify({ requestId, hasSupabaseUrl: !!supabaseUrl, hasAdminKey: !!adminKey, hasResendKey: !!resendKey }));
+    const mailUrl = Deno.env.get("TESTAGRAM_MAIL_URL") ?? "";
+    const mailToken = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
+    if (!supabaseUrl || !adminKey || !mailUrl || !mailToken) {
+      console.error("MAGIC_LINK_CONFIG_MISSING", JSON.stringify({ requestId, hasSupabaseUrl: !!supabaseUrl, hasAdminKey: !!adminKey, hasMailUrl: !!mailUrl, hasMailToken: !!mailToken }));
       return json({ error: "EMAIL_TRANSPORT_NOT_CONFIGURED" }, 503);
     }
 
@@ -95,16 +108,16 @@ Deno.serve(async (req) => {
     const redirectTo = safeRedirect(body?.redirect_to);
 
     // Deliberately bypass the /auth/v1/otp email-send path. generate_link creates
-    // the Auth magic-link state; Resend is the only email transport.
+    // the Auth magic-link state; Testagram's mail gateway is the only transport.
     const actionLink = await generateMagicLink(supabaseUrl, adminKey, email, redirectTo);
-    await sendEmail(resendKey, email, actionLink);
+    await sendEmail(email, actionLink);
 
     console.log("MAGIC_LINK_SENT", JSON.stringify({ requestId }));
     return json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
     console.error("MAGIC_LINK_FAILURE", JSON.stringify({ requestId, error: message }));
-    const status = message === "INVALID_EMAIL" ? 400 : message.startsWith("RESEND_HTTP_") ? 502 : message.startsWith("GENERATE_LINK_HTTP_") ? 502 : 500;
+    const status = message === "INVALID_EMAIL" ? 400 : message.startsWith("TESTAGRAM_MAIL_HTTP_") ? 502 : message.startsWith("GENERATE_LINK_HTTP_") ? 502 : 500;
     return json({ error: "MAGIC_LINK_SEND_FAILED", request_id: requestId }, status);
   }
 });
