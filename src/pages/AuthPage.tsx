@@ -204,7 +204,7 @@ export default function AuthPage() {
       // session usable instead of reporting a false sign-in failure. Explicit
       // age and legal-policy gates remain blocking.
       const isPolicyGate = /^(AGE_RESTRICTION|LEGAL_ACCEPTANCE_REQUIRED)$/.test(message);
-      const isTransientBackendFailure = /timed? ?out|timeout|failed to fetch|network|connection terminated|statement timeout|gateway timeout|service unavailable|context deadline exceeded|request_timeout|\\b(408|500|502|503|504)\\b/i.test(message);
+      const isTransientBackendFailure = /timed? ?out|timeout|failed to fetch|network|connection terminated|statement timeout|gateway timeout|service unavailable|context deadline exceeded|request_timeout|\b(408|500|502|503|504)\b/i.test(message);
       if (isPolicyGate || !isTransientBackendFailure) throw error;
       finalized = mapSupabaseUser(user);
       toast({
