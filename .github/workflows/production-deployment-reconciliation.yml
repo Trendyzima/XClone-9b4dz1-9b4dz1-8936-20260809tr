@@ -1010,6 +1010,45 @@ jobs:
               head -c 2000 /tmp/testagram-federation-response || true
               exit 1
             }
+
+            # Status alone is not sufficient: verify protocol shape and canonical
+            # origin so a stale HTML route or cross-origin actor cannot pass.
+            ENDPOINT="$endpoint" node --input-type=module -e '
+              import fs from "node:fs";
+              const endpoint = process.env.ENDPOINT;
+              const body = JSON.parse(fs.readFileSync("/tmp/testagram-federation-response", "utf8"));
+              const fail = (message) => { console.error("::error::" + message); process.exit(1); };
+              if (endpoint === "/.well-known/nodeinfo") {
+                const links = Array.isArray(body.links) ? body.links : [];
+                const has = (version) => links.some((link) =>
+                  link?.rel === `http://nodeinfo.diaspora.software/ns/schema/${version}` &&
+                  link?.href === `https://testagram.site/nodeinfo/${version}`
+                );
+                if (!has("2.0") || !has("2.1")) fail("NodeInfo discovery links must use the canonical Testagram origin.");
+              } else if (endpoint.startsWith("/nodeinfo/")) {
+                const version = endpoint.endsWith("/2.1") ? "2.1" : "2.0";
+                if (body.version !== version || !Array.isArray(body.protocols) || !body.protocols.includes("activitypub") ||
+                    typeof body.usage?.users?.total !== "number" || typeof body.usage?.localPosts !== "number") {
+                  fail(`NodeInfo ${version} response does not match the expected schema.`);
+                }
+                if (version === "2.1" && (!Array.isArray(body.services?.inbound) || !Array.isArray(body.services?.outbound))) {
+                  fail("NodeInfo 2.1 must include inbound/outbound services arrays.");
+                }
+              } else if (endpoint === "/users/crissbeat") {
+                let actorUrl;
+                try { actorUrl = new URL(body.id); } catch { fail("Fediverse actor id is not a valid absolute URL."); }
+                if (actorUrl.origin !== "https://testagram.site" || !body.inbox || !body.outbox ||
+                    body.publicKey?.owner !== body.id || !body.publicKey?.publicKeyPem) {
+                  fail("Fediverse actor must expose canonical Testagram URLs, inbox/outbox, and its public key.");
+                }
+              } else if (endpoint.endsWith("/outbox")) {
+                if (!["OrderedCollection", "OrderedCollectionPage"].includes(body.type) ||
+                    typeof body.id !== "string" || !body.id.startsWith("https://testagram.site/users/")) {
+                  fail("Fediverse outbox must be a valid ActivityPub collection on the canonical origin.");
+                }
+              }
+              console.log(`Production federation schema passed: ${endpoint}`);
+            '
           done
           for inbox_endpoint in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
             inbox_status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30               -o /tmp/testagram-inbox-response -w '%{http_code}' "$APP_ORIGIN$inbox_endpoint")"
