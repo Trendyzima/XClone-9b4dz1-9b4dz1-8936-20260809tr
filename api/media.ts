@@ -74,7 +74,7 @@ export default async function handler(req: any, res: any) {
       const name = String(body.name ?? '').trim();
       const contentType = String(body.mime_type ?? body.content_type ?? '').trim().toLowerCase();
       const sizeBytes = Number(body.size_bytes);
-      const visibility = String(body.visibility ?? (body.post_id ? 'public' : 'private'));
+      const visibility = String(body.visibility ?? 'public');
       if (!name || name.length > 255 || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1) {
         return json(res, 400, { error: 'A file name and positive integer size_bytes are required.' });
       }
@@ -148,7 +148,7 @@ export default async function handler(req: any, res: any) {
         upload_method: data.method ?? 'PUT',
         upload_fields: data.fields ?? {},
         public_url: data.public_url,
-        visibility: String(body.visibility ?? (body.post_id ? 'public' : 'private')),
+        visibility: String(body.visibility ?? 'public'),
         mime_type: String(body.mime_type ?? body.content_type ?? ''),
         size_bytes: Number(body.size_bytes),
         expires_in: Number.isFinite(expiresAt) ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)) : null,
