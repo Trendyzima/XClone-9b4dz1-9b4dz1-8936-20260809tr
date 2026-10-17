@@ -248,23 +248,6 @@ export default function AuthPage() {
     } finally { setLoading(false); }
   };
 
-  const sendEmailOtp = async (event: FormEvent) => {
-    event.preventDefault(); setLoading(true);
-    try {
-      if (mode === 'signup') {
-        await startIdentitySignup();
-      } else {
-        await authService.sendEmailOtp(email, false);
-        setOtpPurpose('signin');
-        setOtp('');
-        setMode('otp');
-        toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
-      }
-    } catch (error: any) {
-      toast({ title: 'Code request failed', description: friendlyAuthError(error, 'We could not send the verification code.'), variant: 'destructive' });
-    } finally { setLoading(false); }
-  };
-
   const verifyEmailOtp = async (event: FormEvent) => {
     event.preventDefault();
     if (!/^\d{6}$/.test(otp.trim())) {
