@@ -71,7 +71,7 @@ ${url ? `<p style="font-size:12px;line-height:1.55;color:#667085;word-break:brea
 
 async function sendOne(to: string, subject: string, html: string, text: string) {
   if (!MAIL_URL || !MAIL_TOKEN) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
-  const fingerprint = new TextEncoder().encode(`testagram-auth-email|\${to.toLowerCase()}|\${subject}|\${text}`);
+  const fingerprint = new TextEncoder().encode(`testagram-auth-email|${to.toLowerCase()}|${subject}|${text}`);
   const digest = await crypto.subtle.digest("SHA-256", fingerprint);
   const idempotencyKey = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
   const response = await fetch(`${MAIL_URL}/emails`, {
