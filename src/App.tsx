@@ -431,7 +431,10 @@ function AppInner(){
     // Warm common destinations only after the first render and only when the
     // browser has not asked us to conserve data or is on a very slow connection.
     const connection = (navigator as any).connection;
-    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? '')) return;
+    const hostname = window.location.hostname;
+    const isNewsHost = /^(www\\.)?testagram\\.news$/i.test(hostname);
+    const isPublicTvLive = window.location.pathname.startsWith('/tv/live/');
+    if (document.visibilityState !== 'visible' || isNewsHost || isPublicTvLive || connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? '')) return;
     const idleWindow = window as any;
     const warm = () => {
       void Promise.allSettled([
