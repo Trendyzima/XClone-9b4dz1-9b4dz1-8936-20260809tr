@@ -19,7 +19,8 @@ const VIDEO_SEARCH_DEBOUNCE_MS = 400;
 const PRELOAD_AHEAD = 3;
 // PRELOAD_CANCEL_BEHIND: release buffering for videos more than this many slots behind current
 const PRELOAD_CANCEL_BEHIND = 2;
-const PAGE_SIZE = 20;
+// Short pages keep video feed memory/network use bounded; only the active video and a few neighbours preload.
+const PAGE_SIZE = 5;
 
 type FeedTab = 'foryou' | 'following' | 'watchlater' | 'duets';
 
