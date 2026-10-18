@@ -433,7 +433,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!isPremium) videoRef2.current?.play().catch(() => {});
   };
 
-  const rawMedia = (post as any).media_urls ?? (post as any).mediaUrls ?? (post as any).attachments ?? (post as any).media_attachments ?? [];
+  const rawMedia = [(post as any).media_urls, (post as any).mediaUrls, (post as any).attachments, (post as any).media_attachments].find((value) => Array.isArray(value) && value.length > 0) ?? [];
   const mediaEntries: any[] = Array.isArray(rawMedia) ? rawMedia : [];
   const mediaUrls: string[] = mediaEntries
     .map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl ?? item?.href))
