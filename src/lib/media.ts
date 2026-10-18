@@ -76,27 +76,56 @@ function resolveSelfHostedUploadURL(uploadURL: string, expectedKey: string): URL
   return resolved;
 }
 
+export class MediaApiError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+  readonly requestId: string | null;
+
+  constructor(message: string, status: number, code: string | null = null, requestId: string | null = null) {
+    super(message);
+    this.name = 'MediaApiError';
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+  }
+}
+
 async function selfHostedMediaRequest(path: string, body: Record<string, unknown>) {
   const base = selfHostedMediaBase();
   if (!base) throw new Error('Self-hosted Testagram API URL is not configured.');
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('Authentication required');
+  if (!session?.access_token) throw new MediaApiError('Authentication required', 401, 'AUTH_REQUIRED');
   const response = await fetch(base + path, {
     method: 'POST',
     headers: {
       Authorization: 'Bearer ' + session.access_token,
       'Content-Type': 'application/json',
+      Accept: 'application/json',
     },
     body: JSON.stringify(body),
   });
-  const payload = await response.json().catch(() => ({} as any));
-  if (!response.ok || payload?.ok === false || payload?.error) {
-    const message = typeof payload?.error === 'string'
-      ? payload.error
-      : String(payload?.error?.message ?? 'Self-hosted media request failed (' + response.status + ').');
-    throw new Error(message);
+  const payload = await response.json().catch(() => null);
+  const error = payload && typeof payload === 'object' ? (payload as any).error : null;
+  if (!response.ok || !payload || payload.ok !== true || error) {
+    const message = typeof error === 'string'
+      ? error
+      : String(error?.message ?? 'Self-hosted media request failed (' + response.status + ').');
+    throw new MediaApiError(
+      message,
+      response.status,
+      typeof error?.code === 'string' ? error.code : null,
+      typeof payload?.request_id === 'string' ? payload.request_id : response.headers.get('X-Request-ID'),
+    );
   }
-  return payload?.data ?? payload;
+  if (!payload.data || typeof payload.data !== 'object') {
+    throw new MediaApiError(
+      'Self-hosted media API returned a malformed success response.',
+      response.status,
+      'MEDIA_RESPONSE_INVALID',
+      typeof payload.request_id === 'string' ? payload.request_id : response.headers.get('X-Request-ID'),
+    );
+  }
+  return payload.data;
 }
 
 async function sha256Hex(file: File): Promise<string> {
