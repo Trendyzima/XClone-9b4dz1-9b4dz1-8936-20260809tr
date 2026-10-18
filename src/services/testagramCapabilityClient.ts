@@ -187,72 +187,70 @@ export class TestagramCapabilityClient{
  searchUsers(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.users",{q,limit:limit(n),...cursor(c)})}
  searchHashtags(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.hashtags",{q,limit:limit(n),...cursor(c)})}
  async searchUnified(q:string,kind:"all"|"people"|"posts"|"hashtags"|"threads"|"communities"|"fediverse"|"media"|"latest"|"top"|"instances"="all",n=40,offset=0,sort="relevance"){
-  const input={q,kind,limit:limit(n),offset:Number.isFinite(offset)?Math.max(0,Math.trunc(offset)):0,sort:["relevance","latest","most_liked","most_viewed"].includes(sort)?sort:"relevance"};
-  let token=await this.token();
-  // Auth can still be hydrating after a hard refresh. Ask Supabase to restore
-  // the persisted session before declaring the user signed out; do not make a
-  // search request with the publishable key masquerading as a bearer token.
-  if(!token){
-   try{
-    const restored=await supabase.auth.refreshSession();
-    token=restored.data.session?.access_token??null;
-   }catch{
-    token=null;
-   }
-  }
-  if(!token) throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
-  const directUrl=`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/testagram_search_unified`;
-  const searchPayload=(payload:any)=>({users:(Array.isArray(payload?.users)?payload.users:[]).map((u:any)=>({...u,followers_count:u.followers_count??u.follower_count??u.raw_actor?.followers_count??u.raw_actor?.followersCount,follower_count:u.follower_count??u.followers_count??u.raw_actor?.followers_count??u.raw_actor?.followersCount})),hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],instances:Array.isArray(payload?.instances)?payload.instances:[],next_cursor:payload?.next_cursor??null});
-  let directFailure:unknown=null;
-  for(let attempt=0;attempt<2;attempt++){
-   try{
-    const directController=new AbortController();
-    const directTimer=setTimeout(()=>directController.abort(),this.timeout);
-    let response:Response;
-    let raw:string;
+   const input={q,kind,limit:limit(n),offset:Number.isFinite(offset)?Math.max(0,Math.trunc(offset)):0,sort:["relevance","latest","most_liked","most_viewed"].includes(sort)?sort:"relevance"};
+   let token=await this.token();
+   if(!token){
     try{
-     response=await fetch(directUrl,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort}),signal:directController.signal});
-     raw=await response.text();
-    }finally{clearTimeout(directTimer)}
-    let payload:any=null; try{payload=raw?JSON.parse(raw):null}catch{}
-    if(response.ok)return searchPayload(payload);
-    const message=payload&&typeof payload==="object"&&"message" in payload?String(payload.message):`Search request failed (${response.status})`;
-    directFailure=new CapabilityClientError(message,{code:response.status===401||response.status===403?"AUTH_REQUIRED":"SEARCH_RPC_FAILED",status:response.status});
-    if((response.status===401||response.status===403)&&attempt===0){
-     const refreshed=await supabase.auth.refreshSession();
-     const refreshedToken=refreshed.data.session?.access_token;
-     if(refreshed.error||!refreshedToken){
-      throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
-     }
-     token=refreshedToken;
-     continue;
+     const restored=await supabase.auth.refreshSession();
+     token=restored.data.session?.access_token??null;
+    }catch{
+     token=null;
     }
-    break;
-   }catch(error){
-    if(error instanceof CapabilityClientError)throw error;
-    directFailure=error;
-    break;
    }
-  }
-  if(directFailure instanceof CapabilityClientError&&directFailure.code==="AUTH_REQUIRED")throw directFailure;
-  if(input.offset>0||input.sort!=="relevance") throw directFailure instanceof Error?directFailure:new CapabilityClientError("Search pagination is temporarily unavailable. Retry the current search.",{code:"SEARCH_PAGINATION_FAILED"});
-  const directMessage=directFailure instanceof Error?directFailure.message:"";
-  const directTimedOut=(directFailure instanceof DOMException&&directFailure.name==="AbortError")||/statement timeout|canceling statement|\\b57014\\b|timed? out/i.test(directMessage);
-  // A PostgreSQL statement timeout is a known failure of the same RPC, not a
-  // transient gateway-routing problem. Do not repeat the expensive unified RPC
-  // through the gateway; go directly to one bounded category-specific fallback.
-  if(!directTimedOut){
+   if(!token) throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
+   const searchPayload=(payload:any)=>({users:(Array.isArray(payload?.users)?payload.users:[]).map((u:any)=>({...u,followers_count:u.followers_count??u.follower_count??u.raw_actor?.followers_count??u.raw_actor?.followersCount,follower_count:u.follower_count??u.followers_count??u.raw_actor?.followers_count??u.raw_actor?.followersCount})),hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],instances:Array.isArray(payload?.instances)?payload.instances:[],next_cursor:payload?.next_cursor??null});
+   // Prefer the backend gateway so unified-search traffic is observable in the
+   // Testagram Operations dashboard. The gateway proxies the exact authenticated
+   // RPC and emits bounded search/upstream latency and error metrics.
    try{
     const gateway=await this.call<any>("testagram.search.unified",input,token);
     return searchPayload(gateway);
    }catch(gatewayError){
     if(gatewayError instanceof CapabilityClientError&&gatewayError.code==="AUTH_REQUIRED")throw gatewayError;
-    return this.searchFallbackForKind(kind,q,n,directFailure,gatewayError);
+    if(input.offset>0||input.sort!=="relevance") throw gatewayError instanceof Error?gatewayError:new CapabilityClientError("Search pagination is temporarily unavailable. Retry the current search.",{code:"SEARCH_PAGINATION_FAILED"});
+    const gatewayStatus=gatewayError instanceof CapabilityClientError?gatewayError.status:null;
+    const gatewayMessage=gatewayError instanceof Error?gatewayError.message:"";
+    const gatewayTimedOut=(gatewayError instanceof DOMException&&gatewayError.name==="AbortError")||gatewayStatus===502||gatewayStatus===504||/statement timeout|canceling statement|\\b57014\\b|timed? out/i.test(gatewayMessage);
+    // Do not send the same expensive unified RPC directly to PostgREST after the
+    // gateway has reported an upstream failure/timeout. Use one bounded fallback.
+    if(gatewayTimedOut)return this.searchFallbackForKind(kind,q,n,gatewayError,gatewayError);
+    if(gatewayError instanceof CapabilityClientError&&(gatewayStatus===400||gatewayStatus===422))throw gatewayError;
+
+    // Only bypass the gateway when it is unavailable or misconfigured. This is a
+    // compatibility escape hatch, not the normal search route.
+    let directFailure:unknown=null;
+    for(let attempt=0;attempt<2;attempt++){
+     try{
+      const directController=new AbortController();
+      const directTimer=setTimeout(()=>directController.abort(),this.timeout);
+      let response:Response;
+      let raw:string;
+      try{
+       response=await fetch(`${supabaseUrl.replace(/\\/$/,"")}/rest/v1/rpc/testagram_search_unified`,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort}),signal:directController.signal});
+       raw=await response.text();
+      }finally{clearTimeout(directTimer)}
+      let payload:any=null;try{payload=raw?JSON.parse(raw):null}catch{}
+      if(response.ok)return searchPayload(payload);
+      const message=payload&&typeof payload==="object"&&"message" in payload?String(payload.message):`Search request failed (${response.status})`;
+      directFailure=new CapabilityClientError(message,{code:response.status===401||response.status===403?"AUTH_REQUIRED":"SEARCH_RPC_FAILED",status:response.status});
+      if((response.status===401||response.status===403)&&attempt===0){
+       const refreshed=await supabase.auth.refreshSession();
+       const refreshedToken=refreshed.data.session?.access_token;
+       if(refreshed.error||!refreshedToken)throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
+       token=refreshedToken;
+       continue;
+      }
+      break;
+     }catch(error){
+      if(error instanceof CapabilityClientError&&error.code==="AUTH_REQUIRED")throw error;
+      directFailure=error;
+      break;
+     }
+    }
+    if(directFailure instanceof CapabilityClientError&&directFailure.code==="AUTH_REQUIRED")throw directFailure;
+    return this.searchFallbackForKind(kind,q,n,directFailure??gatewayError,gatewayError);
    }
   }
-  return this.searchFallbackForKind(kind,q,n,directFailure,directFailure);
- }
-
  private async searchFallbackForKind(kind:string,q:string,n:number,directFailure:unknown,gatewayError:unknown){
   const normalized=q.trim().replace(/^[@#]/,'');
   try{
