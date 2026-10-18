@@ -209,10 +209,11 @@ export class TestagramCapabilityClient{
     const directController=new AbortController();
     const directTimer=setTimeout(()=>directController.abort(),this.timeout);
     let response:Response;
+    let raw:string;
     try{
      response=await fetch(directUrl,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort}),signal:directController.signal});
+     raw=await response.text();
     }finally{clearTimeout(directTimer)}
-    const raw=await response.text();
     let payload:any=null; try{payload=raw?JSON.parse(raw):null}catch{}
     if(response.ok)return searchPayload(payload);
     const message=payload&&typeof payload==="object"&&"message" in payload?String(payload.message):`Search request failed (${response.status})`;
