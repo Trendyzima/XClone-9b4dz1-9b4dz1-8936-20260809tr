@@ -116,7 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .then(async (mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
-              const path = normalizedPathname();
               // Identity verification belongs to account creation and never blocks existing logins.
               // Mobile contact is optional onboarding. A missing number or contact-RPC
               // failure must never redirect users away from IPTV or interrupt playback.
