@@ -660,6 +660,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   return (
     <div
       className="border-b border-border p-4 hover:bg-muted/5 transition-colors cursor-pointer"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 620px' }}
       onClick={handlePostClick}
     >
       {(boostLabel || isFederatedPost) && (
@@ -684,7 +685,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${authorUsername}`); }}
         >
           {authorAvatarUrl ? (
-            <img src={authorAvatarUrl} alt={authorDisplayName || authorUsername || 'User'} className="w-full h-full object-cover" />
+            <img src={authorAvatarUrl} alt={authorDisplayName || authorUsername || 'User'} className="w-full h-full object-cover" loading="lazy" decoding="async" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-sm font-semibold">
               {authorDisplayName[0]?.toUpperCase() || authorUsername[0]?.toUpperCase() || '?'}
@@ -1132,7 +1133,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
                 {post.user_profiles?.avatar_url
-                  ? <img src={post.user_profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ? <img src={post.user_profiles.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{authorUsername?.[0]?.toUpperCase() || '?'}</div>}
               </div>
               <div>

@@ -33,6 +33,11 @@ export default function HashtagPage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  const [hasMoreLocalPosts, setHasMoreLocalPosts] = useState(false);
+  const [loadingMoreLocalPosts, setLoadingMoreLocalPosts] = useState(false);
+  const postsOffsetRef = useRef(0);
+  const postsSentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadingMoreLocalPostsRef = useRef(false);
 
   // ── Related suggestions ────────────────────────────────────────────────────
   const [relatedSpaces, setRelatedSpaces] = useState<any[]>([]);
@@ -122,7 +127,8 @@ export default function HashtagPage() {
     const { data } = await supabase
       .from('post_hashtags')
       .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-      .eq('hashtag_id', hashtagId);
+      .eq('hashtag_id', hashtagId)
+      .limit(30);
     if (!data) return;
     const allPosts = data.map((item: any) => item.posts).filter(Boolean).slice(0, 30);
     const sorted = [...allPosts].sort((a, b) => {
@@ -170,17 +176,22 @@ export default function HashtagPage() {
       // post_hashtags has no created_at column in production. Order by the
       // joined post timestamp after hydration instead of issuing an invalid
       // PostgREST order against the junction table.
+      postsOffsetRef.current = 0;
+      setHasMoreLocalPosts(false);
       const { data: postsData, error: postsError } = await supabase
         .from('post_hashtags')
         .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
         .eq('hashtag_id', hashtagData.id)
-        .range(0, 29);
+        .order('created_at', { referencedTable: 'posts', ascending: false })
+        .range(0, 19);
       if (postsError) throw postsError;
       const formattedPosts = (postsData || [])
         .map((item: any) => item.posts)
         .filter(Boolean)
         .sort((a: any, b: any) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
       setPosts(formattedPosts);
+      postsOffsetRef.current = postsData?.length ?? formattedPosts.length;
+      setHasMoreLocalPosts((postsData?.length ?? 0) === 20);
       // Query the indexed relationship through a database function rather than
       // relying on PostgREST's nested FK embedding. This makes the hashtag page
       // deterministic even when relationship metadata/cache differs between
@@ -243,6 +254,44 @@ export default function HashtagPage() {
       setLoading(false);
     }
   };
+
+  const loadMoreHashtagPosts = useCallback(async () => {
+    if (!hashtag?.id || !hasMoreLocalPosts || loadingMoreLocalPostsRef.current || sortMode !== 'recent') return;
+    loadingMoreLocalPostsRef.current = true;
+    setLoadingMoreLocalPosts(true);
+    try {
+      const start = postsOffsetRef.current;
+      const { data, error } = await supabase.from('post_hashtags')
+        .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
+        .eq('hashtag_id', hashtag.id)
+        .order('created_at', { referencedTable: 'posts', ascending: false })
+        .range(start, start + 19);
+      if (error) throw error;
+      const rows = data ?? [];
+      const page = rows.map((item: any) => item.posts).filter(Boolean);
+      setPosts((previous) => {
+        const seen = new Set(previous.map((post: any) => String(post.id)));
+        return [...previous, ...page.filter((post: any) => !seen.has(String(post.id)))];
+      });
+      postsOffsetRef.current = start + rows.length;
+      setHasMoreLocalPosts(rows.length === 20);
+    } catch (error) {
+      console.error('Could not load more hashtag posts', error);
+    } finally {
+      loadingMoreLocalPostsRef.current = false;
+      setLoadingMoreLocalPosts(false);
+    }
+  }, [hashtag?.id, hasMoreLocalPosts, sortMode]);
+
+  useEffect(() => {
+    const node = postsSentinelRef.current;
+    if (!node || sortMode !== 'recent' || !hasMoreLocalPosts || loadingMoreLocalPosts || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) void loadMoreHashtagPosts();
+    }, { rootMargin: '700px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [sortMode, hasMoreLocalPosts, loadingMoreLocalPosts, loadMoreHashtagPosts]);
 
   const checkFollowStatus = async () => {
     if (!user || !hashtag) return;
@@ -427,6 +476,7 @@ export default function HashtagPage() {
             </div>{index===4&&<ExoClickInlineAd surface="hashtag"/>}</Fragment>
           ))
         )}
+        {sortMode === 'recent' && hasMoreLocalPosts && <div ref={postsSentinelRef} className="flex justify-center py-6 min-h-12" aria-live="polite">{loadingMoreLocalPosts && <Loader2 className="w-5 h-5 animate-spin text-primary" />}</div>}
       </div>
     </div>
   );
