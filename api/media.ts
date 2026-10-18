@@ -4,7 +4,7 @@
 // this route must not create a second R2 implementation.
 function env(name: string, fallback = '') { return process.env[name] ?? fallback; }
 
-const CDN_BASE = env('MEDIA_PUBLIC_BASE_URL', 'https://media.testagram.site/v1').replace(/\\/$/, '');
+const CDN_BASE = env('MEDIA_PUBLIC_BASE_URL', 'https://media.testagram.site/v1').replace(/\/$/, '');
 
 function corsHeaders() {
   return {
@@ -54,13 +54,13 @@ export default async function handler(req: any, res: any) {
   }
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
-  const origin = env('TESTAGRAM_MEDIA_BACKEND_ORIGIN', env('TESTAGRAM_BACKEND_ORIGIN')).replace(/\\/$/, '');
-  if (!origin || !/^https?:\\/\\//i.test(origin)) {
+  const origin = env('TESTAGRAM_MEDIA_BACKEND_ORIGIN', env('TESTAGRAM_BACKEND_ORIGIN')).replace(/\/$/, '');
+  if (!origin || !/^https?:\/\//i.test(origin)) {
     return json(res, 503, { error: 'The Testagram media backend is not configured.' });
   }
 
   const authorization = String(req.headers.authorization ?? '').trim();
-  if (!/^Bearer\\s+\\S+/i.test(authorization) || /[\\r\\n]/.test(authorization)) {
+  if (!/^Bearer\s+\S+/i.test(authorization) || /[\r\n]/.test(authorization)) {
     return json(res, 401, { error: 'Authentication required' });
   }
   const requestId = String(req.headers['x-request-id'] ?? '').slice(0, 128) || 'media-client';
