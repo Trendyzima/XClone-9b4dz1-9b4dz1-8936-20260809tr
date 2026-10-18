@@ -23,7 +23,13 @@ function validateMedia(file: File) {
 }
 
 function selfHostedMediaBase() {
-  return String(import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+  const base = String(import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+  if (import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true' && !base) {
+    throw new Error(
+      'Self-hosted Testagram mode requires VITE_TESTAGRAM_API_URL. Refusing fallback to the hosted media path.',
+    );
+  }
+  return base;
 }
 
 async function selfHostedMediaRequest(path: string, body: Record<string, unknown>) {
@@ -60,10 +66,10 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
   const mime = String(file.type ?? '').trim().toLowerCase();
   const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']);
   const videoTypes = new Set(['video/mp4', 'video/webm']);
-  const maxBytes = imageTypes.has(mime) || videoTypes.has(mime) ? 20 * 1024 * 1024 : 0;
+  const maxBytes = imageTypes.has(mime) || videoTypes.has(mime) ? MAX_MEDIA_BYTES : 0;
   if (!maxBytes) throw new Error('Self-hosted public media supports JPEG, PNG, WebP, AVIF, GIF, MP4, and WebM up to 20 MiB only.');
   if (file.size <= 0 || file.size > maxBytes) {
-    throw new Error(imageTypes.has(mime) ? 'Public media files must be 20 MiB or smaller.' : 'Public media files must be 20 MiB or smaller.');
+    throw new Error('Public media files must be 20 MiB or smaller.');
   }
 
   const intent = await selfHostedMediaRequest('/api/media/upload-intent', {
