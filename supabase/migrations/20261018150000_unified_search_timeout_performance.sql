@@ -1,6 +1,7 @@
 -- Search performance repair: accelerate substring predicates used by the
 -- unified search RPC and remove per-query expansion of federated_objects.tags.
 create extension if not exists pg_trgm;
+set search_path to public, extensions;
 
 create index if not exists profiles_search_display_name_trgm_idx
   on public.profiles using gin (lower(coalesce(display_name, '')) gin_trgm_ops);
@@ -14,6 +15,12 @@ create index if not exists federated_actors_search_username_trgm_idx
   on public.federated_actors using gin (lower(coalesce(username, '')) gin_trgm_ops);
 create index if not exists federated_actors_search_domain_trgm_idx
   on public.federated_actors using gin (lower(coalesce(domain, '')) gin_trgm_ops);
+create index if not exists hashtags_search_tag_trgm_idx
+  on public.hashtags using gin (lower(regexp_replace(tag, '^#', '')) gin_trgm_ops);
+create index if not exists federated_hashtag_mentions_hashtag_created_idx
+  on public.federated_hashtag_mentions (hashtag_id, created_at desc);
+create index if not exists federated_hashtag_mentions_object_idx
+  on public.federated_hashtag_mentions (object_id);
 create index if not exists posts_search_content_trgm_idx
   on public.posts using gin (lower(coalesce(content, '')) gin_trgm_ops)
   where deleted_at is null;
@@ -39,6 +46,10 @@ create index if not exists communities_search_name_trgm_idx
   on public.communities using gin (lower(coalesce(name, '')) gin_trgm_ops);
 create index if not exists communities_search_description_trgm_idx
   on public.communities using gin (lower(coalesce(description, '')) gin_trgm_ops);
+create index if not exists federated_instances_search_domain_trgm_idx
+  on public.federated_instances using gin (lower(coalesce(domain, '')) gin_trgm_ops);
+create index if not exists federated_instances_search_software_trgm_idx
+  on public.federated_instances using gin (lower(coalesce(software, '')) gin_trgm_ops);
 
 -- Reconcile legacy cached RPC and any previously applied pagination drafts.
 -- Unified search v4: stable pagination/sort contract while retaining the
