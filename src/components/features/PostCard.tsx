@@ -660,6 +660,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   return (
     <div
       className="border-b border-border p-4 hover:bg-muted/5 transition-colors cursor-pointer"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 620px' }}
       onClick={handlePostClick}
     >
       {(boostLabel || isFederatedPost) && (
