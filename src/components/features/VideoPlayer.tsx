@@ -42,7 +42,7 @@ function readVideoSoundPreference(): boolean {
   try { return localStorage.getItem(VIDEO_SOUND_STORAGE_KEY) === 'on'; } catch { return false; }
 }
 
-export function VideoPlayer({ post, isActive, onUpdate, cancelPreload }: VideoPlayerProps) {
+export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
   const videoPreloadId = useId();
   const videoRef       = useRef<HTMLVideoElement>(null);
   const progressRef    = useRef<HTMLDivElement>(null);
@@ -64,7 +64,7 @@ export function VideoPlayer({ post, isActive, onUpdate, cancelPreload }: VideoPl
   useEffect(() => {
     const video = videoRef.current;
     const videoUrl = String(post.video_url || '');
-    if (!video || !videoUrl || cancelPreload) {
+    if (!video || !videoUrl) {
       setVideoBatchEligible(false);
       return;
     }
@@ -73,7 +73,7 @@ export function VideoPlayer({ post, isActive, onUpdate, cancelPreload }: VideoPl
       video,
       setVideoBatchEligible,
     );
-  }, [post.id, post.video_url, videoPreloadId, cancelPreload]);
+  }, [post.id, post.video_url, videoPreloadId]);
 
   const [isPlaying, setIsPlaying]               = useState(false);
   const [videoBatchEligible, setVideoBatchEligible] = useState(false);
@@ -666,7 +666,7 @@ export function VideoPlayer({ post, isActive, onUpdate, cancelPreload }: VideoPl
       {/* ── Universal video engine ──────────────────────────────────────── */}
       <UniversalVideoPlayer
         ref={videoRef}
-        src={cancelPreload || !videoBatchEligible ? '' : (post.video_url || '')}
+        src={videoBatchEligible ? (post.video_url || '') : ''}
         active={isActive && !showPrerollAd && (isPremium || prerollSeenRef.current || premiumCheckTimedOut)}
         preload={videoBatchEligible ? 'auto' : 'none'}
         muted={isMuted}
