@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 
-export const MAX_MEDIA_BYTES = 500 * 1024 * 1024;
+// Keep public uploads aligned with the Go backend's current 20 MiB public-media gate.
+// Raise this only after the backend, proxy limits, and storage policy are upgraded together.
+export const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
 export const ALLOWED_MEDIA_TYPES = new Set<string>();
 
 export type MediaUploadResult = {
@@ -17,7 +19,7 @@ export type MediaUploadResult = {
 
 function validateMedia(file: File) {
   if (!file.type && !file.name) throw new Error('File type could not be determined.');
-  if (file.size <= 0 || file.size > MAX_MEDIA_BYTES) throw new Error('Attachments must be 500 MiB or smaller.');
+  if (file.size <= 0 || file.size > MAX_MEDIA_BYTES) throw new Error('Attachments must be 20 MiB or smaller.');
 }
 
 function selfHostedMediaBase() {
@@ -47,14 +49,21 @@ async function selfHostedMediaRequest(path: string, body: Record<string, unknown
   return payload?.data ?? payload;
 }
 
+async function sha256Hex(file: File): Promise<string> {
+  // Public uploads are capped at 20 MiB until the backend and proxy limits are
+  // deliberately raised together, keeping WebCrypto's one-shot buffer bounded.
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 async function uploadMediaToSelfHosted(file: File, postId?: string | null): Promise<MediaUploadResult> {
   const mime = String(file.type ?? '').trim().toLowerCase();
   const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']);
   const videoTypes = new Set(['video/mp4', 'video/webm']);
-  const maxBytes = imageTypes.has(mime) ? 25 * 1024 * 1024 : videoTypes.has(mime) ? 500 * 1024 * 1024 : 0;
-  if (!maxBytes) throw new Error('Self-hosted media supports JPEG, PNG, WebP, AVIF, GIF, MP4, and WebM only.');
+  const maxBytes = imageTypes.has(mime) || videoTypes.has(mime) ? 20 * 1024 * 1024 : 0;
+  if (!maxBytes) throw new Error('Self-hosted public media supports JPEG, PNG, WebP, AVIF, GIF, MP4, and WebM up to 20 MiB only.');
   if (file.size <= 0 || file.size > maxBytes) {
-    throw new Error(imageTypes.has(mime) ? 'Images must be 25 MiB or smaller.' : 'Videos must be 500 MiB or smaller.');
+    throw new Error(imageTypes.has(mime) ? 'Public media files must be 20 MiB or smaller.' : 'Public media files must be 20 MiB or smaller.');
   }
 
   const intent = await selfHostedMediaRequest('/api/media/upload-intent', {
@@ -63,21 +72,34 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
     visibility: 'public',
     size_bytes: file.size,
   });
-  if (!intent?.url || !intent?.key || !intent?.fields || typeof intent.fields !== 'object') {
+  if (typeof intent?.url !== 'string' || !intent.url || typeof intent?.key !== 'string' || !intent.key) {
     throw new Error('Self-hosted media API returned an invalid upload intent.');
   }
-  const form = new FormData();
-  for (const [key, value] of Object.entries(intent.fields as Record<string, unknown>)) {
-    form.append(key, String(value));
+
+  // The Go API returns a relative /api/media/upload URL for the bounded gateway.
+  // Resolve it against the configured API origin, not the web application's origin.
+  const uploadURL = new URL(intent.url, selfHostedMediaBase() + '/').toString();
+  const checksum = await sha256Hex(file);
+  const { data: { session: uploadSession } } = await supabase.auth.getSession();
+  if (!uploadSession?.access_token) throw new Error('Authentication required');
+  const uploadHeaders: Record<string, string> = { 'Content-Type': mime };
+  // The API gateway requires the user's bearer token; a legacy presigned object-store
+  // URL must not receive that unrelated Authorization header.
+  if (new URL(uploadURL).pathname === '/api/media/upload') {
+    uploadHeaders.Authorization = 'Bearer ' + uploadSession.access_token;
   }
-  form.append('file', file);
-  const upload = await fetch(String(intent.url), { method: 'POST', body: form });
-  if (!upload.ok) throw new Error('Direct media upload failed (' + upload.status + ').');
+  const upload = await fetch(uploadURL, {
+    method: 'PUT',
+    headers: uploadHeaders,
+    body: file,
+  });
+  if (!upload.ok) throw new Error('Self-hosted media upload failed (' + upload.status + ').');
 
   const completed = await selfHostedMediaRequest('/api/media/complete', {
     key: String(intent.key),
     visibility: 'public',
     content_type: mime,
+    checksum_sha256: checksum,
   });
   return {
     media_id: String(completed.key ?? intent.key),
@@ -109,9 +131,23 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
   if (selfHostedMediaBase()) return uploadMediaToSelfHosted(file, postId);
   validateMedia(file);
   const initialized = await mediaFunction('init', { name:file.name, mime_type:file.type.toLowerCase() || 'application/octet-stream', size_bytes:file.size, post_id:postId ?? null });
-  const response = await fetch(String(initialized.upload_url), { method:'PUT', headers:{'Content-Type':file.type.toLowerCase() || 'application/octet-stream'}, body:file });
+  const checksum = await sha256Hex(file);
+  const { data: { session: uploadSession } } = await supabase.auth.getSession();
+  if (!uploadSession?.access_token) throw new Error('Authentication required');
+  const uploadURL = String(initialized.upload_url);
+  const uploadHeaders: Record<string, string> = {
+    'Content-Type': file.type.toLowerCase() || 'application/octet-stream',
+  };
+  if (new URL(uploadURL, window.location.origin).pathname === '/api/media/upload') {
+    uploadHeaders.Authorization = 'Bearer ' + uploadSession.access_token;
+  }
+  const response = await fetch(uploadURL, {
+    method: 'PUT',
+    headers: uploadHeaders,
+    body: file,
+  });
   if (!response.ok) { await mediaFunction('delete',{media_id:initialized.media_id}).catch(()=>undefined); throw new Error('Media upload failed ('+response.status+').'); }
-  return mediaFunction('complete',{media_id:initialized.media_id});
+  return mediaFunction('complete',{media_id:initialized.media_id, checksum_sha256:checksum});
 }
 
 export async function getPrivateMediaDownloadUrl(key: string): Promise<string> {

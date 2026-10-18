@@ -91,7 +91,7 @@ export default async function handler(req: any, res: any) {
       return json(res, 200, {
         media_id: intent.key,
         object_key: intent.key,
-        upload_url: intent.url,
+        upload_url: new URL(String(intent.url), origin + '/').toString(),
         method: intent.method ?? 'PUT',
         public_url: visibility === 'public' ? mediaUrl(intent.key) : null,
         visibility,
@@ -105,7 +105,7 @@ export default async function handler(req: any, res: any) {
     if (action === 'complete') {
       if (!key) return json(res, 400, { error: 'media_id or object_key is required' });
       const { response, data } = await backendPost(origin, '/api/media/complete', authorization, {
-        key, visibility: body.visibility, content_type: body.mime_type ?? body.content_type,
+        key, visibility: body.visibility, content_type: body.mime_type ?? body.content_type, checksum_sha256: body.checksum_sha256,
       }, requestId);
       if (!response.ok || !data?.ok) return json(res, response.status, { error: errorMessage(data, 'Unable to complete media upload') });
       const asset = data.data ?? {};
