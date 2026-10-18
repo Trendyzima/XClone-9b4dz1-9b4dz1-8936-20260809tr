@@ -9,16 +9,58 @@ const SECONDARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_f331BL1gsNy-otXRmQPtr
 
 const SELF_HOSTED_MODE = import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true';
 const configuredPrimaryUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const configuredPrimaryKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)?.trim();
+const configuredPrimaryKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 const configuredSecondaryUrl = import.meta.env.VITE_SUPABASE_SECONDARY_URL?.trim();
-const configuredSecondaryKey = (import.meta.env.VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_SECONDARY_ANON_KEY)?.trim();
+const configuredSecondaryKey =
+  import.meta.env.VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY?.trim() ||
+  import.meta.env.VITE_SUPABASE_SECONDARY_ANON_KEY?.trim();
 
-// Self-hosted builds must never silently fall back to the hosted Testagram projects.
-// In that mode the primary Auth/API endpoint and publishable key are mandatory.
+function validateSelfHostedSupabaseOrigin(value: string, variableName: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(variableName + ' must be an absolute HTTP(S) origin.');
+  }
+
+  const localHTTP =
+    parsed.protocol === 'http:' &&
+    (parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '[::1]' ||
+      parsed.hostname === '::1');
+  const hostedSupabase = parsed.hostname.toLowerCase().endsWith('.supabase.co');
+  if (
+    (parsed.protocol !== 'https:' && !localHTTP) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash ||
+    hostedSupabase
+  ) {
+    throw new Error(
+      variableName +
+        ' must be an owned HTTPS origin (HTTP is allowed only for localhost), without credentials, path, query, or fragment; hosted *.supabase.co endpoints are not accepted in self-hosted mode.',
+    );
+  }
+  return parsed.origin;
+}
+
+// Self-hosted builds must never silently fall back to hosted Testagram projects
+// or an accidentally configured hosted Supabase endpoint.
 if (SELF_HOSTED_MODE && (!configuredPrimaryUrl || !configuredPrimaryKey)) {
   throw new Error(
     'Self-hosted Testagram mode requires VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY. Refusing hosted-project fallback.',
   );
+}
+if (SELF_HOSTED_MODE && configuredPrimaryUrl) {
+  validateSelfHostedSupabaseOrigin(configuredPrimaryUrl, 'VITE_SUPABASE_URL');
+}
+if (SELF_HOSTED_MODE && configuredSecondaryUrl) {
+  validateSelfHostedSupabaseOrigin(configuredSecondaryUrl, 'VITE_SUPABASE_SECONDARY_URL');
 }
 
 export const supabaseUrl = SELF_HOSTED_MODE
