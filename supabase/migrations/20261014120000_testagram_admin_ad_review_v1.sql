@@ -114,12 +114,18 @@ begin
   if p_decision = 'rejected' and v_note is null then raise exception 'A rejection reason is required'; end if;
   if length(coalesce(v_note,'')) > 500 then raise exception 'Review note must be 500 characters or fewer'; end if;
 
-  select c, a.owner_user_id into v_campaign, v_owner
+  -- A composite row variable cannot share a multi-target INTO list with
+  -- scalar variables in PL/pgSQL. Fetch the campaign row and owner separately.
+  select c.* into v_campaign
   from public.testagram_ad_campaigns c
-  join public.testagram_advertisers a on a.id = c.advertiser_id
   where c.id = p_campaign_id
-  for update of c;
-  if v_campaign.id is null then raise exception 'Campaign not found'; end if;
+  for update;
+  if not found then raise exception 'Campaign not found'; end if;
+
+  select a.owner_user_id into v_owner
+  from public.testagram_advertisers a
+  where a.id = v_campaign.advertiser_id;
+  if not found then raise exception 'Campaign advertiser not found'; end if;
 
   v_status := case
     when p_decision = 'rejected' then 'rejected'
