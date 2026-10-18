@@ -5,7 +5,7 @@ const URL_ = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
 const admin = createClient(URL_, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
-const CORS = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization,apikey,content-type,x-client-info","Access-Control-Allow-Methods":"GET,OPTIONS"};
+const CORS = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization,apikey,content-type,x-client-info,x-supabase-api-version,accept,accept-profile,content-profile,prefer","Access-Control-Allow-Methods":"GET,OPTIONS","Access-Control-Max-Age":"86400"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"private,max-age=0,must-revalidate"}});
 async function userId(req:Request){const a=req.headers.get("authorization")||"";if(!/^Bearer\s+/i.test(a))return null;const c=createClient(URL_,ANON,{global:{headers:{Authorization:a}},auth:{persistSession:false,autoRefreshToken:false}});const {data}=await c.auth.getUser(a.replace(/^Bearer\s+/i,"").trim());return data.user?.id??null}
 function limit(v:string|null){const n=Number.parseInt(v||"8",10);return Math.min(Math.max(Number.isFinite(n)?n:8,1),20)}
