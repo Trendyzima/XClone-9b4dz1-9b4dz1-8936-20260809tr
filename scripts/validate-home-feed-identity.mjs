@@ -100,8 +100,8 @@ requireText(videoPlayer, /loader: VirtualCdnLoader as any/,
   'HLS video playback must use the Virtual CDN fragment loader.');
 requireText(postCard, /typedVideoAttachment[\s\S]*mediaType[\s\S]*video\//,
   'Fediverse videos must be recognized by attachment MIME metadata even when media URLs have no file extension.');
-requireText(postCard, /<UniversalVideoPlayer[\s\S]*active=\{videoInView && !showVideoAd\}[\s\S]*muted[\s\S]*preload=\{videoNearView \? 'auto' : 'metadata'\}/,
-  'Home feed video cards must autoplay muted only when visible and preload nearby media.');
+requireText(postCard, /<UniversalVideoPlayer[\s\S]*src=\{videoNearView \? resolvedVideoUrl : ''\}[\s\S]*active=\{videoInView && videoNearView && !showVideoAd\}[\s\S]*muted[\s\S]*preload=\{videoNearView \? 'auto' : 'none'\}/,
+  'Home feed video cards must autoplay muted only when visible, and only preload sources admitted by the rolling nearby-video batch.');
 requireText(home, /FederatedHashtagDiscovery surface="home"/,
   'The infinite home surface must retain hashtag discovery alongside posts.');
 requireText(home, /<ComposePost onSuccess=\{\(\)=>load\(tab\)\}\/>[\s\S]*i===5&&\(tab==='all'\|\|tab==='explore'\)[\s\S]*<FederatedHashtagDiscovery surface="home" \/>/,
