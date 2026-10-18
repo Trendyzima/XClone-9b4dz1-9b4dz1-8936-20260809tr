@@ -198,8 +198,16 @@ async function mediaFunction(action: string, body: Record<string, unknown>) {
     headers: { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...body }),
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data?.error) throw new Error(String(data?.error ?? 'Media backend request failed (' + response.status + ').'));
+  const data = await response.json().catch(() => ({} as any));
+  if (!response.ok || data?.error) {
+    const error = data?.error;
+    const message = typeof error === 'string'
+      ? error
+      : typeof error?.message === 'string'
+        ? error.message
+        : 'Media backend request failed (' + response.status + ').';
+    throw new Error(message);
+  }
   return data;
 }
 
@@ -227,9 +235,22 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
 }
 
 export async function getPrivateMediaDownloadUrl(key: string): Promise<string> {
-  const data = await selfHostedMediaRequest('/api/media/private-download-url', { key });
-  if (typeof data?.url !== 'string' || !data.url) throw new Error('Private media API returned an invalid download URL.');
-  return data.url;
+  if (selfHostedMediaBase()) {
+    const data = await selfHostedMediaRequest('/api/media/private-download-url', { key });
+    if (typeof data?.url !== 'string' || !data.url) {
+      throw new Error('Private media API returned an invalid download URL.');
+    }
+    return data.url;
+  }
+
+  // Keep the existing adapter contract working for hosted/legacy builds. The
+  // adapter forwards this request to the same Go owner-checking endpoint and
+  // returns { url, expires_in }; no private object URL is synthesized client-side.
+  const legacy = await mediaFunction('private-download', { media_id: key, object_key: key });
+  if (typeof legacy?.url !== 'string' || !legacy.url) {
+    throw new Error('Private media API returned an invalid download URL.');
+  }
+  return legacy.url;
 }
 
 export async function attachMediaToPost(mediaId:string,postId:string):Promise<MediaUploadResult>{
