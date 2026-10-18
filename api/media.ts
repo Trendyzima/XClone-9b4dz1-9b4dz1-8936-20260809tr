@@ -148,7 +148,9 @@ export default async function handler(req: any, res: any) {
     }
 
     if (action === 'list') {
-      return json(res, 501, { error: 'Media listing is not part of the upload lifecycle API yet.' });
+      const { response, data } = await backendPost(origin, '/api/media/list', authorization, {}, requestId);
+      if (!response.ok || !data?.ok) return json(res, response.status, { error: errorMessage(data, 'Unable to list media') });
+      return json(res, response.status, data.data ?? { items: [] });
     }
 
     return json(res, 400, { error: 'Unknown media action' });
