@@ -19,7 +19,7 @@ export type MediaUploadResult = {
 
 function validateMedia(file: File) {
   if (!file.type && !file.name) throw new Error('File type could not be determined.');
-  if (file.size <= 0 || file.size > MAX_MEDIA_BYTES) throw new Error('Attachments must be 500 MiB or smaller.');
+  if (file.size <= 0 || file.size > MAX_MEDIA_BYTES) throw new Error('Attachments must be 20 MiB or smaller.');
 }
 
 function selfHostedMediaBase() {
@@ -123,9 +123,9 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
   if (selfHostedMediaBase()) return uploadMediaToSelfHosted(file, postId);
   validateMedia(file);
   const initialized = await mediaFunction('init', { name:file.name, mime_type:file.type.toLowerCase() || 'application/octet-stream', size_bytes:file.size, post_id:postId ?? null });
+  const checksum = await sha256Hex(file);
   const response = await fetch(String(initialized.upload_url), { method:'PUT', headers:{'Content-Type':file.type.toLowerCase() || 'application/octet-stream'}, body:file });
   if (!response.ok) { await mediaFunction('delete',{media_id:initialized.media_id}).catch(()=>undefined); throw new Error('Media upload failed ('+response.status+').'); }
-  const checksum = await sha256Hex(file);
   return mediaFunction('complete',{media_id:initialized.media_id, checksum_sha256:checksum});
 }
 
