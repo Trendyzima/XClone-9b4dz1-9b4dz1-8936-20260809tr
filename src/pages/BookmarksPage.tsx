@@ -26,6 +26,11 @@ export function BookmarksPage() {
   const [activeTab, setActiveTab] = useState('all' as 'all' | 'videos' | 'collections');
   const [videos, setVideos] = useState([] as any[]);
   const [loadingVideos, setLoadingVideos] = useState(false);
+  const [loadingMoreBookmarkedVideos, setLoadingMoreBookmarkedVideos] = useState(false);
+  const [hasMoreBookmarkedVideos, setHasMoreBookmarkedVideos] = useState(true);
+  const bookmarkedVideosPageRef = useRef(0);
+  const loadingMoreBookmarkedVideosRef = useRef(false);
+  const bookmarkedVideosSentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Collections = user's lists
   const [collections, setCollections] = useState([] as any[]);
@@ -50,20 +55,33 @@ export function BookmarksPage() {
     fetchBookmarkedVideos();
   }, [user]);
 
-  const fetchBookmarkedVideos = async () => {
-    if (!user) return;
-    setLoadingVideos(true);
+  const fetchBookmarkedVideos = async (reset = true) => {
+    if (!user || (!reset && loadingMoreBookmarkedVideosRef.current)) return;
+    if (reset) setLoadingVideos(true);
+    else { loadingMoreBookmarkedVideosRef.current = true; setLoadingMoreBookmarkedVideos(true); }
     try {
-      const { data } = await supabase
+      const pageIndex = reset ? 0 : bookmarkedVideosPageRef.current;
+      const { data, error } = await supabase
         .from('bookmarks')
         .select('*, post:posts(*, user:profiles!posts_user_id_fkey(*))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .range(0, 19);
-      const vids = ((data ?? []).map((b: any) => b.post).filter((p: any) => p && p.is_video));
-      setVideos(vids);
-    } catch { setVideos([]); }
-    finally { setLoadingVideos(false); }
+        .range(pageIndex * 20, pageIndex * 20 + 19);
+      if (error) throw error;
+      const rows = data ?? [];
+      const vids = rows.map((b: any) => b.post).filter((p: any) => p && p.is_video);
+      setVideos(previous => {
+        if (reset) return vids;
+        const seen = new Set(previous.map((video: any) => String(video.id)));
+        return [...previous, ...vids.filter((video: any) => !seen.has(String(video.id)))];
+      });
+      setHasMoreBookmarkedVideos(rows.length === 20);
+      bookmarkedVideosPageRef.current = pageIndex + 1;
+    } catch (error) { console.error('Error fetching bookmarked videos:', error); }
+    finally {
+      setLoadingVideos(false);
+      if (!reset) { loadingMoreBookmarkedVideosRef.current = false; setLoadingMoreBookmarkedVideos(false); }
+    }
   };
 
   const fetchBookmarks = async (reset = true) => {
@@ -103,6 +121,16 @@ export function BookmarksPage() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [activeTab, hasMoreBookmarks, loading, loadingMoreBookmarks, posts.length, user?.id]);
+
+  useEffect(() => {
+    const node = bookmarkedVideosSentinelRef.current;
+    if (activeTab !== 'videos' || !node || !hasMoreBookmarkedVideos || loadingVideos || loadingMoreBookmarkedVideos || videos.length === 0 || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) void fetchBookmarkedVideos(false);
+    }, { rootMargin: '700px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [activeTab, hasMoreBookmarkedVideos, loadingVideos, loadingMoreBookmarkedVideos, videos.length, user?.id]);
 
   const fetchCollections = async () => {
     if (!user) return;
@@ -335,6 +363,7 @@ export function BookmarksPage() {
               ))}
             </div>
           )}
+          {hasMoreBookmarkedVideos && videos.length > 0 && <div ref={bookmarkedVideosSentinelRef} className="flex justify-center py-5 min-h-12" aria-live="polite">{loadingMoreBookmarkedVideos && <Loader2 className="w-5 h-5 animate-spin text-primary" />}</div>}
         </div>
       )}
 
