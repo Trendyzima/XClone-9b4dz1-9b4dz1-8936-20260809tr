@@ -27,6 +27,10 @@ async function fetchProfileSectionPage(profile: any, section: Section, offset: n
     const source = data ?? [];
     return { rows: source.map((row: any) => ({ ...row, author_id: row.author_id ?? row.user_id, profiles: profile })), hasMore: source.length === PAGE_SIZE };
   }
+  if (section === 'likes') {
+    const rows = await listProfileLikes(profileId, PAGE_SIZE, offset);
+    return { rows, hasMore: rows.length === PAGE_SIZE };
+  }
   if (section === 'threads') {
     const { data, error } = await supabase.from('threads').select('*')
       .eq('owner_id', profileId).is('deleted_at', null)
@@ -81,13 +85,11 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
     try{
       let rows:any[]=[];
       let hasMoreRows=false;
-      if(section==='posts'||section==='videos'||section==='threads'||section==='media'||section==='followers'||section==='following'){
+      if(section==='posts'||section==='videos'||section==='threads'||section==='media'||section==='followers'||section==='following'||section==='likes'){
         const page=await fetchProfileSectionPage(p.data,section,0);
         rows=page.rows;hasMoreRows=page.hasMore;
       } else if(section==='replies'){
         const first=await listProfileRepliesPage(p.data.id,PAGE_SIZE);rows=first.items;setNextCursor(first.next_cursor);
-      } else if(section==='likes'){
-        rows=await listProfileLikes(p.data.id,100);
       }
       if(!cancelled){setItems(rows);setHasMoreItems(hasMoreRows);itemsOffsetRef.current=rows.length;setLoading(false);}
     }catch(e){if(!cancelled){setError(e instanceof Error?e.message:'Unable to load this section');setItems([]);setLoading(false);}}
@@ -102,7 +104,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
   },[section,profile?.id,nextCursor,loadingMore]);
 
   const loadMoreItems=useCallback(async()=>{
-    if(!profile?.id||!hasMoreItems||loadingMoreItemsRef.current||section==='replies'||section==='likes')return;
+    if(!profile?.id||!hasMoreItems||loadingMoreItemsRef.current||section==='replies')return;
     loadingMoreItemsRef.current=true;setLoadingMore(true);
     try{
       const page=await fetchProfileSectionPage(profile,section,itemsOffsetRef.current);
@@ -116,7 +118,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
   useEffect(()=>{
     const el=loadMoreRef.current;
     const canLoadReplies=section==='replies'&&Boolean(nextCursor);
-    const canLoadItems=section!=='replies'&&section!=='likes'&&hasMoreItems;
+    const canLoadItems=section!=='replies'&&hasMoreItems;
     if(!el||(!canLoadReplies&&!canLoadItems)||loading||loadingMore||typeof IntersectionObserver==='undefined')return;
     const observer=new IntersectionObserver(entries=>{
       if(!entries[0]?.isIntersecting||loadingMoreItemsRef.current)return;
@@ -175,6 +177,6 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
         </article>
       })}{nextCursor&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground">{loadingMore?'Loading more replies…':'Scroll for more replies'}</div>}</div>:
       <div className="divide-y divide-border">{items.map(u=><button key={u.id} onClick={()=>navigate('/profile/'+u.username)} className="w-full flex items-center gap-3 p-4 text-left"><div className="w-10 h-10 rounded-full bg-muted overflow-hidden">{u.avatar_url?<img src={u.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<div className="w-full h-full flex items-center justify-center font-bold">{u.username?.[0]?.toUpperCase()}</div>}</div><span className="font-semibold">@{u.username}</span></button>)}</div>}
-    {section!=='replies'&&section!=='likes'&&hasMoreItems&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground" aria-live="polite">{loadingMore?<Loader2 className="w-5 h-5 animate-spin text-primary"/>:'Scroll for more'}</div>}
+    {section!=='replies'&&hasMoreItems&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground" aria-live="polite">{loadingMore?<Loader2 className="w-5 h-5 animate-spin text-primary"/>:'Scroll for more'}</div>}
   </div>;
 }
