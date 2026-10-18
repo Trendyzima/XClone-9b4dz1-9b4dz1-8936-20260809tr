@@ -154,15 +154,38 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
     content_type: mime,
     checksum_sha256: checksum,
   });
+
+  // The Go upload-intent contract intentionally has no post_id field. Preserve
+  // the legacy uploadMedia(file, postId) behavior by using the owner-checked
+  // attachment endpoint only after the object has been verified and completed.
+  let attached: Record<string, unknown> | null = null;
+  if (postId) {
+    try {
+      attached = await selfHostedMediaRequest('/api/media/attach', {
+        key: String(intent.key),
+        post_id: postId,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown attachment error';
+      throw new Error(
+        'Media was uploaded but could not be attached to the post. Retry attachment for media key ' +
+          String(intent.key) + ': ' + reason,
+      );
+    }
+  }
+
+  const result = attached ?? completed;
   return {
-    media_id: String(completed.key ?? intent.key),
-    object_key: String(completed.key ?? intent.key),
-    public_url: typeof intent.public_url === 'string' ? intent.public_url : null,
-    size_bytes: Number(completed.size_bytes ?? file.size),
-    mime_type: String(completed.content_type ?? mime),
+    media_id: String(result.key ?? completed.key ?? intent.key),
+    object_key: String(result.key ?? completed.key ?? intent.key),
+    public_url: typeof result.public_url === 'string'
+      ? result.public_url
+      : typeof intent.public_url === 'string' ? intent.public_url : null,
+    size_bytes: Number(result.size_bytes ?? completed.size_bytes ?? file.size),
+    mime_type: String(result.content_type ?? completed.content_type ?? mime),
     media_type: imageTypes.has(mime) ? 'image' : 'video',
     status: 'uploaded',
-    etag: typeof completed.etag === 'string' ? completed.etag : null,
+    etag: typeof result.etag === 'string' ? result.etag : typeof completed.etag === 'string' ? completed.etag : null,
     post_id: postId ?? null,
   };
 }
