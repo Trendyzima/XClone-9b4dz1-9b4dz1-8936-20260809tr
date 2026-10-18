@@ -50,7 +50,11 @@ export default function CompleteProfilePage() {
       });
       navigate(returnTo, { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not save mobile number';
+      const message = error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+          ? error.message
+          : 'Could not save mobile number';
       toast({ title: 'Mobile number required', description: message, variant: 'destructive' });
     } finally {
       setSaving(false);
