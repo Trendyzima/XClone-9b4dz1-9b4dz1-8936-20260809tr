@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, Trash2, TrendingUp, Zap, Eye, BarChart3, Users, History, X, Languages, Loader2 as TransLoader, DollarSign, Flag, Check as CheckIcon, Send as SendIcon, Crown, Megaphone, Quote, Activity, Globe } from 'lucide-react';
 import { Post } from '@/types/app-types';
@@ -31,6 +31,7 @@ import { InlineRssSuggestion } from './InlineRssSuggestion';
 import { QuotedPostPreview } from './QuotedPostPreview';
 import { mediaCandidates, nextMediaCandidate } from '@/lib/mediaUrl';
 import { UniversalVideoPlayer } from './UniversalVideoPlayer';
+import { registerVideoPreloadCandidate } from '@/services/videoPreloadCoordinator';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
@@ -56,6 +57,7 @@ interface PostCardProps {
 const premiumCache = new Map<string, boolean>();
 
 export function PostCard({ post, onUpdate }: PostCardProps) {
+  const videoPreloadId = useId();
   const { user } = useAuth();
   const { isActive: isPremium, loading: premiumLoading } = usePremium();
   const navigate = useNavigate();
@@ -431,7 +433,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!isPremium) videoRef2.current?.play().catch(() => {});
   };
 
-  const rawMedia = (post as any).media_urls ?? (post as any).mediaUrls ?? (post as any).attachments ?? [];
+  const rawMedia = [(post as any).media_urls, (post as any).mediaUrls, (post as any).attachments, (post as any).media_attachments].find((value) => Array.isArray(value) && value.length > 0) ?? [];
   const mediaEntries: any[] = Array.isArray(rawMedia) ? rawMedia : [];
   const mediaUrls: string[] = mediaEntries
     .map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl ?? item?.href))
@@ -454,8 +456,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const resolvedVideoUrl = rawVideoUrl ? (mediaCandidates(rawVideoUrl)[0] || rawVideoUrl) : '';
   const hasVideo = Boolean((post as any).is_video || resolvedVideoUrl);
 
-  // Feed videos only autoplay when substantially visible. A wider observer
-  // starts browser/HLS preloading before the reader reaches the card.
+  // A page-wide scheduler allows only three feed videos to own media
+  // sources at once. The active observer independently controls autoplay.
   useEffect(() => {
     const video = videoRef2.current;
     if (!video || !hasVideo || !resolvedVideoUrl) {
@@ -463,25 +465,31 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       setVideoNearView(false);
       return;
     }
+
+    const unregisterPreloadCandidate = registerVideoPreloadCandidate(
+      `${post.id}:${videoPreloadId}:${resolvedVideoUrl}`,
+      video,
+      setVideoNearView,
+    );
+
     if (typeof IntersectionObserver === 'undefined') {
       setVideoInView(true);
-      setVideoNearView(true);
-      return;
+      return () => {
+        unregisterPreloadCandidate();
+        video.pause();
+      };
     }
-    const nearObserver = new IntersectionObserver(([entry]) => {
-      setVideoNearView(Boolean(entry?.isIntersecting));
-    }, { rootMargin: '450px 0px', threshold: 0 });
+
     const activeObserver = new IntersectionObserver(([entry]) => {
       setVideoInView(Boolean(entry?.isIntersecting && (entry.intersectionRatio ?? 0) >= 0.6));
     }, { threshold: [0, 0.6] });
-    nearObserver.observe(video);
     activeObserver.observe(video);
     return () => {
-      nearObserver.disconnect();
+      unregisterPreloadCandidate();
       activeObserver.disconnect();
       video.pause();
     };
-  }, [post.id, hasVideo, resolvedVideoUrl]);
+  }, [post.id, videoPreloadId, hasVideo, resolvedVideoUrl]);
 
   const boostLabel = (post as any).is_credit_boosted
     ? 'Boosted Content'
@@ -833,12 +841,12 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               )}
               <UniversalVideoPlayer
                 ref={videoRef2}
-                src={resolvedVideoUrl}
-                active={videoInView && !showVideoAd}
+                src={videoNearView ? resolvedVideoUrl : ''}
+                active={videoInView && videoNearView && !showVideoAd}
                 muted
                 controls
                 playsInline
-                preload={videoNearView ? 'auto' : 'metadata'}
+                preload={videoNearView ? 'auto' : 'none'}
                 className="w-full h-full max-h-[600px] object-contain"
                 onPlay={handleVideoPlay}
                 onError={(event) => {

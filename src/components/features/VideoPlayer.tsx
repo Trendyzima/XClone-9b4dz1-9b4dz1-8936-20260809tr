@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import {
   Heart, MessageCircle, Repeat2, Share, Volume2, VolumeX,
   Play, DollarSign, Crown, BadgeCheck, X, Send, Loader2,
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
 import { UniversalVideoPlayer } from './UniversalVideoPlayer';
+import { registerVideoPreloadCandidate } from '@/services/videoPreloadCoordinator';
 
 interface VideoPlayerProps {
   post: Post;
@@ -41,7 +42,8 @@ function readVideoSoundPreference(): boolean {
   try { return localStorage.getItem(VIDEO_SOUND_STORAGE_KEY) === 'on'; } catch { return false; }
 }
 
-export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPreload }: VideoPlayerProps) {
+export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
+  const videoPreloadId = useId();
   const videoRef       = useRef<HTMLVideoElement>(null);
   const progressRef    = useRef<HTMLDivElement>(null);
   const lastTapRef     = useRef<{ time: number; x: number; y: number } | null>(null);
@@ -57,7 +59,24 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const navigate                = useNavigate();
   const { toast }               = useToast();
 
+  // Share the same three-slot budget as inline feed videos. Reels and
+  // federated video URLs must not start independent, unbounded preload queues.
+  useEffect(() => {
+    const video = videoRef.current;
+    const videoUrl = String(post.video_url || '');
+    if (!video || !videoUrl) {
+      setVideoBatchEligible(false);
+      return;
+    }
+    return registerVideoPreloadCandidate(
+      `${post.id}:${videoPreloadId}:${videoUrl}`,
+      video,
+      setVideoBatchEligible,
+    );
+  }, [post.id, post.video_url, videoPreloadId]);
+
   const [isPlaying, setIsPlaying]               = useState(false);
+  const [videoBatchEligible, setVideoBatchEligible] = useState(false);
   const [isMuted, setIsMuted]                   = useState(() => !readVideoSoundPreference());
   const [isFullscreen, setIsFullscreen]         = useState(false);
   const [isLiked, setIsLiked]                   = useState(false);
@@ -647,9 +666,9 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       {/* ── Universal video engine ──────────────────────────────────────── */}
       <UniversalVideoPlayer
         ref={videoRef}
-        src={cancelPreload ? '' : (post.video_url || '')}
-        active={isActive && !showPrerollAd && (isPremium || prerollSeenRef.current || premiumCheckTimedOut)}
-        preload={shouldPreload ? 'auto' : 'metadata'}
+        src={videoBatchEligible ? (post.video_url || '') : ''}
+        active={videoBatchEligible && isActive && !showPrerollAd && (isPremium || prerollSeenRef.current || premiumCheckTimedOut)}
+        preload={videoBatchEligible ? 'auto' : 'none'}
         muted={isMuted}
         loop
         className="h-full w-full object-cover bg-black"
