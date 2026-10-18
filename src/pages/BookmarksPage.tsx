@@ -18,6 +18,11 @@ export function BookmarksPage() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState([] as any[]);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreBookmarks, setLoadingMoreBookmarks] = useState(false);
+  const [hasMoreBookmarks, setHasMoreBookmarks] = useState(true);
+  const bookmarksPageRef = useRef(0);
+  const loadingMoreBookmarksRef = useRef(false);
+  const bookmarksSentinelRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState('all' as 'all' | 'videos' | 'collections');
   const [videos, setVideos] = useState([] as any[]);
   const [loadingVideos, setLoadingVideos] = useState(false);
@@ -53,27 +58,51 @@ export function BookmarksPage() {
         .from('bookmarks')
         .select('*, post:posts(*, user:profiles!posts_user_id_fkey(*))')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, 19);
       const vids = ((data ?? []).map((b: any) => b.post).filter((p: any) => p && p.is_video));
       setVideos(vids);
     } catch { setVideos([]); }
     finally { setLoadingVideos(false); }
   };
 
-  const fetchBookmarks = async () => {
-    if (!user) return;
-    setLoading(true);
+  const fetchBookmarks = async (reset = true) => {
+    if (!user || (!reset && loadingMoreBookmarksRef.current)) return;
+    if (reset) setLoading(true);
+    else { loadingMoreBookmarksRef.current = true; setLoadingMoreBookmarks(true); }
     try {
+      const pageIndex = reset ? 0 : bookmarksPageRef.current;
       const { data, error } = await supabase
         .from('bookmarks')
         .select('*, post:posts(*, user:profiles!posts_user_id_fkey(*))')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(pageIndex * 20, pageIndex * 20 + 19);
       if (error) throw error;
-      setPosts((data || []).map(b => b.post).filter(Boolean));
+      const page = (data || []).map((b: any) => b.post).filter(Boolean);
+      setPosts(previous => {
+        if (reset) return page;
+        const seen = new Set(previous.map((post: any) => String(post.id)));
+        return [...previous, ...page.filter((post: any) => !seen.has(String(post.id)))];
+      });
+      setHasMoreBookmarks((data?.length ?? 0) === 20);
+      bookmarksPageRef.current = pageIndex + 1;
     } catch (error) { console.error('Error fetching bookmarks:', error); }
-    finally { setLoading(false); }
+    finally {
+      setLoading(false);
+      if (!reset) { loadingMoreBookmarksRef.current = false; setLoadingMoreBookmarks(false); }
+    }
   };
+
+  useEffect(() => {
+    const node = bookmarksSentinelRef.current;
+    if (activeTab !== 'all' || !node || !hasMoreBookmarks || loading || loadingMoreBookmarks || posts.length === 0 || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) void fetchBookmarks(false);
+    }, { rootMargin: '700px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [activeTab, hasMoreBookmarks, loading, loadingMoreBookmarks, posts.length, user?.id]);
 
   const fetchCollections = async () => {
     if (!user) return;
@@ -242,6 +271,7 @@ export function BookmarksPage() {
               </div>
             ))
           )}
+          {hasMoreBookmarks && posts.length > 0 && <div ref={bookmarksSentinelRef} className="flex justify-center py-5 min-h-12" aria-live="polite">{loadingMoreBookmarks && <Loader2 className="w-5 h-5 animate-spin text-primary" />}</div>}
         </div>
       )}
 
