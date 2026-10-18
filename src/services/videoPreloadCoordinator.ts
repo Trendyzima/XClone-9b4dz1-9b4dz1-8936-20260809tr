@@ -20,6 +20,7 @@ const KEEP_ABOVE_VIEWPORT_VIEWPORTS = 0.2;
 const candidates = new Map<string, Candidate>();
 let frame = 0;
 let lastScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+const lastScrollPositions = new WeakMap<EventTarget, number>();
 let scrollDirection: 'down' | 'up' = 'down';
 let listenersAttached = false;
 
@@ -31,10 +32,15 @@ function scheduleRefresh() {
   });
 }
 
-function onScroll() {
-  const currentY = window.scrollY;
-  if (currentY !== lastScrollY) scrollDirection = currentY > lastScrollY ? 'down' : 'up';
-  lastScrollY = currentY;
+function onScroll(event: Event) {
+  // Capture scrolling containers as well as window scrolling (reels often use
+  // an overflow-y container instead of the document viewport).
+  const target = event.target instanceof Element ? event.target : document;
+  const currentY = target === document ? window.scrollY : (target as Element).scrollTop;
+  const previousY = lastScrollPositions.get(target) ?? (target === document ? lastScrollY : currentY);
+  if (currentY !== previousY) scrollDirection = currentY > previousY ? 'down' : 'up';
+  lastScrollPositions.set(target, currentY);
+  lastScrollY = window.scrollY;
   scheduleRefresh();
 }
 
