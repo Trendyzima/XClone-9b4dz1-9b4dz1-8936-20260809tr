@@ -178,7 +178,7 @@ export default function HomeHubPage(){
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
   const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,includeFederated=true):Promise<Item[]>=>{
-    const pageSize=target==='communities'||target==='polls'||target==='shopping'?12:20;
+    const pageSize=target==='communities'||target==='polls'||target==='shopping'?12:10;
     const offset=pageNum*pageSize;
     if(target==='communities'){
       const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(offset,offset+pageSize-1);
@@ -401,7 +401,7 @@ export default function HomeHubPage(){
       try{
         const next=await fetchTab(target,0);
         setItems(next);
-        if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='polls'||target==='shopping'?12:20));
+        if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='polls'||target==='shopping'?12:10));
       }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}
       finally{if(!background)setLoading(false);}
       return;
@@ -589,7 +589,7 @@ export default function HomeHubPage(){
         tabPageRef.current=nextPage;
         setItems(prev=>appendUniqueFeedItems(prev,next));
       }
-      const pageSize=tab==='communities'||tab==='polls'||tab==='shopping'?12:20;
+      const pageSize=tab==='communities'||tab==='polls'||tab==='shopping'?12:10;
       setHasMore(next.length>=pageSize);
       return next.length>0;
     }catch(error){
