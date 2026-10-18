@@ -26,6 +26,7 @@ import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ProfileMiniSidebar } from '@/components/layout/ProfileMiniSidebar';
 import { CreditBoostDialog } from '@/components/features/CreditBoostDialog';
+import { ProfileMobileContactCard } from '@/components/features/ProfileMobileContactCard';
 
 function ProfileAdBanner() { return <PageAdBanner />; }
 
@@ -1577,6 +1578,7 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {isOwnProfile && profile && <ProfileMobileContactCard username={profile.username} />}
       {isOwnProfile && <div className="px-4 mt-4"><RevenueAnalyticsWidget /></div>}
       {isOwnProfile && profile && <div className="px-4 mt-4"><CreatorMonetizationHub userId={profile.id} /></div>}
       {!isOwnProfile && profile && currentUser && (
