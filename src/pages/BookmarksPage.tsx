@@ -29,6 +29,7 @@ export function BookmarksPage() {
   const [loadingMoreBookmarkedVideos, setLoadingMoreBookmarkedVideos] = useState(false);
   const [hasMoreBookmarkedVideos, setHasMoreBookmarkedVideos] = useState(true);
   const bookmarkedVideosPageRef = useRef(0);
+  const bookmarkedVideosLoadedForUserRef = useRef<string | null>(null);
   const loadingMoreBookmarkedVideosRef = useRef(false);
   const bookmarkedVideosSentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -132,7 +133,11 @@ export function BookmarksPage() {
   }, [activeTab, hasMoreBookmarkedVideos, loadingVideos, loadingMoreBookmarkedVideos, videos.length, user?.id]);
 
   useEffect(() => {
-    if (activeTab === 'videos' && user && videos.length === 0 && !loadingVideos) void fetchBookmarkedVideos(true);
+    if (!user) { bookmarkedVideosLoadedForUserRef.current = null; return; }
+    if (activeTab === 'videos' && bookmarkedVideosLoadedForUserRef.current !== user.id) {
+      bookmarkedVideosLoadedForUserRef.current = user.id;
+      void fetchBookmarkedVideos(true);
+    }
   }, [activeTab, user?.id]);
 
   const fetchCollections = async () => {
