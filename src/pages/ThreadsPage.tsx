@@ -94,13 +94,13 @@ export default function ThreadsPage() {
   const {user}=useAuth(); const navigate=useNavigate();
   const [tab,setTab]=useState<Tab>('For you'); const [threads,setThreads]=useState<Thread[]>([]); const [mixedItems,setMixedItems]=useState<MixedItem[]>([]);
   const [liked,setLiked]=useState<Set<string>>(new Set()); const [reposted,setReposted]=useState<Set<string>>(new Set()); const [bookmarked,setBookmarked]=useState<Set<string>>(new Set());
-  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [loadingMore,setLoadingMore]=useState(false); const [hasMore,setHasMore]=useState(true); const [cursor,setCursor]=useState<string|null>(null); const [search,setSearch]=useState(''); const loadMoreRef=useRef<HTMLDivElement|null>(null);
+  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [loadingMore,setLoadingMore]=useState(false); const [feedError,setFeedError]=useState<string|null>(null); const [hasMore,setHasMore]=useState(true); const [cursor,setCursor]=useState<string|null>(null); const [search,setSearch]=useState(''); const loadMoreRef=useRef<HTMLDivElement|null>(null);
 
   useSEO({title:'Threads — Testagram',description:'Join conversations on Testagram. Share thoughts, reply, repost and discover people you follow.',url:'/threads',type:'website',keywords:'threads, conversations, social, Testagram'});
 
   const loadThreads=useCallback(async(reset=true)=>{
     const cacheKey=`${tab}:${user?.id??'anon'}`;
-    if(reset){setRefreshing(true);setCursor(null);setHasMore(true); const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey); if(cached){setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);setHasMore(cached.hasMore!==false); setLoading(false); setRefreshing(false);}}
+    if(reset){setRefreshing(true);setFeedError(null);setLoading(true);setCursor(null);setHasMore(true); const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey); if(cached){setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);setHasMore(cached.hasMore!==false); setLoading(false); setRefreshing(false);}}
     else {if(loadingMore||!hasMore)return;setLoadingMore(true);}
     try{
       let ids:string[]|null=null;
@@ -192,7 +192,7 @@ export default function ThreadsPage() {
         setReposted(prev=>{const n=new Set(reset?[]:prev);rr.forEach((id)=>n.add(id));return n;});
         setBookmarked(prev=>{const n=new Set(reset?[]:prev);(b.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
       }
-    }catch(error){console.error('Threads feed error',error);toast.error('Could not load Threads');}
+    }catch(error){console.error('[Threads] feed request failed',error);setFeedError('Could not load this section. Check your connection and retry.');toast.error('Could not load Threads');}
     finally{setLoading(false);setRefreshing(false);setLoadingMore(false);}
   },[tab,user?.id,cursor,loadingMore,hasMore]);
   useEffect(()=>{void loadThreads(true);},[tab,user?.id]);
@@ -229,8 +229,9 @@ export default function ThreadsPage() {
     {user&&<button onClick={()=>navigate('/threads/create')} className="flex w-full gap-3 border-b border-border px-4 py-4 text-left hover:bg-muted/20"><Avatar profile={{id:user.id,username:user.username,avatar_url:user.avatar,verified:false}}/><div className="flex-1"><p className="text-[15px] text-muted-foreground">What's new, @{user.username}?</p><div className="mt-3 flex items-center justify-between"><div className="flex items-center gap-3 text-primary"><ImageIcon className="h-5 w-5"/><span className="text-xs text-muted-foreground">Share a thought, photo or link</span></div><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">Post</span></div></div></button>}
     <DynamicAd location="feed_top" className="border-b border-border px-4 py-3"/>
     <FederatedHashtagDiscovery surface="threads" />
+    {feedError&&<div role="alert" className="mx-4 my-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4"><p className="text-sm text-foreground">{feedError}</p><button onClick={()=>void loadThreads(true)} className="mt-3 inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-muted">Retry loading threads</button></div>}
     <div className="divide-y divide-border">
-      {loading?<div className="flex justify-center py-20"><Loader2 className="h-7 w-7 animate-spin text-primary"/></div>:visible.length===0?<div className="px-6 py-20 text-center"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted"><MessageCircle className="h-6 w-6 text-muted-foreground"/></div><h2 className="font-bold">{tab==='Following'?'Follow people to fill your feed':tab==='Saved'?'Your saved threads will appear here':'Start the conversation'}</h2><p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{tab==='Following'?'Discover creators and follow people whose conversations you want to see.':tab==='Saved'?'Tap the bookmark on any thread to keep it for later.':'Share a thought and give the community something to respond to.'}</p>{tab==='Following'&&<Button onClick={()=>navigate('/discover')} className="mt-5 rounded-full"><UserPlus className="mr-2 h-4 w-4"/>Discover people</Button>}{tab==='For you'&&user&&<Button onClick={()=>navigate('/threads/create')} className="mt-5 rounded-full"><Plus className="mr-2 h-4 w-4"/>Create a thread</Button>}</div>:visible.map((item,index)=>{
+      {loading?<div className="flex justify-center py-20"><Loader2 className="h-7 w-7 animate-spin text-primary"/></div>:feedError&&visible.length===0?null:visible.length===0?<div className="px-6 py-20 text-center"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted"><MessageCircle className="h-6 w-6 text-muted-foreground"/></div><h2 className="font-bold">{tab==='Following'?'Follow people to fill your feed':tab==='Saved'?'Your saved threads will appear here':'Start the conversation'}</h2><p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{tab==='Following'?'Discover creators and follow people whose conversations you want to see.':tab==='Saved'?'Tap the bookmark on any thread to keep it for later.':'Share a thought and give the community something to respond to.'}</p>{tab==='Following'&&<Button onClick={()=>navigate('/discover')} className="mt-5 rounded-full"><UserPlus className="mr-2 h-4 w-4"/>Discover people</Button>}{tab==='For you'&&user&&<Button onClick={()=>navigate('/threads/create')} className="mt-5 rounded-full"><Plus className="mr-2 h-4 w-4"/>Create a thread</Button>}</div>:visible.map((item,index)=>{
         const content=item.kind==='thread'
           ? <ThreadCard thread={item.data} liked={liked.has(item.data.id)} reposted={reposted.has(item.data.id)} bookmarked={bookmarked.has(item.data.id)} onLike={()=>void toggleLike(item.data)} onRepost={()=>void toggleRepost(item.data)} onBookmark={()=>void toggleBookmark(item.data)} onShare={()=>void shareThread(item.data)}/>
           : <div className="relative">
