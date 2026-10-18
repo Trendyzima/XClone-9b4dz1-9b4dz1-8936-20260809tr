@@ -206,7 +206,12 @@ export class TestagramCapabilityClient{
   let directFailure:unknown=null;
   for(let attempt=0;attempt<2;attempt++){
    try{
-    const response=await fetch(directUrl,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort})});
+    const directController=new AbortController();
+    const directTimer=setTimeout(()=>directController.abort(),this.timeout);
+    let response:Response;
+    try{
+     response=await fetch(directUrl,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort}),signal:directController.signal});
+    }finally{clearTimeout(directTimer)}
     const raw=await response.text();
     let payload:any=null; try{payload=raw?JSON.parse(raw):null}catch{}
     if(response.ok)return searchPayload(payload);
@@ -230,29 +235,67 @@ export class TestagramCapabilityClient{
   }
   if(directFailure instanceof CapabilityClientError&&directFailure.code==="AUTH_REQUIRED")throw directFailure;
   if(input.offset>0||input.sort!=="relevance") throw directFailure instanceof Error?directFailure:new CapabilityClientError("Search pagination is temporarily unavailable. Retry the current search.",{code:"SEARCH_PAGINATION_FAILED"});
-  try{
-   const gateway=await this.call<any>("testagram.search.unified",input,token);
-   return searchPayload(gateway);
-  }catch(gatewayError){
-   if(gatewayError instanceof CapabilityClientError&&gatewayError.code==="AUTH_REQUIRED")throw gatewayError;
-   const normalized=q.trim().replace(/^[@#]/,'');
-   const fallback=await Promise.allSettled([
-    this.searchUsers(normalized,limit(n)),
-    this.searchHashtags(normalized,limit(n)),
-    this.searchPosts(q,limit(n),undefined,{mediaOnly:kind==="media"}),
-    this.searchCommunities(normalized,limit(n)),
-   ]);
-   const users=fallback[0].status==="fulfilled"?fallback[0].value.items:[];
-   const hashtags=fallback[1].status==="fulfilled"?fallback[1].value.items:[];
-   const posts=fallback[2].status==="fulfilled"?fallback[2].value.items:[];
-   const communities=fallback[3].status==="fulfilled"?fallback[3].value.items:[];
-   if(fallback.some(result=>result.status==="fulfilled")){
-    return {users,hashtags,posts,threads:[],communities,replies:[],fediverse:[],next_cursor:fallback[2].status==="fulfilled"?fallback[2].value.next_cursor:null,partial:true};
+  const directMessage=directFailure instanceof Error?directFailure.message:"";
+  const directTimedOut=(directFailure instanceof DOMException&&directFailure.name==="AbortError")||/statement timeout|canceling statement|\\b57014\\b|timed? out/i.test(directMessage);
+  // A PostgreSQL statement timeout is a known failure of the same RPC, not a
+  // transient gateway-routing problem. Do not repeat the expensive unified RPC
+  // through the gateway; go directly to one bounded category-specific fallback.
+  if(!directTimedOut){
+   try{
+    const gateway=await this.call<any>("testagram.search.unified",input,token);
+    return searchPayload(gateway);
+   }catch(gatewayError){
+    if(gatewayError instanceof CapabilityClientError&&gatewayError.code==="AUTH_REQUIRED")throw gatewayError;
+    return this.searchFallbackForKind(kind,q,n,directFailure,gatewayError);
    }
-   if(directFailure instanceof CapabilityClientError)throw directFailure;
-   throw gatewayError;
+  }
+  return this.searchFallbackForKind(kind,q,n,directFailure,directFailure);
+ }
+
+ private async searchFallbackForKind(kind:string,q:string,n:number,directFailure:unknown,gatewayError:unknown){
+  const normalized=q.trim().replace(/^[@#]/,'');
+  try{
+   let users:any[]=[];
+   let hashtags:any[]=[];
+   let posts:any[]=[];
+   let communities:any[]=[];
+   let nextCursor:string|null=null;
+   switch(kind){
+    case "people":{
+     const result=await this.searchUsers(normalized,Math.min(limit(n),10));
+     users=result.items??[];nextCursor=result.next_cursor??null;break;
+    }
+    case "hashtags":{
+     const result=await this.searchHashtags(normalized,Math.min(limit(n),10));
+     hashtags=result.items??[];nextCursor=result.next_cursor??null;break;
+    }
+    case "communities":{
+     const result=await this.searchCommunities(normalized,Math.min(limit(n),10));
+     communities=result.items??[];nextCursor=result.next_cursor??null;break;
+    }
+    case "media":{
+     const result=await this.searchPosts(q,Math.min(limit(n),10),undefined,{mediaOnly:true});
+     posts=result.items??[];nextCursor=result.next_cursor??null;break;
+    }
+    case "posts":
+    case "latest":
+    case "top":
+    case "all":{
+     const result=await this.searchPosts(q,Math.min(limit(n),10));
+     posts=result.items??[];nextCursor=result.next_cursor??null;break;
+    }
+    default:
+     throw directFailure instanceof Error?directFailure:new CapabilityClientError("This search category is temporarily unavailable. Retry in a moment.",{code:"SEARCH_FALLBACK_UNAVAILABLE"});
+   }
+   return {users,hashtags,posts,threads:[],communities,replies:[],fediverse:[],instances:[],next_cursor:nextCursor,partial:true};
+  }catch(fallbackError){
+   if(fallbackError instanceof CapabilityClientError&&fallbackError.code==="AUTH_REQUIRED")throw fallbackError;
+   if(directFailure instanceof Error)throw directFailure;
+   if(gatewayError instanceof Error)throw gatewayError;
+   throw fallbackError;
   }
  }
+
  searchCommunities(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.communities",{q,limit:limit(n),...cursor(c)})}
  async searchDiscovery(_endpoint:string,q:string,mode:"search"|"suggest"="search",n=20,c?:string):Promise<SearchDiscoveryPage>{const size=limit(mode==="suggest"?Math.min(n,8):n);const normalized=q.trim().replace(/^[@#]/,'');const [users,hashtags,posts,communities]=await Promise.all([this.searchUsers(normalized,size,c),this.searchHashtags(normalized,size,c),this.searchPosts(q.trim(),size,c),this.searchCommunities(normalized,size,c)]);return{users:users.items,hashtags:hashtags.items,posts:posts.items,communities:communities.items,next_cursor:posts.next_cursor};}
  createPost(input:{body?:string;content?:string;communityId?:string;mediaUrl?:string;mediaType?:string;mediaUrls?:string[];imageUrl?:string;videoUrl?:string;isVideo?:boolean;mediaCount?:number;visibility?:string;replyToPostId?:string;quotedPostId?:string;quotePostId?:string;quoteOfPostId?:string;poll?:{question:string;options:string[];durationMinutes?:number;multipleChoice?:boolean};productIds?:string[]},accessToken?:string){return this.call<{post_id:string;poll_id?:string|null;created:boolean}>("testagram.posts.create",{body:input.body??input.content??"",content:input.content??input.body??"",...input.communityId?{community_id:input.communityId}:{},...input.mediaUrl?{media_url:input.mediaUrl}:{},...input.mediaType?{media_type:input.mediaType}:{},...input.mediaUrls?{media_urls:input.mediaUrls}:{},...input.imageUrl?{image_url:input.imageUrl}:{},...input.videoUrl?{video_url:input.videoUrl}:{},...(input.isVideo!==undefined?{is_video:input.isVideo}:{}),...(input.mediaCount!==undefined?{media_count:input.mediaCount}:{}),...input.visibility?{visibility:input.visibility}:{},...input.replyToPostId?{reply_to_post_id:input.replyToPostId}:{},...input.quotedPostId?{quoted_post_id:input.quotedPostId}:{},...input.quotePostId?{quote_post_id:input.quotePostId}:{},...input.quoteOfPostId?{quote_of_post_id:input.quoteOfPostId}:{},...input.poll?{poll:{question:input.poll.question,options:input.poll.options,...input.poll.durationMinutes!==undefined?{duration_minutes:input.poll.durationMinutes}:{},...(input.poll.multipleChoice!==undefined?{multiple_choice:input.poll.multipleChoice}:{})}}:{},...input.productIds?{product_ids:input.productIds}:{}},accessToken)}
