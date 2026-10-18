@@ -226,7 +226,7 @@ export class TestagramCapabilityClient{
       let response:Response;
       let raw:string;
       try{
-       response=await fetch(`${supabaseUrl.replace(/\\/$/,"")}/rest/v1/rpc/testagram_search_unified`,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort}),signal:directController.signal});
+       response=await fetch(`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/testagram_search_unified`,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort}),signal:directController.signal});
        raw=await response.text();
       }finally{clearTimeout(directTimer)}
       let payload:any=null;try{payload=raw?JSON.parse(raw):null}catch{}
