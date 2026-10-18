@@ -183,7 +183,7 @@ $function$;
 -- authorization boundary and cache behavior. Cache keys include all arguments.
 drop function if exists public.testagram_search_unified(text,text,integer);
 
-create function public.testagram_search_unified(
+create or replace function public.testagram_search_unified(
   p_q text,
   p_kind text default 'all'::text,
   p_limit integer default 40,
