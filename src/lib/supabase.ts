@@ -59,6 +59,14 @@ if (SELF_HOSTED_MODE && (!configuredPrimaryUrl || !configuredPrimaryKey)) {
 if (SELF_HOSTED_MODE && configuredPrimaryUrl) {
   validateSelfHostedSupabaseOrigin(configuredPrimaryUrl, 'VITE_SUPABASE_URL');
 }
+if (
+  SELF_HOSTED_MODE &&
+  Boolean(configuredSecondaryUrl) !== Boolean(configuredSecondaryKey)
+) {
+  throw new Error(
+    'Self-hosted secondary Supabase configuration requires both VITE_SUPABASE_SECONDARY_URL and VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY.',
+  );
+}
 if (SELF_HOSTED_MODE && configuredSecondaryUrl) {
   validateSelfHostedSupabaseOrigin(configuredSecondaryUrl, 'VITE_SUPABASE_SECONDARY_URL');
 }
