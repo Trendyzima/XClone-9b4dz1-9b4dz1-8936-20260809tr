@@ -489,7 +489,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       activeObserver.disconnect();
       video.pause();
     };
-  }, [post.id, hasVideo, resolvedVideoUrl]);
+  }, [post.id, videoPreloadId, hasVideo, resolvedVideoUrl]);
 
   const boostLabel = (post as any).is_credit_boosted
     ? 'Boosted Content'
