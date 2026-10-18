@@ -7,14 +7,78 @@ const PRIMARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_
 const SECONDARY_SUPABASE_URL = 'https://aepbqfrmheihfsauzcby.supabase.co';
 const SECONDARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_f331BL1gsNy-otXRmQPtrw_SG8tCWLn';
 
+const SELF_HOSTED_MODE = import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true';
 const configuredPrimaryUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const configuredPrimaryKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)?.trim();
+const configuredPrimaryKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 const configuredSecondaryUrl = import.meta.env.VITE_SUPABASE_SECONDARY_URL?.trim();
-const configuredSecondaryKey = (import.meta.env.VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_SECONDARY_ANON_KEY)?.trim();
+const configuredSecondaryKey =
+  import.meta.env.VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY?.trim() ||
+  import.meta.env.VITE_SUPABASE_SECONDARY_ANON_KEY?.trim();
 
-export const supabaseUrl = configuredPrimaryUrl || PRIMARY_SUPABASE_URL;
-export const supabasePublishableKey = configuredPrimaryKey || PRIMARY_SUPABASE_PUBLISHABLE_KEY;
+function validateSelfHostedSupabaseOrigin(value: string, variableName: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(variableName + ' must be an absolute HTTP(S) origin.');
+  }
+
+  const localHTTP =
+    parsed.protocol === 'http:' &&
+    (parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '[::1]' ||
+      parsed.hostname === '::1');
+  const hostedSupabase = parsed.hostname.toLowerCase().endsWith('.supabase.co');
+  if (
+    (parsed.protocol !== 'https:' && !localHTTP) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash ||
+    hostedSupabase
+  ) {
+    throw new Error(
+      variableName +
+        ' must be an owned HTTPS origin (HTTP is allowed only for localhost), without credentials, path, query, or fragment; hosted *.supabase.co endpoints are not accepted in self-hosted mode.',
+    );
+  }
+  return parsed.origin;
+}
+
+// Self-hosted builds must never silently fall back to hosted Testagram projects
+// or an accidentally configured hosted Supabase endpoint.
+if (SELF_HOSTED_MODE && (!configuredPrimaryUrl || !configuredPrimaryKey)) {
+  throw new Error(
+    'Self-hosted Testagram mode requires VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY. Refusing hosted-project fallback.',
+  );
+}
+if (SELF_HOSTED_MODE && configuredPrimaryUrl) {
+  validateSelfHostedSupabaseOrigin(configuredPrimaryUrl, 'VITE_SUPABASE_URL');
+}
+if (
+  SELF_HOSTED_MODE &&
+  Boolean(configuredSecondaryUrl) !== Boolean(configuredSecondaryKey)
+) {
+  throw new Error(
+    'Self-hosted secondary Supabase configuration requires both VITE_SUPABASE_SECONDARY_URL and VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY.',
+  );
+}
+if (SELF_HOSTED_MODE && configuredSecondaryUrl) {
+  validateSelfHostedSupabaseOrigin(configuredSecondaryUrl, 'VITE_SUPABASE_SECONDARY_URL');
+}
+
+export const supabaseUrl = SELF_HOSTED_MODE
+  ? configuredPrimaryUrl!
+  : configuredPrimaryUrl || PRIMARY_SUPABASE_URL;
+export const supabasePublishableKey = SELF_HOSTED_MODE
+  ? configuredPrimaryKey!
+  : configuredPrimaryKey || PRIMARY_SUPABASE_PUBLISHABLE_KEY;
 export const supabaseAnonKey = supabasePublishableKey;
+export const isTestagramSelfHosted = SELF_HOSTED_MODE;
 
 // Primary project: canonical Testagram identity/session and user-owned writes.
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
@@ -56,11 +120,16 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// Secondary project: legacy/expanded data plane. It has its own API client and
-// deliberately does not share the primary auth session. Do not send a primary
-// JWT to this project; Supabase projects have independent JWT issuers.
-export const supabaseSecondaryUrl = configuredSecondaryUrl || SECONDARY_SUPABASE_URL;
-export const supabaseSecondaryPublishableKey = configuredSecondaryKey || SECONDARY_SUPABASE_PUBLISHABLE_KEY;
+// Secondary project: legacy/expanded data plane. In hosted mode it deliberately
+// uses its own issuer/session boundary. In self-hosted mode it defaults to the
+// configured local project instead of silently reaching a hosted project; set
+// VITE_SUPABASE_SECONDARY_URL/key only if a second self-hosted project is intended.
+export const supabaseSecondaryUrl = SELF_HOSTED_MODE
+  ? configuredSecondaryUrl || configuredPrimaryUrl!
+  : configuredSecondaryUrl || SECONDARY_SUPABASE_URL;
+export const supabaseSecondaryPublishableKey = SELF_HOSTED_MODE
+  ? configuredSecondaryKey || configuredPrimaryKey!
+  : configuredSecondaryKey || SECONDARY_SUPABASE_PUBLISHABLE_KEY;
 export const supabaseSecondary = createClient(
   supabaseSecondaryUrl,
   supabaseSecondaryPublishableKey,

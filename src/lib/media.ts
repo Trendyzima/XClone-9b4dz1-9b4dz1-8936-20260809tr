@@ -23,30 +23,109 @@ function validateMedia(file: File) {
 }
 
 function selfHostedMediaBase() {
-  return String(import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+  const raw = String(import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim();
+  if (!raw) {
+    if (import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true') {
+      throw new Error(
+        'Self-hosted Testagram mode requires VITE_TESTAGRAM_API_URL. Refusing fallback to the hosted media path.',
+      );
+    }
+    return '';
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error('VITE_TESTAGRAM_API_URL must be an absolute HTTP(S) origin.');
+  }
+  const isLocalHTTP =
+    parsed.protocol === 'http:' &&
+    (parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '[::1]' ||
+      parsed.hostname === '::1');
+  if (
+    (parsed.protocol !== 'https:' && !isLocalHTTP) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(
+      'VITE_TESTAGRAM_API_URL must be an HTTPS origin (HTTP is allowed only for localhost) without a path, credentials, query, or fragment.',
+    );
+  }
+  return parsed.origin;
+}
+
+function resolveSelfHostedUploadURL(uploadURL: string, expectedKey: string): URL {
+  const apiBase = selfHostedMediaBase();
+  if (!apiBase) throw new Error('Self-hosted Testagram API URL is not configured.');
+  const resolved = new URL(uploadURL, apiBase + '/');
+  if (
+    resolved.origin !== apiBase ||
+    resolved.pathname !== '/api/media/upload' ||
+    resolved.searchParams.get('key') !== expectedKey ||
+    resolved.username ||
+    resolved.password
+  ) {
+    throw new Error('Self-hosted media API returned an unsafe upload URL.');
+  }
+  return resolved;
+}
+
+export class MediaApiError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+  readonly requestId: string | null;
+
+  constructor(message: string, status: number, code: string | null = null, requestId: string | null = null) {
+    super(message);
+    this.name = 'MediaApiError';
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+  }
 }
 
 async function selfHostedMediaRequest(path: string, body: Record<string, unknown>) {
   const base = selfHostedMediaBase();
   if (!base) throw new Error('Self-hosted Testagram API URL is not configured.');
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('Authentication required');
+  if (!session?.access_token) throw new MediaApiError('Authentication required', 401, 'AUTH_REQUIRED');
   const response = await fetch(base + path, {
     method: 'POST',
     headers: {
       Authorization: 'Bearer ' + session.access_token,
       'Content-Type': 'application/json',
+      Accept: 'application/json',
     },
     body: JSON.stringify(body),
   });
-  const payload = await response.json().catch(() => ({} as any));
-  if (!response.ok || payload?.ok === false || payload?.error) {
-    const message = typeof payload?.error === 'string'
-      ? payload.error
-      : String(payload?.error?.message ?? 'Self-hosted media request failed (' + response.status + ').');
-    throw new Error(message);
+  const payload = await response.json().catch(() => null);
+  const error = payload && typeof payload === 'object' ? (payload as any).error : null;
+  if (!response.ok || !payload || payload.ok !== true || error) {
+    const message = typeof error === 'string'
+      ? error
+      : String(error?.message ?? 'Self-hosted media request failed (' + response.status + ').');
+    throw new MediaApiError(
+      message,
+      response.status,
+      typeof error?.code === 'string' ? error.code : null,
+      typeof payload?.request_id === 'string' ? payload.request_id : response.headers.get('X-Request-ID'),
+    );
   }
-  return payload?.data ?? payload;
+  if (!payload.data || typeof payload.data !== 'object') {
+    throw new MediaApiError(
+      'Self-hosted media API returned a malformed success response.',
+      response.status,
+      'MEDIA_RESPONSE_INVALID',
+      typeof payload.request_id === 'string' ? payload.request_id : response.headers.get('X-Request-ID'),
+    );
+  }
+  return payload.data;
 }
 
 async function sha256Hex(file: File): Promise<string> {
@@ -60,10 +139,10 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
   const mime = String(file.type ?? '').trim().toLowerCase();
   const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']);
   const videoTypes = new Set(['video/mp4', 'video/webm']);
-  const maxBytes = imageTypes.has(mime) || videoTypes.has(mime) ? 20 * 1024 * 1024 : 0;
+  const maxBytes = imageTypes.has(mime) || videoTypes.has(mime) ? MAX_MEDIA_BYTES : 0;
   if (!maxBytes) throw new Error('Self-hosted public media supports JPEG, PNG, WebP, AVIF, GIF, MP4, and WebM up to 20 MiB only.');
   if (file.size <= 0 || file.size > maxBytes) {
-    throw new Error(imageTypes.has(mime) ? 'Public media files must be 20 MiB or smaller.' : 'Public media files must be 20 MiB or smaller.');
+    throw new Error('Public media files must be 20 MiB or smaller.');
   }
 
   const intent = await selfHostedMediaRequest('/api/media/upload-intent', {
@@ -76,24 +155,27 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
     throw new Error('Self-hosted media API returned an invalid upload intent.');
   }
 
-  // The Go API returns a relative /api/media/upload URL for the bounded gateway.
-  // Resolve it against the configured API origin, not the web application's origin.
-  const uploadURL = new URL(intent.url, selfHostedMediaBase() + '/').toString();
+  // Never send the user's bearer token to an upload URL on another origin.
+  // The self-hosted API contract requires its bounded gateway endpoint.
+  const uploadURL = resolveSelfHostedUploadURL(intent.url, String(intent.key));
   const checksum = await sha256Hex(file);
   const { data: { session: uploadSession } } = await supabase.auth.getSession();
   if (!uploadSession?.access_token) throw new Error('Authentication required');
-  const uploadHeaders: Record<string, string> = { 'Content-Type': mime };
-  // The API gateway requires the user's bearer token; a legacy presigned object-store
-  // URL must not receive that unrelated Authorization header.
-  if (new URL(uploadURL).pathname === '/api/media/upload') {
-    uploadHeaders.Authorization = 'Bearer ' + uploadSession.access_token;
-  }
-  const upload = await fetch(uploadURL, {
+  const upload = await fetch(uploadURL.toString(), {
     method: 'PUT',
-    headers: uploadHeaders,
+    headers: {
+      Authorization: 'Bearer ' + uploadSession.access_token,
+      'Content-Type': mime,
+    },
     body: file,
   });
-  if (!upload.ok) throw new Error('Self-hosted media upload failed (' + upload.status + ').');
+  if (!upload.ok) {
+    const failure = await upload.json().catch(() => ({} as any));
+    const message = typeof failure?.error === 'string'
+      ? failure.error
+      : String(failure?.error?.message ?? 'Self-hosted media upload failed (' + upload.status + ').');
+    throw new Error(message);
+  }
 
   const completed = await selfHostedMediaRequest('/api/media/complete', {
     key: String(intent.key),
@@ -101,15 +183,38 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
     content_type: mime,
     checksum_sha256: checksum,
   });
+
+  // The Go upload-intent contract intentionally has no post_id field. Preserve
+  // the legacy uploadMedia(file, postId) behavior by using the owner-checked
+  // attachment endpoint only after the object has been verified and completed.
+  let attached: Record<string, unknown> | null = null;
+  if (postId) {
+    try {
+      attached = await selfHostedMediaRequest('/api/media/attach', {
+        key: String(intent.key),
+        post_id: postId,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown attachment error';
+      throw new Error(
+        'Media was uploaded but could not be attached to the post. Retry attachment for media key ' +
+          String(intent.key) + ': ' + reason,
+      );
+    }
+  }
+
+  const result = attached ?? completed;
   return {
-    media_id: String(completed.key ?? intent.key),
-    object_key: String(completed.key ?? intent.key),
-    public_url: typeof intent.public_url === 'string' ? intent.public_url : null,
-    size_bytes: Number(completed.size_bytes ?? file.size),
-    mime_type: String(completed.content_type ?? mime),
+    media_id: String(result.key ?? completed.key ?? intent.key),
+    object_key: String(result.key ?? completed.key ?? intent.key),
+    public_url: typeof result.public_url === 'string'
+      ? result.public_url
+      : typeof intent.public_url === 'string' ? intent.public_url : null,
+    size_bytes: Number(result.size_bytes ?? completed.size_bytes ?? file.size),
+    mime_type: String(result.content_type ?? completed.content_type ?? mime),
     media_type: imageTypes.has(mime) ? 'image' : 'video',
     status: 'uploaded',
-    etag: typeof completed.etag === 'string' ? completed.etag : null,
+    etag: typeof result.etag === 'string' ? result.etag : typeof completed.etag === 'string' ? completed.etag : null,
     post_id: postId ?? null,
   };
 }
@@ -122,8 +227,16 @@ async function mediaFunction(action: string, body: Record<string, unknown>) {
     headers: { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...body }),
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data?.error) throw new Error(String(data?.error ?? 'Media backend request failed (' + response.status + ').'));
+  const data = await response.json().catch(() => ({} as any));
+  if (!response.ok || data?.error) {
+    const error = data?.error;
+    const message = typeof error === 'string'
+      ? error
+      : typeof error?.message === 'string'
+        ? error.message
+        : 'Media backend request failed (' + response.status + ').';
+    throw new Error(message);
+  }
   return data;
 }
 
@@ -151,9 +264,22 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
 }
 
 export async function getPrivateMediaDownloadUrl(key: string): Promise<string> {
-  const data = await selfHostedMediaRequest('/api/media/private-download-url', { key });
-  if (typeof data?.url !== 'string' || !data.url) throw new Error('Private media API returned an invalid download URL.');
-  return data.url;
+  if (selfHostedMediaBase()) {
+    const data = await selfHostedMediaRequest('/api/media/private-download-url', { key });
+    if (typeof data?.url !== 'string' || !data.url) {
+      throw new Error('Private media API returned an invalid download URL.');
+    }
+    return data.url;
+  }
+
+  // Keep the existing adapter contract working for hosted/legacy builds. The
+  // adapter forwards this request to the same Go owner-checking endpoint and
+  // returns { url, expires_in }; no private object URL is synthesized client-side.
+  const legacy = await mediaFunction('private-download', { media_id: key, object_key: key });
+  if (typeof legacy?.url !== 'string' || !legacy.url) {
+    throw new Error('Private media API returned an invalid download URL.');
+  }
+  return legacy.url;
 }
 
 export async function attachMediaToPost(mediaId:string,postId:string):Promise<MediaUploadResult>{
