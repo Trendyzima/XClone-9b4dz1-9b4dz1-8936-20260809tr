@@ -116,22 +116,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .then(async (mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
-              const path = normalizedPathname();
               // Identity verification belongs to account creation and never blocks existing logins.
-// Mobile contact is a required post-sign-in profile field, not an auth
-              // identifier. Keep it private in profile_contact_methods and gate the
-              // application until the signed-in user has supplied a valid number.
-              if (path !== '/profile/complete' && path !== '/verify-identity') {
-                const mobilePhoneResult = await withBootstrapTimeout(supabase.rpc('has_my_mobile_phone') as unknown as Promise<{ data: boolean | null; error: { message: string } | null }>, 'Mobile contact validation');
-                const { data: hasMobilePhone, error: mobilePhoneError } = mobilePhoneResult;
-                if (mobilePhoneError) throw mobilePhoneError;
-                if (!hasMobilePhone) {
-                  window.location.replace('/profile/complete');
-                  resolve();
-                  return;
-                }
-              }
-
+              // Mobile contact is optional onboarding. A missing number or contact-RPC
+              // failure must never redirect users away from IPTV or interrupt playback.
               setLoading(false);
               void triggerKeygenForUser(user.id);
               resolve();

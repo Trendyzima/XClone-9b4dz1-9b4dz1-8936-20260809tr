@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Loader2, Phone, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,9 @@ import { useToast } from '@/hooks/use-toast';
 export default function CompleteProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedReturnTo = new URLSearchParams(location.search).get('returnTo');
+  const returnTo = requestedReturnTo && requestedReturnTo.startsWith('/') && !requestedReturnTo.startsWith('//') && requestedReturnTo !== '/profile/complete' ? requestedReturnTo : '/';
   const { toast } = useToast();
   const [phone, setPhone] = useState('+254');
   const [loading, setLoading] = useState(true);
@@ -28,13 +31,11 @@ export default function CompleteProfilePage() {
         if (cancelled) return;
         if (data?.phone_e164) {
           setPhone(data.phone_e164);
-          navigate('/', { replace: true });
-          return;
         }
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [user?.id, navigate]);
+  }, [user?.id]);
 
   const savePhone = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -44,12 +45,16 @@ export default function CompleteProfilePage() {
       if (error) throw error;
       if (!data?.ok || !data?.phone_e164) throw new Error('The mobile number was not accepted by the server.');
       toast({
-        title: 'Mobile number added',
-        description: 'Your number is now attached to your Testagram profile. It is not used for sign-in.',
+        title: 'Mobile number saved',
+        description: 'Your private contact number is saved to your Testagram account. It is not used for sign-in.',
       });
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not save mobile number';
+      const message = error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+          ? error.message
+          : 'Could not save mobile number';
       toast({ title: 'Mobile number required', description: message, variant: 'destructive' });
     } finally {
       setSaving(false);
@@ -71,9 +76,9 @@ export default function CompleteProfilePage() {
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Phone className="h-7 w-7" />
         </div>
-        <h1 className="text-2xl font-bold text-center">Add your mobile number</h1>
+        <h1 className="text-2xl font-bold text-center">Add or update your mobile number</h1>
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          A valid mobile number is required to complete your Testagram profile and power communication features.
+          Save a private mobile number to enable communication features. You can continue watching TV and browsing Testagram without adding one first.
         </p>
         <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground flex gap-3">
           <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
@@ -97,7 +102,7 @@ export default function CompleteProfilePage() {
           </div>
           <Button type="submit" className="w-full" disabled={saving || phone.trim().length < 8}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            {saving ? 'Saving…' : 'Continue to Testagram'}
+            {saving ? 'Saving…' : 'Save mobile number'}
           </Button>
         </form>
       </section>
