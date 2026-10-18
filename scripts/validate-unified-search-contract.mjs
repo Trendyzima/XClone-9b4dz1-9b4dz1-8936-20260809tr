@@ -36,6 +36,7 @@ requireText(paginationSql, /security definer[\s\S]*grant execute on function pub
 requireText(web, /code==='AUTH_REQUIRED'[\s\S]*Sign in again to search Testagram/, 'Web search must show an actionable authentication error instead of a generic failure.');
 requireText(webClient, /Promise\.allSettled/, 'Web unified search must tolerate partial success from fallback capabilities.');
 requireText(webClient, /p_offset:input\.offset,p_sort:input\.sort/, 'Web unified search must send pagination offsets and sort mode to the canonical RPC.');
+requireText(webClient, /const gateway=await this\.call<any>\(\"testagram\.search\.unified\",input,token\)[\\s\\S]{0,800}const directController=new AbortController\(\)/, 'Unified search must use the observable backend gateway first and only bypass it as a compatibility fallback.');
 requireText(sortingSql, /p_sort text DEFAULT 'relevance'[\s\S]*sort_mode='most_liked'[\s\S]*sort_mode='most_viewed'[\s\S]*testagram_search_unified_uncached\(q,kind,n,page_offset,sort_mode\)[\s\S]*grant execute on function public\.testagram_search_unified\(text,text,integer,integer,text\) to authenticated/, 'Server-side sort modes must use stable pagination and authenticated-only grants.');
 requireText(web, /append&&Number\.isFinite\(Number\(data\.next_cursor\)\)/, 'Web pagination must safely consume server continuation cursors.');
 requireText(webClient, /this\.searchUsers/, 'Web fallback must call the existing user-search capability.');
