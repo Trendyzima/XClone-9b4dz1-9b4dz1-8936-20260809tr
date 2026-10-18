@@ -17,6 +17,8 @@ When `VITE_TESTAGRAM_SELF_HOSTED=true`, the client fails at startup if the prima
 
 The client sends a raw `PUT` of the file bytes to the API-provided upload URL, attaches the bearer token only to the API upload gateway, and includes SHA-256 in the completion request. The backend is authoritative for authorization, MIME, size, checksum, expiry, and cleanup.
 
+When `uploadMedia(file, postId)` receives a post ID, the client completes and verifies the upload first, then calls the owner-checked `/api/media/attach` endpoint. If attachment fails, the upload key is included in the error so the UI can offer a retry rather than pretending the post was attached.
+
 The current public-media allowlist is JPEG, PNG, WebP, AVIF, GIF, MP4, and WebM, with a 20 MiB maximum. Raise limits only after changing backend validation, reverse-proxy limits, temporary spool capacity, object-storage policy, and automated tests together.
 
 ## Before release
