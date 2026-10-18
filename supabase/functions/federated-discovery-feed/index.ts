@@ -21,20 +21,24 @@ function score(row:any,now:number,surface:string){
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:CORS});
  if(req.method!=="GET")return json({error:"GET required"},405);
- const uid=await userId(req); if(!uid)return json({error:"Authentication required"},401);
+ const uid=await userId(req);
  try{
   const u=new URL(req.url), n=limit(u.searchParams.get("limit")), surface=u.searchParams.get("surface")||"home", cursor=decodeCursor(u.searchParams.get("cursor"));
-  const rel=await admin.from("federated_follow_relationships").select("remote_actor_uri").eq("local_user_id",uid).in("state",["pending","accepted","active"]);
+  const rel=uid
+   ? await admin.from("federated_follow_relationships").select("remote_actor_uri").eq("local_user_id",uid).in("state",["pending","accepted","active"])
+   : {data:[],error:null};
   if(rel.error)throw rel.error;
-  const moderation = await Promise.all([
+  const moderation = uid ? await Promise.all([
     admin.from("fediverse_domain_blocks").select("domain").eq("user_id",uid),
     admin.from("fediverse_content_filters").select("phrase,action,expires_at").eq("user_id",uid)
-  ]);
+  ]) : [{data:[],error:null},{data:[],error:null}];
   const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
   const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
   const moderationAllowed=(row:any)=>{let domain="";try{domain=new URL(String(row.actor_uri||"")).hostname.toLowerCase()}catch{};if(domain&&blockedDomains.has(domain))return false;const body=String(row.content||"").replace(/<[^>]*>/g," ").toLowerCase();return !activeFilters.some((f:any)=>{const phrase=String(f.phrase||"").trim().toLowerCase();return f.action==='hide'&&phrase&&body.includes(phrase)})};
   const followed=new Set((rel.data||[]).map((r:any)=>String(r.remote_actor_uri||"")).filter(Boolean));
-  const seen=await admin.from("federated_discovery_impressions").select("object_id").eq("user_id",uid).eq("surface",surface).order("shown_at",{ascending:false}).limit(500);
+  const seen=uid
+   ? await admin.from("federated_discovery_impressions").select("object_id").eq("user_id",uid).eq("surface",surface).order("shown_at",{ascending:false}).limit(500)
+   : {data:[],error:null};
   if(seen.error)throw seen.error;
   const seenIds=new Set((seen.data||[]).map((r:any)=>String(r.object_id)));
   let q=admin.from("federated_objects").select("id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,visibility,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object").is("deleted_at",null).eq("tombstone",false).in("visibility",["public","unlisted"]).in("object_type",["Note","Article","Question","Video","Image"]).order("published_at",{ascending:false,nullsFirst:false}).limit(400);
@@ -45,7 +49,7 @@ Deno.serve(async req=>{
   const chosen:any[]=[];const actors=new Set<string>();const domains=new Set<string>();
   for(const r of candidates){let domain="";try{domain=new URL(String(r.actor_uri)).hostname}catch{};if(actors.has(String(r.actor_uri)))continue;if(domain&&domains.has(domain)&&chosen.length>=Math.ceil(n*0.6))continue;chosen.push(r);actors.add(String(r.actor_uri));if(domain)domains.add(domain);if(chosen.length>=n)break}
   const ids=chosen.map(r=>r.id);
-  if(ids.length){const rows=ids.map(id=>({user_id:uid,object_id:id,surface}));const ins=await admin.from("federated_discovery_impressions").upsert(rows,{onConflict:"user_id,object_id,surface",ignoreDuplicates:true});if(ins.error)throw ins.error}
+  if(uid&&ids.length){const rows=ids.map(id=>({user_id:uid,object_id:id,surface}));const ins=await admin.from("federated_discovery_impressions").upsert(rows,{onConflict:"user_id,object_id,surface",ignoreDuplicates:true});if(ins.error)throw ins.error}
   const last=chosen.at(-1); const nextCursor=last?.published_at&&last?.id?encodeCursor(last.published_at,last.id):null;
   return json({items:chosen.map(({_score,...r})=>({...r,feed_source:"federated_discovery"})),nextCursor});
  }catch(e){console.error("[federated-discovery-feed]",e);return json({error:e instanceof Error?e.message:"Discovery feed failed"},500)}
