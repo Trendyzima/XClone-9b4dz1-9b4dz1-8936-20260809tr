@@ -57,7 +57,7 @@ export default function SearchPageV3(){
 const run=async(q=query,nextTab=tab,append=false,sortMode=sort)=>{if(!q.trim())return;const clean=q.trim();const requestId=++activeSearch.current;if(!append){saveRecent(clean);setLoading(true);setSearchError(null);setHasMore(false);setData({users:[],hashtags:[],posts:[],communities:[],instances:[],next_cursor:null});setFediverse([]);setFediversePosts([]);setThreadResults([]);setReplyResults([]);setParams({q:clean,tab:nextTab})}else setLoadingMore(true);
   try{
    const kindMap:any={Top:'all',Latest:'latest',People:'people',Media:'media',Hashtags:'hashtags',Replies:'replies',Threads:'threads',Communities:'communities',Fediverse:'fediverse',Instances:'instances'};
-   const unified:any=await api.searchUnified(clean,kindMap[nextTab]??'all',50,append&&Number.isFinite(Number(data.next_cursor))?Number(data.next_cursor):0,sortMode==='Most liked'?'most_liked':sortMode==='Most viewed'?'most_viewed':sortMode==='Latest'?'latest':'relevance');
+   const unified:any=await api.searchUnified(clean,kindMap[nextTab]??'all',20,append&&Number.isFinite(Number(data.next_cursor))?Number(data.next_cursor):0,sortMode==='Most liked'?'most_liked':sortMode==='Most viewed'?'most_viewed':sortMode==='Latest'?'latest':'relevance');
    if(requestId!==activeSearch.current)return;
    if(unified.partial&&!append)toast.message('Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.');
    const r={users:unified.users??[],hashtags:unified.hashtags??[],posts:unified.posts??[],communities:unified.communities??[],instances:unified.instances??[],next_cursor:unified.next_cursor??null};
@@ -71,7 +71,7 @@ const run=async(q=query,nextTab=tab,append=false,sortMode=sort)=>{if(!q.trim())r
    {
     try{
      const discoveryKind=clean.startsWith('#')?'hashtags':clean.startsWith('@')||nextTab==='People'?'people':nextTab==='Fediverse'?'posts':'all';
-     const live=await federation.searchFederatedDiscovery(clean,50,undefined,'search',discoveryKind as any);
+     const live=await federation.searchFederatedDiscovery(clean,20,undefined,'search',discoveryKind as any);
      const liveHashtags=Array.isArray(live?.hashtags)?live.hashtags:[];
      const liveUsers=Array.isArray(live?.users)?live.users:[];
      const livePosts=Array.isArray(live?.posts)?live.posts:[];
