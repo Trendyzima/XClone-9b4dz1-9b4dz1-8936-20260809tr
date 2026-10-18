@@ -70,7 +70,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
   const pathSection=useMemo(()=>getSection(location.pathname),[location.pathname]);
   const section=sectionProp ?? pathSection;
   const [profile,setProfile]=useState<any>(null); const [items,setItems]=useState<any[]>([]);
-  const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false); const [error,setError]=useState<string|null>(null); const [retryKey,setRetryKey]=useState(0); const [nextCursor,setNextCursor]=useState<string|null>(null); const loadMoreRef=useRef<HTMLDivElement|null>(null);
+  const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false); const [hasMoreItems,setHasMoreItems]=useState(false); const [error,setError]=useState<string|null>(null); const [retryKey,setRetryKey]=useState(0); const [nextCursor,setNextCursor]=useState<string|null>(null); const loadMoreRef=useRef<HTMLDivElement|null>(null); const itemsOffsetRef=useRef(0); const loadingMoreItemsRef=useRef(false);
 
   useEffect(()=>{let cancelled=false; (async()=>{
     setLoading(true);setError(null);
@@ -80,25 +80,50 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
     setProfile(p.data);
     try{
       let rows:any[]=[];
-      if(section==='posts'||section==='videos'){const q=await supabase.from('posts').select('*').or(`author_id.eq.${p.data.id},user_id.eq.${p.data.id}`).is('deleted_at',null).order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=(q.data??[]).map((row:any)=>({...row,author_id:row.author_id??row.user_id,profiles:p.data}));if(section==='videos')rows=rows.filter((x:any)=>x.is_video&&x.video_url);}
-      else if(section==='threads'){const q=await supabase.from('threads').select('*').eq('owner_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=q.data??[];}
-      else if(section==='replies'){const first=await listProfileRepliesPage(p.data.id,20);rows=first.items;setNextCursor(first.next_cursor);}
-      else if(section==='likes'){rows=await listProfileLikes(p.data.id,100);}
-      else if(section==='media'){const q=await supabase.from('posts').select('*').or(`author_id.eq.${p.data.id},user_id.eq.${p.data.id}`).is('deleted_at',null).or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0').order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=(q.data??[]).map((row:any)=>({...row,author_id:row.author_id??row.user_id,profiles:p.data}));}
-      else if(section==='followers'){const q=await supabase.from('follows').select('follower_id').eq('following_id',p.data.id).eq('status','accepted').limit(100);if(q.error)throw q.error;const ids=(q.data??[]).map((x:any)=>x.follower_id).filter(Boolean);if(ids.length){const pr=await supabase.from('profiles').select('*').in('id',ids);if(pr.error)throw pr.error;rows=pr.data??[];}}
-      else {const q=await supabase.from('follows').select('following_id').eq('follower_id',p.data.id).eq('status','accepted').limit(100);if(q.error)throw q.error;const ids=(q.data??[]).map((x:any)=>x.following_id).filter(Boolean);if(ids.length){const pr=await supabase.from('profiles').select('*').in('id',ids);if(pr.error)throw pr.error;rows=pr.data??[];}}
-      if(!cancelled){setItems(rows);setLoading(false);}
+      let hasMoreRows=false;
+      if(section==='posts'||section==='videos'||section==='threads'||section==='media'||section==='followers'||section==='following'){
+        const page=await fetchProfileSectionPage(p.data,section,0);
+        rows=page.rows;hasMoreRows=page.hasMore;
+      } else if(section==='replies'){
+        const first=await listProfileRepliesPage(p.data.id,PAGE_SIZE);rows=first.items;setNextCursor(first.next_cursor);
+      } else if(section==='likes'){
+        rows=await listProfileLikes(p.data.id,100);
+      }
+      if(!cancelled){setItems(rows);setHasMoreItems(hasMoreRows);itemsOffsetRef.current=rows.length;setLoading(false);}
     }catch(e){if(!cancelled){setError(e instanceof Error?e.message:'Unable to load this section');setItems([]);setLoading(false);}}
   })();return()=>{cancelled=true}},[username,section,retryKey]);
 
   const loadMoreReplies=useCallback(async()=>{
-    if(section!=='replies'||!profile?.id||!nextCursor||loadingMore)return;
-    setLoadingMore(true);
-    try{const page=await listProfileRepliesPage(profile.id,20,nextCursor);setItems(prev=>[...prev,...page.items]);setNextCursor(page.next_cursor);}
+    if(section!=='replies'||!profile?.id||!nextCursor||loadingMore||loadingMoreItemsRef.current)return;
+    loadingMoreItemsRef.current=true;setLoadingMore(true);
+    try{const page=await listProfileRepliesPage(profile.id,PAGE_SIZE,nextCursor);setItems(prev=>{const seen=new Set(prev.map((x:any)=>String(x.id)));return [...prev,...page.items.filter((x:any)=>!seen.has(String(x.id)))];});setNextCursor(page.next_cursor);}
     catch(e){setError(e instanceof Error?e.message:'Unable to load more replies');}
-    finally{setLoadingMore(false);}
+    finally{loadingMoreItemsRef.current=false;setLoadingMore(false);}
   },[section,profile?.id,nextCursor,loadingMore]);
-  useEffect(()=>{if(section!=='replies'||!nextCursor||!loadMoreRef.current)return;const el=loadMoreRef.current;const observer=new IntersectionObserver(entries=>{if(entries[0]?.isIntersecting)void loadMoreReplies()},{rootMargin:'500px'});observer.observe(el);return()=>observer.disconnect();},[section,nextCursor,loadMoreReplies]);
+
+  const loadMoreItems=useCallback(async()=>{
+    if(!profile?.id||!hasMoreItems||loadingMoreItemsRef.current||section==='replies'||section==='likes')return;
+    loadingMoreItemsRef.current=true;setLoadingMore(true);
+    try{
+      const page=await fetchProfileSectionPage(profile,section,itemsOffsetRef.current);
+      setItems(prev=>{const seen=new Set(prev.map((x:any)=>String(x.id)));return [...prev,...page.rows.filter((x:any)=>!seen.has(String(x.id)))];});
+      itemsOffsetRef.current+=page.rows.length;
+      setHasMoreItems(page.hasMore);
+    }catch(e){setError(e instanceof Error?e.message:'Unable to load more items');}
+    finally{loadingMoreItemsRef.current=false;setLoadingMore(false);}
+  },[profile,section,hasMoreItems]);
+
+  useEffect(()=>{
+    const el=loadMoreRef.current;
+    const canLoadReplies=section==='replies'&&Boolean(nextCursor);
+    const canLoadItems=section!=='replies'&&section!=='likes'&&hasMoreItems;
+    if(!el||(!canLoadReplies&&!canLoadItems)||loading||loadingMore||typeof IntersectionObserver==='undefined')return;
+    const observer=new IntersectionObserver(entries=>{
+      if(!entries[0]?.isIntersecting||loadingMoreItemsRef.current)return;
+      if(section==='replies')void loadMoreReplies();else void loadMoreItems();
+    },{rootMargin:'700px 0px'});
+    observer.observe(el);return()=>observer.disconnect();
+  },[section,nextCursor,hasMoreItems,loading,loadingMore,loadMoreReplies,loadMoreItems]);
 
   if(loading)return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>;
 
@@ -149,6 +174,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
           </div>
         </article>
       })}{nextCursor&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground">{loadingMore?'Loading more replies…':'Scroll for more replies'}</div>}</div>:
-      <div className="divide-y divide-border">{items.map(u=><button key={u.id} onClick={()=>navigate('/profile/'+u.username)} className="w-full flex items-center gap-3 p-4 text-left"><div className="w-10 h-10 rounded-full bg-muted overflow-hidden">{u.avatar_url?<img src={u.avatar_url} alt="" className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center font-bold">{u.username?.[0]?.toUpperCase()}</div>}</div><span className="font-semibold">@{u.username}</span></button>)}</div>}
+      <div className="divide-y divide-border">{items.map(u=><button key={u.id} onClick={()=>navigate('/profile/'+u.username)} className="w-full flex items-center gap-3 p-4 text-left"><div className="w-10 h-10 rounded-full bg-muted overflow-hidden">{u.avatar_url?<img src={u.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<div className="w-full h-full flex items-center justify-center font-bold">{u.username?.[0]?.toUpperCase()}</div>}</div><span className="font-semibold">@{u.username}</span></button>)}</div>}
+    {section!=='replies'&&section!=='likes'&&hasMoreItems&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground" aria-live="polite">{loadingMore?<Loader2 className="w-5 h-5 animate-spin text-primary"/>:'Scroll for more'}</div>}
   </div>;
 }
