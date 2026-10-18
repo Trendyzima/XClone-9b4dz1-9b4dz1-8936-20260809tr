@@ -273,3 +273,11 @@ No open-source license is currently declared in this repository. Do not assume t
 ---
 
 **XClone** — social publishing, short videos, live experiences, communities, creator tools, and connected experiences across the web, Android, and Android TV.
+
+## Media backend integration
+
+The browser-facing `POST /api/media` route is a compatibility adapter; the Go backend owns upload signing, metadata completion, post attachment, private download authorization, listing, and deletion. Set the server-only Vercel variable `TESTAGRAM_MEDIA_BACKEND_ORIGIN` to the HTTPS origin of the deployed Go API (without a path or trailing slash). `TESTAGRAM_BACKEND_ORIGIN` is accepted as a fallback. Do not use a `VITE_*` prefix.
+
+The browser uploads bytes directly to the signed R2 `PUT` URL. Configure R2 CORS for `https://testagram.site` and `https://www.testagram.site` with the `Content-Type` request header. Keep public and private buckets separate; only the public bucket should be served through `https://media.testagram.site/v1/<object-key>`.
+
+A passing build is not an end-to-end release signal. Staging still must verify authenticated upload → completion → post attachment → CDN render, private downloads, cross-account denial, retry/idempotency, and deletion against real R2 and the product database.
