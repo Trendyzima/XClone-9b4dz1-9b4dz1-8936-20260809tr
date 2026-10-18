@@ -646,18 +646,22 @@ export default function CommunityPage({ section, standalone = false }: { section
 
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
   const [hasMorePosts, setHasMorePosts] = useState(true);
+  const postsSentinelRef = useRef<HTMLDivElement | null>(null);
+  const postsPageRef = useRef(0);
+  const loadingMorePostsRef = useRef(false);
 
   const fetchPosts = async (reset = true) => {
-    if (!community) return;
+    if (!community || (!reset && loadingMorePostsRef.current)) return;
+    if (!reset) loadingMorePostsRef.current = true;
     setLoadingPosts(true);
     try {
+      const pageIndex = reset ? 0 : postsPageRef.current;
       let query = supabase.from('posts')
         .select('*, user_profiles:profiles!posts_author_id_fkey(*)')
         .eq('community_id', community.id)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
-        .limit(25);
-      if (!reset && postsCursor) query = query.lt('created_at', postsCursor);
+        .range(pageIndex * 25, pageIndex * 25 + 24);
       const { data, error } = await query;
       if (error) {
         console.error('Community posts query failed', {
@@ -674,11 +678,22 @@ export default function CommunityPage({ section, standalone = false }: { section
       const page = Array.isArray(data) ? data : [];
       setPosts(prev => reset ? page : [...prev, ...page]);
       setHasMorePosts(page.length === 25);
+      postsPageRef.current = page.length === 25 ? pageIndex + 1 : pageIndex;
       if (page.length) setPostsCursor(page[page.length - 1].created_at);
       if (reset && !page.length) setPostsCursor(null);
     } catch (err) { console.error('fetchPosts error:', err); }
-    finally { setLoadingPosts(false); }
+    finally { setLoadingPosts(false); if (!reset) loadingMorePostsRef.current = false; }
   };
+
+  useEffect(() => {
+    const node = postsSentinelRef.current;
+    if (!node || !hasMorePosts || loadingPosts || posts.length === 0 || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting && !loadingMorePostsRef.current) void fetchPosts(false);
+    }, { rootMargin: '700px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMorePosts, loadingPosts, posts.length, community?.id, isMember]);
 
   const handleJoinToggle = async () => {
     if (!user) { navigate('/auth'); return; }
@@ -1081,13 +1096,7 @@ export default function CommunityPage({ section, standalone = false }: { section
                 </div>{index===4&&<ExoClickInlineAd surface="community"/>}</Fragment>
               ))
             )}
-            {hasMorePosts && (
-              <div className="flex justify-center py-4 border-t border-border">
-                <Button variant="outline" size="sm" className="rounded-full" onClick={() => fetchPosts(false)} disabled={loadingPosts}>
-                  {loadingPosts ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Load more posts'}
-                </Button>
-              </div>
-            )}
+            {hasMorePosts && <div ref={postsSentinelRef} className="flex justify-center py-4 border-t border-border min-h-12" aria-live="polite">{loadingPosts && <Loader2 className="w-5 h-5 animate-spin text-primary" />}</div>}
           </div>
         )
       )}
