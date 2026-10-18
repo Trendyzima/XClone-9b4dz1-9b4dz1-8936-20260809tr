@@ -82,12 +82,15 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
   const checksum = await sha256Hex(file);
   const { data: { session: uploadSession } } = await supabase.auth.getSession();
   if (!uploadSession?.access_token) throw new Error('Authentication required');
+  const uploadHeaders: Record<string, string> = { 'Content-Type': mime };
+  // The API gateway requires the user's bearer token; a legacy presigned object-store
+  // URL must not receive that unrelated Authorization header.
+  if (new URL(uploadURL).pathname === '/api/media/upload') {
+    uploadHeaders.Authorization = 'Bearer ' + uploadSession.access_token;
+  }
   const upload = await fetch(uploadURL, {
     method: 'PUT',
-    headers: {
-      Authorization: 'Bearer ' + uploadSession.access_token,
-      'Content-Type': mime,
-    },
+    headers: uploadHeaders,
     body: file,
   });
   if (!upload.ok) throw new Error('Self-hosted media upload failed (' + upload.status + ').');
@@ -131,12 +134,16 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
   const checksum = await sha256Hex(file);
   const { data: { session: uploadSession } } = await supabase.auth.getSession();
   if (!uploadSession?.access_token) throw new Error('Authentication required');
-  const response = await fetch(String(initialized.upload_url), {
+  const uploadURL = String(initialized.upload_url);
+  const uploadHeaders: Record<string, string> = {
+    'Content-Type': file.type.toLowerCase() || 'application/octet-stream',
+  };
+  if (new URL(uploadURL, window.location.origin).pathname === '/api/media/upload') {
+    uploadHeaders.Authorization = 'Bearer ' + uploadSession.access_token;
+  }
+  const response = await fetch(uploadURL, {
     method: 'PUT',
-    headers: {
-      Authorization: 'Bearer ' + uploadSession.access_token,
-      'Content-Type': file.type.toLowerCase() || 'application/octet-stream',
-    },
+    headers: uploadHeaders,
     body: file,
   });
   if (!response.ok) { await mediaFunction('delete',{media_id:initialized.media_id}).catch(()=>undefined); throw new Error('Media upload failed ('+response.status+').'); }
