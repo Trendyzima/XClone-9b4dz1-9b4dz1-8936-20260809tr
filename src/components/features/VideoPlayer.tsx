@@ -667,7 +667,7 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
       <UniversalVideoPlayer
         ref={videoRef}
         src={videoBatchEligible ? (post.video_url || '') : ''}
-        active={isActive && !showPrerollAd && (isPremium || prerollSeenRef.current || premiumCheckTimedOut)}
+        active={videoBatchEligible && isActive && !showPrerollAd && (isPremium || prerollSeenRef.current || premiumCheckTimedOut)}
         preload={videoBatchEligible ? 'auto' : 'none'}
         muted={isMuted}
         loop
