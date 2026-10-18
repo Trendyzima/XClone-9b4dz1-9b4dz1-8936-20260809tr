@@ -12,6 +12,58 @@ import { listProfileRepliesPage } from '@/features/replies/repliesService';
 type Section = 'posts'|'threads'|'replies'|'media'|'videos'|'likes'|'followers'|'following';
 const labels: Record<Section,string> = {posts:'Posts',threads:'Threads',replies:'Replies',media:'Media',videos:'Videos',likes:'Likes',followers:'Followers',following:'Following'};
 const getSection=(p:string):Section=>{const s=p.split('/').filter(Boolean).pop()?.toLowerCase() as Section;return s&&s in labels?s:'posts';};
+const PAGE_SIZE = 20;
+
+async function fetchProfileSectionPage(profile: any, section: Section, offset: number) {
+  const profileId = String(profile.id);
+  if (section === 'posts' || section === 'videos') {
+    let query = supabase.from('posts').select('*')
+      .or(`author_id.eq.${profileId},user_id.eq.${profileId}`)
+      .is('deleted_at', null);
+    if (section === 'videos') query = query.eq('is_video', true).not('video_url', 'is', null);
+    const { data, error } = await query.order('created_at', { ascending: false })
+      .order('id', { ascending: false }).range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    const source = data ?? [];
+    return { rows: source.map((row: any) => ({ ...row, author_id: row.author_id ?? row.user_id, profiles: profile })), hasMore: source.length === PAGE_SIZE };
+  }
+  if (section === 'threads') {
+    const { data, error } = await supabase.from('threads').select('*')
+      .eq('owner_id', profileId).is('deleted_at', null)
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    return { rows, hasMore: rows.length === PAGE_SIZE };
+  }
+  if (section === 'media') {
+    const { data, error } = await supabase.from('posts').select('*')
+      .or(`author_id.eq.${profileId},user_id.eq.${profileId}`)
+      .is('deleted_at', null)
+      .or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0')
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    return { rows: rows.map((row: any) => ({ ...row, author_id: row.author_id ?? row.user_id, profiles: profile })), hasMore: rows.length === PAGE_SIZE };
+  }
+  if (section === 'followers' || section === 'following') {
+    let query = supabase.from('follows').select(section === 'followers' ? 'follower_id' : 'following_id')
+      .eq(section === 'followers' ? 'following_id' : 'follower_id', profileId)
+      .eq('status', 'accepted');
+    const { data, error } = await query.order('created_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    const ids = (data ?? []).map((row: any) => section === 'followers' ? row.follower_id : row.following_id).filter(Boolean);
+    if (!ids.length) return { rows: [], hasMore: false };
+    const { data: profiles, error: profileError } = await supabase.from('profiles').select('*').in('id', ids);
+    if (profileError) throw profileError;
+    const byId = new Map((profiles ?? []).map((row: any) => [String(row.id), row]));
+    return { rows: ids.map((id: string) => byId.get(String(id))).filter(Boolean), hasMore: (data ?? []).length === PAGE_SIZE };
+  }
+  return { rows: [], hasMore: false };
+}
+
 
 export default function ProfileSectionPage({section: sectionProp}: {section?: Section}){
   const {username}=useParams(); const location=useLocation(); const navigate=useNavigate();
