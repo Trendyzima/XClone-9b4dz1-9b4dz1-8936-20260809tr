@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { getOfflineMediaUrl, cacheMedia, isOffline } from '@/lib/offlineMediaCache';
+import { getOfflineMediaUrl, isOffline } from '@/lib/offlineMediaCache';
 import VirtualCdnLoader from '@/services/virtualCdnLoader';
 
 export interface UniversalVideoPlayerProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
@@ -125,11 +125,11 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
           objectUrlRef.current = cachedUrl;
           playbackSrc = cachedUrl;
         }
-      } else if (!isHls(src) && active) {
-        // Only persist the video currently in view. Prefetching every mounted
-        // feed card downloads too much data on long, lazy-mounted timelines.
-        void cacheMedia(src, 'video');
       }
+      // Do not mirror an active stream into the offline cache here. That caused
+      // a second full-file GET alongside the browser's playback request and
+      // competed with the next feed videos for bandwidth. Offline caching is
+      // explicit; feed preloading is managed by the three-slot coordinator.
 
       if (cancelled) return;
       if (isHls(playbackSrc) && Hls.isSupported()) {
@@ -139,10 +139,10 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         enableWorker: true,
         lowLatencyMode: false,
         startFragPrefetch: true,
-        maxBufferLength: 45,
-        maxMaxBufferLength: 180,
-        maxBufferSize: 80 * 1024 * 1024,
-        backBufferLength: 30,
+        maxBufferLength: 18,
+        maxMaxBufferLength: 45,
+        maxBufferSize: 24 * 1024 * 1024,
+        backBufferLength: 12,
         maxBufferHole: 0.2,
         highBufferWatchdogPeriod: 2,
         nudgeOffset: 0.15,
