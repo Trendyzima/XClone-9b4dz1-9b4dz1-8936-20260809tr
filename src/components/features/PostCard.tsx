@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, Trash2, TrendingUp, Zap, Eye, BarChart3, Users, History, X, Languages, Loader2 as TransLoader, DollarSign, Flag, Check as CheckIcon, Send as SendIcon, Crown, Megaphone, Quote, Activity, Globe } from 'lucide-react';
 import { Post } from '@/types/app-types';
@@ -57,6 +57,7 @@ interface PostCardProps {
 const premiumCache = new Map<string, boolean>();
 
 export function PostCard({ post, onUpdate }: PostCardProps) {
+  const videoPreloadId = useId();
   const { user } = useAuth();
   const { isActive: isPremium, loading: premiumLoading } = usePremium();
   const navigate = useNavigate();
@@ -466,7 +467,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     }
 
     const unregisterPreloadCandidate = registerVideoPreloadCandidate(
-      `${post.id}:${resolvedVideoUrl}`,
+      `${post.id}:${videoPreloadId}:${resolvedVideoUrl}`,
       video,
       setVideoNearView,
     );
