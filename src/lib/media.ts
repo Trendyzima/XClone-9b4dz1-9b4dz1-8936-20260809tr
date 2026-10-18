@@ -80,9 +80,14 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
   // Resolve it against the configured API origin, not the web application's origin.
   const uploadURL = new URL(intent.url, selfHostedMediaBase() + '/').toString();
   const checksum = await sha256Hex(file);
+  const { data: { session: uploadSession } } = await supabase.auth.getSession();
+  if (!uploadSession?.access_token) throw new Error('Authentication required');
   const upload = await fetch(uploadURL, {
     method: 'PUT',
-    headers: { 'Content-Type': mime },
+    headers: {
+      Authorization: 'Bearer ' + uploadSession.access_token,
+      'Content-Type': mime,
+    },
     body: file,
   });
   if (!upload.ok) throw new Error('Self-hosted media upload failed (' + upload.status + ').');
@@ -124,7 +129,16 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
   validateMedia(file);
   const initialized = await mediaFunction('init', { name:file.name, mime_type:file.type.toLowerCase() || 'application/octet-stream', size_bytes:file.size, post_id:postId ?? null });
   const checksum = await sha256Hex(file);
-  const response = await fetch(String(initialized.upload_url), { method:'PUT', headers:{'Content-Type':file.type.toLowerCase() || 'application/octet-stream'}, body:file });
+  const { data: { session: uploadSession } } = await supabase.auth.getSession();
+  if (!uploadSession?.access_token) throw new Error('Authentication required');
+  const response = await fetch(String(initialized.upload_url), {
+    method: 'PUT',
+    headers: {
+      Authorization: 'Bearer ' + uploadSession.access_token,
+      'Content-Type': file.type.toLowerCase() || 'application/octet-stream',
+    },
+    body: file,
+  });
   if (!response.ok) { await mediaFunction('delete',{media_id:initialized.media_id}).catch(()=>undefined); throw new Error('Media upload failed ('+response.status+').'); }
   return mediaFunction('complete',{media_id:initialized.media_id, checksum_sha256:checksum});
 }
