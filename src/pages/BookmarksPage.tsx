@@ -52,7 +52,6 @@ export function BookmarksPage() {
     if (!user) { navigate('/auth'); return; }
     fetchBookmarks();
     fetchCollections();
-    fetchBookmarkedVideos();
   }, [user]);
 
   const fetchBookmarkedVideos = async (reset = true) => {
@@ -131,6 +130,10 @@ export function BookmarksPage() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [activeTab, hasMoreBookmarkedVideos, loadingVideos, loadingMoreBookmarkedVideos, videos.length, user?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'videos' && user && videos.length === 0 && !loadingVideos) void fetchBookmarkedVideos(true);
+  }, [activeTab, user?.id]);
 
   const fetchCollections = async () => {
     if (!user) return;
