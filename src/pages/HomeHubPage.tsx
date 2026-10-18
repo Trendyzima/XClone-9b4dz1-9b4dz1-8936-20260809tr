@@ -602,14 +602,14 @@ export default function HomeHubPage(){
   const {lastElementRef}=useInfiniteScroll(loadMore,{hasMore});
   const refresh=async()=>{setRefreshing(true);try{await load(tab);}finally{setRefreshing(false);}};
 
-  return <div className="tg-social-home-shell min-h-screen bg-background pb-16 lg:pb-0">
+  return <div className="tg-social-home-shell min-h-screen pb-16 lg:pb-0">
     <TopBar title="Home"/>
     <Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip tv={<TvPostStream index={0} compact />} /></Suspense>
 
     {/* Testagram TV is a status-style live tile inside the Stories strip; the player opens only after the user taps it. */}
     <Suspense fallback={null}><LiveSpacesDiscoveryStrip/></Suspense>
 
-    <div className="sticky top-14 z-30 bg-background/95 backdrop-blur border-b border-border"><div className="flex overflow-x-auto scrollbar-hide">
+    <div className="tg-home-tabs sticky top-14 z-30"><div className="flex overflow-x-auto scrollbar-hide">
       {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={'min-w-[96px] px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap '+(tab===t.id?'border-primary text-foreground':'border-transparent text-muted-foreground hover:bg-muted/40')}>{t.label}</button>)}
     </div></div>
     {/* Keep the primary action and timeline above secondary discovery modules, as on X. */}
