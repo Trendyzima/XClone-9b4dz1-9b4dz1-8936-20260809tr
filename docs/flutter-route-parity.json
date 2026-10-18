@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "source_of_truth": "React Router declarations in src/App.tsx compared with explicit GoRouter path declarations in mobile/lib/app/testagram_app.dart. A native route is not proof of feature parity.",
-  "source_route_declarations": 214,
+  "source_route_declarations": 213,
   "unique_source_routes": 212,
   "flutter_native_routes": [
     "/",

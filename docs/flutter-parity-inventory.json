@@ -811,6 +811,11 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
+    "src/components/features/ProfileMobileContactCard.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify the mobile contact-card behavior against the existing web implementation before retiring it."
+    },
     "src/components/features/ProfileRewardsRedemptionCard.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -2861,6 +2866,11 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
+    "src/services/videoPreloadCoordinator.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Track video preload behavior as an existing web performance contract; verify equivalent native preloading and cancellation before retirement."
+    },
     "src/services/virtualCdnCapacity.ts": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -2946,6 +2956,11 @@
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
+    "supabase/functions/_shared/activitypub-normalize.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
     "supabase/functions/_shared/activitypub-security.ts": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
@@ -2966,10 +2981,20 @@
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
+    "supabase/functions/_shared/mastodon-visibility.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Shared Mastodon status-visibility policy with unit tests; keep authorization decisions centralized and fail closed."
+    },
     "supabase/functions/_shared/observability.ts": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/functions/_shared/testagram-mail.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Shared server-side Testagram mail delivery contract; preserve it while verifying Flutter authentication and notification flows."
     },
     "supabase/functions/_shared/upstash-redis.ts": {
       "source_type": "backend_contract_reference",
@@ -3045,6 +3070,11 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/functions/federated-media/index.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Public remote-media localization endpoint; keep server-side URL validation, bounded redirects, MIME restrictions, persistent cache, and range-safe streaming aligned with Flutter and web clients."
     },
     "supabase/functions/federation-delivery-worker/index.ts": {
       "source_type": "backend_contract_reference",
@@ -5331,7 +5361,7 @@
       "status": "reference_only",
       "note": "Server-side security contract for Flutter wallet transfers. Keep money movement in authenticated SQL RPCs; verify PIN lockout, sender identity, idempotency, and atomic transfer behavior in migration tests."
     },
-    "supabase/migrations/schedule_daily_earnings.sql": {
+    "supabase/migrations/20261013090000_flutter_verification_owner_review.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -5341,27 +5371,17 @@
       "status": "reference_only",
       "note": "Compatibility migration for the Testagram TV provider contract. Keep the backend contract authoritative and verify Flutter TV clients against the deployed schema."
     },
-    "supabase/functions/_shared/mastodon-visibility.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Shared Mastodon status-visibility policy with unit tests; keep authorization decisions centralized and fail closed."
-    },
-    "supabase/migrations/20261013090000_flutter_verification_owner_review.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
     "supabase/migrations/20261014120000_testagram_admin_ad_review_v1.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
-    "supabase/migrations/20261014130000_flutter_appeals_reports_secure_workflows.sql": {
+    "supabase/migrations/20261014125029_marketplace_public_category_projection.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
-    "supabase/migrations/20261014125029_marketplace_public_category_projection.sql": {
+    "supabase/migrations/20261014130000_flutter_appeals_reports_secure_workflows.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -5376,37 +5396,17 @@
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
-    "supabase/migrations/20261015140000_unified_search_server_sort.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20261015160000_unified_search_rpc_contract_reconcile.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20261015170000_unified_search_fediverse_identity_counts.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/functions/federated-media/index.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Public remote-media localization endpoint; keep server-side URL validation, bounded redirects, MIME restrictions, persistent cache, and range-safe streaming aligned with Flutter and web clients."
-    },
     "supabase/migrations/20261015130000_federated_media_cache.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Provision the public federated-media cache bucket with strict MIME and object-size limits; upload access remains service-role-only."
     },
-    "supabase/functions/_shared/activitypub-normalize.ts": {
+    "supabase/migrations/20261015140000_federated_visibility_normalization.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
-    "supabase/migrations/20261015140000_federated_visibility_normalization.sql": {
+    "supabase/migrations/20261015140000_unified_search_server_sort.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -5417,6 +5417,16 @@
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20261015151000_federated_private_object_rls.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261015160000_unified_search_rpc_contract_reconcile.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261015170000_unified_search_fediverse_identity_counts.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -5485,6 +5495,71 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Adds an expiry index and repairs the marketplace inventory reservation expiry function to use the table’s actual column contract."
+    },
+    "supabase/migrations/20261017070000_auth_magic_link_rate_limit.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Server-side rate limiting for authentication magic-link requests."
+    },
+    "supabase/migrations/20261017093000_stagger_testagram_cron_schedules.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Staggers scheduled Testagram jobs to reduce overlapping database and worker pressure."
+    },
+    "supabase/migrations/20261017094500_restore_story_expiry_offset.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Restores the story-expiry schedule/offset contract used by stories and short-lived media."
+    },
+    "supabase/migrations/20261018120000_fix_mobile_contact_phone_validation.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Server-side phone validation contract for mobile contact/profile fields."
+    },
+    "supabase/migrations/20261018142000_federated_discovery_impressions.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Persists federated discovery impression data used by discovery ranking and telemetry."
+    },
+    "supabase/migrations/20261018143854_threads_profile_author_relationship_20261018.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Repairs the Threads/profile author relationship used by search and navigation."
+    },
+    "supabase/migrations/20261018150000_unified_search_timeout_performance.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Indexes and query changes to reduce unified-search statement timeouts."
+    },
+    "supabase/migrations/20261018153000_unified_search_instance_query_plan.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Optimizes unified-search instance filtering and query planning."
+    },
+    "supabase/migrations/20261018160000_unified_search_top_path_prune.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Prunes unnecessary work from the unified-search top-results path."
+    },
+    "supabase/migrations/20261018163000_unified_search_nonempty_indexed_predicates.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Aligns unified-search predicates with available indexes and avoids unnecessary broad scans."
+    },
+    "supabase/migrations/20261018170000_unified_search_remove_duplicate_remote_post_scan.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Removes duplicate remote-post scanning from unified search."
+    },
+    "supabase/migrations/20261018173000_unified_search_force_custom_plans.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Adjusts query planning for unified search to avoid pathological generic plans."
+    },
+    "supabase/migrations/schedule_daily_earnings.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     }
   }
 }
