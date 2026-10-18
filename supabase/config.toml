@@ -57,9 +57,8 @@ verify_jwt = false
 [functions.identity-engine-result]
 verify_jwt = false
 
-# Auth session lifetime: keep the hosted Auth time-box aligned with the app's 24-hour session policy.
-[auth.sessions]
-timebox = "24h"
+# Do not impose a fixed 24-hour maximum session lifetime. Supabase refresh-token
+# rotation, revocation, password changes and project abuse protections remain active.
 
 
 [functions.tv-cdn-playback]
