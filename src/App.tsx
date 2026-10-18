@@ -2,18 +2,10 @@ import { Analytics } from '@/lib/analytics-stub';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/components/layout/AuthProvider';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { RightSidebar } from '@/components/layout/RightSidebar';
-import { BottomNav } from '@/components/layout/BottomNav';
-import { FloatingActionButton } from '@/components/layout/FloatingActionButton';
-import { LiveSpacesDiscoveryStrip } from '@/components/features/LiveSpacesDiscoveryStrip';
-import { LiveNotificationBanner } from '@/components/features/LiveNotificationBanner';
 import { useCreatorTierAlert } from '@/hooks/useCreatorTierAlert';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from 'sonner';
 import { Loader2, X, Minus, Plus, Maximize2 } from 'lucide-react';
-import { InterestOnboardingSheet } from '@/components/features/InterestOnboardingSheet';
-import { IncomingCallOverlay } from '@/components/features/IncomingCallOverlay';
 import { supabase } from '@/lib/supabase';
 import { startTestagramHeartbeat } from '@/services/heartbeatClient';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
@@ -212,6 +204,17 @@ const PlatformInboxPage = lazy(() => import('@/pages/PlatformInboxPage'));
 const AdAnalyticsPage = lazy(() => import('@/pages/AdAnalyticsPage'));
 const SEOAuditPage = lazy(() => import('@/pages/SEOAuditPage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
+
+// Keep the first route interactive before mounting global widgets that perform
+// their own data lookups, polling, and subscriptions.
+const Sidebar = lazy(() => import('@/components/layout/Sidebar').then(m => ({ default: m.Sidebar })));
+const RightSidebar = lazy(() => import('@/components/layout/RightSidebar').then(m => ({ default: m.RightSidebar })));
+const BottomNav = lazy(() => import('@/components/layout/BottomNav').then(m => ({ default: m.BottomNav })));
+const FloatingActionButton = lazy(() => import('@/components/layout/FloatingActionButton').then(m => ({ default: m.FloatingActionButton })));
+const LiveSpacesDiscoveryStrip = lazy(() => import('@/components/features/LiveSpacesDiscoveryStrip').then(m => ({ default: m.LiveSpacesDiscoveryStrip })));
+const LiveNotificationBanner = lazy(() => import('@/components/features/LiveNotificationBanner').then(m => ({ default: m.LiveNotificationBanner })));
+const InterestOnboardingSheet = lazy(() => import('@/components/features/InterestOnboardingSheet').then(m => ({ default: m.InterestOnboardingSheet })));
+const IncomingCallOverlay = lazy(() => import('@/components/features/IncomingCallOverlay').then(m => ({ default: m.IncomingCallOverlay })));
 const VideoWatchLaterPage = lazy(() => import('@/pages/VideoWatchLaterPage'));
 const HashtagDiscoveryPage = lazy(() => import('@/pages/HashtagDiscoveryPage'));
 const PodcastSearchPage = lazy(() => import('@/pages/PodcastSearchPage'));
@@ -230,7 +233,7 @@ const ActiveSessionsPage = lazy(() => import('@/pages/ActiveSessionsPage'));
 const BlockedUsersPage = lazy(() => import('@/pages/BlockedUsersPage'));
 const SellerStorefrontPage = lazy(() => import('@/pages/SellerStorefrontPage'));
 const OrdersPage = lazy(() => import('@/pages/OrdersPage'));
-function PageLoader(){return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-primary"/></div>}
+function PageLoader(){return <div className="min-h-[60vh] w-full bg-background px-3 py-5 sm:px-5" role="status" aria-live="polite" aria-label="Loading page"><div className="mx-auto w-full max-w-2xl"><div className="mb-5 flex items-center gap-3"><div className="h-10 w-10 animate-pulse rounded-full bg-muted"/><div className="min-w-0 flex-1 space-y-2"><div className="h-3 w-36 animate-pulse rounded bg-muted"/><div className="h-2.5 w-24 animate-pulse rounded bg-muted/70"/></div><Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden="true"/></div><p className="mb-4 text-sm text-muted-foreground">Loading your page…</p><div className="space-y-4">{[0,1,2].map((item)=><div key={item} className="rounded-2xl border border-border/70 p-4"><div className="mb-4 flex items-center gap-3"><div className="h-9 w-9 animate-pulse rounded-full bg-muted"/><div className="flex-1 space-y-2"><div className="h-3 w-28 animate-pulse rounded bg-muted"/><div className="h-2.5 w-20 animate-pulse rounded bg-muted/70"/></div></div><div className="space-y-2"><div className="h-3 w-full animate-pulse rounded bg-muted/80"/><div className="h-3 w-4/5 animate-pulse rounded bg-muted/80"/></div>{item===1&&<div className="mt-4 aspect-[16/9] w-full animate-pulse rounded-xl bg-muted/70"/>}</div>)}</div></div></div>}
 
 function getOriginalImageUrl(image: HTMLImageElement) {
   const explicit = image.dataset.originalSrc || image.getAttribute('data-original-src');
@@ -411,7 +414,44 @@ function AppearanceBootstrap() {
 
   return null;
 }
-function AppInner(){useCreatorTierAlert();const location=useLocation();const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>startTestagramHeartbeat('web-v1'),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><RouteSEO/><AppearanceBootstrap/><ImageLightbox/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={<PageLoader/>}><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/verify-identity" element={<IdentityVerificationPage/>}/><Route path="/profile/complete" element={<CompleteProfilePage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
+function AppInner(){
+  useCreatorTierAlert();
+  const location = useLocation();
+  const [deferredChromeReady, setDeferredChromeReady] = useState(false);
+  useEffect(() => {
+    const idleWindow = window as any;
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const id = idleWindow.requestIdleCallback(() => setDeferredChromeReady(true), { timeout: 900 });
+      return () => idleWindow.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(() => setDeferredChromeReady(true), 180);
+    return () => window.clearTimeout(id);
+  }, []);
+  useEffect(() => {
+    // Warm common destinations only after the first render and only when the
+    // browser has not asked us to conserve data or is on a very slow connection.
+    const connection = (navigator as any).connection;
+    const hostname = window.location.hostname;
+    const isNewsHost = hostname === 'testagram.news' || hostname === 'www.testagram.news';
+    const isPublicTvLive = window.location.pathname.startsWith('/tv/live/');
+    if (document.visibilityState !== 'visible' || isNewsHost || isPublicTvLive || connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? '')) return;
+    const idleWindow = window as any;
+    const warm = () => {
+      void Promise.allSettled([
+        import('@/pages/HomePage'),
+        import('@/pages/ExplorePage'),
+        import('@/pages/SearchPage'),
+        import('@/pages/VideosPage'),
+      ]);
+    };
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const id = idleWindow.requestIdleCallback(warm, { timeout: 2200 });
+      return () => idleWindow.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(warm, 1600);
+    return () => window.clearTimeout(id);
+  }, []);
+  const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>startTestagramHeartbeat('web-v1'),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><RouteSEO/><AppearanceBootstrap/><ImageLightbox/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20">{deferredChromeReady && <Suspense fallback={null}><Sidebar /></Suspense>}<main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={null}>{deferredChromeReady && <LiveSpacesDiscoveryStrip />}</Suspense><Suspense fallback={<PageLoader/>}><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/verify-identity" element={<IdentityVerificationPage/>}/><Route path="/profile/complete" element={<CompleteProfilePage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
 <Route path="/discover/suggested" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/popular" element={<DiscoverPopularPage/>}/>
 <Route path="/discover/fediverse" element={<DiscoverFediversePage/>}/><Route path="/notifications" element={<NotificationsPage/>}/><Route path="/messages" element={<MessagesPage/>}/><Route path="/call/:callId" element={<CallPage/>}/><Route path="/spaces" element={<SpacesPage/>}/><Route path="/profile/:username" element={<ProfilePage/>}/>
@@ -475,5 +515,5 @@ function AppInner(){useCreatorTierAlert();const location=useLocation();const isN
 <Route path="/regulator/announce" element={<OwnerOnlyAdminRoute><RegulatorPanel/></OwnerOnlyAdminRoute>}/>
 <Route path="/regulator/reports" element={<OwnerOnlyAdminRoute><RegulatorPanel/></OwnerOnlyAdminRoute>}/>
 <Route path="/regulator/audit" element={<OwnerOnlyAdminRoute><RegulatorPanel/></OwnerOnlyAdminRoute>}/>
-<Route path="/regulator/analytics" element={<OwnerOnlyAdminRoute><RegulatorPanel/></OwnerOnlyAdminRoute>}/><Route path="/podcasts/analytics" element={<PodcastAnalyticsPage/>}/><Route path="/team-chat" element={<TeamChatPage/>}/><Route path="/appeals" element={<AppealsPage/>}/><Route path="/leaderboard/creators" element={<CreatorLeaderboardPage/>}/><Route path="/policy" element={<ContentPolicyPage/>}/><Route path="/privacy" element={<PrivacyPolicyPage/>}/><Route path="/terms" element={<TermsOfServicePage/>}/><Route path="/sessions" element={<ActiveSessionsPage/>}/><Route path="/blocked" element={<BlockedUsersPage/>}/><Route path="/seller/:username" element={<SellerStorefrontPage/>}/><Route path="/orders" element={<OrdersPage/>}/><Route path="/story-analytics" element={<StoryAnalyticsDashboard/>}/><Route path="/admin/platform-revenue" element={<OwnerOnlyAdminRoute><PlatformRevenueDashboard/></OwnerOnlyAdminRoute>}/><Route path="*" element={<NotFoundPage/>}/></Routes></Suspense></main><RightSidebar/><LiveNotificationBanner/><BottomNav/><FloatingActionButton/><InterestOnboardingSheet/><IncomingCallOverlay/></div><Toaster/><Sonner position="top-center" richColors/><Analytics/></AuthProvider>}
+<Route path="/regulator/analytics" element={<OwnerOnlyAdminRoute><RegulatorPanel/></OwnerOnlyAdminRoute>}/><Route path="/podcasts/analytics" element={<PodcastAnalyticsPage/>}/><Route path="/team-chat" element={<TeamChatPage/>}/><Route path="/appeals" element={<AppealsPage/>}/><Route path="/leaderboard/creators" element={<CreatorLeaderboardPage/>}/><Route path="/policy" element={<ContentPolicyPage/>}/><Route path="/privacy" element={<PrivacyPolicyPage/>}/><Route path="/terms" element={<TermsOfServicePage/>}/><Route path="/sessions" element={<ActiveSessionsPage/>}/><Route path="/blocked" element={<BlockedUsersPage/>}/><Route path="/seller/:username" element={<SellerStorefrontPage/>}/><Route path="/orders" element={<OrdersPage/>}/><Route path="/story-analytics" element={<StoryAnalyticsDashboard/>}/><Route path="/admin/platform-revenue" element={<OwnerOnlyAdminRoute><PlatformRevenueDashboard/></OwnerOnlyAdminRoute>}/><Route path="*" element={<NotFoundPage/>}/></Routes></Suspense></main>{deferredChromeReady && <Suspense fallback={null}><RightSidebar /></Suspense>}{deferredChromeReady && <Suspense fallback={null}><LiveNotificationBanner /></Suspense>}{deferredChromeReady && <Suspense fallback={null}><BottomNav /></Suspense>}{deferredChromeReady && <Suspense fallback={null}><FloatingActionButton /></Suspense>}{deferredChromeReady && <Suspense fallback={null}><InterestOnboardingSheet /></Suspense>}{deferredChromeReady && <Suspense fallback={null}><IncomingCallOverlay /></Suspense>}</div><Toaster/><Sonner position="top-center" richColors/><Analytics/></AuthProvider>}
 export default function App(){return <BrowserRouter><AppInner/></BrowserRouter>}
