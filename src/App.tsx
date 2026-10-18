@@ -432,7 +432,7 @@ function AppInner(){
     // browser has not asked us to conserve data or is on a very slow connection.
     const connection = (navigator as any).connection;
     const hostname = window.location.hostname;
-    const isNewsHost = /^(www\\.)?testagram\\.news$/i.test(hostname);
+    const isNewsHost = hostname === 'testagram.news' || hostname === 'www.testagram.news';
     const isPublicTvLive = window.location.pathname.startsWith('/tv/live/');
     if (document.visibilityState !== 'visible' || isNewsHost || isPublicTvLive || connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? '')) return;
     const idleWindow = window as any;
