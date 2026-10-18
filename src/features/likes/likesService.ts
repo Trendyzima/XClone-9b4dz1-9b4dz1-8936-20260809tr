@@ -11,15 +11,16 @@ export async function listLikes(postId:string,limit=50):Promise<LikeItem[]>{
 }
 
 
-export async function listProfileLikes(userId: string, limit = 50): Promise<any[]> {
+export async function listProfileLikes(userId: string, limit = 50, offset = 0): Promise<any[]> {
   const size = Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50));
+  const safeOffset = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
   const { data, error } = await supabase
     .from('post_reactions')
     .select('id,user_id,post_id,created_at')
     .eq('user_id', userId)
     .eq('emoji', '❤️')
     .order('created_at', { ascending: false })
-    .limit(size);
+    .range(safeOffset, safeOffset + size - 1);
   if (error) throw error;
 
   const postIds = [...new Set((data ?? []).map((row: any) => row.post_id).filter(Boolean))];
