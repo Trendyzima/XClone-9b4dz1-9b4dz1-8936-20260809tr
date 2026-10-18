@@ -302,7 +302,7 @@ export function BookmarksPage() {
                       src={`${post.video_url}#t=0.5`}
                       className="w-full h-full object-cover"
                       muted
-                      preload="metadata"
+                      preload="none"
                     />
                   ) : post.image_url ? (
                     <img src={post.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
