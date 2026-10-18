@@ -9,7 +9,7 @@ For a self-hosted build, set these values at build time:
 - `VITE_SUPABASE_PUBLISHABLE_KEY`: the publishable key for that same instance
 - `VITE_TESTAGRAM_API_URL`: the origin of the self-hosted Go API
 
-The API must trust tokens issued by the same Auth instance. Do not use a hosted project's token against a self-hosted API or point the client at one Auth issuer while the API verifies another. If the secondary Supabase client is not separately configured, self-hosted mode uses the same configured local endpoint instead of the legacy hosted secondary project.
+The API must trust tokens issued by the same Auth instance. Do not use a hosted project's token against a self-hosted API or point the client at one Auth issuer while the API verifies another. Self-hosted mode requires an owned HTTPS origin (localhost HTTP is allowed for local development) and rejects hosted `*.supabase.co` origins. If the secondary Supabase client is not separately configured, self-hosted mode uses the same configured endpoint; if a separate secondary endpoint is configured, both its URL and publishable key are required and the URL is validated under the same rules.
 
 When `VITE_TESTAGRAM_SELF_HOSTED=true`, the client fails at startup if the primary URL/key are absent and refuses to fall back to hosted project defaults. Media operations also refuse the legacy hosted media path if `VITE_TESTAGRAM_API_URL` is absent. This switch is intentionally opt-in so existing hosted builds are not silently broken during migration.
 
