@@ -38,11 +38,11 @@ function validEvent(event: any): boolean {
 
 async function hmacHex(secret: string, timestamp: string, body: Uint8Array): Promise<string> {
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const signed = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(timestamp + ".")));
-  const combined = new Uint8Array(signed.length + body.length);
-  combined.set(signed);
-  combined.set(body, signed.length);
-  // The protocol signs timestamp + "." + body as one byte sequence.
+  const prefix = encoder.encode(timestamp + ".");
+  const combined = new Uint8Array(prefix.length + body.length);
+  combined.set(prefix);
+  combined.set(body, prefix.length);
+  // The protocol signs timestamp + "." + exact raw request body.
   const mac = await crypto.subtle.sign("HMAC", key, combined);
   return [...new Uint8Array(mac)].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
