@@ -71,8 +71,10 @@ for (const requiredProducerSQL of [
   'enqueue_public_post_replication_event',
   'enqueue_public_profile_replication_event',
   'public.enqueue_platform_replication_event',
-  'AFTER INSERT OR UPDATE OR DELETE ON public.posts',
-  'AFTER INSERT OR UPDATE OR DELETE ON public.profiles',
+  'AFTER INSERT OR DELETE ON public.posts',
+  'AFTER UPDATE OF content, body, visibility, community_id, author_id, user_id, deleted_at ON public.posts',
+  'AFTER INSERT OR DELETE ON public.profiles',
+  'AFTER UPDATE OF account_status, discoverable_by_username, protected_account, username, display_name, bio, avatar_url ON public.profiles',
 ]) {
   assert.ok(producerMigration.includes(requiredProducerSQL), `source producer migration is missing: ${requiredProducerSQL}`);
 }
