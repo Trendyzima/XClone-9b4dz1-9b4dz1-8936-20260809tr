@@ -63,13 +63,13 @@ Deno.serve(async (req) => {
       payload: row.payload,
     };
     if (event.origin !== localOrigin) {
-      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_error_code: "origin_mismatch" }).catch(() => null);
+      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "origin_mismatch" }).catch(() => null);
       retried++;
       continue;
     }
     const body = JSON.stringify(event);
     if (encoder.encode(body).byteLength > 1_048_576) {
-      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_error_code: "event_too_large" }).catch(() => null);
+      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "event_too_large" }).catch(() => null);
       retried++;
       continue;
     }
@@ -92,13 +92,13 @@ Deno.serve(async (req) => {
       response = null;
     }
     if (response && response.status >= 200 && response.status < 300) {
-      const marked = await rpc(supabaseUrl, serviceKey, "mark_platform_replication_delivered", { p_event_id: row.event_id }).catch(() => null);
+      const marked = await rpc(supabaseUrl, serviceKey, "mark_platform_replication_delivered", { p_event_id: row.event_id, p_lease_token: row.lease_token }).catch(() => null);
       const markedValue = marked?.ok ? await marked.json().catch(() => false) : false;
       if (marked?.ok && markedValue === true) delivered++;
       else retried++;
     } else {
       const code = response ? "peer_http_" + response.status : "peer_unreachable";
-      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_error_code: code }).catch(() => null);
+      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: code }).catch(() => null);
       retried++;
     }
   }
