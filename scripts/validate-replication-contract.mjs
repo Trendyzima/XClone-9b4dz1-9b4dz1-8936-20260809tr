@@ -33,12 +33,21 @@ function validate(event) {
   if (typeof event.occurred_at !== 'string' || Number.isNaN(Date.parse(event.occurred_at))) return false;
   if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return false;
   if (Buffer.byteLength(JSON.stringify(event.payload)) > 1_048_576) return false;
-  const forbidden = new Set(['authorization', 'access_token', 'refresh_token', 'service_role_key', 'secret_key', 'private_key', 'password', 'password_hash', 'email', 'phone', 'cookie', 'session', 'api_key', 'signed_url', 'presigned_url', 'upload_url']);
+  const forbidden = new Set([
+    'authorization', 'access_token', 'refresh_token', 'token', 'jwt',
+    'service_role_key', 'secret_key', 'secret', 'private_key', 'credential', 'credentials',
+    'password', 'password_hash', 'email', 'email_address', 'phone', 'phone_number',
+    'cookie', 'session', 'api_key', 'signed_url', 'presigned_url', 'upload_url',
+  ]);
+  const normalizeKey = (key) => key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .toLowerCase();
   const hasSecret = (value) => {
     if (Array.isArray(value)) return value.some(hasSecret);
     if (!value || typeof value !== 'object') return false;
     return Object.entries(value).some(([key, child]) => {
-      const normalized = key.toLowerCase().replace(/[- ]/g, '_');
+      const normalized = normalizeKey(key);
       if (forbidden.has(normalized)) return true;
       if (normalized.endsWith('_url') && typeof child === 'string' &&
         (child.includes('?') || child.includes('#') || /:\/\/[^/]*@/.test(child))) return true;
@@ -89,12 +98,21 @@ for (const requiredProducerSQL of [
   assert.ok(producerMigration.includes(requiredProducerSQL), `source producer migration is missing: ${requiredProducerSQL}`);
 }
 
-for (const forbiddenKey of ['email', 'phone', 'password_hash', 'private_key', 'api_key']) {
+for (const forbiddenKey of [
+  'email', 'phone', 'password_hash', 'private_key', 'api_key',
+  'accessToken', 'refresh-token', 'PasswordHash', 'private.key',
+  'serviceRoleKey', 'signedURL', 'presigned-url', 'phone number',
+]) {
   assert.equal(
     validate({ ...valid, payload: { [forbiddenKey]: 'should-not-cross-backends' } }),
     false,
-    `forbidden payload key ${forbiddenKey} should fail`,
+    \`forbidden payload key variant \${forbiddenKey} should fail\`,
   );
 }
+assert.equal(
+  validate({ ...valid, payload: { metadata: [{ nestedSecret: { serviceRoleKey: 'never-export' } }] } }),
+  false,
+  'sensitive keys nested in arrays and objects must be rejected',
+);
 
 console.log('Dual-backend replication contract validation passed.');
