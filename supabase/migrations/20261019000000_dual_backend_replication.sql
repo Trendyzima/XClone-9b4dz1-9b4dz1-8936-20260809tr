@@ -252,11 +252,13 @@ DECLARE
   payload_value JSONB;
   inserted_id UUID;
   existing RECORD;
+  event_field_count INTEGER;
 BEGIN
   IF p_event IS NULL OR jsonb_typeof(p_event) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'invalid_replication_event' USING ERRCODE = '22023';
   END IF;
-  IF jsonb_object_length(p_event) <> 9 THEN
+  SELECT count(*) INTO event_field_count FROM jsonb_object_keys(p_event);
+  IF event_field_count <> 9 THEN
     RAISE EXCEPTION 'invalid_replication_event_fields' USING ERRCODE = '22023';
   END IF;
   event_id_value := (p_event->>'id')::UUID;
