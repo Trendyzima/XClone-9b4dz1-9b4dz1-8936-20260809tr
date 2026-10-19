@@ -96,6 +96,8 @@ jobs:
         run: npm run validate:ads
       - name: Validate cross-source home-feed identity contract
         run: npm run validate:home-feed-identity
+      - name: Validate dual-backend replication contract and migration
+        run: npm run validate:replication-contract
       - name: Build application
         run: npm run build
       - name: Verify PostCard canonical interaction contract
