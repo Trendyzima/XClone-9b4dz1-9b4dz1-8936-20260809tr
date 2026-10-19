@@ -292,6 +292,7 @@ COMMIT;
         IF item.entity_type = 'media' AND (
           data->>'visibility' IS DISTINCT FROM 'public'
           OR NOT (data ? 'object_key')
+          OR data->>'object_key' IS NULL
           OR data->>'object_key' = ''
           OR position('://' in data->>'object_key') > 0
           OR left(data->>'object_key', 1) = '/'
