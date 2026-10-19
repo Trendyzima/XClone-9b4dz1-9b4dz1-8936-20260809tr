@@ -155,6 +155,32 @@ BEGIN
 END;
 $replication$;
 
+CREATE OR REPLACE FUNCTION public.fail_platform_replication_event(
+  p_event_id UUID, p_lease_token UUID, p_error_code TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $replication$
+DECLARE changed INTEGER;
+BEGIN
+  IF p_error_code IS NULL OR length(p_error_code) < 1 OR length(p_error_code) > 64
+     OR translate(p_error_code, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-', '') <> '' THEN
+    RAISE EXCEPTION 'invalid replication error code';
+  END IF;
+  UPDATE public.platform_replication_outbox
+  SET failed_at=now(), lease_until=NULL, lease_token=NULL, last_error_code=p_error_code
+  WHERE event_id=p_event_id AND lease_token=p_lease_token
+    AND delivered_at IS NULL AND failed_at IS NULL AND lease_until IS NOT NULL;
+  GET DIAGNOSTICS changed = ROW_COUNT;
+  RETURN changed = 1;
+END;
+$replication$;
+
+REVOKE ALL ON FUNCTION public.fail_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.fail_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
 CREATE OR REPLACE FUNCTION public.platform_replication_has_forbidden_key(p_value JSONB)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
