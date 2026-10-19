@@ -18,9 +18,13 @@ function jsonResponse(status: number, body: Record<string, unknown>): Response {
 function hasSensitiveKey(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(hasSensitiveKey);
   if (!value || typeof value !== "object") return false;
-  return Object.entries(value as Record<string, unknown>).some(([key, child]) =>
-    FORBIDDEN.has(key.toLowerCase().replace(/[- ]/g, "_")) || hasSensitiveKey(child)
-  );
+  return Object.entries(value as Record<string, unknown>).some(([key, child]) => {
+    const normalized = key.toLowerCase().replace(/[- ]/g, "_");
+    if (FORBIDDEN.has(normalized)) return true;
+    if (normalized.endsWith("_url") && typeof child === "string" &&
+      (child.includes("?") || child.includes("#") || /:\/\/[^/]*@/.test(child))) return true;
+    return hasSensitiveKey(child);
+  });
 }
 
 
