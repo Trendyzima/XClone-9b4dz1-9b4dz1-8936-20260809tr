@@ -48,8 +48,18 @@ CREATE INDEX IF NOT EXISTS platform_replication_inbox_pending_idx
   ON platform_replication_inbox (available_at, received_at)
   WHERE applied_at IS NULL AND outcome IN ('received', 'retry');
 
+CREATE TABLE IF NOT EXISTS platform_replication_entity_versions (
+    origin TEXT NOT NULL CHECK (length(origin) BETWEEN 1 AND 128),
+    entity_type TEXT NOT NULL CHECK (length(entity_type) BETWEEN 1 AND 128),
+    entity_id TEXT NOT NULL CHECK (length(entity_id) BETWEEN 1 AND 128),
+    current_version BIGINT NOT NULL CHECK (current_version > 0),
+    tombstoned BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (origin, entity_type, entity_id)
+);
+
 -- These queues are internal control-plane data, never browser-accessible.
-REVOKE ALL ON platform_replication_outbox, platform_replication_inbox FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON platform_replication_outbox, platform_replication_inbox, platform_replication_entity_versions FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON platform_replication_outbox, platform_replication_inbox TO service_role;
 
 
