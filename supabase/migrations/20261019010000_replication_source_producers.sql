@@ -176,7 +176,7 @@ CREATE TRIGGER posts_replication_public_projection
 AFTER INSERT OR DELETE ON public.posts
 FOR EACH ROW EXECUTE FUNCTION public.replicate_public_post_after_write();
 CREATE TRIGGER posts_replication_public_projection_update
-AFTER UPDATE OF content, body, visibility, community_id, author_id, user_id, deleted_at ON public.posts
+AFTER UPDATE OF content, visibility, community_id, author_id, user_id, deleted_at ON public.posts
 FOR EACH ROW EXECUTE FUNCTION public.replicate_public_post_after_write();
 
 CREATE OR REPLACE FUNCTION public.enqueue_public_profile_replication_event(
