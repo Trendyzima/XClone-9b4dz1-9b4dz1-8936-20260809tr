@@ -209,8 +209,11 @@ DECLARE
   inserted_id UUID;
   existing RECORD;
 BEGIN
-  IF jsonb_typeof(p_event) <> 'object' OR p_event IS NULL OR jsonb_object_length(p_event) <> 9 THEN
+  IF p_event IS NULL OR jsonb_typeof(p_event) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'invalid_replication_event' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_object_length(p_event) <> 9 THEN
+    RAISE EXCEPTION 'invalid_replication_event_fields' USING ERRCODE = '22023';
   END IF;
   event_id_value := (p_event->>'id')::UUID;
   origin_value := p_event->>'origin';
