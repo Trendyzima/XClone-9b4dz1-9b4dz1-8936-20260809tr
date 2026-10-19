@@ -27,15 +27,15 @@ export default async function handler(request: Request) {
   // In self-hosted mode the owned Go API is the source of truth. Never fall
   // through to hosted Supabase: doing so can split identity/data across projects
   // and silently defeat the user's self-hosted availability contract.
-  const selfHosted = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env?.TESTAGRAM_SELF_HOSTED === "true";
+  const selfHosted = process.env.TESTAGRAM_SELF_HOSTED === "true";
   if (selfHosted) {
-    const configuredApi = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env?.TESTAGRAM_API_URL?.trim();
+    const configuredApi = process.env.TESTAGRAM_API_URL?.trim();
     if (!configuredApi) return response({ ok: false, error: { code: "SELF_HOSTED_API_NOT_CONFIGURED", message: "Self-hosted API is enabled but TESTAGRAM_API_URL is missing" }, request_id: requestId }, 503);
     let apiOrigin: URL;
     try {
       apiOrigin = new URL(configuredApi);
       const localHttp = apiOrigin.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(apiOrigin.hostname);
-      if ((apiOrigin.protocol !== "https:" && !localHttp) || apiOrigin.username || apiOrigin.password || apiOrigin.search || apiOrigin.hash) throw new Error("invalid origin");
+      if ((apiOrigin.protocol !== "https:" && !localHttp) || apiOrigin.username || apiOrigin.password || apiOrigin.pathname !== "/" || apiOrigin.search || apiOrigin.hash || apiOrigin.hostname.toLowerCase().endsWith(".supabase.co")) throw new Error("invalid origin");
     } catch {
       return response({ ok: false, error: { code: "SELF_HOSTED_API_INVALID", message: "TESTAGRAM_API_URL must be a valid owned HTTPS origin (localhost may use HTTP)" }, request_id: requestId }, 503);
     }
