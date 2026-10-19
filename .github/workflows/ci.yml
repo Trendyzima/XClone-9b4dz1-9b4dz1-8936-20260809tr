@@ -192,6 +192,16 @@ jobs:
             END;
             BEGIN
               PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789af',
+                'origin','xclone','entity_type','post','entity_id','post:bad-time',
+                'entity_version',1,'schema_version',1,'event_type','post.created',
+                'occurred_at','2026-10-19 00:00:00Z','payload',jsonb_build_object('text','no')
+              ));
+              RAISE EXCEPTION 'non-RFC3339 timestamp was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
                 'id','018f1f3a-7b2c-7abc-8def-0123456789ad',
                 'origin','xclone','entity_type','post','entity_id','post:bad-type',
                 'entity_version',1,'schema_version',1,'event_type','account.created',
