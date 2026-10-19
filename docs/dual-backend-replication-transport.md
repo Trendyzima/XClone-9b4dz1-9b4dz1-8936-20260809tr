@@ -59,3 +59,19 @@ rejections are dead-lettered; transient storage errors are retried.
 This worker does not create source events. Product writes still need atomic
 outbox producers and schema-specific projectors before live product-data
 synchronization can be declared complete.
+
+
+## Transactional source-event producer
+
+The migration exposes `public.enqueue_platform_replication_event(JSONB)` to
+`service_role` only. A product mutation RPC must call it **inside the same
+PostgreSQL transaction** as its authoritative write. The helper validates the
+event envelope, enforces the XClone origin, rejects nested credential/PII keys,
+bounds the payload, and treats an identical event-ID replay as idempotent while
+rejecting conflicting reuse.
+
+This helper is a producer primitive, not automatic table capture. Do not claim
+live product replication until each supported mutation RPC (account profile,
+public post, public media metadata, and deletion) calls it in the same
+transaction, and integration tests prove that a failed business transaction
+cannot leave an outbox event behind.
