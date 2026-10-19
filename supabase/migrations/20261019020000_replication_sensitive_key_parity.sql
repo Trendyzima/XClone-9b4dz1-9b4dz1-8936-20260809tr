@@ -101,7 +101,7 @@ BEGIN
   schema_version_value := (p_event->>'schema_version')::INTEGER;
   event_type_value := p_event->>'event_type';
   occurred_at_raw := p_event->>'occurred_at';
-  IF occurred_at_raw IS NULL OR occurred_at_raw !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$' THEN
+  IF occurred_at_raw IS NULL OR NOT (occurred_at_raw ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$') THEN
     RAISE EXCEPTION 'invalid_replication_timestamp' USING ERRCODE = '22023';
   END IF;
   occurred_at_value := occurred_at_raw::TIMESTAMPTZ;
