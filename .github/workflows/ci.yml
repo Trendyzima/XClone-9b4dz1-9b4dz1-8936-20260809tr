@@ -244,7 +244,7 @@ jobs:
               (origin,entity_type,entity_id,entity_version,schema_version,payload,tombstoned)
             VALUES ('xclone','media','media:valid-size',1,1,
               '{"id":"media:valid-size","size_bytes":2048,"visibility":"public"}'::jsonb,FALSE);
-            FOR size_text IN ARRAY ARRAY['2048.5','524288001'] LOOP
+            FOREACH size_text IN ARRAY ARRAY['2048.5','524288001'] LOOP
               BEGIN
                 entity_id_value := 'media:bad-size-' || replace(size_text,'.','-');
                 INSERT INTO public.platform_replication_projection
