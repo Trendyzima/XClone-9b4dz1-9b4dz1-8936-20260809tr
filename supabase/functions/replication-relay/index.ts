@@ -63,13 +63,13 @@ Deno.serve(async (req) => {
       payload: row.payload,
     };
     if (event.origin !== localOrigin) {
-      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "origin_mismatch" }).catch(() => null);
+      await rpc(supabaseUrl, serviceKey, "fail_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "origin_mismatch" }).catch(() => null);
       retried++;
       continue;
     }
     const body = JSON.stringify(event);
     if (encoder.encode(body).byteLength > 1_048_576) {
-      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "event_too_large" }).catch(() => null);
+      await rpc(supabaseUrl, serviceKey, "fail_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "event_too_large" }).catch(() => null);
       retried++;
       continue;
     }
@@ -98,7 +98,13 @@ Deno.serve(async (req) => {
       else retried++;
     } else {
       const code = response ? "peer_http_" + response.status : "peer_unreachable";
-      await rpc(supabaseUrl, serviceKey, "retry_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: code }).catch(() => null);
+      const permanent = response !== null && response.status >= 400 && response.status < 500 &&
+        response.status !== 401 && response.status !== 408 &&
+        response.status !== 425 && response.status !== 429;
+      const operation = permanent ? "fail_platform_replication_event" : "retry_platform_replication_event";
+      await rpc(supabaseUrl, serviceKey, operation, {
+        p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: code,
+      }).catch(() => null);
       retried++;
     }
   }
