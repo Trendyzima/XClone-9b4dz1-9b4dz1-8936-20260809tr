@@ -42,7 +42,9 @@ function validate(event) {
   if (!event.event_type.toLowerCase().startsWith(event.entity_type.toLowerCase() + '.')) return false;
   if (!Number.isSafeInteger(event.entity_version) || event.entity_version < 1) return false;
   if (event.schema_version !== 1) return false;
-  if (typeof event.occurred_at !== 'string' || Number.isNaN(Date.parse(event.occurred_at))) return false;
+  if (typeof event.occurred_at !== 'string' ||
+      !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$/.test(event.occurred_at) ||
+      Number.isNaN(Date.parse(event.occurred_at))) return false;
   if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return false;
   if (Buffer.byteLength(JSON.stringify(event.payload)) > 1_048_576) return false;
   if (Buffer.byteLength(JSON.stringify(event)) > 1_048_576) return false;
@@ -74,6 +76,7 @@ assert.equal(validate(valid), true, 'valid event should pass');
 assert.equal(validate({ ...valid, entity_version: 0 }), false, 'non-positive entity version should fail');
 assert.equal(validate({ ...valid, schema_version: 2 }), false, 'unsupported schema version should fail');
 assert.equal(validate({ ...valid, event_type: 'account.created' }), false, 'event type must match entity type');
+assert.equal(validate({ ...valid, occurred_at: '2026-10-19 00:00:00Z' }), false, 'timestamp must be RFC3339');
 assert.equal(validate({ ...valid, payload: { blob: 'x'.repeat(1_048_500) } }), false, 'oversized full envelope should fail');
 assert.equal(validate({ ...valid, unexpected: true }), false, 'unknown envelope fields should fail');
 assert.equal(validate({ ...valid, payload: { signed_url: 'https://example.invalid/?token=secret' } }), false, 'signed URLs must not be replicated');
