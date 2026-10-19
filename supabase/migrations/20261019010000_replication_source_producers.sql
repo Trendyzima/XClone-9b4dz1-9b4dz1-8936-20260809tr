@@ -172,7 +172,7 @@ $source$;
 
 DROP TRIGGER IF EXISTS posts_replication_public_projection ON public.posts;
 CREATE TRIGGER posts_replication_public_projection
-AFTER INSERT OR UPDATE OR DELETE ON public.posts
+AFTER INSERT OR UPDATE OF content, body, visibility, community_id, author_id, user_id, deleted_at OR DELETE ON public.posts
 FOR EACH ROW EXECUTE FUNCTION public.replicate_public_post_after_write();
 
 CREATE OR REPLACE FUNCTION public.enqueue_public_profile_replication_event(
@@ -322,7 +322,7 @@ $source$;
 
 DROP TRIGGER IF EXISTS profiles_replication_public_projection ON public.profiles;
 CREATE TRIGGER profiles_replication_public_projection
-AFTER INSERT OR UPDATE OR DELETE ON public.profiles
+AFTER INSERT OR UPDATE OF account_status, discoverable_by_username, protected_account, username, display_name, bio, avatar_url OR DELETE ON public.profiles
 FOR EACH ROW EXECUTE FUNCTION public.replicate_public_profile_after_write();
 
 
