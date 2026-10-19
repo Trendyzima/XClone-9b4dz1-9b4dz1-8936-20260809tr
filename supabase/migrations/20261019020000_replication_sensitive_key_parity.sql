@@ -189,5 +189,6 @@ ON public.platform_replication_projection
 FOR EACH ROW EXECUTE FUNCTION public.enforce_replication_media_size_limit();
 
 REVOKE ALL ON FUNCTION public.enforce_replication_media_size_limit() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enforce_replication_media_size_limit() TO service_role;
 
 COMMIT;
