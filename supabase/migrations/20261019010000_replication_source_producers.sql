@@ -27,6 +27,7 @@ BEGIN
      OR p_entity_id !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' THEN
     RAISE EXCEPTION 'invalid_replication_entity_identity' USING ERRCODE = '22023';
   END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('xclone:' || p_entity_type || ':' || p_entity_id, 0));
   INSERT INTO public.platform_replication_source_versions
     (origin, entity_type, entity_id, current_version)
   VALUES ('xclone', p_entity_type, p_entity_id, 1)
@@ -309,5 +310,89 @@ DROP TRIGGER IF EXISTS profiles_replication_public_projection ON public.profiles
 CREATE TRIGGER profiles_replication_public_projection
 AFTER INSERT OR UPDATE OR DELETE ON public.profiles
 FOR EACH ROW EXECUTE FUNCTION public.replicate_public_profile_after_write();
+
+
+REVOKE ALL ON FUNCTION public.replicate_public_post_after_write() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.replicate_public_profile_after_write() FROM PUBLIC, anon, authenticated;
+
+-- Bounded, idempotent public-content snapshot seeding. Call repeatedly with
+-- service_role until it returns zero; it only seeds entities with no source
+-- version row, so concurrent trigger writes are serialized by the same advisory
+-- lock and existing private content is never exported.
+CREATE OR REPLACE FUNCTION public.seed_platform_replication_public_snapshot(p_limit INTEGER DEFAULT 100)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $seed$
+DECLARE
+  item JSONB;
+  entity_id_value TEXT;
+  processed INTEGER := 0;
+  max_items INTEGER := LEAST(GREATEST(COALESCE(p_limit, 100), 1), 500);
+BEGIN
+  FOR item IN
+    SELECT to_jsonb(p)
+    FROM public.profiles p
+    WHERE coalesce(p.account_status, 'active') = 'active'
+      AND coalesce(p.discoverable_by_username, TRUE)
+      AND NOT EXISTS (
+        SELECT 1 FROM public.platform_replication_source_versions v
+        WHERE v.origin='xclone' AND v.entity_type='account' AND v.entity_id=p.id::text
+      )
+    ORDER BY p.id
+    LIMIT max_items
+  LOOP
+    entity_id_value := item->>'id';
+    PERFORM pg_advisory_xact_lock(hashtextextended('xclone:account:' || entity_id_value, 0));
+    IF NOT EXISTS (
+      SELECT 1 FROM public.platform_replication_source_versions v
+      WHERE v.origin='xclone' AND v.entity_type='account' AND v.entity_id=entity_id_value
+    ) THEN
+      PERFORM public.enqueue_public_profile_replication_event(item, 'account.profile.created');
+      processed := processed + 1;
+    END IF;
+    EXIT WHEN processed >= max_items;
+  END LOOP;
+
+  IF processed < max_items THEN
+    FOR item IN
+      SELECT to_jsonb(p)
+      FROM public.posts p
+      WHERE p.visibility = 'public'
+        AND p.community_id IS NULL
+        AND p.deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM public.profiles pr
+          WHERE pr.id = coalesce(p.author_id, p.user_id)
+            AND coalesce(pr.account_status, 'active') = 'active'
+            AND coalesce(pr.discoverable_by_username, TRUE)
+            AND NOT coalesce(pr.protected_account, FALSE)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM public.platform_replication_source_versions v
+          WHERE v.origin='xclone' AND v.entity_type='post' AND v.entity_id=p.id::text
+        )
+      ORDER BY p.id
+      LIMIT (max_items - processed)
+    LOOP
+      entity_id_value := item->>'id';
+      PERFORM pg_advisory_xact_lock(hashtextextended('xclone:post:' || entity_id_value, 0));
+      IF NOT EXISTS (
+        SELECT 1 FROM public.platform_replication_source_versions v
+        WHERE v.origin='xclone' AND v.entity_type='post' AND v.entity_id=entity_id_value
+      ) THEN
+        PERFORM public.enqueue_public_post_replication_event(item, 'post.created');
+        processed := processed + 1;
+      END IF;
+      EXIT WHEN processed >= max_items;
+    END LOOP;
+  END IF;
+  RETURN processed;
+END;
+$seed$;
+
+REVOKE ALL ON FUNCTION public.seed_platform_replication_public_snapshot(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.seed_platform_replication_public_snapshot(INTEGER) TO service_role;
 
 COMMIT;
