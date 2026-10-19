@@ -200,6 +200,15 @@ BEGIN
     FOR key_name, child IN SELECT key, value FROM jsonb_each(p_value)
     LOOP
       IF lower(replace(replace(key_name, '-', '_'), ' ', '_')) = ANY(forbidden)
+         OR (
+           lower(replace(replace(key_name, '-', '_'), ' ', '_')) LIKE '%\_url' ESCAPE '\'
+           AND jsonb_typeof(child) = 'string'
+           AND (
+             position('?' in child #>> '{}') > 0
+             OR position('#' in child #>> '{}') > 0
+             OR position('@' in split_part(child #>> '{}', '/', 3)) > 0
+           )
+         )
          OR public.platform_replication_has_forbidden_key(child) THEN
         RETURN TRUE;
       END IF;
