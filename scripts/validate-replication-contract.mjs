@@ -107,7 +107,7 @@ for (const requiredParitySQL of [
   "'bearer','jwt'",
   "'password_hash','passwd','email','email_address'",
   "'private_key','service_role','service_role_key'",
-  "CREATE OR REPLACE FUNCTION public.platform_replication_has_forbidden_key(JSONB)",
+  "CREATE OR REPLACE FUNCTION public.platform_replication_has_forbidden_key(p_value JSONB)",
 ]) {
   assert.ok(parityMigration.includes(requiredParitySQL), `replication parity migration is missing: ${requiredParitySQL}`);
 }
