@@ -416,6 +416,9 @@ COMMIT;
           OR position('://' in data->>'object_key') > 0
           OR left(data->>'object_key', 1) = '/'
           OR position('..' in data->>'object_key') > 0
+          OR position('?' in data->>'object_key') > 0
+          OR position('#' in data->>'object_key') > 0
+          OR position(chr(92) in data->>'object_key') > 0
           OR length(data->>'object_key') > 1024
           OR data->>'content_type' NOT IN ('image/jpeg','image/png','image/webp','image/gif','image/avif','video/mp4','video/webm')
           OR data->>'checksum_sha256' !~ '^[0-9a-fA-F]{64}
