@@ -70,6 +70,8 @@ jobs:
           deno check --no-config supabase/functions/media-delivery/index.ts
           deno check --no-config supabase/functions/zenad-decision/index.ts
           deno check --no-config supabase/functions/zenad-event/index.ts
+          deno check --no-config supabase/functions/replication-receiver/index.ts
+          deno check --no-config supabase/functions/replication-relay/index.ts
 
   android-tv:
     name: Build and verify XClone TV APK
