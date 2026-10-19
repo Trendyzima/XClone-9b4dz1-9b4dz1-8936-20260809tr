@@ -293,8 +293,9 @@ BEGIN
       data := item.payload->'payload';
       is_deleted := lower(item.event_type) LIKE '%.deleted'
                     OR lower(item.event_type) LIKE '%.tombstoned';
-      IF item.entity_type NOT IN ('account', 'post', 'media') THEN
-        RAISE EXCEPTION 'unsupported_entity_type' USING ERRCODE = '22023';
+      IF item.entity_type NOT IN ('account', 'post', 'media')
+         OR left(lower(item.event_type), length(item.entity_type) + 1) <> item.entity_type || '.' THEN
+        RAISE EXCEPTION 'unsupported_entity_type_or_event_mismatch' USING ERRCODE = '22023';
       END IF;
       IF NOT is_deleted AND (jsonb_typeof(data) <> 'object' OR data IS NULL) THEN
         RAISE EXCEPTION 'invalid_projection_payload' USING ERRCODE = '22023';
