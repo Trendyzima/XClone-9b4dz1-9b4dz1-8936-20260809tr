@@ -22,6 +22,32 @@ function hasSensitiveKey(value: unknown): boolean {
   );
 }
 
+
+async function readBoundedBody(req: Request, limit: number): Promise<Uint8Array> {
+  if (!req.body) throw new Error("empty_body");
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      throw new Error("body_too_large");
+    }
+    chunks.push(value);
+  }
+  if (total === 0) throw new Error("empty_body");
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
 function validEvent(event: any): boolean {
   const keys = ["id", "origin", "entity_type", "entity_id", "entity_version", "schema_version", "event_type", "occurred_at", "payload"];
   if (!event || typeof event !== "object" || Array.isArray(event)) return false;
@@ -71,8 +97,11 @@ Deno.serve(async (req) => {
   if (!/^\d{10}$/.test(timestamp) || !Number.isSafeInteger(timestampNumber) || Math.abs(Date.now() / 1000 - timestampNumber) > 300) {
     return jsonResponse(401, { error: "invalid_timestamp" });
   }
-  const bodyBuffer = new Uint8Array(await req.arrayBuffer());
-  if (bodyBuffer.byteLength === 0 || bodyBuffer.byteLength > MAX_BODY) return jsonResponse(413, { error: "body_too_large" });
+  let bodyBuffer: Uint8Array;
+  try { bodyBuffer = await readBoundedBody(req, MAX_BODY); }
+  catch (error) {
+    return jsonResponse(String(error).includes("body_too_large") ? 413 : 400, { error: String(error).includes("body_too_large") ? "body_too_large" : "empty_body" });
+  }
   const expected = await hmacHex(secret, timestamp, bodyBuffer);
   if (!/^[0-9a-f]{64}$/i.test(signature) || !constantTimeEqual(signature.toLowerCase(), expected)) return jsonResponse(401, { error: "invalid_signature" });
 
