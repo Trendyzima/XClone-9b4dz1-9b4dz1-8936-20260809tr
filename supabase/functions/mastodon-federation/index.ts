@@ -128,7 +128,7 @@ async function actor(username:string){
     };
   }
   // Only return cached remote actors when no local profile owns this username.
-  const remote=await db.from('federated_actors').select('*') .eq('username',username).abortSignal(AbortSignal.timeout(5000)).maybeSingle();
+  const remote=await db.from('federated_actors').select('*').eq('username',username).abortSignal(AbortSignal.timeout(5000)).maybeSingle();
   if(remote.error)throw remote.error;
   return remote.data||null;
 }
