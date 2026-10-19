@@ -22,7 +22,8 @@
     "validate:fediverse-profile": "node scripts/validate-fediverse-profile-contract.mjs",
     "validate:home-feed-identity": "node scripts/validate-home-feed-identity.mjs",
     "validate:fediverse-edge": "node scripts/validate-fediverse-edge-contract.mjs",
-    "validate:routes": "node scripts/validate-page-route-contract.mjs"
+    "validate:routes": "node scripts/validate-page-route-contract.mjs",
+    "validate:replication-contract": "node scripts/validate-replication-contract.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",

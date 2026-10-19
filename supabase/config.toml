@@ -82,3 +82,15 @@ verify_jwt = false
 # Public trending discovery returns only public/unlisted federated objects; user personalization is optional.
 [functions.federated-discovery-feed]
 verify_jwt = false
+
+# Peer replication requests are authenticated by per-origin HMAC keys in the handler.
+[functions.replication-receiver]
+verify_jwt = false
+
+# Scheduled/operator-triggered relay; the handler requires REPLICATION_RELAY_TOKEN.
+[functions.replication-relay]
+verify_jwt = false
+
+# Trusted scheduler/operator-triggered inbox projection worker.
+[functions.replication-projector]
+verify_jwt = false
