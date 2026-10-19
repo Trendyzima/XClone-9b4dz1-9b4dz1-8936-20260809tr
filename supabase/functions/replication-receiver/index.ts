@@ -4,7 +4,8 @@ const IDENTITY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FORBIDDEN = new Set([
   "authorization", "access_token", "refresh_token", "service_role_key",
-  "secret_key", "password", "signed_url", "presigned_url", "upload_url",
+  "secret_key", "private_key", "password", "password_hash", "email", "phone",
+  "cookie", "session", "api_key", "signed_url", "presigned_url", "upload_url",
 ]);
 
 function jsonResponse(status: number, body: Record<string, unknown>): Response {
