@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS platform_replication_outbox (
     lease_until TIMESTAMPTZ,
     lease_token UUID,
     delivered_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
     last_error_code TEXT,
     CONSTRAINT replication_outbox_entity_version_unique
       UNIQUE (origin, entity_type, entity_id, entity_version)
@@ -96,7 +97,7 @@ AS $replication$
   WITH picked AS (
     SELECT o.event_id
     FROM public.platform_replication_outbox AS o
-    WHERE o.delivered_at IS NULL
+    WHERE o.delivered_at IS NULL AND o.failed_at IS NULL
       AND o.available_at <= now()
       AND (o.lease_until IS NULL OR o.lease_until < now())
     ORDER BY o.created_at, o.event_id
@@ -124,7 +125,7 @@ DECLARE changed INTEGER;
 BEGIN
   UPDATE public.platform_replication_outbox
   SET delivered_at = now(), lease_until = NULL, lease_token = NULL, last_error_code = NULL
-  WHERE event_id = p_event_id AND lease_token = p_lease_token AND delivered_at IS NULL AND lease_until > now();
+  WHERE event_id = p_event_id AND lease_token = p_lease_token AND delivered_at IS NULL AND failed_at IS NULL AND lease_until > now();
   GET DIAGNOSTICS changed = ROW_COUNT;
   RETURN changed = 1;
 END;
@@ -144,9 +145,11 @@ BEGIN
   END IF;
   UPDATE public.platform_replication_outbox
   SET lease_until = NULL, lease_token = NULL,
-      available_at = now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second',
+      failed_at = CASE WHEN attempts >= 20 THEN now() ELSE failed_at END,
+      available_at = CASE WHEN attempts >= 20 THEN available_at
+        ELSE now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second' END,
       last_error_code = p_error_code
-  WHERE event_id = p_event_id AND lease_token = p_lease_token AND delivered_at IS NULL AND lease_until IS NOT NULL;
+  WHERE event_id = p_event_id AND lease_token = p_lease_token AND delivered_at IS NULL AND failed_at IS NULL AND lease_until IS NOT NULL;
   GET DIAGNOSTICS changed = ROW_COUNT;
   RETURN changed = 1;
 END;
