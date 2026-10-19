@@ -77,8 +77,8 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 SECURITY DEFINER
-SET search_path = public
-AS $
+SET search_path = pg_catalog, public
+AS $replication$
   WITH picked AS (
     SELECT o.event_id
     FROM public.platform_replication_outbox AS o
@@ -98,14 +98,14 @@ AS $
   RETURNING o.event_id, o.origin, o.entity_type, o.entity_id,
             o.entity_version, o.schema_version, o.event_type,
             o.occurred_at, o.payload, o.attempts, o.lease_token;
-$;
+$replication$;
 
 CREATE OR REPLACE FUNCTION public.mark_platform_replication_delivered(p_event_id UUID, p_lease_token UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
-AS $
+SET search_path = pg_catalog, public
+AS $replication$
 DECLARE changed INTEGER;
 BEGIN
   UPDATE public.platform_replication_outbox
@@ -114,18 +114,18 @@ BEGIN
   GET DIAGNOSTICS changed = ROW_COUNT;
   RETURN changed = 1;
 END;
-$;
+$replication$;
 
 CREATE OR REPLACE FUNCTION public.retry_platform_replication_event(p_event_id UUID, p_lease_token UUID, p_error_code TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
-AS $
+SET search_path = pg_catalog, public
+AS $replication$
 DECLARE changed INTEGER;
 BEGIN
-  IF p_error_code IS NULL OR p_error_code !~ '^[A-Za-z0-9_-]{1,64}
- THEN
+  IF p_error_code IS NULL OR length(p_error_code) < 1 OR length(p_error_code) > 64
+     OR translate(p_error_code, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-', '') <> '' THEN
     RAISE EXCEPTION 'invalid replication error code';
   END IF;
   UPDATE public.platform_replication_outbox
@@ -136,13 +136,13 @@ BEGIN
   GET DIAGNOSTICS changed = ROW_COUNT;
   RETURN changed = 1;
 END;
-$;
+$replication$;
 
 REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
-GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID) TO service_role;
-GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
 
 COMMIT;
