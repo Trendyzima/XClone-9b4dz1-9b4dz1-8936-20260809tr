@@ -90,3 +90,7 @@ verify_jwt = false
 # Scheduled/operator-triggered relay; the handler requires REPLICATION_RELAY_TOKEN.
 [functions.replication-relay]
 verify_jwt = false
+
+# Trusted scheduler/operator-triggered inbox projection worker.
+[functions.replication-projector]
+verify_jwt = false
