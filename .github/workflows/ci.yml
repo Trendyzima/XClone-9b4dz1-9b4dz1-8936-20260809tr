@@ -179,6 +179,37 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'valid public projection was rejected';
             END IF;
+            -- Version 1 is the only negotiated schema until an explicit v2 rollout.
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789ac',
+                'origin','xclone','entity_type','post','entity_id','post:bad-schema',
+                'entity_version',1,'schema_version',2,'event_type','post.created',
+                'occurred_at','2026-10-19T00:00:00Z','payload',jsonb_build_object('text','no')
+              ));
+              RAISE EXCEPTION 'unsupported schema version was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789ad',
+                'origin','xclone','entity_type','post','entity_id','post:bad-type',
+                'entity_version',1,'schema_version',1,'event_type','account.created',
+                'occurred_at','2026-10-19T00:00:00Z','payload',jsonb_build_object('text','no')
+              ));
+              RAISE EXCEPTION 'mismatched event type was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789ae',
+                'origin','xclone','entity_type','post','entity_id','post:too-large',
+                'entity_version',1,'schema_version',1,'event_type','post.created',
+                'occurred_at','2026-10-19T00:00:00Z','payload',jsonb_build_object('blob',repeat('x',1048500))
+              ));
+              RAISE EXCEPTION 'oversized event envelope was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
           END
           $contract$;
           SQL
