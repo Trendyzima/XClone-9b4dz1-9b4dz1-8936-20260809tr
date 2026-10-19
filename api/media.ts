@@ -79,8 +79,13 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   const origin = env('TESTAGRAM_MEDIA_BACKEND_ORIGIN', env('TESTAGRAM_BACKEND_ORIGIN')).replace(/\/$/, '');
-  if (!origin || !/^https?:\/\//i.test(origin)) {
+  let backendURL: URL;
+  try { backendURL = new URL(origin); } catch {
     return json(res, 503, { error: 'The Testagram media backend is not configured.' });
+  }
+  const localHTTP = backendURL.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(backendURL.hostname);
+  if ((!origin || (backendURL.protocol !== 'https:' && !localHTTP)) || backendURL.username || backendURL.password || backendURL.pathname !== '/' || backendURL.search || backendURL.hash) {
+    return json(res, 503, { error: 'The Testagram media backend must be configured as an HTTPS origin.' });
   }
 
   const authorization = String(req.headers.authorization ?? '').trim();
