@@ -59,7 +59,7 @@ function resolvePublicMediaURL(rawURL: unknown, key: string): string | null {
     const target = new URL(rawURL);
     if (target.origin !== base.origin || target.protocol !== base.protocol) return null;
     if (target.username || target.password || target.search || target.hash) return null;
-    const basePath = base.pathname.replace(/\\/+$/, '');
+    const basePath = base.pathname.replace(/\/+$/, '');
     const keyPath = key.split('/').map((part) => encodeURIComponent(part)).join('/');
     if (!target.pathname.startsWith(basePath + '/') || !target.pathname.endsWith('/' + keyPath)) return null;
     return target.toString();
