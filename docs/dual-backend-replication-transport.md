@@ -101,3 +101,25 @@ errors, 5xx, 408, 425, 429, and 401 are retried with bounded exponential backoff
 other 4xx responses, origin mismatches, and oversized local events are
 dead-lettered immediately. Both relay and projector report counts without
 including event payloads. Investigate terminal failures before replaying them.
+
+
+## Source writes and initial snapshot
+
+The additive `20261019010000_replication_source_producers.sql` migration wires
+transactional outbox events to real `public.posts` and `public.profiles` writes.
+It emits only public, non-community posts from active, discoverable, unprotected
+authors; profile privacy/deactivation changes and post deletions produce
+tombstones. Profile payloads use an explicit allowlist and strip unstable or
+query-bearing avatar URLs. Source versions are serialized per entity with
+transaction-scoped advisory locks so a trigger and snapshot seed cannot race
+the entity version.
+
+After backups and the migration are verified, a service-role operator can call
+`public.seed_platform_replication_public_snapshot(100)` repeatedly. It seeds
+existing eligible profiles and posts in bounded batches and returns the number
+created; stop when it returns zero. This does not backfill private posts,
+community posts, or media binaries.
+
+Media metadata and other domain types remain separate integration gates. Do not
+enable the scheduled worker until the snapshot has been seeded and the destination
+projection, deletion, and privacy behavior have passed end-to-end tests.
