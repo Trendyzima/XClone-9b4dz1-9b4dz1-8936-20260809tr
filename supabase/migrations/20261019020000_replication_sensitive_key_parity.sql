@@ -109,7 +109,7 @@ BEGIN
      OR entity_version_value IS NULL OR entity_version_value < 1
      OR schema_version_value IS NULL OR schema_version_value <> 1
      OR event_type_value IS NULL OR event_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
-     OR left(lower(event_type_value), length(entity_type_value) + 1) <> lower(entity_type_value) || '.'
+     OR left(lower(event_type_value), length(entity_type_value) + 1) <> (lower(entity_type_value) || '.')
      OR occurred_at_value IS NULL
      OR payload_value IS NULL OR jsonb_typeof(payload_value) IS DISTINCT FROM 'object'
      OR public.platform_replication_has_forbidden_key(payload_value) THEN
