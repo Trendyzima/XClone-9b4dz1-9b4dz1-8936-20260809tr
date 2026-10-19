@@ -374,8 +374,12 @@ BEGIN
       WHERE event_id=item.event_id;
     WHEN OTHERS THEN
       UPDATE public.platform_replication_inbox
-      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
-          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      SET outcome=CASE WHEN attempts >= 19 THEN 'rejected' ELSE 'retry' END,
+          applied_at=CASE WHEN attempts >= 19 THEN now() ELSE applied_at END,
+          attempts=attempts+1,
+          error_code=CASE WHEN attempts >= 19 THEN 'retry_exhausted' ELSE 'projection_failed' END,
+          available_at=CASE WHEN attempts >= 19 THEN available_at
+            ELSE now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second' END
       WHERE event_id=item.event_id;
     END;
   END LOOP;
