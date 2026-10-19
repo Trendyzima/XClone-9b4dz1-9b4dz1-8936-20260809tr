@@ -22,10 +22,6 @@ function json(res: any, status: number, body: unknown) {
   return res.status(status).json(body);
 }
 
-function mediaUrl(key: string) {
-  return CDN_BASE + '/' + key.split('/').map((part) => encodeURIComponent(part)).join('/');
-}
-
 function errorMessage(body: any, fallback: string) {
   return body?.error?.message ?? body?.error ?? fallback;
 }
@@ -52,6 +48,24 @@ function isSafeMediaKey(key: unknown): key is string {
   if (typeof key !== 'string' || key.length < 1 || key.length > 512) return false;
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(key) || key.includes('\\\\')) return false;
   return !key.split('/').some((part) => part === '' || part === '.' || part === '..');
+}
+
+// Preserve the backend's tenant namespace in public URLs. Virtual-storage
+// objects are delivered below /tenants/{owner}/..., not at the legacy object path.
+function resolvePublicMediaURL(rawURL: unknown, key: string): string | null {
+  if (typeof rawURL !== 'string' || !rawURL.trim() || !isSafeMediaKey(key)) return null;
+  try {
+    const base = new URL(CDN_BASE);
+    const target = new URL(rawURL);
+    if (target.origin !== base.origin || target.protocol !== base.protocol) return null;
+    if (target.username || target.password || target.search || target.hash) return null;
+    const basePath = base.pathname.replace(/\/+$/, '');
+    const keyPath = key.split('/').map((part) => encodeURIComponent(part)).join('/');
+    if (!target.pathname.startsWith(basePath + '/') || !target.pathname.endsWith('/' + keyPath)) return null;
+    return target.toString();
+  } catch {
+    return null;
+  }
 }
 
 async function backendPost(origin: string, path: string, authorization: string, body: unknown, requestId: string) {
@@ -123,12 +137,16 @@ export default async function handler(req: any, res: any) {
       if (!uploadURL || String(intent.method ?? 'PUT').toUpperCase() !== 'PUT' || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
         return json(res, 502, { error: 'Media backend returned an unsafe or invalid upload intent.' });
       }
+      const publicURL = visibility === 'public' ? resolvePublicMediaURL(intent.public_url, intent.key) : null;
+      if (visibility === 'public' && !publicURL) {
+        return json(res, 502, { error: 'Media backend returned an invalid public media URL.' });
+      }
       return json(res, 200, {
         media_id: intent.key,
         object_key: intent.key,
         upload_url: uploadURL,
         method: 'PUT',
-        public_url: visibility === 'public' ? mediaUrl(intent.key) : null,
+        public_url: publicURL,
         visibility,
         mime_type: contentType,
         size_bytes: sizeBytes,
@@ -144,13 +162,17 @@ export default async function handler(req: any, res: any) {
       }, requestId);
       if (!response.ok || !data?.ok) return json(res, response.status, { error: errorMessage(data, 'Unable to complete media upload') });
       const asset = data.data ?? {};
+      const publicURL = asset.visibility === 'public' ? resolvePublicMediaURL(asset.public_url, key) : null;
+      if (asset.visibility === 'public' && !publicURL) {
+        return json(res, 502, { error: 'Media backend returned an invalid public media URL.' });
+      }
       return json(res, response.status, {
         ...asset,
         media_id: key,
         object_key: key,
         size_bytes: asset.size_bytes,
         mime_type: asset.content_type ?? body.mime_type ?? body.content_type,
-        public_url: asset.visibility === 'public' ? mediaUrl(key) : null,
+        public_url: publicURL,
       });
     }
 
@@ -160,11 +182,15 @@ export default async function handler(req: any, res: any) {
       const { response, data } = await backendPost(origin, '/api/media/attach', authorization, { key, post_id: postId }, requestId);
       if (!response.ok || !data?.ok) return json(res, response.status, { error: errorMessage(data, 'Unable to attach media to post') });
       const asset = data.data ?? {};
+      const publicURL = asset.visibility === 'private' ? null : resolvePublicMediaURL(asset.public_url, key);
+      if (asset.visibility !== 'private' && !publicURL) {
+        return json(res, 502, { error: 'Media backend returned an invalid public media URL.' });
+      }
       return json(res, response.status, {
         ...asset,
         media_id: key,
         object_key: key,
-        public_url: asset.visibility === 'private' ? null : mediaUrl(key),
+        public_url: publicURL,
       });
     }
 
