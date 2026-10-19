@@ -1,0 +1,53 @@
+name: Dual-backend replication workers
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dual-backend-replication-workers
+  cancel-in-progress: false
+
+jobs:
+  relay-and-project:
+    if: ${{ vars.REPLICATION_WORKERS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      SUPABASE_FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
+      REPLICATION_RELAY_TOKEN: ${{ secrets.REPLICATION_RELAY_TOKEN }}
+      REPLICATION_PROJECTOR_TOKEN: ${{ secrets.REPLICATION_PROJECTOR_TOKEN }}
+    steps:
+      - name: Validate opt-in worker configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SUPABASE_FUNCTIONS_URL" == https://* ]] || { echo "SUPABASE_FUNCTIONS_URL must use HTTPS"; exit 1; }
+          [[ "${#REPLICATION_RELAY_TOKEN}" -ge 32 ]] || { echo "REPLICATION_RELAY_TOKEN is missing or too short"; exit 1; }
+          [[ "${#REPLICATION_PROJECTOR_TOKEN}" -ge 32 ]] || { echo "REPLICATION_PROJECTOR_TOKEN is missing or too short"; exit 1; }
+
+      - name: Relay durable outbox events
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 25 \
+            --request POST \
+            --header "Authorization: Bearer ${REPLICATION_RELAY_TOKEN}" \
+            --output /tmp/replication-relay.json \
+            "${SUPABASE_FUNCTIONS_URL%/}/replication-relay"
+          cat /tmp/replication-relay.json
+
+      - name: Project accepted inbox events
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 15 \
+            --request POST \
+            --header "Authorization: Bearer ${REPLICATION_PROJECTOR_TOKEN}" \
+            --output /tmp/replication-projector.json \
+            "${SUPABASE_FUNCTIONS_URL%/}/replication-projector?limit=25"
+          cat /tmp/replication-projector.json
