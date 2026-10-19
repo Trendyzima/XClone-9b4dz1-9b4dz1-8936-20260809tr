@@ -94,7 +94,7 @@ async function actor(username:string){
         .eq('user_id',profile.data.id).abortSignal(AbortSignal.timeout(5000)).maybeSingle(),
       db.from('activitypub_keys')
         .select('key_id,public_key_pem')
-        .eq('user_id',profile.data.id).maybeSingle()
+        .eq('user_id',profile.data.id).abortSignal(AbortSignal.timeout(5000)).maybeSingle()
     ]);
     if(actorResult.error)throw actorResult.error;
     if(keyResult.error)throw keyResult.error;
@@ -103,10 +103,10 @@ async function actor(username:string){
       [actorResult,keyResult]=await Promise.all([
         db.from('activitypub_actors')
           .select('actor_id,username,user_id,inbox_url,outbox_url,followers_url,following_url')
-          .eq('user_id',profile.data.id).maybeSingle(),
+          .eq('user_id',profile.data.id).abortSignal(AbortSignal.timeout(5000)).maybeSingle(),
         db.from('activitypub_keys')
           .select('key_id,public_key_pem')
-          .eq('user_id',profile.data.id).maybeSingle()
+          .eq('user_id',profile.data.id).abortSignal(AbortSignal.timeout(5000)).maybeSingle()
       ]);
       if(actorResult.error)throw actorResult.error;
       if(keyResult.error)throw keyResult.error;
@@ -128,7 +128,7 @@ async function actor(username:string){
     };
   }
   // Only return cached remote actors when no local profile owns this username.
-  const remote=await db.from('federated_actors').select('*').eq('username',username).maybeSingle();
+  const remote=await db.from('federated_actors').select('*') .eq('username',username).abortSignal(AbortSignal.timeout(5000)).maybeSingle();
   if(remote.error)throw remote.error;
   return remote.data||null;
 }
