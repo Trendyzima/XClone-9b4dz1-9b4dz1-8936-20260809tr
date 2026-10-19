@@ -205,7 +205,10 @@ BEGIN
         regexp_replace(key_name, '([a-z0-9])([A-Z])', '\1_\2', 'g'),
         '[^A-Za-z0-9]+', '_', 'g'
       ));
-      IF normalized_key = ANY(forbidden)
+      IF EXISTS (
+           SELECT 1 FROM unnest(forbidden) AS forbidden_key(value)
+           WHERE position(forbidden_key.value in normalized_key) > 0
+         )
          OR (
            right(normalized_key, 4) = '_url'
            AND jsonb_typeof(child) = 'string'
@@ -267,12 +270,12 @@ BEGIN
   payload_value := p_event->'payload';
 
   IF event_id_value::TEXT !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-     OR origin_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
-     OR entity_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
-     OR entity_id_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
+     OR origin_value IS NULL OR origin_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
+     OR entity_type_value IS NULL OR entity_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
+     OR entity_id_value IS NULL OR entity_id_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
      OR entity_version_value IS NULL OR entity_version_value < 1
      OR schema_version_value IS NULL OR schema_version_value <> 1
-     OR event_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
+     OR event_type_value IS NULL OR event_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
      OR occurred_at_value IS NULL
      OR payload_value IS NULL OR jsonb_typeof(payload_value) IS DISTINCT FROM 'object'
      OR public.platform_replication_has_forbidden_key(payload_value) THEN
@@ -396,6 +399,7 @@ BEGIN
           OR length(data->>'object_key') > 1024
           OR data->>'content_type' IS NULL
           OR data->>'content_type' NOT IN ('image/jpeg','image/png','image/webp','image/gif','image/avif','video/mp4','video/webm')
+          OR data->>'size_bytes' IS NULL
           OR data->>'size_bytes' !~ '^[1-9][0-9]{0,12}$'
           OR data->>'checksum_sha256' IS NULL
           OR data->>'checksum_sha256' !~ '^[0-9a-fA-F]{64}$'
