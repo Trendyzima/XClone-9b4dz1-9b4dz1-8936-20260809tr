@@ -55,20 +55,33 @@ const str=(v:unknown)=>typeof v==='string'?v:'';const uri=(v:unknown)=>typeof v=
 const context=[AP,SEC,{toot:TOOT,discoverable:'toot:discoverable',indexable:'toot:indexable',featured:'toot:featured'}];
 async function ensureActivityPubIdentity(userId:string){
   if(!SERVICE)throw new Error('ActivityPub identity provisioning is unavailable');
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/activitypub-keygen`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${SERVICE}`,'x-testagram-internal':SERVICE},
-    body:JSON.stringify({user_id:userId})
-  });
-  if(!response.ok){
-    const detail=(await response.text().catch(()=>'')).slice(0,500);
-    throw new Error(`ActivityPub identity provisioning failed (${response.status})${detail?': '+detail:''}`);
+  // Provisioning is a recovery path, not permission to hold public WebFinger open
+  // indefinitely. A missing/stale keygen deployment or an unhealthy gateway must
+  // fail quickly and leave a useful server-side diagnostic.
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),8000);
+  try{
+    const response=await fetch(`${SUPABASE_URL}/functions/v1/activitypub-keygen`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SERVICE}`,'x-testagram-internal':SERVICE},
+      body:JSON.stringify({user_id:userId}),
+      signal:controller.signal
+    });
+    if(!response.ok){
+      const detail=(await response.text().catch(()=>'')).slice(0,500);
+      throw new Error(`ActivityPub identity provisioning failed (${response.status})${detail?': '+detail:''}`);
+    }
+  }catch(error){
+    if(controller.signal.aborted)throw new Error('ActivityPub identity provisioning timed out after 8000ms');
+    throw error;
+  }finally{
+    clearTimeout(timeout);
   }
 }
 async function actor(username:string){
   const profile=await db.from('profiles')
     .select('id,username,account_status,display_name,bio,avatar_url,cover_url,protected_account')
-    .eq('username',username).maybeSingle();
+    .eq('username',username).abortSignal(AbortSignal.timeout(5000)).maybeSingle();
   if(profile.error)throw profile.error;
   if(profile.data){
     if(profile.data.account_status!=='active')return null;
@@ -78,7 +91,7 @@ async function actor(username:string){
     let [actorResult,keyResult]=await Promise.all([
       db.from('activitypub_actors')
         .select('actor_id,username,user_id,inbox_url,outbox_url,followers_url,following_url')
-        .eq('user_id',profile.data.id).maybeSingle(),
+        .eq('user_id',profile.data.id).abortSignal(AbortSignal.timeout(5000)).maybeSingle(),
       db.from('activitypub_keys')
         .select('key_id,public_key_pem')
         .eq('user_id',profile.data.id).maybeSingle()
