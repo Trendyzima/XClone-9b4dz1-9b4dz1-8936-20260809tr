@@ -75,6 +75,8 @@ for (const requiredSQL of [
   'fail_platform_replication_event',
   'GRANT EXECUTE ON FUNCTION public.enqueue_platform_replication_event(JSONB) TO service_role',
   'GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role',
+  "regexp_replace(key_name, '([a-z0-9])([A-Z])', '\\1_\\2', 'g')",
+  'position(forbidden_key.value in normalized_key) > 0',
 ]) {
   assert.ok(migration.includes(requiredSQL), `replication migration is missing: ${requiredSQL}`);
 }
