@@ -157,4 +157,37 @@ $producer$;
 REVOKE ALL ON FUNCTION public.enqueue_platform_replication_event(JSONB) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.enqueue_platform_replication_event(JSONB) TO service_role;
 
+
+-- The Go projector and source producers share a 500 MiB maximum and require
+-- integral byte counts. Enforce that invariant at the destination projection
+-- boundary too, including events that bypass the current relay.
+CREATE OR REPLACE FUNCTION public.enforce_replication_media_size_limit()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $media$
+DECLARE
+  size_text TEXT;
+BEGIN
+  IF NEW.entity_type = 'media' AND NOT NEW.tombstoned THEN
+    size_text := NEW.payload->>'size_bytes';
+    IF size_text IS NULL OR size_text !~ '^[1-9][0-9]{0,8}$' THEN
+      RAISE EXCEPTION 'media_projection_size_must_be_positive_integer' USING ERRCODE = '22023';
+    END IF;
+    IF size_text::BIGINT > 524288000 THEN
+      RAISE EXCEPTION 'media_projection_size_exceeds_500_mib' USING ERRCODE = '22023';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$media$;
+
+DROP TRIGGER IF EXISTS platform_replication_media_size_guard ON public.platform_replication_projection;
+CREATE TRIGGER platform_replication_media_size_guard
+BEFORE INSERT OR UPDATE OF entity_type, payload, tombstoned
+ON public.platform_replication_projection
+FOR EACH ROW EXECUTE FUNCTION public.enforce_replication_media_size_limit();
+
+REVOKE ALL ON FUNCTION public.enforce_replication_media_size_limit() FROM PUBLIC, anon, authenticated;
+
 COMMIT;
