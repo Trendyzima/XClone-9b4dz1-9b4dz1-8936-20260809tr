@@ -30,6 +30,7 @@ assert.ok(
 const required = ['id', 'origin', 'entity_type', 'entity_id', 'entity_version', 'schema_version', 'event_type', 'occurred_at', 'payload'];
 assert.equal(schema.type, 'object');
 assert.equal(schema.additionalProperties, false);
+assert.equal(schema.properties.schema_version.const, 1, 'replication v1 schema must pin schema_version to 1');
 assert.deepEqual([...schema.required].sort(), [...required].sort());
 
 const valid = {
