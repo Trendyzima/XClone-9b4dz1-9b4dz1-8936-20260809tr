@@ -24,6 +24,53 @@ export default async function handler(request: Request) {
   const authorization = request.headers.get("authorization");
   const isPublic = PUBLIC_CAPABILITIES.has(capability);
   if (!isPublic && !authorization?.startsWith("Bearer ")) return response({ ok: false, error: { code: "AUTH_REQUIRED", message: "Authentication required" }, request_id: requestId }, 401);
+  // In self-hosted mode the owned Go API is the source of truth. Never fall
+  // through to hosted Supabase: doing so can split identity/data across projects
+  // and silently defeat the user's self-hosted availability contract.
+  const selfHosted = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env?.TESTAGRAM_SELF_HOSTED === "true";
+  if (selfHosted) {
+    const configuredApi = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env?.TESTAGRAM_API_URL?.trim();
+    if (!configuredApi) return response({ ok: false, error: { code: "SELF_HOSTED_API_NOT_CONFIGURED", message: "Self-hosted API is enabled but TESTAGRAM_API_URL is missing" }, request_id: requestId }, 503);
+    let apiOrigin: URL;
+    try {
+      apiOrigin = new URL(configuredApi);
+      const localHttp = apiOrigin.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(apiOrigin.hostname);
+      if ((apiOrigin.protocol !== "https:" && !localHttp) || apiOrigin.username || apiOrigin.password || apiOrigin.search || apiOrigin.hash) throw new Error("invalid origin");
+    } catch {
+      return response({ ok: false, error: { code: "SELF_HOSTED_API_INVALID", message: "TESTAGRAM_API_URL must be a valid owned HTTPS origin (localhost may use HTTP)" }, request_id: requestId }, 503);
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8500);
+    try {
+      const headers = new Headers({ "content-type": "application/json", accept: "application/json", "x-request-id": requestId });
+      if (authorization) headers.set("authorization", authorization);
+      const origin = request.headers.get("origin");
+      if (origin) headers.set("origin", origin);
+      const upstream = await fetch(new URL("/api/capability", apiOrigin.origin), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ capability, input }),
+        signal: controller.signal,
+      });
+      const raw = await upstream.text();
+      if (raw.length > 2 * 1024 * 1024) return response({ ok: false, error: { code: "SELF_HOSTED_RESPONSE_TOO_LARGE", message: "Self-hosted API response exceeded the size limit" }, request_id: requestId }, 502);
+      const contentType = upstream.headers.get("content-type") || "application/json; charset=utf-8";
+      return new Response(raw, {
+        status: upstream.status,
+        headers: {
+          "content-type": contentType,
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+          "x-request-id": upstream.headers.get("x-request-id") || requestId,
+        },
+      });
+    } catch {
+      return response({ ok: false, error: { code: controller.signal.aborted ? "SELF_HOSTED_API_TIMEOUT" : "SELF_HOSTED_API_UNAVAILABLE", message: controller.signal.aborted ? "Self-hosted API did not respond within 8.5 seconds" : "Self-hosted API is temporarily unavailable", request_id: requestId }, request_id: requestId }, controller.signal.aborted ? 504 : 502);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   // The browser authenticates against the canonical rebuilt project. Stale
   // deployment environments must not override this route because that creates the exact
   // production symptom: media upload succeeds against canonical Auth, while post
