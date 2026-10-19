@@ -132,6 +132,7 @@ Deno.serve(async (req) => {
   const inserted = await fetch(base + "?on_conflict=event_id", {
     method: "POST", headers: { ...headers, prefer: "resolution=ignore-duplicates,return=representation" }, body: JSON.stringify(record),
   });
+  if (inserted.status === 409) return jsonResponse(409, { error: "entity_version_conflict" });
   if (!inserted.ok) return jsonResponse(503, { error: "replication_storage_unavailable" });
   const rows = await inserted.json().catch(() => []);
   if (Array.isArray(rows) && rows.length > 0) return jsonResponse(202, { status: "queued" });
