@@ -341,7 +341,6 @@ BEGIN
         WHERE v.origin='xclone' AND v.entity_type='account' AND v.entity_id=p.id::text
       )
     ORDER BY p.id
-    LIMIT max_items
   LOOP
     entity_id_value := item->>'id';
     PERFORM pg_advisory_xact_lock(hashtextextended('xclone:account:' || entity_id_value, 0));
@@ -374,7 +373,6 @@ BEGIN
           WHERE v.origin='xclone' AND v.entity_type='post' AND v.entity_id=p.id::text
         )
       ORDER BY p.id
-      LIMIT (max_items - processed)
     LOOP
       entity_id_value := item->>'id';
       PERFORM pg_advisory_xact_lock(hashtextextended('xclone:post:' || entity_id_value, 0));
