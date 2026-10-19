@@ -154,6 +154,8 @@ jobs:
           DO $contract$
           DECLARE
             key_name TEXT;
+            size_text TEXT;
+            entity_id_value TEXT;
             forbidden_keys TEXT[] := ARRAY[
               'email', 'email_address', 'phone', 'phone_number', 'password_hash',
               'private_key', 'api_key', 'accessToken', 'refresh-token', 'PasswordHash',
@@ -237,6 +239,22 @@ jobs:
               RAISE EXCEPTION 'oversized event envelope was accepted';
             EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
             END;
+            -- Media projections use integral byte counts and a shared 500 MiB ceiling.
+            INSERT INTO public.platform_replication_projection
+              (origin,entity_type,entity_id,entity_version,schema_version,payload,tombstoned)
+            VALUES ('xclone','media','media:valid-size',1,1,
+              '{"id":"media:valid-size","size_bytes":2048,"visibility":"public"}'::jsonb,FALSE);
+            FOR size_text IN ARRAY ARRAY['2048.5','524288001'] LOOP
+              BEGIN
+                entity_id_value := 'media:bad-size-' || replace(size_text,'.','-');
+                INSERT INTO public.platform_replication_projection
+                  (origin,entity_type,entity_id,entity_version,schema_version,payload,tombstoned)
+                VALUES ('xclone','media',entity_id_value,1,1,
+                  jsonb_build_object('id',entity_id_value,'size_bytes',size_text,'visibility','public'),FALSE);
+                RAISE EXCEPTION 'invalid media size was accepted: %', size_text;
+              EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+              END;
+            END LOOP;
           END;
           $contract$;
           SQL
