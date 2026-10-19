@@ -50,4 +50,85 @@ CREATE INDEX IF NOT EXISTS platform_replication_inbox_pending_idx
 REVOKE ALL ON platform_replication_outbox, platform_replication_inbox FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON platform_replication_outbox, platform_replication_inbox TO service_role;
 
+
+-- Relay functions use bounded claims and short leases so overlapping invocations
+-- cannot claim the same row. They are service-role-only control-plane operations.
+CREATE OR REPLACE FUNCTION public.claim_platform_replication_outbox(
+  p_limit INTEGER DEFAULT 50,
+  p_lease_seconds INTEGER DEFAULT 30
+)
+RETURNS TABLE (
+  event_id UUID, origin TEXT, entity_type TEXT, entity_id TEXT,
+  entity_version BIGINT, schema_version INTEGER, event_type TEXT,
+  occurred_at TIMESTAMPTZ, payload JSONB, attempts INTEGER
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $
+  WITH picked AS (
+    SELECT o.event_id
+    FROM public.platform_replication_outbox AS o
+    WHERE o.delivered_at IS NULL
+      AND o.available_at <= now()
+      AND (o.lease_until IS NULL OR o.lease_until < now())
+    ORDER BY o.created_at, o.event_id
+    FOR UPDATE SKIP LOCKED
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 50), 1), 100)
+  )
+  UPDATE public.platform_replication_outbox AS o
+  SET lease_until = now() + make_interval(secs => LEAST(GREATEST(COALESCE(p_lease_seconds, 30), 5), 300)),
+      attempts = o.attempts + 1
+  FROM picked
+  WHERE o.event_id = picked.event_id
+  RETURNING o.event_id, o.origin, o.entity_type, o.entity_id,
+            o.entity_version, o.schema_version, o.event_type,
+            o.occurred_at, o.payload, o.attempts;
+$;
+
+CREATE OR REPLACE FUNCTION public.mark_platform_replication_delivered(p_event_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE changed INTEGER;
+BEGIN
+  UPDATE public.platform_replication_outbox
+  SET delivered_at = now(), lease_until = NULL, last_error_code = NULL
+  WHERE event_id = p_event_id AND delivered_at IS NULL AND lease_until > now();
+  GET DIAGNOSTICS changed = ROW_COUNT;
+  RETURN changed = 1;
+END;
+$;
+
+CREATE OR REPLACE FUNCTION public.retry_platform_replication_event(p_event_id UUID, p_error_code TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE changed INTEGER;
+BEGIN
+  IF p_error_code IS NULL OR p_error_code !~ '^[A-Za-z0-9_-]{1,64}
+ THEN
+    RAISE EXCEPTION 'invalid replication error code';
+  END IF;
+  UPDATE public.platform_replication_outbox
+  SET lease_until = NULL,
+      available_at = now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second',
+      last_error_code = p_error_code
+  WHERE event_id = p_event_id AND delivered_at IS NULL AND lease_until IS NOT NULL;
+  GET DIAGNOSTICS changed = ROW_COUNT;
+  RETURN changed = 1;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, TEXT) TO service_role;
+
 COMMIT;
