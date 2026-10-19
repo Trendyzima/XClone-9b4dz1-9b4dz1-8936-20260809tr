@@ -30,6 +30,30 @@ function errorMessage(body: any, fallback: string) {
   return body?.error?.message ?? body?.error ?? fallback;
 }
 
+// Never return a backend-provided upload URL unless the client can safely send
+// its bearer token to that exact configured API origin and upload endpoint.
+function resolveUploadURL(rawURL: unknown, origin: string, key: string): string | null {
+  if (typeof rawURL !== 'string' || !rawURL.trim() || !key) return null;
+  try {
+    const base = new URL(origin);
+    const target = new URL(rawURL, base);
+    if (target.origin !== base.origin || target.protocol !== base.protocol) return null;
+    if (target.username || target.password || target.hash) return null;
+    if (target.pathname !== '/api/media/upload') return null;
+    if (target.searchParams.get('key') !== key) return null;
+    if ([...target.searchParams.keys()].some((name) => name !== 'key')) return null;
+    return target.toString();
+  } catch {
+    return null;
+  }
+}
+
+function isSafeMediaKey(key: unknown): key is string {
+  if (typeof key !== 'string' || key.length < 1 || key.length > 512) return false;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(key) || key.includes('\\\\')) return false;
+  return !key.split('/').some((part) => part === '' || part === '.' || part === '..');
+}
+
 async function backendPost(origin: string, path: string, authorization: string, body: unknown, requestId: string) {
   const response = await fetch(origin + path, {
     method: 'POST',
@@ -88,11 +112,17 @@ export default async function handler(req: any, res: any) {
         return json(res, response.status, { error: errorMessage(data, 'Unable to create upload intent') });
       }
       const intent = data.data;
+      if (!isSafeMediaKey(intent.key)) return json(res, 502, { error: 'Media backend returned an invalid object key.' });
+      const uploadURL = resolveUploadURL(intent.url, origin, intent.key);
+      const expiresAt = typeof intent.expires_at === 'string' ? Date.parse(intent.expires_at) : Number.NaN;
+      if (!uploadURL || String(intent.method ?? 'PUT').toUpperCase() !== 'PUT' || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        return json(res, 502, { error: 'Media backend returned an unsafe or invalid upload intent.' });
+      }
       return json(res, 200, {
         media_id: intent.key,
         object_key: intent.key,
-        upload_url: new URL(String(intent.url), origin + '/').toString(),
-        method: intent.method ?? 'PUT',
+        upload_url: uploadURL,
+        method: 'PUT',
         public_url: visibility === 'public' ? mediaUrl(intent.key) : null,
         visibility,
         mime_type: contentType,
@@ -103,7 +133,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (action === 'complete') {
-      if (!key) return json(res, 400, { error: 'media_id or object_key is required' });
+      if (!isSafeMediaKey(key)) return json(res, 400, { error: 'A valid media_id or object_key is required' });
       const { response, data } = await backendPost(origin, '/api/media/complete', authorization, {
         key, visibility: body.visibility, content_type: body.mime_type ?? body.content_type, checksum_sha256: body.checksum_sha256,
       }, requestId);
