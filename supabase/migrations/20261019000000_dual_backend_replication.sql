@@ -45,4 +45,8 @@ CREATE INDEX IF NOT EXISTS platform_replication_inbox_pending_idx
   ON platform_replication_inbox (received_at)
   WHERE applied_at IS NULL AND outcome IN ('received', 'retry');
 
+-- These queues are internal control-plane data, never browser-accessible.
+REVOKE ALL ON platform_replication_outbox, platform_replication_inbox FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON platform_replication_outbox, platform_replication_inbox TO service_role;
+
 COMMIT;
