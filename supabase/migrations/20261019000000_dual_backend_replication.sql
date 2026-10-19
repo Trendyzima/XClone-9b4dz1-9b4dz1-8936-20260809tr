@@ -219,13 +219,1049 @@ BEGIN
   occurred_at_value := (p_event->>'occurred_at')::TIMESTAMPTZ;
   payload_value := p_event->'payload';
 
-  IF origin_value <> 'xclone'
-     OR entity_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
-     OR entity_id_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
-     OR event_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
-     OR entity_version_value < 1 OR schema_version_value < 1
+  IF origin_value IS DISTINCT FROM 'xclone'
+     OR entity_type_value IS NULL OR entity_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}
+    RAISE EXCEPTION 'replication_event_rejected' USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO public.platform_replication_outbox
+    (event_id, origin, entity_type, entity_id, entity_version,
+     schema_version, event_type, occurred_at, payload)
+  VALUES (event_id_value, origin_value, entity_type_value, entity_id_value,
+          entity_version_value, schema_version_value, event_type_value,
+          occurred_at_value, payload_value)
+  ON CONFLICT (event_id) DO NOTHING
+  RETURNING event_id INTO inserted_id;
+
+  IF inserted_id IS NOT NULL THEN
+    RETURN inserted_id;
+  END IF;
+
+  SELECT origin, entity_type, entity_id, entity_version, schema_version,
+         event_type, occurred_at, payload
+  INTO existing
+  FROM public.platform_replication_outbox
+  WHERE event_id = event_id_value;
+
+  IF NOT FOUND OR existing.origin <> origin_value
+     OR existing.entity_type <> entity_type_value
+     OR existing.entity_id <> entity_id_value
+     OR existing.entity_version <> entity_version_value
+     OR existing.schema_version <> schema_version_value
+     OR existing.event_type <> event_type_value
+     OR existing.occurred_at <> occurred_at_value
+     OR existing.payload <> payload_value THEN
+    RAISE EXCEPTION 'replication_event_id_conflict' USING ERRCODE = '22023';
+  END IF;
+  RETURN event_id_value;
+END;
+$producer$;
+
+REVOKE ALL ON FUNCTION public.platform_replication_has_forbidden_key(JSONB) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.enqueue_platform_replication_event(JSONB) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enqueue_platform_replication_event(JSONB) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.apply_platform_replication_pending(p_limit INTEGER DEFAULT 25)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $project$
+DECLARE
+  item RECORD;
+  data JSONB;
+  is_deleted BOOLEAN;
+  accepted_version BIGINT;
+  applied_count INTEGER := 0;
+  allowed_keys TEXT[];
+  key_name TEXT;
+BEGIN
+  FOR item IN
+    SELECT i.event_id, i.origin, i.entity_type, i.entity_id, i.entity_version,
+           i.schema_version, i.event_type, i.payload
+    FROM public.platform_replication_inbox AS i
+    WHERE i.applied_at IS NULL AND i.outcome IN ('received', 'retry')
+      AND i.available_at <= now()
+    ORDER BY i.received_at, i.event_id
+    FOR UPDATE SKIP LOCKED
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 25), 1), 100)
+  LOOP
+    BEGIN
+      data := item.payload->'payload';
+      is_deleted := lower(item.event_type) LIKE '%.deleted'
+                    OR lower(item.event_type) LIKE '%.tombstoned';
+      IF item.entity_type NOT IN ('account', 'post', 'media') THEN
+        RAISE EXCEPTION 'unsupported_entity_type' USING ERRCODE = '22023';
+      END IF;
+      IF NOT is_deleted AND (jsonb_typeof(data) <> 'object' OR data IS NULL) THEN
+        RAISE EXCEPTION 'invalid_projection_payload' USING ERRCODE = '22023';
+      END IF;
+
+      IF item.entity_type = 'account' THEN
+        allowed_keys := ARRAY['id','username','display_name','bio','avatar_key','avatar_url','website'];
+      ELSIF item.entity_type = 'post' THEN
+        allowed_keys := ARRAY['id','author_id','text','content','visibility','created_at','updated_at','media_ids','language'];
+      ELSE
+        allowed_keys := ARRAY['id','owner_id','object_key','content_type','size_bytes','checksum_sha256','visibility','created_at'];
+      END IF;
+
+      IF NOT is_deleted THEN
+        FOR key_name IN SELECT jsonb_object_keys(data)
+        LOOP
+          IF NOT key_name = ANY(allowed_keys) THEN
+            RAISE EXCEPTION 'projection_field_not_allowed' USING ERRCODE = '22023';
+          END IF;
+        END LOOP;
+        IF data ? 'id' AND data->>'id' <> item.entity_id THEN
+          RAISE EXCEPTION 'projection_id_mismatch' USING ERRCODE = '22023';
+        END IF;
+        IF item.entity_type = 'account' AND data ? 'avatar_url' AND data->>'avatar_url' IS NOT NULL THEN
+          IF data->>'avatar_url' !~ '^https://[^/?#]+[^?#]*
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+ OR position('?' in data->>'avatar_url') > 0 OR position('#' in data->>'avatar_url') > 0 THEN
+            RAISE EXCEPTION 'avatar_url_must_be_stable_https' USING ERRCODE = '22023';
+          END IF;
+        END IF;
+        IF item.entity_type = 'post' AND data->>'visibility' IS DISTINCT FROM 'public' THEN
+          RAISE EXCEPTION 'only_public_posts_can_be_projected' USING ERRCODE = '22023';
+        END IF;
+        IF item.entity_type = 'media' AND (
+          data->>'visibility' IS DISTINCT FROM 'public'
+          OR NOT (data ? 'object_key')
+          OR data->>'object_key' IS NULL
+          OR data->>'object_key' = ''
+          OR position('://' in data->>'object_key') > 0
+          OR left(data->>'object_key', 1) = '/'
+          OR position('..' in data->>'object_key') > 0
+          OR length(data->>'object_key') > 1024
+          OR data->>'content_type' NOT IN ('image/jpeg','image/png','image/webp','image/gif','image/avif','video/mp4','video/webm')
+          OR data->>'checksum_sha256' !~ '^[0-9a-fA-F]{64}
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+
+          OR NOT (data ? 'size_bytes')
+          OR CASE WHEN jsonb_typeof(data->'size_bytes') = 'number'
+                  THEN (data->>'size_bytes')::numeric < 1 OR (data->>'size_bytes')::numeric > 524288000
+                  ELSE TRUE END
+        ) THEN
+          RAISE EXCEPTION 'public_media_metadata_incomplete' USING ERRCODE = '22023';
+        END IF;
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+
+     OR entity_id_value IS NULL OR entity_id_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}
+    RAISE EXCEPTION 'replication_event_rejected' USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO public.platform_replication_outbox
+    (event_id, origin, entity_type, entity_id, entity_version,
+     schema_version, event_type, occurred_at, payload)
+  VALUES (event_id_value, origin_value, entity_type_value, entity_id_value,
+          entity_version_value, schema_version_value, event_type_value,
+          occurred_at_value, payload_value)
+  ON CONFLICT (event_id) DO NOTHING
+  RETURNING event_id INTO inserted_id;
+
+  IF inserted_id IS NOT NULL THEN
+    RETURN inserted_id;
+  END IF;
+
+  SELECT origin, entity_type, entity_id, entity_version, schema_version,
+         event_type, occurred_at, payload
+  INTO existing
+  FROM public.platform_replication_outbox
+  WHERE event_id = event_id_value;
+
+  IF NOT FOUND OR existing.origin <> origin_value
+     OR existing.entity_type <> entity_type_value
+     OR existing.entity_id <> entity_id_value
+     OR existing.entity_version <> entity_version_value
+     OR existing.schema_version <> schema_version_value
+     OR existing.event_type <> event_type_value
+     OR existing.occurred_at <> occurred_at_value
+     OR existing.payload <> payload_value THEN
+    RAISE EXCEPTION 'replication_event_id_conflict' USING ERRCODE = '22023';
+  END IF;
+  RETURN event_id_value;
+END;
+$producer$;
+
+REVOKE ALL ON FUNCTION public.platform_replication_has_forbidden_key(JSONB) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.enqueue_platform_replication_event(JSONB) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enqueue_platform_replication_event(JSONB) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.apply_platform_replication_pending(p_limit INTEGER DEFAULT 25)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $project$
+DECLARE
+  item RECORD;
+  data JSONB;
+  is_deleted BOOLEAN;
+  accepted_version BIGINT;
+  applied_count INTEGER := 0;
+  allowed_keys TEXT[];
+  key_name TEXT;
+BEGIN
+  FOR item IN
+    SELECT i.event_id, i.origin, i.entity_type, i.entity_id, i.entity_version,
+           i.schema_version, i.event_type, i.payload
+    FROM public.platform_replication_inbox AS i
+    WHERE i.applied_at IS NULL AND i.outcome IN ('received', 'retry')
+      AND i.available_at <= now()
+    ORDER BY i.received_at, i.event_id
+    FOR UPDATE SKIP LOCKED
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 25), 1), 100)
+  LOOP
+    BEGIN
+      data := item.payload->'payload';
+      is_deleted := lower(item.event_type) LIKE '%.deleted'
+                    OR lower(item.event_type) LIKE '%.tombstoned';
+      IF item.entity_type NOT IN ('account', 'post', 'media') THEN
+        RAISE EXCEPTION 'unsupported_entity_type' USING ERRCODE = '22023';
+      END IF;
+      IF NOT is_deleted AND (jsonb_typeof(data) <> 'object' OR data IS NULL) THEN
+        RAISE EXCEPTION 'invalid_projection_payload' USING ERRCODE = '22023';
+      END IF;
+
+      IF item.entity_type = 'account' THEN
+        allowed_keys := ARRAY['id','username','display_name','bio','avatar_key','avatar_url','website'];
+      ELSIF item.entity_type = 'post' THEN
+        allowed_keys := ARRAY['id','author_id','text','content','visibility','created_at','updated_at','media_ids','language'];
+      ELSE
+        allowed_keys := ARRAY['id','owner_id','object_key','content_type','size_bytes','checksum_sha256','visibility','created_at'];
+      END IF;
+
+      IF NOT is_deleted THEN
+        FOR key_name IN SELECT jsonb_object_keys(data)
+        LOOP
+          IF NOT key_name = ANY(allowed_keys) THEN
+            RAISE EXCEPTION 'projection_field_not_allowed' USING ERRCODE = '22023';
+          END IF;
+        END LOOP;
+        IF data ? 'id' AND data->>'id' <> item.entity_id THEN
+          RAISE EXCEPTION 'projection_id_mismatch' USING ERRCODE = '22023';
+        END IF;
+        IF item.entity_type = 'account' AND data ? 'avatar_url' AND data->>'avatar_url' IS NOT NULL THEN
+          IF data->>'avatar_url' !~ '^https://[^/?#]+[^?#]*
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+ OR position('?' in data->>'avatar_url') > 0 OR position('#' in data->>'avatar_url') > 0 THEN
+            RAISE EXCEPTION 'avatar_url_must_be_stable_https' USING ERRCODE = '22023';
+          END IF;
+        END IF;
+        IF item.entity_type = 'post' AND data->>'visibility' IS DISTINCT FROM 'public' THEN
+          RAISE EXCEPTION 'only_public_posts_can_be_projected' USING ERRCODE = '22023';
+        END IF;
+        IF item.entity_type = 'media' AND (
+          data->>'visibility' IS DISTINCT FROM 'public'
+          OR NOT (data ? 'object_key')
+          OR data->>'object_key' IS NULL
+          OR data->>'object_key' = ''
+          OR position('://' in data->>'object_key') > 0
+          OR left(data->>'object_key', 1) = '/'
+          OR position('..' in data->>'object_key') > 0
+          OR length(data->>'object_key') > 1024
+          OR data->>'content_type' NOT IN ('image/jpeg','image/png','image/webp','image/gif','image/avif','video/mp4','video/webm')
+          OR data->>'checksum_sha256' !~ '^[0-9a-fA-F]{64}
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+
+          OR NOT (data ? 'size_bytes')
+          OR CASE WHEN jsonb_typeof(data->'size_bytes') = 'number'
+                  THEN (data->>'size_bytes')::numeric < 1 OR (data->>'size_bytes')::numeric > 524288000
+                  ELSE TRUE END
+        ) THEN
+          RAISE EXCEPTION 'public_media_metadata_incomplete' USING ERRCODE = '22023';
+        END IF;
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+
+     OR event_type_value IS NULL OR event_type_value !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}
+    RAISE EXCEPTION 'replication_event_rejected' USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO public.platform_replication_outbox
+    (event_id, origin, entity_type, entity_id, entity_version,
+     schema_version, event_type, occurred_at, payload)
+  VALUES (event_id_value, origin_value, entity_type_value, entity_id_value,
+          entity_version_value, schema_version_value, event_type_value,
+          occurred_at_value, payload_value)
+  ON CONFLICT (event_id) DO NOTHING
+  RETURNING event_id INTO inserted_id;
+
+  IF inserted_id IS NOT NULL THEN
+    RETURN inserted_id;
+  END IF;
+
+  SELECT origin, entity_type, entity_id, entity_version, schema_version,
+         event_type, occurred_at, payload
+  INTO existing
+  FROM public.platform_replication_outbox
+  WHERE event_id = event_id_value;
+
+  IF NOT FOUND OR existing.origin <> origin_value
+     OR existing.entity_type <> entity_type_value
+     OR existing.entity_id <> entity_id_value
+     OR existing.entity_version <> entity_version_value
+     OR existing.schema_version <> schema_version_value
+     OR existing.event_type <> event_type_value
+     OR existing.occurred_at <> occurred_at_value
+     OR existing.payload <> payload_value THEN
+    RAISE EXCEPTION 'replication_event_id_conflict' USING ERRCODE = '22023';
+  END IF;
+  RETURN event_id_value;
+END;
+$producer$;
+
+REVOKE ALL ON FUNCTION public.platform_replication_has_forbidden_key(JSONB) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.enqueue_platform_replication_event(JSONB) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enqueue_platform_replication_event(JSONB) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.apply_platform_replication_pending(p_limit INTEGER DEFAULT 25)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $project$
+DECLARE
+  item RECORD;
+  data JSONB;
+  is_deleted BOOLEAN;
+  accepted_version BIGINT;
+  applied_count INTEGER := 0;
+  allowed_keys TEXT[];
+  key_name TEXT;
+BEGIN
+  FOR item IN
+    SELECT i.event_id, i.origin, i.entity_type, i.entity_id, i.entity_version,
+           i.schema_version, i.event_type, i.payload
+    FROM public.platform_replication_inbox AS i
+    WHERE i.applied_at IS NULL AND i.outcome IN ('received', 'retry')
+      AND i.available_at <= now()
+    ORDER BY i.received_at, i.event_id
+    FOR UPDATE SKIP LOCKED
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 25), 1), 100)
+  LOOP
+    BEGIN
+      data := item.payload->'payload';
+      is_deleted := lower(item.event_type) LIKE '%.deleted'
+                    OR lower(item.event_type) LIKE '%.tombstoned';
+      IF item.entity_type NOT IN ('account', 'post', 'media') THEN
+        RAISE EXCEPTION 'unsupported_entity_type' USING ERRCODE = '22023';
+      END IF;
+      IF NOT is_deleted AND (jsonb_typeof(data) <> 'object' OR data IS NULL) THEN
+        RAISE EXCEPTION 'invalid_projection_payload' USING ERRCODE = '22023';
+      END IF;
+
+      IF item.entity_type = 'account' THEN
+        allowed_keys := ARRAY['id','username','display_name','bio','avatar_key','avatar_url','website'];
+      ELSIF item.entity_type = 'post' THEN
+        allowed_keys := ARRAY['id','author_id','text','content','visibility','created_at','updated_at','media_ids','language'];
+      ELSE
+        allowed_keys := ARRAY['id','owner_id','object_key','content_type','size_bytes','checksum_sha256','visibility','created_at'];
+      END IF;
+
+      IF NOT is_deleted THEN
+        FOR key_name IN SELECT jsonb_object_keys(data)
+        LOOP
+          IF NOT key_name = ANY(allowed_keys) THEN
+            RAISE EXCEPTION 'projection_field_not_allowed' USING ERRCODE = '22023';
+          END IF;
+        END LOOP;
+        IF data ? 'id' AND data->>'id' <> item.entity_id THEN
+          RAISE EXCEPTION 'projection_id_mismatch' USING ERRCODE = '22023';
+        END IF;
+        IF item.entity_type = 'account' AND data ? 'avatar_url' AND data->>'avatar_url' IS NOT NULL THEN
+          IF data->>'avatar_url' !~ '^https://[^/?#]+[^?#]*
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+ OR position('?' in data->>'avatar_url') > 0 OR position('#' in data->>'avatar_url') > 0 THEN
+            RAISE EXCEPTION 'avatar_url_must_be_stable_https' USING ERRCODE = '22023';
+          END IF;
+        END IF;
+        IF item.entity_type = 'post' AND data->>'visibility' IS DISTINCT FROM 'public' THEN
+          RAISE EXCEPTION 'only_public_posts_can_be_projected' USING ERRCODE = '22023';
+        END IF;
+        IF item.entity_type = 'media' AND (
+          data->>'visibility' IS DISTINCT FROM 'public'
+          OR NOT (data ? 'object_key')
+          OR data->>'object_key' IS NULL
+          OR data->>'object_key' = ''
+          OR position('://' in data->>'object_key') > 0
+          OR left(data->>'object_key', 1) = '/'
+          OR position('..' in data->>'object_key') > 0
+          OR length(data->>'object_key') > 1024
+          OR data->>'content_type' NOT IN ('image/jpeg','image/png','image/webp','image/gif','image/avif','video/mp4','video/webm')
+          OR data->>'checksum_sha256' !~ '^[0-9a-fA-F]{64}
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+
+          OR NOT (data ? 'size_bytes')
+          OR CASE WHEN jsonb_typeof(data->'size_bytes') = 'number'
+                  THEN (data->>'size_bytes')::numeric < 1 OR (data->>'size_bytes')::numeric > 524288000
+                  ELSE TRUE END
+        ) THEN
+          RAISE EXCEPTION 'public_media_metadata_incomplete' USING ERRCODE = '22023';
+        END IF;
+      ELSE
+        data := '{}'::jsonb;
+      END IF;
+
+      INSERT INTO public.platform_replication_entity_versions
+        (origin, entity_type, entity_id, current_version, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET current_version = EXCLUDED.current_version,
+          tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned,
+          updated_at = now()
+      WHERE public.platform_replication_entity_versions.current_version < EXCLUDED.current_version
+        AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)
+      RETURNING current_version INTO accepted_version;
+
+      IF accepted_version IS NULL THEN
+        UPDATE public.platform_replication_inbox
+        SET applied_at = now(),
+            outcome = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'rejected' ELSE 'stale' END,
+            error_code = CASE WHEN EXISTS (
+              SELECT 1 FROM public.platform_replication_entity_versions v
+              WHERE v.origin=item.origin AND v.entity_type=item.entity_type
+                AND v.entity_id=item.entity_id AND v.tombstoned
+            ) AND NOT is_deleted THEN 'entity_tombstoned' ELSE 'stale_version' END
+        WHERE event_id=item.event_id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.platform_replication_projection
+        (origin, entity_type, entity_id, entity_version, schema_version, payload, tombstoned)
+      VALUES (item.origin, item.entity_type, item.entity_id, item.entity_version,
+              item.schema_version, data, is_deleted)
+      ON CONFLICT (origin, entity_type, entity_id) DO UPDATE
+      SET entity_version=EXCLUDED.entity_version,
+          schema_version=EXCLUDED.schema_version,
+          payload=EXCLUDED.payload,
+          tombstoned=EXCLUDED.tombstoned,
+          updated_at=now()
+      WHERE public.platform_replication_projection.entity_version < EXCLUDED.entity_version;
+
+      UPDATE public.platform_replication_inbox
+      SET applied_at=now(), outcome='applied', error_code=NULL
+      WHERE event_id=item.event_id;
+      applied_count := applied_count + 1;
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
+          available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
+      WHERE event_id=item.event_id;
+    END;
+  END LOOP;
+  RETURN applied_count;
+END;
+$project$;
+
+REVOKE ALL ON FUNCTION public.apply_platform_replication_pending(INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_platform_replication_outbox(INTEGER, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.mark_platform_replication_delivered(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.retry_platform_replication_event(UUID, UUID, TEXT) TO service_role;
+
+COMMIT;
+
+     OR entity_version_value IS NULL OR entity_version_value < 1
+     OR schema_version_value IS NULL OR schema_version_value < 1
      OR occurred_at_value IS NULL
-     OR jsonb_typeof(payload_value) <> 'object'
+     OR payload_value IS NULL OR jsonb_typeof(payload_value) <> 'object'
      OR octet_length(payload_value::text) > 1048576
      OR public.platform_replication_has_forbidden_key(payload_value) THEN
     RAISE EXCEPTION 'replication_event_rejected' USING ERRCODE = '22023';
