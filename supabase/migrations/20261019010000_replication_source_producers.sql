@@ -253,12 +253,14 @@ BEGIN
 
   IF old_row IS NOT NULL THEN
     was_public := coalesce(old_row->>'account_status', 'active') = 'active'
-      AND coalesce((old_row->>'discoverable_by_username')::boolean, TRUE);
+      AND coalesce((old_row->>'discoverable_by_username')::boolean, TRUE)
+      AND NOT coalesce((old_row->>'protected_account')::boolean, FALSE);
     old_protected := coalesce((old_row->>'protected_account')::boolean, FALSE);
   END IF;
   IF new_row IS NOT NULL THEN
     is_public := coalesce(new_row->>'account_status', 'active') = 'active'
-      AND coalesce((new_row->>'discoverable_by_username')::boolean, TRUE);
+      AND coalesce((new_row->>'discoverable_by_username')::boolean, TRUE)
+      AND NOT coalesce((new_row->>'protected_account')::boolean, FALSE);
     new_protected := coalesce((new_row->>'protected_account')::boolean, FALSE);
   END IF;
 
@@ -358,6 +360,7 @@ BEGIN
     FROM public.profiles p
     WHERE coalesce(p.account_status, 'active') = 'active'
       AND coalesce(p.discoverable_by_username, TRUE)
+      AND NOT coalesce(p.protected_account, FALSE)
       AND NOT EXISTS (
         SELECT 1 FROM public.platform_replication_source_versions v
         WHERE v.origin='xclone' AND v.entity_type='account' AND v.entity_id=p.id::text
