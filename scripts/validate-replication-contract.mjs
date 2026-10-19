@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const schema = JSON.parse(readFileSync(new URL('../contracts/replication-event-v1.schema.json', import.meta.url), 'utf8'));
 const migration = readFileSync(new URL('../supabase/migrations/20261019000000_dual_backend_replication.sql', import.meta.url), 'utf8');
 const producerMigration = readFileSync(new URL('../supabase/migrations/20261019010000_replication_source_producers.sql', import.meta.url), 'utf8');
+const parityMigration = readFileSync(new URL('../supabase/migrations/20261019020000_replication_sensitive_key_parity.sql', import.meta.url), 'utf8');
 
 const migrationLines = migration.split(/\r?\n/);
 assert.equal(migrationLines.filter((line) => line.trim() === 'BEGIN;').length, 1, 'replication migration must have one transaction start');
@@ -43,9 +44,9 @@ function validate(event) {
   if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return false;
   if (Buffer.byteLength(JSON.stringify(event.payload)) > 1_048_576) return false;
   const forbidden = new Set([
-    'authorization', 'access_token', 'refresh_token', 'token', 'jwt',
-    'service_role_key', 'secret_key', 'secret', 'private_key', 'credential', 'credentials',
-    'password', 'password_hash', 'email', 'email_address', 'phone', 'phone_number',
+    'authorization', 'access_token', 'refresh_token', 'token', 'bearer', 'jwt',
+    'service_role', 'service_role_key', 'secret_key', 'secret', 'private_key', 'credential', 'credentials',
+    'password', 'password_hash', 'passwd', 'email', 'email_address', 'phone', 'phone_number',
     'cookie', 'session', 'api_key', 'signed_url', 'presigned_url', 'upload_url',
   ]);
   const normalizeKey = (key) => key
@@ -90,6 +91,15 @@ for (const requiredSQL of [
   assert.ok(migration.includes(requiredSQL), `replication migration is missing: ${requiredSQL}`);
 }
 
+for (const requiredParitySQL of [
+  "'bearer','jwt'",
+  "'password_hash','passwd','email','email_address'",
+  "'private_key','service_role','service_role_key'",
+  "CREATE OR REPLACE FUNCTION public.platform_replication_has_forbidden_key(JSONB)",
+]) {
+  assert.ok(parityMigration.includes(requiredParitySQL), `replication parity migration is missing: ${requiredParitySQL}`);
+}
+
 for (const requiredProducerSQL of [
   'platform_replication_source_versions',
   'replicate_public_post_after_write',
@@ -113,7 +123,7 @@ for (const forbiddenKey of [
   'email', 'phone', 'password_hash', 'private_key', 'api_key',
   'accessToken', 'refresh-token', 'PasswordHash', 'private.key',
   'serviceRoleKey', 'signedURL', 'presigned-url', 'phone number',
-  'providerCredentials', 'customerEmail', 'jwtToken',
+  'providerCredentials', 'customerEmail', 'jwtToken', 'serviceRole', 'bearer', 'jwt', 'passwd',
 ]) {
   assert.equal(
     validate({ ...valid, payload: { [forbiddenKey]: 'should-not-cross-backends' } }),
