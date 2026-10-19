@@ -103,6 +103,17 @@ BEGIN
   IF TG_OP <> 'INSERT' THEN old_row := to_jsonb(OLD); END IF;
   IF TG_OP <> 'DELETE' THEN new_row := to_jsonb(NEW); END IF;
 
+  -- Serialize public-visibility decisions against concurrent profile privacy
+  -- changes. The deterministic lock order avoids author-change deadlocks.
+  PERFORM 1
+  FROM public.profiles p
+  WHERE p.id::text IN (
+    coalesce(old_row->>'author_id', old_row->>'user_id'),
+    coalesce(new_row->>'author_id', new_row->>'user_id')
+  )
+  ORDER BY p.id
+  FOR SHARE;
+
   IF old_row IS NOT NULL THEN
     author_id := coalesce(old_row->>'author_id', old_row->>'user_id');
     was_public := old_row->>'visibility' = 'public'
