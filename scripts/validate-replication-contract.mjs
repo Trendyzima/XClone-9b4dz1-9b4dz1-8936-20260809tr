@@ -82,6 +82,9 @@ for (const requiredProducerSQL of [
   'AFTER UPDATE OF content, body, visibility, community_id, author_id, user_id, deleted_at ON public.posts',
   'AFTER INSERT OR DELETE ON public.profiles',
   'AFTER UPDATE OF account_status, discoverable_by_username, protected_account, username, display_name, bio, avatar_url ON public.profiles',
+  "AND NOT coalesce((old_row->>'protected_account')::boolean, FALSE)",
+  "AND NOT coalesce((new_row->>'protected_account')::boolean, FALSE)",
+  'AND NOT coalesce(p.protected_account, FALSE)',
 ]) {
   assert.ok(producerMigration.includes(requiredProducerSQL), `source producer migration is missing: ${requiredProducerSQL}`);
 }
