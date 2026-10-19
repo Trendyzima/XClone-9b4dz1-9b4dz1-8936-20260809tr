@@ -15,7 +15,7 @@ product-data projection.
 - `REPLICATION_RELAY_TOKEN=<separate-random-secret-of-at-least-32-bytes>`
 
 Invoke `replication-relay` with `Authorization: Bearer <REPLICATION_RELAY_TOKEN>`
-from a trusted scheduler. It claims at most 20 events per run with a bounded lease,
+from a trusted scheduler. It claims at most 5 events per run with a bounded lease,
 signs the exact event body with HMAC-SHA256, and retries transient failures with
 backoff. No scheduler is installed by this migration.
 
