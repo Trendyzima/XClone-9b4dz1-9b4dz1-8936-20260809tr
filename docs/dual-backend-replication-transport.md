@@ -94,3 +94,10 @@ the migration, peer HMAC keys, endpoint health checks, and restore test have
 passed. Set it to `true` to enable the five-minute scheduled workflow, or use
 manual dispatch for an operator-controlled run. The workflow is gated off by
 default and does not run merely because the PR is opened.
+
+
+The relay distinguishes transient failures from permanent peer responses. Network
+errors, 5xx, 408, 425, 429, and 401 are retried with bounded exponential backoff;
+other 4xx responses, origin mismatches, and oversized local events are
+dead-lettered immediately. Both relay and projector report counts without
+including event payloads. Investigate terminal failures before replaying them.
