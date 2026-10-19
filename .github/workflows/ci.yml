@@ -220,7 +220,7 @@ jobs:
               RAISE EXCEPTION 'oversized event envelope was accepted';
             EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
             END;
-          END
+          END;
           $contract$;
           SQL
       - name: Stop isolated PostgreSQL
