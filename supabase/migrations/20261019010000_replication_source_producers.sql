@@ -119,12 +119,15 @@ BEGIN
     was_public := old_row->>'visibility' = 'public'
       AND nullif(old_row->>'community_id', '') IS NULL
       AND nullif(old_row->>'deleted_at', '') IS NULL
-      AND EXISTS (
-        SELECT 1 FROM public.profiles p
-        WHERE p.id::text = author_id
-          AND coalesce(p.account_status, 'active') = 'active'
-          AND coalesce(p.discoverable_by_username, TRUE)
-          AND NOT coalesce(p.protected_account, FALSE)
+      AND (
+        NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id::text = author_id)
+        OR EXISTS (
+          SELECT 1 FROM public.profiles p
+          WHERE p.id::text = author_id
+            AND coalesce(p.account_status, 'active') = 'active'
+            AND coalesce(p.discoverable_by_username, TRUE)
+            AND NOT coalesce(p.protected_account, FALSE)
+        )
       );
   END IF;
 
