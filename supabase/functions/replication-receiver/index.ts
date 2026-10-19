@@ -1,4 +1,4 @@
-import { isValidReplicationEvent, MAX_REPLICATION_BODY_BYTES } from "../_shared/replication-contract.ts";
+import { isValidReplicationEvent, isValidReplicationIdentity, MAX_REPLICATION_BODY_BYTES } from "../_shared/replication-contract.ts";
 
 const encoder = new TextEncoder();
 const MAX_BODY = MAX_REPLICATION_BODY_BYTES;
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("x-replication-origin") ?? "";
   const timestamp = req.headers.get("x-replication-timestamp") ?? "";
   const signature = (req.headers.get("x-replication-signature") ?? "").replace(/^sha256=/, "");
-  if (!IDENTITY.test(origin)) return jsonResponse(401, { error: "unauthorized_peer" });
+  if (!isValidReplicationIdentity(origin)) return jsonResponse(401, { error: "unauthorized_peer" });
 
   const peerKeysRaw = Deno.env.get("REPLICATION_PEER_KEYS_JSON") ?? "";
   let peerKeys: Record<string, string>;
