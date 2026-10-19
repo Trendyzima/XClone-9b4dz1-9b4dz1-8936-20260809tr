@@ -134,4 +134,116 @@ jobs:
             exit 1
           fi
 
+  replication-migration-postgres:
+    name: Replication migrations PostgreSQL integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start isolated PostgreSQL
+        run: |
+          docker run -d --rm --name xclone-replication-migration-ci \
+            -e POSTGRES_PASSWORD=ci-only-password \
+            -p 5432:5432 postgres:17-alpine
+      - name: Wait for PostgreSQL
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if docker exec xclone-replication-migration-ci pg_isready -U postgres >/dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          docker logs xclone-replication-migration-ci
+          exit 1
+      - name: Bootstrap Supabase roles and minimal source tables
+        run: |
+          set -euo pipefail
+          docker exec -i xclone-replication-migration-ci psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE service_role NOLOGIN;
+          CREATE TABLE public.profiles (
+            id UUID PRIMARY KEY,
+            account_status TEXT,
+            discoverable_by_username BOOLEAN,
+            protected_account BOOLEAN,
+            username TEXT,
+            display_name TEXT,
+            bio TEXT,
+            avatar_url TEXT
+          );
+          CREATE TABLE public.posts (
+            id UUID PRIMARY KEY,
+            author_id UUID,
+            user_id UUID,
+            content TEXT,
+            body TEXT,
+            visibility TEXT,
+            community_id UUID,
+            deleted_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+          );
+          SQL
+      - name: Apply both replication migrations
+        run: |
+          set -euo pipefail
+          docker exec -i xclone-replication-migration-ci psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261019000000_dual_backend_replication.sql
+          docker exec -i xclone-replication-migration-ci psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261019010000_replication_source_producers.sql
+      - name: Verify normalized secret rejection and public-only tombstones
+        run: |
+          set -euo pipefail
+          docker exec -i xclone-replication-migration-ci psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $ci$
+          BEGIN
+            IF NOT public.platform_replication_has_forbidden_key('{"accessToken":"secret"}'::jsonb)
+              OR NOT public.platform_replication_has_forbidden_key('{"meta":[{"serviceRoleKey":"secret"}]}'::jsonb)
+              OR NOT public.platform_replication_has_forbidden_key('{"private.key":"secret"}'::jsonb)
+              OR NOT public.platform_replication_has_forbidden_key('{"signedURL":"https://cdn.example/file"}'::jsonb) THEN
+              RAISE EXCEPTION 'sensitive key normalization failed';
+            END IF;
+          END $ci$;
+          INSERT INTO public.profiles
+            (id, account_status, discoverable_by_username, protected_account, username, display_name)
+          VALUES
+            ('123e4567-e89b-42d3-a456-426614174000', 'active', TRUE, FALSE, 'ci_public', 'CI Public'),
+            ('123e4567-e89b-42d3-a456-426614174002', 'active', TRUE, TRUE, 'ci_private', 'CI Private');
+          INSERT INTO public.posts(id, author_id, content, visibility)
+          VALUES ('123e4567-e89b-42d3-a456-426614174001',
+                  '123e4567-e89b-42d3-a456-426614174000', 'public integration post', 'public');
+          DO $ci$
+          BEGIN
+            IF (SELECT count(*) FROM public.platform_replication_outbox) <> 2 THEN
+              RAISE EXCEPTION 'only public profile and post events should be emitted';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.platform_replication_outbox
+              WHERE entity_id='123e4567-e89b-42d3-a456-426614174002'
+            ) THEN
+              RAISE EXCEPTION 'protected profile must not be projected';
+            END IF;
+          END $ci$;
+          UPDATE public.profiles SET protected_account=TRUE
+          WHERE id='123e4567-e89b-42d3-a456-426614174000';
+          DO $ci$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM public.platform_replication_outbox
+              WHERE entity_type='account' AND event_type='account.profile.deleted'
+                AND entity_id='123e4567-e89b-42d3-a456-426614174000' AND payload='{}'::jsonb
+            ) THEN
+              RAISE EXCEPTION 'protecting an account must emit a profile tombstone';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM public.platform_replication_outbox
+              WHERE entity_type='post' AND event_type='post.deleted'
+                AND entity_id='123e4567-e89b-42d3-a456-426614174001' AND payload='{}'::jsonb
+            ) THEN
+              RAISE EXCEPTION 'protecting an account must tombstone its public posts';
+            END IF;
+          END $ci$;
+          SQL
+      - name: Stop isolated PostgreSQL
+        if: always()
+        run: docker stop xclone-replication-migration-ci || true
+
 # Verification trigger: run the canonical gate against the committed tree only.
