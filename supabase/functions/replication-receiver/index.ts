@@ -113,7 +113,12 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceKey) return jsonResponse(503, { error: "replication_storage_not_configured" });
-  const digest = await crypto.subtle.digest("SHA-256", event.payload ? encoder.encode(JSON.stringify(event.payload)) : bodyBuffer);
+  const canonicalEvent = {
+    id: event.id, origin: event.origin, entity_type: event.entity_type, entity_id: event.entity_id,
+    entity_version: event.entity_version, schema_version: event.schema_version,
+    event_type: event.event_type, occurred_at: event.occurred_at, payload: event.payload,
+  };
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(JSON.stringify(canonicalEvent)));
   const hashHex = [...new Uint8Array(digest)].map((v) => v.toString(16).padStart(2, "0")).join("");
   const record = {
     event_id: event.id, origin: event.origin, entity_type: event.entity_type,
