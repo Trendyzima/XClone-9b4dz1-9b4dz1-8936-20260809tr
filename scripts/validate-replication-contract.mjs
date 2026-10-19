@@ -48,7 +48,7 @@ function validate(event) {
     if (!value || typeof value !== 'object') return false;
     return Object.entries(value).some(([key, child]) => {
       const normalized = normalizeKey(key);
-      if (forbidden.has(normalized)) return true;
+      if ([...forbidden].some((fragment) => normalized.includes(fragment))) return true;
       if (normalized.endsWith('_url') && typeof child === 'string' &&
         (child.includes('?') || child.includes('#') || /:\/\/[^/]*@/.test(child))) return true;
       return hasSecret(child);
@@ -102,6 +102,7 @@ for (const forbiddenKey of [
   'email', 'phone', 'password_hash', 'private_key', 'api_key',
   'accessToken', 'refresh-token', 'PasswordHash', 'private.key',
   'serviceRoleKey', 'signedURL', 'presigned-url', 'phone number',
+  'providerCredentials', 'customerEmail', 'jwtToken',
 ]) {
   assert.equal(
     validate({ ...valid, payload: { [forbiddenKey]: 'should-not-cross-backends' } }),
