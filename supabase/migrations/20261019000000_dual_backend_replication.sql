@@ -182,10 +182,10 @@ BEGIN
       is_deleted := lower(item.event_type) LIKE '%.deleted'
                     OR lower(item.event_type) LIKE '%.tombstoned';
       IF item.entity_type NOT IN ('account', 'post', 'media') THEN
-        RAISE EXCEPTION 'unsupported_entity_type';
+        RAISE EXCEPTION 'unsupported_entity_type' USING ERRCODE = '22023';
       END IF;
       IF NOT is_deleted AND (jsonb_typeof(data) <> 'object' OR data IS NULL) THEN
-        RAISE EXCEPTION 'invalid_projection_payload';
+        RAISE EXCEPTION 'invalid_projection_payload' USING ERRCODE = '22023';
       END IF;
 
       IF item.entity_type = 'account' THEN
@@ -200,14 +200,14 @@ BEGIN
         FOR key_name IN SELECT jsonb_object_keys(data)
         LOOP
           IF NOT key_name = ANY(allowed_keys) THEN
-            RAISE EXCEPTION 'projection_field_not_allowed';
+            RAISE EXCEPTION 'projection_field_not_allowed' USING ERRCODE = '22023';
           END IF;
         END LOOP;
         IF data ? 'id' AND data->>'id' <> item.entity_id THEN
-          RAISE EXCEPTION 'projection_id_mismatch';
+          RAISE EXCEPTION 'projection_id_mismatch' USING ERRCODE = '22023';
         END IF;
         IF item.entity_type = 'post' AND data->>'visibility' IS DISTINCT FROM 'public' THEN
-          RAISE EXCEPTION 'only_public_posts_can_be_projected';
+          RAISE EXCEPTION 'only_public_posts_can_be_projected' USING ERRCODE = '22023';
         END IF;
         IF item.entity_type = 'media' AND (
           data->>'visibility' IS DISTINCT FROM 'public'
@@ -215,7 +215,7 @@ BEGIN
           OR NOT (data ? 'content_type')
           OR NOT (data ? 'checksum_sha256')
         ) THEN
-          RAISE EXCEPTION 'public_media_metadata_incomplete';
+          RAISE EXCEPTION 'public_media_metadata_incomplete' USING ERRCODE = '22023';
         END IF;
       ELSE
         data := '{}'::jsonb;
@@ -265,10 +265,13 @@ BEGIN
       SET applied_at=now(), outcome='applied', error_code=NULL
       WHERE event_id=item.event_id;
       applied_count := applied_count + 1;
-    EXCEPTION WHEN OTHERS THEN
+    EXCEPTION WHEN SQLSTATE '22023' THEN
       UPDATE public.platform_replication_inbox
-      SET outcome='retry', attempts=attempts+1,
-          error_code=CASE WHEN SQLSTATE = 'P0001' THEN 'projection_rejected' ELSE 'projection_failed' END,
+      SET outcome='rejected', applied_at=now(), error_code='projection_rejected'
+      WHERE event_id=item.event_id;
+    WHEN OTHERS THEN
+      UPDATE public.platform_replication_inbox
+      SET outcome='retry', attempts=attempts+1, error_code='projection_failed',
           available_at=now() + LEAST(3600, (5 * power(2, LEAST(attempts, 10)))::INTEGER) * interval '1 second'
       WHERE event_id=item.event_id;
     END;
