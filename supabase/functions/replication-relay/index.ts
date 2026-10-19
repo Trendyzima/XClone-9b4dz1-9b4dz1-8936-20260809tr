@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     return new Response("replication not configured", { status: 503 });
   }
 
-  const claimed = await rpc(supabaseUrl, serviceKey, "claim_platform_replication_outbox", { p_limit: 20, p_lease_seconds: 300 });
+  const claimed = await rpc(supabaseUrl, serviceKey, "claim_platform_replication_outbox", { p_limit: 5, p_lease_seconds: 300 });
   if (!claimed.ok) return new Response("outbox unavailable", { status: 503 });
   const events = await claimed.json().catch(() => null);
   if (!Array.isArray(events)) return new Response("invalid outbox response", { status: 503 });
