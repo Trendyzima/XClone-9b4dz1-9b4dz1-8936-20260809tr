@@ -22,6 +22,10 @@ export type ReplicationEventV1 = {
   payload: Record<string, unknown>;
 };
 
+export function isValidReplicationIdentity(value: string): boolean {
+  return IDENTITY.test(value);
+}
+
 function normalizeKey(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
