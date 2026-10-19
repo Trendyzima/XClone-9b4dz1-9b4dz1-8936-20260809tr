@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
 
   let delivered = 0;
   let retried = 0;
+  let failed = 0;
   for (const row of events) {
     const event = {
       id: row.event_id,
@@ -64,13 +65,13 @@ Deno.serve(async (req) => {
     };
     if (event.origin !== localOrigin) {
       await rpc(supabaseUrl, serviceKey, "fail_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "origin_mismatch" }).catch(() => null);
-      retried++;
+      failed++;
       continue;
     }
     const body = JSON.stringify(event);
     if (encoder.encode(body).byteLength > 1_048_576) {
       await rpc(supabaseUrl, serviceKey, "fail_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "event_too_large" }).catch(() => null);
-      retried++;
+      failed++;
       continue;
     }
     const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -105,11 +106,12 @@ Deno.serve(async (req) => {
       await rpc(supabaseUrl, serviceKey, operation, {
         p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: code,
       }).catch(() => null);
-      retried++;
+      if (permanent) failed++;
+      else retried++;
     }
   }
 
-  return new Response(JSON.stringify({ claimed: events.length, delivered, retried }), {
+  return new Response(JSON.stringify({ claimed: events.length, delivered, retried, failed }), {
     status: 200,
     headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
