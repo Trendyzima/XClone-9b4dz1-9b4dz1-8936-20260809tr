@@ -442,6 +442,11 @@ jobs:
             done
           }
 
+          # Identity provisioning is a runtime dependency of mastodon-federation WebFinger
+          # and actor resolution. Deploy it first so a new federation handler never calls a
+          # stale/missing keygen revision during production reconciliation.
+          deploy_function activitypub-keygen "--no-verify-jwt"
+
           # Canonical public ActivityPub surface. These functions are intentionally
           # reconciled here because Cloudflare only proxies to them; a green Worker
           # deployment is not sufficient if the Supabase federation functions are stale.
