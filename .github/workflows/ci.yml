@@ -182,6 +182,20 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'valid public projection was rejected';
             END IF;
+            PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+              'id','018f1f3a-7b2c-7abc-8def-0123456789ab',
+              'origin','xclone','entity_type','post','entity_id','post:valid-contract',
+              'entity_version',1,'schema_version',1,'event_type','post.created',
+              'occurred_at','2026-10-19T00:00:00Z',
+              'payload',jsonb_build_object('id','post:valid-contract','text','hello','visibility','public')
+            ));
+            IF NOT EXISTS (
+              SELECT 1 FROM public.platform_replication_outbox
+              WHERE event_id='018f1f3a-7b2c-7abc-8def-0123456789ab'::uuid
+                AND entity_type='post' AND event_type='post.created'
+            ) THEN
+              RAISE EXCEPTION 'valid v1 event was not enqueued';
+            END IF;
             -- Version 1 is the only negotiated schema until an explicit v2 rollout.
             BEGIN
               PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
