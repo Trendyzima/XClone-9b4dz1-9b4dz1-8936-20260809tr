@@ -40,6 +40,9 @@ jobs:
             --output /tmp/replication-relay.json \
             "${SUPABASE_FUNCTIONS_URL%/}/replication-relay"
           cat /tmp/replication-relay.json
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("/tmp/replication-relay.json","utf8")); if (typeof r.failed !== "number") process.exit(2); if (r.failed > 0) { console.error("Permanent replication failures detected:", r.failed); process.exit(1); }'
+          echo "### Replication relay" >> "$GITHUB_STEP_SUMMARY"
+          echo "Result: $(cat /tmp/replication-relay.json)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Project accepted inbox events
         shell: bash
