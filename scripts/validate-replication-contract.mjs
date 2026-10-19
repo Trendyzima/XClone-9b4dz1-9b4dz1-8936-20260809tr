@@ -13,6 +13,20 @@ assert.ok(migrationCommitOffset >= 0, 'replication migration must terminate with
 assert.equal(migration.slice(migrationCommitOffset + '\nCOMMIT;'.length).trim(), '', 'no SQL may remain after the transaction terminator');
 assert.ok(migration.includes('SELECT count(*) INTO event_field_count FROM jsonb_object_keys(p_event)'), 'event envelope field count must use supported JSONB functions');
 
+assert.ok(
+  migration.includes('tombstoned = public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned'),
+  'a tombstone must remain terminal when newer events are applied',
+);
+assert.ok(
+  migration.includes('AND (NOT public.platform_replication_entity_versions.tombstoned OR EXCLUDED.tombstoned)'),
+  'non-delete events must not resurrect a tombstoned entity',
+);
+assert.ok(
+  producerMigration.includes("IF was_public AND NOT is_public THEN"),
+  'public-to-private profile transitions must emit a tombstone',
+);
+
+
 const required = ['id', 'origin', 'entity_type', 'entity_id', 'entity_version', 'schema_version', 'event_type', 'occurred_at', 'payload'];
 assert.equal(schema.type, 'object');
 assert.equal(schema.additionalProperties, false);
