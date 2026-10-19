@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   relay-and-project:
-    if: ${{ vars.REPLICATION_WORKERS_ENABLED == 'true' }}
+    if: ${{ github.ref == 'refs/heads/main' && vars.REPLICATION_WORKERS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     env:
