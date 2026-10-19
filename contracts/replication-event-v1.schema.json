@@ -11,7 +11,7 @@
     "entity_type": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
     "entity_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
     "entity_version": {"type": "integer", "minimum": 1},
-    "schema_version": {"type": "integer", "minimum": 1},
+    "schema_version": {"type": "integer", "const": 1},
     "event_type": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
     "occurred_at": {"type": "string", "format": "date-time"},
     "payload": {"type": "object"}

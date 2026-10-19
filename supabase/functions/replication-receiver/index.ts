@@ -1,12 +1,7 @@
+import { isValidReplicationEvent, isValidReplicationIdentity, MAX_REPLICATION_BODY_BYTES } from "../_shared/replication-contract.ts";
+
 const encoder = new TextEncoder();
-const MAX_BODY = 1_048_576;
-const IDENTITY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const FORBIDDEN = new Set([
-  "authorization", "access_token", "refresh_token", "service_role_key",
-  "secret_key", "private_key", "password", "password_hash", "email", "phone",
-  "cookie", "session", "api_key", "signed_url", "presigned_url", "upload_url",
-]);
+const MAX_BODY = MAX_REPLICATION_BODY_BYTES;
 
 function jsonResponse(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), {
@@ -14,19 +9,6 @@ function jsonResponse(status: number, body: Record<string, unknown>): Response {
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" },
   });
 }
-
-function hasSensitiveKey(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(hasSensitiveKey);
-  if (!value || typeof value !== "object") return false;
-  return Object.entries(value as Record<string, unknown>).some(([key, child]) => {
-    const normalized = key.toLowerCase().replace(/[- ]/g, "_");
-    if (FORBIDDEN.has(normalized)) return true;
-    if (normalized.endsWith("_url") && typeof child === "string" &&
-      (child.includes("?") || child.includes("#") || /:\/\/[^/]*@/.test(child))) return true;
-    return hasSensitiveKey(child);
-  });
-}
-
 
 async function readBoundedBody(req: Request, limit: number): Promise<Uint8Array> {
   if (!req.body) throw new Error("empty_body");
@@ -53,20 +35,6 @@ async function readBoundedBody(req: Request, limit: number): Promise<Uint8Array>
   return body;
 }
 
-function validEvent(event: any): boolean {
-  const keys = ["id", "origin", "entity_type", "entity_id", "entity_version", "schema_version", "event_type", "occurred_at", "payload"];
-  if (!event || typeof event !== "object" || Array.isArray(event)) return false;
-  if (Object.keys(event).some((key) => !keys.includes(key)) || keys.some((key) => !(key in event))) return false;
-  if (typeof event.id !== "string" || !UUID.test(event.id)) return false;
-  if (!["origin", "entity_type", "entity_id", "event_type"].every((key) => typeof event[key] === "string" && IDENTITY.test(event[key]))) return false;
-  if (!Number.isSafeInteger(event.entity_version) || event.entity_version < 1) return false;
-  if (!Number.isSafeInteger(event.schema_version) || event.schema_version < 1) return false;
-  if (typeof event.occurred_at !== "string" || !Number.isFinite(Date.parse(event.occurred_at))) return false;
-  if (!event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) return false;
-  if (encoder.encode(JSON.stringify(event.payload)).byteLength > MAX_BODY || hasSensitiveKey(event.payload)) return false;
-  return true;
-}
-
 async function hmacHex(secret: string, timestamp: string, body: Uint8Array): Promise<string> {
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const prefix = encoder.encode(timestamp + ".");
@@ -90,7 +58,7 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("x-replication-origin") ?? "";
   const timestamp = req.headers.get("x-replication-timestamp") ?? "";
   const signature = (req.headers.get("x-replication-signature") ?? "").replace(/^sha256=/, "");
-  if (!IDENTITY.test(origin)) return jsonResponse(401, { error: "unauthorized_peer" });
+  if (!isValidReplicationIdentity(origin)) return jsonResponse(401, { error: "unauthorized_peer" });
 
   const peerKeysRaw = Deno.env.get("REPLICATION_PEER_KEYS_JSON") ?? "";
   let peerKeys: Record<string, string>;
@@ -99,7 +67,7 @@ Deno.serve(async (req) => {
   if (typeof secret !== "string" || encoder.encode(secret).byteLength < 32) return jsonResponse(401, { error: "unauthorized_peer" });
 
   const timestampNumber = Number(timestamp);
-  if (!/^\d{10}$/.test(timestamp) || !Number.isSafeInteger(timestampNumber) || Math.abs(Date.now() / 1000 - timestampNumber) > 300) {
+  if (!/^\d{10,11}$/.test(timestamp) || !Number.isSafeInteger(timestampNumber) || Math.abs(Date.now() / 1000 - timestampNumber) > 300) {
     return jsonResponse(401, { error: "invalid_timestamp" });
   }
   let bodyBuffer: Uint8Array;
@@ -112,7 +80,7 @@ Deno.serve(async (req) => {
 
   let event: any;
   try { event = JSON.parse(new TextDecoder().decode(bodyBuffer)); } catch { return jsonResponse(400, { error: "invalid_json" }); }
-  if (!validEvent(event)) return jsonResponse(400, { error: "invalid_event" });
+  if (!isValidReplicationEvent(event)) return jsonResponse(400, { error: "invalid_event" });
   if (event.origin !== origin) return jsonResponse(403, { error: "origin_mismatch" });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";

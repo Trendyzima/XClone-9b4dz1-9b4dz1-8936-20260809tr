@@ -1,3 +1,5 @@
+import { isValidReplicationEvent, MAX_REPLICATION_BODY_BYTES } from "../_shared/replication-contract.ts";
+
 const encoder = new TextEncoder();
 
 function constantTimeEqual(a: string, b: string): boolean {
@@ -63,13 +65,18 @@ Deno.serve(async (req) => {
       occurred_at: row.occurred_at,
       payload: row.payload,
     };
+    if (!isValidReplicationEvent(event)) {
+      await rpc(supabaseUrl, serviceKey, "fail_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "invalid_event" }).catch(() => null);
+      failed++;
+      continue;
+    }
     if (event.origin !== localOrigin) {
       await rpc(supabaseUrl, serviceKey, "fail_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "origin_mismatch" }).catch(() => null);
       failed++;
       continue;
     }
     const body = JSON.stringify(event);
-    if (encoder.encode(body).byteLength > 1_048_576) {
+    if (encoder.encode(body).byteLength > MAX_REPLICATION_BODY_BYTES) {
       await rpc(supabaseUrl, serviceKey, "fail_platform_replication_event", { p_event_id: row.event_id, p_lease_token: row.lease_token, p_error_code: "event_too_large" }).catch(() => null);
       failed++;
       continue;

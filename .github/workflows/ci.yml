@@ -49,6 +49,7 @@ jobs:
       - run: npm run validate:fediverse-profile
       - run: npm run validate:home-feed-identity
       - run: npm run validate:fediverse-edge
+      - run: npm run validate:replication-contract
       - run: npm run validate:routes
       - run: npm run build
 
@@ -69,6 +70,8 @@ jobs:
           deno check --no-config supabase/functions/media-delivery/index.ts
           deno check --no-config supabase/functions/zenad-decision/index.ts
           deno check --no-config supabase/functions/zenad-event/index.ts
+          deno check --no-config supabase/functions/replication-receiver/index.ts
+          deno check --no-config supabase/functions/replication-relay/index.ts
 
   android-tv:
     name: Build and verify XClone TV APK
@@ -110,3 +113,151 @@ jobs:
           path: android-tv/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+  replication-contract-integration:
+    name: Replication contract PostgreSQL integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start isolated PostgreSQL
+        run: |
+          docker run -d --rm --name xclone-replication-contract-ci \
+            -e POSTGRES_PASSWORD=ci-only-password \
+            -p 5432:5432 postgres:17-alpine
+      - name: Wait for PostgreSQL
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            echo "Waiting for PostgreSQL (attempt ${attempt}/30)"
+            if docker exec xclone-replication-contract-ci pg_isready -U postgres >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs xclone-replication-contract-ci
+          exit 1
+      - name: Apply replication schema and parity migration
+        run: |
+          set -euo pipefail
+          docker exec -i xclone-replication-contract-ci psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE service_role NOLOGIN;
+          SQL
+          docker exec -i xclone-replication-contract-ci psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261019000000_dual_backend_replication.sql
+          docker exec -i xclone-replication-contract-ci psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261019020000_replication_sensitive_key_parity.sql
+      - name: Verify peer-compatible sensitive key rejection
+        run: |
+          set -euo pipefail
+          docker exec -i xclone-replication-contract-ci psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $contract$
+          DECLARE
+            key_name TEXT;
+            size_text TEXT;
+            entity_id_value TEXT;
+            forbidden_keys TEXT[] := ARRAY[
+              'email', 'email_address', 'phone', 'phone_number', 'password_hash',
+              'private_key', 'api_key', 'accessToken', 'refresh-token', 'PasswordHash',
+              'private.key', 'serviceRoleKey', 'serviceRole', 'signedURL', 'presigned-url',
+              'phone number', 'providerCredentials', 'customerEmail', 'jwtToken',
+              'jwt', 'bearer', 'passwd'
+            ];
+          BEGIN
+            FOREACH key_name IN ARRAY forbidden_keys LOOP
+              IF NOT public.platform_replication_has_forbidden_key(jsonb_build_object(key_name, 'must-not-cross')) THEN
+                RAISE EXCEPTION 'sensitive key variant was accepted: %', key_name;
+              END IF;
+            END LOOP;
+            IF NOT public.platform_replication_has_forbidden_key(
+              '{"metadata":[{"nestedSecret":{"serviceRoleKey":"never-export"}}]}'::jsonb
+            ) THEN
+              RAISE EXCEPTION 'nested sensitive key was accepted';
+            END IF;
+            IF NOT public.platform_replication_has_forbidden_key(
+              '{"avatar_url":"https://cdn.example/avatar?token=secret"}'::jsonb
+            ) THEN
+              RAISE EXCEPTION 'signed URL-valued field was accepted';
+            END IF;
+            IF public.platform_replication_has_forbidden_key(
+              '{"username":"public_user","avatar_url":"https://cdn.example/avatar.png","visibility":"public"}'::jsonb
+            ) THEN
+              RAISE EXCEPTION 'valid public projection was rejected';
+            END IF;
+            PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+              'id','018f1f3a-7b2c-7abc-8def-0123456789ab',
+              'origin','xclone','entity_type','post','entity_id','post:valid-contract',
+              'entity_version',1,'schema_version',1,'event_type','post.created',
+              'occurred_at','2026-10-19T00:00:00Z',
+              'payload',jsonb_build_object('id','post:valid-contract','text','hello','visibility','public')
+            ));
+            IF NOT EXISTS (
+              SELECT 1 FROM public.platform_replication_outbox
+              WHERE event_id='018f1f3a-7b2c-7abc-8def-0123456789ab'::uuid
+                AND entity_type='post' AND event_type='post.created'
+            ) THEN
+              RAISE EXCEPTION 'valid v1 event was not enqueued';
+            END IF;
+            -- Version 1 is the only negotiated schema until an explicit v2 rollout.
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789ac',
+                'origin','xclone','entity_type','post','entity_id','post:bad-schema',
+                'entity_version',1,'schema_version',2,'event_type','post.created',
+                'occurred_at','2026-10-19T00:00:00Z','payload',jsonb_build_object('text','no')
+              ));
+              RAISE EXCEPTION 'unsupported schema version was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789af',
+                'origin','xclone','entity_type','post','entity_id','post:bad-time',
+                'entity_version',1,'schema_version',1,'event_type','post.created',
+                'occurred_at','2026-10-19 00:00:00Z','payload',jsonb_build_object('text','no')
+              ));
+              RAISE EXCEPTION 'non-RFC3339 timestamp was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789ad',
+                'origin','xclone','entity_type','post','entity_id','post:bad-type',
+                'entity_version',1,'schema_version',1,'event_type','account.created',
+                'occurred_at','2026-10-19T00:00:00Z','payload',jsonb_build_object('text','no')
+              ));
+              RAISE EXCEPTION 'mismatched event type was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.enqueue_platform_replication_event(jsonb_build_object(
+                'id','018f1f3a-7b2c-7abc-8def-0123456789ae',
+                'origin','xclone','entity_type','post','entity_id','post:too-large',
+                'entity_version',1,'schema_version',1,'event_type','post.created',
+                'occurred_at','2026-10-19T00:00:00Z','payload',jsonb_build_object('blob',repeat('x',1048500))
+              ));
+              RAISE EXCEPTION 'oversized event envelope was accepted';
+            EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+            END;
+            -- Media projections use integral byte counts and a shared 500 MiB ceiling.
+            INSERT INTO public.platform_replication_projection
+              (origin,entity_type,entity_id,entity_version,schema_version,payload,tombstoned)
+            VALUES ('xclone','media','media:valid-size',1,1,
+              '{"id":"media:valid-size","size_bytes":2048,"visibility":"public"}'::jsonb,FALSE);
+            FOREACH size_text IN ARRAY ARRAY['2048.5','524288001'] LOOP
+              BEGIN
+                entity_id_value := 'media:bad-size-' || replace(size_text,'.','-');
+                INSERT INTO public.platform_replication_projection
+                  (origin,entity_type,entity_id,entity_version,schema_version,payload,tombstoned)
+                VALUES ('xclone','media',entity_id_value,1,1,
+                  jsonb_build_object('id',entity_id_value,'size_bytes',size_text,'visibility','public'),FALSE);
+                RAISE EXCEPTION 'invalid media size was accepted: %', size_text;
+              EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+              END;
+            END LOOP;
+          END;
+          $contract$;
+          SQL
+      - name: Stop isolated PostgreSQL
+        if: always()
+        run: docker stop xclone-replication-contract-ci || true
