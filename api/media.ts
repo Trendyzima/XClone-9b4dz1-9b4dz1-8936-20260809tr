@@ -162,13 +162,17 @@ export default async function handler(req: any, res: any) {
       }, requestId);
       if (!response.ok || !data?.ok) return json(res, response.status, { error: errorMessage(data, 'Unable to complete media upload') });
       const asset = data.data ?? {};
+      const publicURL = asset.visibility === 'public' ? resolvePublicMediaURL(asset.public_url, key) : null;
+      if (asset.visibility === 'public' && !publicURL) {
+        return json(res, 502, { error: 'Media backend returned an invalid public media URL.' });
+      }
       return json(res, response.status, {
         ...asset,
         media_id: key,
         object_key: key,
         size_bytes: asset.size_bytes,
         mime_type: asset.content_type ?? body.mime_type ?? body.content_type,
-        public_url: asset.visibility === 'public' ? resolvePublicMediaURL(asset.public_url, key) : null,
+        public_url: publicURL,
       });
     }
 
@@ -178,11 +182,15 @@ export default async function handler(req: any, res: any) {
       const { response, data } = await backendPost(origin, '/api/media/attach', authorization, { key, post_id: postId }, requestId);
       if (!response.ok || !data?.ok) return json(res, response.status, { error: errorMessage(data, 'Unable to attach media to post') });
       const asset = data.data ?? {};
+      const publicURL = asset.visibility === 'private' ? null : resolvePublicMediaURL(asset.public_url, key);
+      if (asset.visibility !== 'private' && !publicURL) {
+        return json(res, 502, { error: 'Media backend returned an invalid public media URL.' });
+      }
       return json(res, response.status, {
         ...asset,
         media_id: key,
         object_key: key,
-        public_url: asset.visibility === 'private' ? null : resolvePublicMediaURL(asset.public_url, key),
+        public_url: publicURL,
       });
     }
 
