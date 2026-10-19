@@ -4,6 +4,15 @@ import { readFileSync } from 'node:fs';
 const schema = JSON.parse(readFileSync(new URL('../contracts/replication-event-v1.schema.json', import.meta.url), 'utf8'));
 const migration = readFileSync(new URL('../supabase/migrations/20261019000000_dual_backend_replication.sql', import.meta.url), 'utf8');
 const producerMigration = readFileSync(new URL('../supabase/migrations/20261019010000_replication_source_producers.sql', import.meta.url), 'utf8');
+
+const migrationLines = migration.split(/\r?\n/);
+assert.equal(migrationLines.filter((line) => line.trim() === 'BEGIN;').length, 1, 'replication migration must have one transaction start');
+assert.equal(migrationLines.filter((line) => line.trim() === 'COMMIT;').length, 1, 'replication migration must have one transaction end');
+const migrationCommitOffset = migration.lastIndexOf('\nCOMMIT;');
+assert.ok(migrationCommitOffset >= 0, 'replication migration must terminate with COMMIT');
+assert.equal(migration.slice(migrationCommitOffset + '\nCOMMIT;'.length).trim(), '', 'no SQL may remain after the transaction terminator');
+assert.ok(migration.includes('SELECT count(*) INTO event_field_count FROM jsonb_object_keys(p_event)'), 'event envelope field count must use supported JSONB functions');
+
 const required = ['id', 'origin', 'entity_type', 'entity_id', 'entity_version', 'schema_version', 'event_type', 'occurred_at', 'payload'];
 assert.equal(schema.type, 'object');
 assert.equal(schema.additionalProperties, false);
