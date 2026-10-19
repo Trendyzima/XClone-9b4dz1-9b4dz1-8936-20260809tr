@@ -168,7 +168,7 @@ export default async function handler(req: any, res: any) {
         object_key: key,
         size_bytes: asset.size_bytes,
         mime_type: asset.content_type ?? body.mime_type ?? body.content_type,
-        public_url: asset.visibility === 'public' ? mediaUrl(key) : null,
+        public_url: asset.visibility === 'public' ? resolvePublicMediaURL(asset.public_url, key) : null,
       });
     }
 
@@ -182,7 +182,7 @@ export default async function handler(req: any, res: any) {
         ...asset,
         media_id: key,
         object_key: key,
-        public_url: asset.visibility === 'private' ? null : mediaUrl(key),
+        public_url: asset.visibility === 'private' ? null : resolvePublicMediaURL(asset.public_url, key),
       });
     }
 
