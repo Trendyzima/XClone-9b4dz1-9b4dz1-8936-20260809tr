@@ -38,11 +38,13 @@ function validate(event) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(event.id)) return false;
   const identity = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
   if (!['origin', 'entity_type', 'entity_id', 'event_type'].every((key) => typeof event[key] === 'string' && identity.test(event[key]))) return false;
+  if (!event.event_type.toLowerCase().startsWith(event.entity_type.toLowerCase() + '.')) return false;
   if (!Number.isSafeInteger(event.entity_version) || event.entity_version < 1) return false;
-  if (!Number.isSafeInteger(event.schema_version) || event.schema_version < 1) return false;
+  if (event.schema_version !== 1) return false;
   if (typeof event.occurred_at !== 'string' || Number.isNaN(Date.parse(event.occurred_at))) return false;
   if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return false;
   if (Buffer.byteLength(JSON.stringify(event.payload)) > 1_048_576) return false;
+  if (Buffer.byteLength(JSON.stringify(event)) > 1_048_576) return false;
   const forbidden = new Set([
     'authorization', 'access_token', 'refresh_token', 'token', 'bearer', 'jwt',
     'service_role', 'service_role_key', 'secret_key', 'secret', 'private_key', 'credential', 'credentials',
@@ -69,6 +71,9 @@ function validate(event) {
 
 assert.equal(validate(valid), true, 'valid event should pass');
 assert.equal(validate({ ...valid, entity_version: 0 }), false, 'non-positive entity version should fail');
+assert.equal(validate({ ...valid, schema_version: 2 }), false, 'unsupported schema version should fail');
+assert.equal(validate({ ...valid, event_type: 'account.created' }), false, 'event type must match entity type');
+assert.equal(validate({ ...valid, payload: { blob: 'x'.repeat(1_048_500) } }), false, 'oversized full envelope should fail');
 assert.equal(validate({ ...valid, unexpected: true }), false, 'unknown envelope fields should fail');
 assert.equal(validate({ ...valid, payload: { signed_url: 'https://example.invalid/?token=secret' } }), false, 'signed URLs must not be replicated');
 assert.equal(validate({ ...valid, payload: { avatar_url: 'https://cdn.example/avatar?token=secret' } }), false, 'signed URL-valued fields must not be replicated');
@@ -92,6 +97,10 @@ for (const requiredSQL of [
 }
 
 for (const requiredParitySQL of [
+  "IF octet_length(p_event::text) > 1048576 THEN",
+  "schema_version_value <> 1",
+  "left(lower(event_type_value), length(entity_type_value) + 1)",
+  "'bearer','jwt'",
   "'bearer','jwt'",
   "'password_hash','passwd','email','email_address'",
   "'private_key','service_role','service_role_key'",
