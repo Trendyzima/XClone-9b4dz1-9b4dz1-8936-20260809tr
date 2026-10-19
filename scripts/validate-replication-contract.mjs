@@ -55,6 +55,7 @@ for (const requiredSQL of [
   'failed_at TIMESTAMPTZ',
   'enqueue_platform_replication_event',
   'apply_platform_replication_pending',
+  'fail_platform_replication_event',
   'GRANT EXECUTE ON FUNCTION public.enqueue_platform_replication_event(JSONB) TO service_role',
   'GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role',
 ]) {
