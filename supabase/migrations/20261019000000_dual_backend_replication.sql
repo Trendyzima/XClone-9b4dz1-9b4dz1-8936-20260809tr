@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS platform_replication_entity_versions (
 -- These queues are internal control-plane data, never browser-accessible.
 REVOKE ALL ON platform_replication_outbox, platform_replication_inbox, platform_replication_entity_versions FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON platform_replication_outbox, platform_replication_inbox TO service_role;
+GRANT SELECT, INSERT, UPDATE ON platform_replication_entity_versions TO service_role;
 
 
 -- Relay functions use bounded claims and short leases so overlapping invocations
