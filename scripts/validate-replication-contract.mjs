@@ -12,6 +12,12 @@ assert.equal(migrationLines.filter((line) => line.trim() === 'COMMIT;').length, 
 const migrationCommitOffset = migration.lastIndexOf('\nCOMMIT;');
 assert.ok(migrationCommitOffset >= 0, 'replication migration must terminate with COMMIT');
 assert.equal(migration.slice(migrationCommitOffset + '\nCOMMIT;'.length).trim(), '', 'no SQL may remain after the transaction terminator');
+const parityMigrationLines = parityMigration.split(/\r?\n/);
+assert.equal(parityMigrationLines.filter((line) => line.trim() === 'BEGIN;').length, 1, 'parity migration must have one transaction start');
+assert.equal(parityMigrationLines.filter((line) => line.trim() === 'COMMIT;').length, 1, 'parity migration must have one transaction end');
+const parityCommitOffset = parityMigration.lastIndexOf('\nCOMMIT;');
+assert.ok(parityCommitOffset >= 0, 'parity migration must terminate with COMMIT');
+assert.equal(parityMigration.slice(parityCommitOffset + '\nCOMMIT;'.length).trim(), '', 'no SQL may remain after the parity transaction terminator');
 assert.ok(migration.includes('SELECT count(*) INTO event_field_count FROM jsonb_object_keys(p_event)'), 'event envelope field count must use supported JSONB functions');
 
 const required = ['id', 'origin', 'entity_type', 'entity_id', 'entity_version', 'schema_version', 'event_type', 'occurred_at', 'payload'];
