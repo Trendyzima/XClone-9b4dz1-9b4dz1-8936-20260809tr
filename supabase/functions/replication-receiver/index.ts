@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
   if (typeof secret !== "string" || encoder.encode(secret).byteLength < 32) return jsonResponse(401, { error: "unauthorized_peer" });
 
   const timestampNumber = Number(timestamp);
-  if (!/^\d{10}$/.test(timestamp) || !Number.isSafeInteger(timestampNumber) || Math.abs(Date.now() / 1000 - timestampNumber) > 300) {
+  if (!/^\d{10,11}$/.test(timestamp) || !Number.isSafeInteger(timestampNumber) || Math.abs(Date.now() / 1000 - timestampNumber) > 300) {
     return jsonResponse(401, { error: "invalid_timestamp" });
   }
   let bodyBuffer: Uint8Array;
