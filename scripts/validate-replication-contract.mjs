@@ -37,7 +37,13 @@ function validate(event) {
   const hasSecret = (value) => {
     if (Array.isArray(value)) return value.some(hasSecret);
     if (!value || typeof value !== 'object') return false;
-    return Object.entries(value).some(([key, child]) => forbidden.has(key.toLowerCase().replace(/[- ]/g, '_')) || hasSecret(child));
+    return Object.entries(value).some(([key, child]) => {
+      const normalized = key.toLowerCase().replace(/[- ]/g, '_');
+      if (forbidden.has(normalized)) return true;
+      if (normalized.endsWith('_url') && typeof child === 'string' &&
+        (child.includes('?') || child.includes('#') || /:\/\/[^/]*@/.test(child))) return true;
+      return hasSecret(child);
+    });
   };
   return !hasSecret(event.payload);
 }
@@ -46,6 +52,7 @@ assert.equal(validate(valid), true, 'valid event should pass');
 assert.equal(validate({ ...valid, entity_version: 0 }), false, 'non-positive entity version should fail');
 assert.equal(validate({ ...valid, unexpected: true }), false, 'unknown envelope fields should fail');
 assert.equal(validate({ ...valid, payload: { signed_url: 'https://example.invalid/?token=secret' } }), false, 'signed URLs must not be replicated');
+assert.equal(validate({ ...valid, payload: { avatar_url: 'https://cdn.example/avatar?token=secret' } }), false, 'signed URL-valued fields must not be replicated');
 
 for (const requiredSQL of [
   'platform_replication_outbox',
