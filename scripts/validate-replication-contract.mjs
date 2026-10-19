@@ -132,6 +132,7 @@ for (const requiredParitySQL of [
   "CREATE OR REPLACE FUNCTION public.platform_replication_has_forbidden_key(p_value JSONB)",
   "CREATE OR REPLACE FUNCTION public.enforce_replication_media_size_limit()",
   "size_text::BIGINT > 524288000",
+  "GRANT EXECUTE ON FUNCTION public.enforce_replication_media_size_limit() TO service_role",
 ]) {
   assert.ok(parityMigration.includes(requiredParitySQL), `replication parity migration is missing: ${requiredParitySQL}`);
 }
