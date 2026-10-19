@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs';
 const schema = JSON.parse(readFileSync(new URL('../contracts/replication-event-v1.schema.json', import.meta.url), 'utf8'));
 const migration = readFileSync(new URL('../supabase/migrations/20261019000000_dual_backend_replication.sql', import.meta.url), 'utf8');
 const producerMigration = readFileSync(new URL('../supabase/migrations/20261019010000_replication_source_producers.sql', import.meta.url), 'utf8');
+const sharedContract = readFileSync(new URL('../supabase/functions/_shared/replication-contract.ts', import.meta.url), 'utf8');
+const receiverSource = readFileSync(new URL('../supabase/functions/replication-receiver/index.ts', import.meta.url), 'utf8');
+const relaySource = readFileSync(new URL('../supabase/functions/replication-relay/index.ts', import.meta.url), 'utf8');
 const parityMigration = readFileSync(new URL('../supabase/migrations/20261019020000_replication_sensitive_key_parity.sql', import.meta.url), 'utf8');
 
 const migrationLines = migration.split(/\r?\n/);
@@ -105,6 +108,19 @@ for (const requiredSQL of [
 ]) {
   assert.ok(migration.includes(requiredSQL), `replication migration is missing: ${requiredSQL}`);
 }
+
+for (const requiredSharedContract of [
+  'MAX_REPLICATION_BODY_BYTES = 1_048_576',
+  'event.schema_version !== 1',
+  'eventType.toLowerCase().startsWith(entityType.toLowerCase() + ".")',
+  'RFC3339',
+  'FORBIDDEN_FRAGMENTS',
+  'normalized.endsWith("_url")',
+]) {
+  assert.ok(sharedContract.includes(requiredSharedContract), `shared replication contract is missing: ${requiredSharedContract}`);
+}
+assert.ok(receiverSource.includes('isValidReplicationEvent(event)'), 'receiver must use shared event validation');
+assert.ok(relaySource.includes('isValidReplicationEvent(event)'), 'relay must use shared event validation');
 
 for (const requiredParitySQL of [
   "IF octet_length(p_event::text) > 1048576 THEN",
