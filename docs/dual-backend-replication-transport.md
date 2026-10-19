@@ -75,3 +75,22 @@ live product replication until each supported mutation RPC (account profile,
 public post, public media metadata, and deletion) calls it in the same
 transaction, and integration tests prove that a failed business transaction
 cannot leave an outbox event behind.
+
+
+## Scheduled worker wiring
+
+The repository includes `.github/workflows/replication-workers.yml`. After merging
+the workflow, configure repository secrets:
+
+- `SUPABASE_FUNCTIONS_URL`: the project functions base URL ending in
+  `/functions/v1`.
+- `REPLICATION_RELAY_TOKEN`: at least 32 random bytes, matching the relay
+  function secret.
+- `REPLICATION_PROJECTOR_TOKEN`: a separate token matching the projector
+  function secret.
+
+Keep repository variable `REPLICATION_WORKERS_ENABLED` unset or `false` until
+the migration, peer HMAC keys, endpoint health checks, and restore test have
+passed. Set it to `true` to enable the five-minute scheduled workflow, or use
+manual dispatch for an operator-controlled run. The workflow is gated off by
+default and does not run merely because the PR is opened.
