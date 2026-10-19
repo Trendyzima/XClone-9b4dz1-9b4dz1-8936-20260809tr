@@ -201,7 +201,7 @@ BEGIN
     LOOP
       IF lower(replace(replace(key_name, '-', '_'), ' ', '_')) = ANY(forbidden)
          OR (
-           lower(replace(replace(key_name, '-', '_'), ' ', '_')) LIKE '%\_url' ESCAPE '\'
+           right(lower(replace(replace(key_name, '-', '_'), ' ', '_')), 4) = '_url'
            AND jsonb_typeof(child) = 'string'
            AND (
              position('?' in child #>> '{}') > 0
