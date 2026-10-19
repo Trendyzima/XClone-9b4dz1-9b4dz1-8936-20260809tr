@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS platform_replication_inbox (
     UNIQUE (origin, entity_type, entity_id, entity_version)
 );
 CREATE INDEX IF NOT EXISTS platform_replication_inbox_pending_idx
-  ON platform_replication_inbox (received_at)
+  ON platform_replication_inbox (available_at, received_at)
   WHERE applied_at IS NULL AND outcome IN ('received', 'retry');
 
 -- These queues are internal control-plane data, never browser-accessible.
