@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const schema = JSON.parse(readFileSync(new URL('../contracts/replication-event-v1.schema.json', import.meta.url), 'utf8'));
 const migration = readFileSync(new URL('../supabase/migrations/20261019000000_dual_backend_replication.sql', import.meta.url), 'utf8');
+const producerMigration = readFileSync(new URL('../supabase/migrations/20261019010000_replication_source_producers.sql', import.meta.url), 'utf8');
 const required = ['id', 'origin', 'entity_type', 'entity_id', 'entity_version', 'schema_version', 'event_type', 'occurred_at', 'payload'];
 assert.equal(schema.type, 'object');
 assert.equal(schema.additionalProperties, false);
@@ -60,6 +61,20 @@ for (const requiredSQL of [
   'GRANT EXECUTE ON FUNCTION public.apply_platform_replication_pending(INTEGER) TO service_role',
 ]) {
   assert.ok(migration.includes(requiredSQL), `replication migration is missing: ${requiredSQL}`);
+}
+
+for (const requiredProducerSQL of [
+  'platform_replication_source_versions',
+  'replicate_public_post_after_write',
+  'replicate_public_profile_after_write',
+  'seed_platform_replication_public_snapshot',
+  'enqueue_public_post_replication_event',
+  'enqueue_public_profile_replication_event',
+  'public.enqueue_platform_replication_event',
+  'AFTER INSERT OR UPDATE OR DELETE ON public.posts',
+  'AFTER INSERT OR UPDATE OR DELETE ON public.profiles',
+]) {
+  assert.ok(producerMigration.includes(requiredProducerSQL), `source producer migration is missing: ${requiredProducerSQL}`);
 }
 
 for (const forbiddenKey of ['email', 'phone', 'password_hash', 'private_key', 'api_key']) {
