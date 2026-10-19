@@ -17,6 +17,7 @@ assert.ok(migration.includes('SELECT count(*) INTO event_field_count FROM jsonb_
 const required = ['id', 'origin', 'entity_type', 'entity_id', 'entity_version', 'schema_version', 'event_type', 'occurred_at', 'payload'];
 assert.equal(schema.type, 'object');
 assert.equal(schema.additionalProperties, false);
+assert.equal(schema.properties.schema_version.const, 1, 'event v1 contract must pin schema_version to 1');
 assert.deepEqual([...schema.required].sort(), [...required].sort());
 
 const valid = {
@@ -100,7 +101,6 @@ for (const requiredParitySQL of [
   "IF octet_length(p_event::text) > 1048576 THEN",
   "schema_version_value <> 1",
   "left(lower(event_type_value), length(entity_type_value) + 1)",
-  "'bearer','jwt'",
   "'bearer','jwt'",
   "'password_hash','passwd','email','email_address'",
   "'private_key','service_role','service_role_key'",
