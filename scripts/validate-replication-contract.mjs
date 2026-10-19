@@ -106,7 +106,7 @@ for (const forbiddenKey of [
   assert.equal(
     validate({ ...valid, payload: { [forbiddenKey]: 'should-not-cross-backends' } }),
     false,
-    \`forbidden payload key variant \${forbiddenKey} should fail\`,
+    `forbidden payload key variant ${forbiddenKey} should fail`,
   );
 }
 assert.equal(
