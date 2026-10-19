@@ -2,6 +2,14 @@
 -- These triggers only write the local durable outbox; they never call the peer.
 BEGIN;
 
+-- Production's posts table predates the visibility column even though the
+-- repository's newer write/read contracts expect it. Add it idempotently
+-- before defining triggers that reference posts.visibility. Legacy rows use
+-- public as the compatibility default: their effective visibility was already
+-- governed by the existing public-profile/community RLS rules.
+ALTER TABLE public.posts
+  ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public';
+
 CREATE TABLE IF NOT EXISTS public.platform_replication_source_versions (
   origin TEXT NOT NULL CHECK (origin = 'xclone'),
   entity_type TEXT NOT NULL CHECK (length(entity_type) BETWEEN 1 AND 128),
