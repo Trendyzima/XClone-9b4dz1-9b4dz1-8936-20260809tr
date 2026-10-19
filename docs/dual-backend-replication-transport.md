@@ -39,3 +39,23 @@ connected to outbox events and no domain projector is enabled by this change.
 Keep real data replication disabled until event producers, entity-version checks,
 privacy-aware projectors, tombstones, reconciliation, and stop-one-backend tests
 are implemented and verified. Do not copy secrets or signed media URLs into events.
+
+
+## Inbox projection worker (opt-in)
+
+Deploy the `replication-projector` Edge Function and configure
+`REPLICATION_PROJECTOR_TOKEN` with a separate random secret of at least 32
+bytes. Invoke it with `Authorization: Bearer <token>` from a trusted scheduler.
+It accepts POST only and calls the service-role-only
+`apply_platform_replication_pending` RPC. Keep the service-role key only in the
+Edge Function environment.
+
+The projector writes to the separate `platform_replication_projection` mirror,
+not directly to authoritative product tables. Only account, post, and media
+events are accepted; fields are allowlisted, posts and media must be explicitly
+public, and media metadata must include a checksum. Permanent schema/privacy
+rejections are dead-lettered; transient storage errors are retried.
+
+This worker does not create source events. Product writes still need atomic
+outbox producers and schema-specific projectors before live product-data
+synchronization can be declared complete.
