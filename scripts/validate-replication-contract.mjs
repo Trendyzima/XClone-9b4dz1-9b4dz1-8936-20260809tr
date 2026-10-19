@@ -52,16 +52,18 @@ function validate(event) {
   const identity = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
   if (!['origin', 'entity_type', 'entity_id', 'event_type'].every((key) => typeof event[key] === 'string' && identity.test(event[key]))) return false;
   if (!Number.isSafeInteger(event.entity_version) || event.entity_version < 1) return false;
-  if (!Number.isSafeInteger(event.schema_version) || event.schema_version < 1) return false;
-  if (typeof event.occurred_at !== 'string' || Number.isNaN(Date.parse(event.occurred_at))) return false;
+  if (event.schema_version !== 1) return false;
+  if (typeof event.event_type !== 'string' || !event.event_type.toLowerCase().startsWith(`${event.entity_type.toLowerCase()}.`)) return false;
+  const rfc3339 = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/;
+  if (typeof event.occurred_at !== 'string' || !rfc3339.test(event.occurred_at) || Number.isNaN(Date.parse(event.occurred_at))) return false;
   if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return false;
   if (Buffer.byteLength(JSON.stringify(event.payload)) > 1_048_576) return false;
-  const forbidden = new Set([
-    'authorization', 'access_token', 'refresh_token', 'token', 'jwt',
-    'service_role_key', 'secret_key', 'secret', 'private_key', 'credential', 'credentials',
-    'password', 'password_hash', 'email', 'email_address', 'phone', 'phone_number',
-    'cookie', 'session', 'api_key', 'signed_url', 'presigned_url', 'upload_url',
-  ]);
+  if (Buffer.byteLength(JSON.stringify(event)) > 1_048_576) return false;
+  const forbidden = [
+    'authorization', 'access_token', 'refresh_token', 'token', 'bearer', 'jwt',
+    'service_role', 'secret', 'private_key', 'password', 'passwd', 'email', 'phone',
+    'credential', 'cookie', 'session', 'api_key', 'signed_url', 'presigned_url', 'upload_url',
+  ];
   const normalizeKey = (key) => key
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
     .replace(/[^A-Za-z0-9]+/g, '_')
@@ -71,7 +73,7 @@ function validate(event) {
     if (!value || typeof value !== 'object') return false;
     return Object.entries(value).some(([key, child]) => {
       const normalized = normalizeKey(key);
-      if ([...forbidden].some((fragment) => normalized.includes(fragment))) return true;
+      if (forbidden.some((fragment) => normalized.includes(fragment))) return true;
       if (normalized.endsWith('_url') && typeof child === 'string' &&
         (child.includes('?') || child.includes('#') || /:\/\/[^/]*@/.test(child))) return true;
       return hasSecret(child);
@@ -82,6 +84,11 @@ function validate(event) {
 
 assert.equal(validate(valid), true, 'valid event should pass');
 assert.equal(validate({ ...valid, entity_version: 0 }), false, 'non-positive entity version should fail');
+assert.equal(validate({ ...valid, schema_version: 2 }), false, 'unsupported schema version should fail');
+assert.equal(validate({ ...valid, event_type: 'account.created' }), false, 'event type must match entity type');
+assert.equal(validate({ ...valid, occurred_at: '2026-10-19 00:00:00Z' }), false, 'timestamp must use RFC3339 separator');
+assert.equal(validate({ ...valid, payload: { blob: 'x'.repeat(1_048_576) } }), false, 'oversized payload must fail');
+assert.equal(validate({ ...valid, payload: { avatar_url: 'https://cdn.example/avatar#fragment' } }), false, 'fragment-bearing URL fields must fail');
 assert.equal(validate({ ...valid, unexpected: true }), false, 'unknown envelope fields should fail');
 assert.equal(validate({ ...valid, payload: { signed_url: 'https://example.invalid/?token=secret' } }), false, 'signed URLs must not be replicated');
 assert.equal(validate({ ...valid, payload: { avatar_url: 'https://cdn.example/avatar?token=secret' } }), false, 'signed URL-valued fields must not be replicated');
@@ -126,7 +133,7 @@ for (const requiredProducerSQL of [
 for (const forbiddenKey of [
   'email', 'phone', 'password_hash', 'private_key', 'api_key',
   'accessToken', 'refresh-token', 'PasswordHash', 'private.key',
-  'serviceRoleKey', 'signedURL', 'presigned-url', 'phone number',
+  'serviceRoleKey', 'serviceRole', 'bearer', 'passwd', 'signedURL', 'presigned-url', 'phone number',
   'providerCredentials', 'customerEmail', 'jwtToken',
 ]) {
   assert.equal(
