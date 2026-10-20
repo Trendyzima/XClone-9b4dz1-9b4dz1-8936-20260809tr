@@ -20,7 +20,7 @@ requireText(/if \(isNodeInfoPath && response\.status >= 500\)[\s\S]*return nodeI
 if (!source.includes("if (pathname === '/.well-known/webfinger') return '/functions/v1/mastodon-federation/.well-known/webfinger'")) failures.push('Canonical WebFinger lookup must proxy to the ActivityPub handler.');
 requireText(/function webFingerCacheKey\(request: Request, generation: 'fresh' \| 'stale'\)/, 'WebFinger must use distinct fresh and stale cache entries keyed by the full resource query.');
 requireText(/async function serveCachedWebFinger[\s\S]*X-Testagram-WebFinger-Cache[\s\S]*stale-if-error/, 'WebFinger must be able to serve cached successful identity records during upstream failures.');
-requireText(/async function saveWebFinger[\s\S]*response\.status !== 200[\s\S]*parsed\.subject[\s\S]*Array\.isArray\(parsed\.links\)/, 'Only successful, structurally valid WebFinger JRD responses may be cached.');
+requireText(/async function saveWebFinger[\s\S]*response\.status !== 200[\s\S]*parsed\.subject\.toLowerCase\(\) !== requestedResource\.toLowerCase\(\)[\s\S]*Array\.isArray\(parsed\.links\)/, 'Only successful WebFinger JRD responses whose subject matches the requested resource may be cached.');
 requireText(/if \(isWebFingerPath\) \{[\s\S]*serveCachedWebFinger\(request, 'fresh'\)/, 'Fresh WebFinger cache must be checked before querying the upstream database.');
 requireText(/if \(isWebFingerPath\) \{[\s\S]*serveCachedWebFinger\(request, 'stale'\)[\s\S]*upstream unreachable/, 'Cached WebFinger records must be used when the upstream fetch throws.');
 requireText(/if \(isWebFingerPath && response\.status >= 500\)[\s\S]*serveCachedWebFinger\(request, 'stale'\)/, 'Cached WebFinger records must be used for upstream 5xx responses.');
