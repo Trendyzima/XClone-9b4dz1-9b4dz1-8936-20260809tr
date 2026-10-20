@@ -33,7 +33,7 @@ requireText(/if \(pathname === '\/nodeinfo\/2\.1'\) return '\/functions\/v1\/mas
 
 if (!/CREATE INDEX IF NOT EXISTS federated_objects_created_at_id_idx[\\s\\S]*ON public\\.federated_objects \\(created_at ASC, id ASC\\)/i.test(retentionIndexMigration)) failures.push('Retention cleanup migration must index federated_objects(created_at, id) for bounded oldest-first cleanup.');
 if (!/LIMIT v_batch_limit \\+ 1[\\s\\S]*v_has_more := cardinality\\(v_object_ids\\) > v_batch_limit[\\s\\S]*v_object_ids := v_object_ids\\[1:v_batch_limit\\]/i.test(retentionProbeMigration)) failures.push('Retention cleanup must derive has_more from one indexed sentinel row instead of a second full-table existence probe.');
-if (/SELECT EXISTS\\s*\\(/i.test(retentionProbeMigration)) failures.push('Retention cleanup migration must not reintroduce the extra SELECT EXISTS scan.');
+if (/SELECT EXISTS\s*\(/i.test(retentionProbeMigration)) failures.push('Retention cleanup migration must not reintroduce the extra SELECT EXISTS scan.');
 
 if (failures.length) {
   for (const failure of failures) console.error('FAIL ' + failure);
