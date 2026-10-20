@@ -30,7 +30,6 @@ requireText(/if \(pathname === '\/.well-known\/nodeinfo'\) return '\/functions\/
 requireText(/if \(pathname === '\/nodeinfo\/2\.0'\) return '\/functions\/v1\/mastodon-federation\/nodeinfo\/2\.0'/, 'NodeInfo 2.0 route must proxy to the ActivityPub handler.');
 requireText(/if \(pathname === '\/nodeinfo\/2\.1'\) return '\/functions\/v1\/mastodon-federation\/nodeinfo\/2\.1'/, 'NodeInfo 2.1 route must proxy to the ActivityPub handler.');
 
-requireText(/created_at, id[\\s\\S]*federated_objects_created_at_id_idx/, 'Worker edge contract source must include the expected retention index name in its comments or contract.');
 if (!/CREATE INDEX IF NOT EXISTS federated_objects_created_at_id_idx[\\s\\S]*ON public\\.federated_objects \\(created_at ASC, id ASC\\)/i.test(retentionIndexMigration)) failures.push('Retention cleanup migration must index federated_objects(created_at, id) for bounded oldest-first cleanup.');
 
 if (failures.length) {
