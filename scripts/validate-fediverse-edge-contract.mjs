@@ -16,6 +16,14 @@ requireText(/const isNodeInfoPath = request\.method === 'GET'[\s\S]*\/\^\\\/node
 requireText(/if \(!isNodeInfoPath\) throw error[\s\S]*return nodeInfoFallback\(pathname\)/, 'Non-NodeInfo proxy failures must not be hidden by the fallback.');
 requireText(/if \(isNodeInfoPath && response\.status >= 500\)[\s\S]*return nodeInfoFallback\(pathname\)/, 'NodeInfo upstream 5xx responses must degrade to protocol-safe metadata.');
 if (!source.includes("if (pathname === '/.well-known/webfinger') return '/functions/v1/mastodon-federation/.well-known/webfinger'")) failures.push('Canonical WebFinger lookup must proxy to the ActivityPub handler.');
+requireText(/function webFingerCacheKey\(request: Request, generation: 'fresh' \| 'stale'\)/, 'WebFinger must use distinct fresh and stale cache entries keyed by the full resource query.');
+requireText(/async function serveCachedWebFinger[\s\S]*X-Testagram-WebFinger-Cache[\s\S]*stale-if-error/, 'WebFinger must be able to serve cached successful identity records during upstream failures.');
+requireText(/async function saveWebFinger[\s\S]*response\.status !== 200[\s\S]*parsed\.subject[\s\S]*Array\.isArray\(parsed\.links\)/, 'Only successful, structurally valid WebFinger JRD responses may be cached.');
+requireText(/if \(isWebFingerPath\) \{[\s\S]*serveCachedWebFinger\(request, 'fresh'\)/, 'Fresh WebFinger cache must be checked before querying the upstream database.');
+requireText(/if \(isWebFingerPath\) \{[\s\S]*serveCachedWebFinger\(request, 'stale'\)[\s\S]*upstream unreachable/, 'Cached WebFinger records must be used when the upstream fetch throws.');
+requireText(/if \(isWebFingerPath && response\.status >= 500\)[\s\S]*serveCachedWebFinger\(request, 'stale'\)/, 'Cached WebFinger records must be used for upstream 5xx responses.');
+requireText(/caches\.default\.put\(webFingerCacheKey\(request, 'fresh'\)[\s\S]*caches\.default\.put\(webFingerCacheKey\(request, 'stale'\)/, 'WebFinger success must populate both short-lived fresh and long-lived stale cache entries.');
+
 if (!source.includes("pathname === '/.well-known/webfinger' ||")) failures.push('Public WebFinger lookups must be eligible for short-lived edge caching.');
 requireText(/if \(pathname === '\/.well-known\/nodeinfo'\) return '\/functions\/v1\/mastodon-federation\/.well-known\/nodeinfo'/, 'Canonical NodeInfo discovery route must proxy to the ActivityPub handler.');
 requireText(/if \(pathname === '\/nodeinfo\/2\.0'\) return '\/functions\/v1\/mastodon-federation\/nodeinfo\/2\.0'/, 'NodeInfo 2.0 route must proxy to the ActivityPub handler.');
