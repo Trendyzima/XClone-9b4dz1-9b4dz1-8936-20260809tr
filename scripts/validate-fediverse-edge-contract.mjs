@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../cloudflare/index.ts', import.meta.url), 'utf8');
 const retentionIndexMigration = fs.readFileSync(new URL('../supabase/migrations/20261020090000_fediverse_retention_created_at_index.sql', import.meta.url), 'utf8');
+const retentionProbeMigration = fs.readFileSync(new URL('../supabase/migrations/20261020093000_optimize_fediverse_cleanup_has_more.sql', import.meta.url), 'utf8');
 const failures = [];
 const requireText = (pattern, message) => {
   if (!pattern.test(source)) failures.push(message);
@@ -31,6 +32,8 @@ requireText(/if \(pathname === '\/nodeinfo\/2\.0'\) return '\/functions\/v1\/mas
 requireText(/if \(pathname === '\/nodeinfo\/2\.1'\) return '\/functions\/v1\/mastodon-federation\/nodeinfo\/2\.1'/, 'NodeInfo 2.1 route must proxy to the ActivityPub handler.');
 
 if (!/CREATE INDEX IF NOT EXISTS federated_objects_created_at_id_idx[\\s\\S]*ON public\\.federated_objects \\(created_at ASC, id ASC\\)/i.test(retentionIndexMigration)) failures.push('Retention cleanup migration must index federated_objects(created_at, id) for bounded oldest-first cleanup.');
+if (!/LIMIT v_batch_limit \\+ 1[\\s\\S]*v_has_more := cardinality\\(v_object_ids\\) > v_batch_limit[\\s\\S]*v_object_ids := v_object_ids\\[1:v_batch_limit\\]/i.test(retentionProbeMigration)) failures.push('Retention cleanup must derive has_more from one indexed sentinel row instead of a second full-table existence probe.');
+if (/SELECT EXISTS\\s*\\(/i.test(retentionProbeMigration)) failures.push('Retention cleanup migration must not reintroduce the extra SELECT EXISTS scan.');
 
 if (failures.length) {
   for (const failure of failures) console.error('FAIL ' + failure);
