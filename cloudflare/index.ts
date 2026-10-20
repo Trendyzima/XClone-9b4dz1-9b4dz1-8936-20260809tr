@@ -423,9 +423,9 @@ async function saveWebFinger(request: Request, response: Response) {
   freshHeaders.set('CDN-Cache-Control', 'public, max-age=60');
   freshHeaders.set('Cloudflare-CDN-Cache-Control', 'public, max-age=60');
   const staleHeaders = new Headers(response.headers);
-  staleHeaders.set('Cache-Control', 'public, max-age=86400');
-  staleHeaders.set('CDN-Cache-Control', 'public, max-age=86400');
-  staleHeaders.set('Cloudflare-CDN-Cache-Control', 'public, max-age=86400');
+  staleHeaders.set('Cache-Control', 'public, max-age=900');
+  staleHeaders.set('CDN-Cache-Control', 'public, max-age=900');
+  staleHeaders.set('Cloudflare-CDN-Cache-Control', 'public, max-age=900');
   try {
     await Promise.all([
       caches.default.put(webFingerCacheKey(request, 'fresh'), new Response(body, { status: 200, headers: freshHeaders })),
@@ -814,7 +814,7 @@ export default {
       } else if (/\.(js|css)$/.test(url.pathname)) {
         headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
       } else if (/\.(xml)$/.test(url.pathname)) {
-        headers.set('Cache-Control', 'public, max-age=86400');
+        headers.set('Cache-Control', 'public, max-age=900');
       } else {
         headers.set('Cache-Control', 'no-store');
       }
