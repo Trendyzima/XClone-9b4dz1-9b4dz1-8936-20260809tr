@@ -39,5 +39,5 @@ if (failures.length) {
   for (const failure of failures) console.error('FAIL ' + failure);
   process.exitCode = 1;
 } else {
-  console.log('Fediverse edge contract: 14/14 checks passed');
+  console.log('Fediverse edge contract: all checks passed');
 }
