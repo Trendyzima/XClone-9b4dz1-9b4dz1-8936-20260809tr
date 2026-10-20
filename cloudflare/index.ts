@@ -382,6 +382,60 @@ function nodeInfoFallback(pathname: string) {
   return new Response(JSON.stringify(body), { status: 200, headers });
 }
 
+// WebFinger is public discovery metadata, so cache only successful JRD
+// responses. Keep a short fresh entry and a longer stale-if-error copy: the
+// normal Cloudflare cache may evict/expire an entry during a database outage.
+function webFingerCacheKey(request: Request, generation: 'fresh' | 'stale') {
+  const incoming = new URL(request.url);
+  return new Request(new URL(`/__edge_cache/webfinger/${generation}${incoming.search}`, incoming.origin), { method: 'GET' });
+}
+
+async function serveCachedWebFinger(request: Request, mode: 'fresh' | 'stale'): Promise<Response | null> {
+  try {
+    const cached = await caches.default.match(webFingerCacheKey(request, mode));
+    if (!cached) return null;
+    const headers = new Headers(cached.headers);
+    headers.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
+    headers.set('CDN-Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
+    headers.set('Cloudflare-CDN-Cache-Control', 'public, max-age=30');
+    headers.set('X-Testagram-WebFinger-Cache', mode === 'fresh' ? 'hit' : 'stale-if-error');
+    return new Response(cached.body, { status: 200, headers });
+  } catch (error) {
+    console.warn('[testagram-webfinger] cache read failed', error);
+    return null;
+  }
+}
+
+async function saveWebFinger(request: Request, response: Response) {
+  if (response.status !== 200) return;
+  const contentType = response.headers.get('content-type') || '';
+  if (!/application\/(?:jrd\+json|json)/i.test(contentType)) return;
+  const body = await response.clone().text();
+  if (body.length > 64 * 1024) return;
+  try {
+    const parsed = JSON.parse(body);
+    if (typeof parsed.subject !== 'string' || !Array.isArray(parsed.links)) return;
+  } catch {
+    return;
+  }
+  const freshHeaders = new Headers(response.headers);
+  freshHeaders.set('Cache-Control', 'public, max-age=60');
+  freshHeaders.set('CDN-Cache-Control', 'public, max-age=60');
+  freshHeaders.set('Cloudflare-CDN-Cache-Control', 'public, max-age=60');
+  const staleHeaders = new Headers(response.headers);
+  staleHeaders.set('Cache-Control', 'public, max-age=86400');
+  staleHeaders.set('CDN-Cache-Control', 'public, max-age=86400');
+  staleHeaders.set('Cloudflare-CDN-Cache-Control', 'public, max-age=86400');
+  try {
+    await Promise.all([
+      caches.default.put(webFingerCacheKey(request, 'fresh'), new Response(body, { status: 200, headers: freshHeaders })),
+      caches.default.put(webFingerCacheKey(request, 'stale'), new Response(body, { status: 200, headers: staleHeaders })),
+    ]);
+  } catch (error) {
+    console.warn('[testagram-webfinger] cache write failed', error);
+  }
+}
+
 async function proxySupabase(request: Request, targetPath: string) {
   const target = new URL(targetPath + new URL(request.url).search, SUPABASE_ORIGIN);
   const headers = new Headers(request.headers);
@@ -405,6 +459,12 @@ async function proxySupabase(request: Request, targetPath: string) {
   const isNodeInfoPath = request.method === 'GET' && (
     pathname === '/.well-known/nodeinfo' || /^\/nodeinfo\/2\.[01]$/.test(pathname)
   );
+
+  const isWebFingerPath = request.method === 'GET' && pathname === '/.well-known/webfinger';
+  if (isWebFingerPath) {
+    const fresh = await serveCachedWebFinger(request, 'fresh');
+    if (fresh) return fresh;
+  }
 
   let response: Response;
   try {
@@ -435,9 +495,24 @@ async function proxySupabase(request: Request, targetPath: string) {
           : {}),
     });
   } catch (error) {
+    if (isWebFingerPath) {
+      const stale = await serveCachedWebFinger(request, 'stale');
+      if (stale) {
+        console.warn('[testagram-webfinger] upstream unreachable; serving cached successful discovery record');
+        return stale;
+      }
+    }
     if (!isNodeInfoPath) throw error;
     console.warn('[testagram-federation] NodeInfo upstream unreachable; serving protocol-safe metadata', error);
     return nodeInfoFallback(pathname);
+  }
+
+  if (isWebFingerPath && response.status >= 500) {
+    const stale = await serveCachedWebFinger(request, 'stale');
+    if (stale) {
+      console.warn('[testagram-webfinger] upstream returned', response.status, '; serving cached successful discovery record');
+      return stale;
+    }
   }
 
   // NodeInfo is discovery metadata, not authoritative account data. Keep the
@@ -455,6 +530,12 @@ async function proxySupabase(request: Request, targetPath: string) {
     const policy = `public, max-age=${metadataTtl}, stale-while-revalidate=${metadataTtl}`;
     out.set('Cache-Control', policy);
     out.set('CDN-Cache-Control', policy);
+    if (isWebFingerPath && response.status === 200) {
+      await saveWebFinger(request, new Response(response.clone().body, { status: response.status, headers: out }));
+      out.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      out.set('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      out.set('Cloudflare-CDN-Cache-Control', 'public, max-age=60');
+    }
   } else if (isFederationProxy) {
     out.set('Cache-Control', 'no-store');
     out.set('CDN-Cache-Control', 'no-store');
