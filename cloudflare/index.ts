@@ -414,7 +414,8 @@ async function saveWebFinger(request: Request, response: Response) {
   if (body.length > 64 * 1024) return;
   try {
     const parsed = JSON.parse(body);
-    if (typeof parsed.subject !== 'string' || !Array.isArray(parsed.links)) return;
+    const requestedResource = new URL(request.url).searchParams.get('resource') || '';
+    if (typeof parsed.subject !== 'string' || parsed.subject.toLowerCase() !== requestedResource.toLowerCase() || !Array.isArray(parsed.links)) return;
   } catch {
     return;
   }
