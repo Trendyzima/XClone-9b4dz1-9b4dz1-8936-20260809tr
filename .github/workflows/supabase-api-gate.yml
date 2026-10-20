@@ -56,10 +56,20 @@ jobs:
           fi
           printf '::add-mask::%s\n' "${SUPABASE_ACCESS_TOKEN}"
           response_file="/tmp/supabase-projects.json"
-          http_status="$(curl --silent --show-error --output "${response_file}" --write-out '%{http_code}' \
+          : > "${response_file}"
+          set +e
+          http_status="$(curl --silent --show-error --connect-timeout 5 --max-time 20 --output "${response_file}" --write-out '%{http_code}' \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Accept: application/json" \
-            "https://api.supabase.com/v1/projects")"
+            "https://api.supabase.com/v1/projects" 2>/tmp/supabase-management-curl.err)"
+          curl_status=$?
+          set -e
+          if (( curl_status != 0 )); then
+            echo "::error::Supabase Management API transport failed (curl exit ${curl_status})."
+            cat /tmp/supabase-management-curl.err || true
+            head -c 1200 "${response_file}" || true
+            exit 1
+          fi
           case "${http_status}" in
             200) ;;
             401)
@@ -99,30 +109,48 @@ jobs:
             exit 1
           fi
           printf '::add-mask::%s\n' "${SUPABASE_ANON_KEY}"
+
+          # Create diagnostic files before curl. A transport timeout must not
+          # trigger a second, misleading "file not found" error.
           response_headers="/tmp/supabase-health.headers"
+          response_body="/tmp/supabase-health.json"
+          curl_error="/tmp/supabase-health-curl.err"
+          : > "${response_headers}"
+          : > "${response_body}"
+          : > "${curl_error}"
+
           set +e
-          status="$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
+          curl_metrics="$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
             --dump-header "${response_headers}" \
-            --output /tmp/supabase-health.json --write-out '%{http_code}' \
+            --output "${response_body}" \
+            --write-out '%{http_code} %{time_namelookup} %{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total}' \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-            "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1")"
+            "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=0" 2>"${curl_error}")"
           curl_status=$?
           set -e
 
+          read -r status dns_seconds connect_seconds tls_seconds first_byte_seconds total_seconds <<< "${curl_metrics}"
+          echo "Probe timing (seconds): dns=${dns_seconds:-unknown} connect=${connect_seconds:-unknown} tls=${tls_seconds:-unknown} first_byte=${first_byte_seconds:-unknown} total=${total_seconds:-unknown}"
           if (( curl_status != 0 )); then
-            echo "::error::Supabase Data API transport failed (curl exit ${curl_status}); probe deadline is 20 seconds."
+            echo "::error::Supabase Data API transport failed (curl exit ${curl_status}); deadline is 20 seconds."
+            cat "${curl_error}" || true
             grep -iE '^(HTTP/|content-type:|sb-error-code:|x-request-id:|cf-ray:)' "${response_headers}" || true
-            head -c 1200 /tmp/supabase-health.json || true
+            if [[ -s "${response_body}" ]]; then
+              head -c 1200 "${response_body}" || true
+              echo
+            else
+              echo "Supabase Data API returned no response body."
+            fi
             exit 1
           fi
 
           case "${status}" in
-            200|206) echo "Supabase Data API: OK" ;;
+            200|206) echo "Supabase Data API: HTTP ${status}" ;;
             *)
               echo "::error::Supabase Data API health check failed with HTTP ${status}."
               grep -iE '^(HTTP/|content-type:|sb-error-code:|x-request-id:|cf-ray:)' "${response_headers}" || true
-              head -c 1200 /tmp/supabase-health.json || true
+              head -c 1200 "${response_body}" || true
               exit 1
               ;;
           esac
