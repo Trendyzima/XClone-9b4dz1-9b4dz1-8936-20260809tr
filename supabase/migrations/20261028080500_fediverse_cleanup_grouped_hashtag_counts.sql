@@ -1,0 +1,89 @@
+-- Recompute affected Fediverse hashtag counters in one grouped pass.
+--
+-- Production cron history shows cleanup_expired_fediverse_content timing out while
+-- recalculating counts with a correlated COUNT(*) for every affected hashtag.
+-- The grouped LEFT JOIN visits the affected hashtag set once and also resets
+-- counters to zero when all mentions for a hashtag were deleted.
+CREATE OR REPLACE FUNCTION public.cleanup_expired_fediverse_content(
+  p_retention interval DEFAULT interval '5 hours'
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  v_cutoff timestamptz;
+  v_object_ids uuid[];
+  v_hashtag_ids uuid[];
+  v_mentions_deleted integer := 0;
+  v_objects_deleted integer := 0;
+  v_has_more boolean := false;
+  v_batch_limit constant integer := 500;
+BEGIN
+  IF p_retention < interval '1 hour' THEN
+    RAISE EXCEPTION 'Fediverse retention must be at least 1 hour';
+  END IF;
+
+  IF NOT pg_try_advisory_xact_lock(hashtext('public.cleanup_expired_fediverse_content')) THEN
+    RETURN jsonb_build_object('ok', true, 'skipped', true, 'reason', 'cleanup already running');
+  END IF;
+
+  v_cutoff := now() - p_retention;
+
+  SELECT coalesce(array_agg(expired.id ORDER BY expired.created_at ASC, expired.id ASC), '{}'::uuid[])
+    INTO v_object_ids
+  FROM (
+    SELECT id, created_at
+    FROM public.federated_objects
+    WHERE created_at < v_cutoff
+    ORDER BY created_at ASC, id ASC
+    LIMIT v_batch_limit + 1
+  ) AS expired;
+
+  v_has_more := cardinality(v_object_ids) > v_batch_limit;
+  v_object_ids := v_object_ids[1:v_batch_limit];
+
+  IF cardinality(v_object_ids) > 0 THEN
+    SELECT coalesce(array_agg(DISTINCT hashtag_id), '{}'::uuid[])
+      INTO v_hashtag_ids
+    FROM public.federated_hashtag_mentions
+    WHERE object_id = ANY(v_object_ids);
+
+    DELETE FROM public.federated_hashtag_mentions
+    WHERE object_id = ANY(v_object_ids);
+    GET DIAGNOSTICS v_mentions_deleted = ROW_COUNT;
+
+    DELETE FROM public.federated_objects
+    WHERE id = ANY(v_object_ids);
+    GET DIAGNOSTICS v_objects_deleted = ROW_COUNT;
+
+    IF cardinality(v_hashtag_ids) > 0 THEN
+      UPDATE public.hashtags AS h
+         SET federated_post_count = counts.mention_count
+        FROM (
+          SELECT affected.hashtag_id,
+                 count(m.hashtag_id)::integer AS mention_count
+          FROM unnest(v_hashtag_ids) AS affected(hashtag_id)
+          LEFT JOIN public.federated_hashtag_mentions AS m
+            ON m.hashtag_id = affected.hashtag_id
+          GROUP BY affected.hashtag_id
+        ) AS counts
+       WHERE h.id = counts.hashtag_id;
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'retention_hours', extract(epoch FROM p_retention) / 3600,
+    'cutoff', v_cutoff,
+    'batch_limit', v_batch_limit,
+    'mentions_deleted', v_mentions_deleted,
+    'objects_deleted', v_objects_deleted,
+    'has_more', v_has_more
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.cleanup_expired_fediverse_content(interval) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.cleanup_expired_fediverse_content(interval) FROM anon, authenticated;
