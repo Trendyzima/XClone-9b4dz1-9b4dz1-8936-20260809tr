@@ -6,11 +6,15 @@ on:
     branches: [main]
     paths:
       - 'scripts/production-observability.mjs'
+      - 'scripts/production-contracts.mjs'
+      - 'scripts/production-contracts.test.mjs'
       - '.github/workflows/production-observability.yml'
   pull_request:
     branches: [main]
     paths:
       - 'scripts/production-observability.mjs'
+      - 'scripts/production-contracts.mjs'
+      - 'scripts/production-contracts.test.mjs'
       - '.github/workflows/production-observability.yml'
   schedule:
     - cron: "17,47 * * * *"
@@ -34,14 +38,19 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+      - name: Test federation response contracts
+        run: node --test scripts/production-contracts.test.mjs
       - name: Run independent production probes
         id: probe
+        env:
+          OBSERVABILITY_INCLUDE_FEDERATION: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         run: node scripts/production-observability.mjs
       - name: Manage observability incident
         if: always()
         uses: actions/github-script@v8
         env:
           PROBE_RESULT: ${{ steps.probe.outcome }}
+          FEDERATION_CHECKS_ENABLED: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         with:
           script: |
             try {
@@ -50,13 +59,15 @@ jobs:
               const { data: issues } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', per_page: 50 });
               const existing = issues.find(issue => issue.title === title);
               if (process.env.PROBE_RESULT === 'success') {
-                if (existing) {
-                  await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Recovery verified at ' + new Date().toISOString() + '. Independent production probes are green.' });
+                // Only a scheduled/manual run exercises federation. A passing
+                // PR-only liveness check must not close a federation incident.
+                if (existing && process.env.FEDERATION_CHECKS_ENABLED === 'true') {
+                  await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Recovery verified at ' + new Date().toISOString() + '. All scheduled production and federation probes are green.' });
                   await github.rest.issues.update({ owner, repo, issue_number: existing.number, state: 'closed' });
                 }
                 return;
               }
-              const body = ['The independent production observability probe failed.','', 'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId, 'Detected: ' + new Date().toISOString(), '', 'Inspect /api/health, /api/ready, media.testagram.site/healthz, first-party CDN deployment logs, DNS and reverse-proxy routing. The probe rejects the legacy R2/Cloudflare edge.'].join('\n');
+              const body = ['The independent production observability probe failed.','', 'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId, 'Detected: ' + new Date().toISOString(), 'Federation checks enabled: ' + process.env.FEDERATION_CHECKS_ENABLED, '', 'Inspect /api/health, /api/ready, /.well-known/nodeinfo, /.well-known/webfinger, media.testagram.site/healthz, first-party CDN deployment logs, DNS and reverse-proxy routing.'].join('\n');
               if (existing) {
                 await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Probe still failing at ' + new Date().toISOString() + '.\n\n' + body });
               } else {
