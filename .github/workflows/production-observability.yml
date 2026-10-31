@@ -67,9 +67,9 @@ jobs:
                 }
                 return;
               }
-              const body = ['The independent production observability probe failed.','', 'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId, 'Detected: ' + new Date().toISOString(), 'Federation checks enabled: ' + process.env.FEDERATION_CHECKS_ENABLED, '', 'Inspect /api/health, /api/ready, /.well-known/nodeinfo, /.well-known/webfinger, media.testagram.site/healthz, first-party CDN deployment logs, DNS and reverse-proxy routing.'].join('\\n');
+              const body = ['The independent production observability probe failed.','', 'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId, 'Detected: ' + new Date().toISOString(), 'Federation checks enabled: ' + process.env.FEDERATION_CHECKS_ENABLED, '', 'Inspect /api/health, /api/ready, /.well-known/nodeinfo, /.well-known/webfinger, media.testagram.site/healthz, first-party CDN deployment logs, DNS and reverse-proxy routing.'].join('\n');
               if (existing) {
-                await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Probe still failing at ' + new Date().toISOString() + '.\\n\\n' + body });
+                await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Probe still failing at ' + new Date().toISOString() + '.\n\n' + body });
               } else {
                 await github.rest.issues.create({ owner, repo, title, body });
               }
