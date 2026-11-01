@@ -165,6 +165,7 @@ DECLARE
   v_outbox bigint := 0;
   v_cache bigint := 0;
   v_views bigint := 0;
+  v_activities_compacted bigint := 0;
   v_batch_limit constant integer := 500;
 BEGIN
   IF NOT pg_try_advisory_xact_lock(hashtext('public.cleanup_federation_storage')) THEN
@@ -215,13 +216,30 @@ BEGIN
   WHERE views.ctid = expired.ctid;
   GET DIAGNOSTICS v_views = ROW_COUNT;
 
+  -- Keep the activity URI and processing metadata as the deduplication ledger,
+  -- but discard bulky raw payloads after 30 days once processing is complete.
+  WITH expired AS (
+    SELECT id FROM public.federated_activities
+    WHERE processing_state = 'processed'
+      AND processed_at < now() - interval '30 days'
+      AND raw_activity <> '{}'::jsonb
+    ORDER BY processed_at ASC, id ASC
+    LIMIT v_batch_limit
+  )
+  UPDATE public.federated_activities AS activity
+     SET raw_activity = '{}'::jsonb
+    FROM expired
+   WHERE activity.id = expired.id;
+  GET DIAGNOSTICS v_activities_compacted = ROW_COUNT;
+
   RETURN jsonb_build_object(
     'ok', true,
     'batch_limit_per_table', v_batch_limit,
     'inbox_deleted', v_inbox,
     'outbox_deleted', v_outbox,
     'remote_cache_deleted', v_cache,
-    'views_deleted', v_views
+    'views_deleted', v_views,
+    'activity_payloads_compacted', v_activities_compacted
   );
 END;
 $function$;
