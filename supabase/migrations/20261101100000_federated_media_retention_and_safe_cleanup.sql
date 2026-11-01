@@ -265,6 +265,27 @@ BEGIN
 END;
 $schedule$;
 
+-- The Edge Function checks the scheduler's high-entropy Vault token through
+-- this narrow RPC; never expose the Vault value to the caller.
+CREATE OR REPLACE FUNCTION public.verify_federation_worker_token(candidate text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, vault
+AS $function$
+  SELECT candidate IS NOT NULL
+     AND length(candidate) >= 32
+     AND candidate = (
+       SELECT decrypted_secret
+       FROM vault.decrypted_secrets
+       WHERE name = 'federation_worker_token'
+       LIMIT 1
+     );
+$function$;
+
+REVOKE ALL ON FUNCTION public.verify_federation_worker_token(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.verify_federation_worker_token(text) TO service_role;
+
 -- Media cache paths are SHA-256(remote URL) and are not canonical user uploads.
 -- Store a single cursor so every 15-minute invocation scans a bounded set of
 -- prefixes and drains old objects oldest-first without a full-bucket listing.
