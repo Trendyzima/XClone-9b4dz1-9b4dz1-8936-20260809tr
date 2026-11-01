@@ -1,6 +1,9 @@
+import { isNodeInfoDiscoveryDocument, isWebFingerDocument } from "./production-contracts.mjs";
+
 const base = (process.env.OBSERVABILITY_ORIGIN || "https://testagram.site").replace(/\/$/, "");
 const cdn = (process.env.CDN_ORIGIN || "https://media.testagram.site").replace(/\/$/, "");
 const timeoutMs = Number(process.env.OBSERVABILITY_TIMEOUT_MS || 10000);
+const includeFederation = process.env.OBSERVABILITY_INCLUDE_FEDERATION === "true";
 
 const checks = [
   { name: "production-liveness", url: base + "/api/health", expected: 200 },
@@ -8,7 +11,28 @@ const checks = [
   { name: "cdn-edge-health", url: cdn + "/healthz", expected: 200, firstPartyCdn: true },
 ];
 
+if (includeFederation) {
+  const resource = "acct:crissbeat@testagram.site";
+  checks.push(
+    {
+      name: "nodeinfo-discovery",
+      url: base + "/.well-known/nodeinfo",
+      expected: 200,
+      validateBody: isNodeInfoDiscoveryDocument,
+      contractError: "NodeInfo discovery must advertise schema versions 2.0 and 2.1 with non-empty URLs.",
+    },
+    {
+      name: "webfinger-crissbeat",
+      url: base + "/.well-known/webfinger?resource=" + encodeURIComponent(resource),
+      expected: 200,
+      validateBody: (body) => isWebFingerDocument(body, resource),
+      contractError: "WebFinger must return the requested account as subject and include a self link.",
+    },
+  );
+}
+
 async function probe(check) {
+  const { validateBody, contractError, ...publicCheck } = check;
   const started = performance.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -38,12 +62,15 @@ async function probe(check) {
       !/cloudflare/i.test(serverHeader) &&
       !cloudflareRay
     );
+    const bodyContractOk = typeof validateBody !== "function" || validateBody(body);
     const ok = response.status === check.expected &&
+      bodyContractOk &&
       (check.name !== 'production-liveness' || (body?.ok === true && body?.service === 'testagram' && body?.edge === 'reachable')) &&
       (check.name !== 'production-readiness' || (body?.ok === true && body?.database === 'reachable')) &&
       (check.name !== 'cdn-edge-health' || cdnEndpointHealthy);
     return {
-      ...check, ok, status: response.status, latency_ms: latencyMs, body,
+      ...publicCheck, ok, status: response.status, latency_ms: latencyMs, body,
+      ...(!bodyContractOk ? { contract_error: contractError || "Response body did not satisfy the expected contract." } : {}),
       ...(check.firstPartyCdn ? {
         cdn_identity: cdnIdentity,
         cdn_version: cdnVersion,
@@ -56,7 +83,7 @@ async function probe(check) {
       } : {}),
     };
   } catch (error) {
-    return { ...check, ok: false, status: 'network_error', latency_ms: Math.round(performance.now() - started), error: error instanceof Error ? error.message : String(error) };
+    return { ...publicCheck, ok: false, status: 'network_error', latency_ms: Math.round(performance.now() - started), error: error instanceof Error ? error.message : String(error) };
   } finally { clearTimeout(timer); }
 }
 
@@ -65,6 +92,7 @@ const failed = results.filter(result => !result.ok);
 const warnings = results.filter(result => result.warning).map(result => ({ name: result.name, warning: result.warning }));
 console.log(JSON.stringify({
   OBSERVABILITY: failed.length === 0 ? 'PASS' : 'FAIL',
+  FEDERATION_CONTRACTS_ENABLED: includeFederation,
   WARNING_COUNT: warnings.length,
   warnings,
   checked_at: new Date().toISOString(),
