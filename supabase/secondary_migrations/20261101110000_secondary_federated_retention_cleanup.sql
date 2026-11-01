@@ -90,6 +90,7 @@ DECLARE
   v_timeline_deleted integer := 0;
   v_webfinger_deleted integer := 0;
   v_replays_deleted integer := 0;
+  v_activities_compacted integer := 0;
   v_has_more boolean := false;
   v_batch_limit constant integer := 500;
 BEGIN
@@ -134,6 +135,25 @@ BEGIN
   DELETE FROM public.federation_replays AS target USING expired
   WHERE target.id = expired.id;
   GET DIAGNOSTICS v_replays_deleted = ROW_COUNT;
+
+  -- Retain the inbound activity URI as a deduplication ledger while releasing
+  -- bulky payload JSON after 30 days. Only fully processed inbound activities
+  -- qualify; queued/retrying and outbound work is never compacted.
+  WITH expired AS (
+    SELECT id FROM public.federated_activities
+    WHERE direction = 'inbound'
+      AND processing_state = 'processed'
+      AND processed_at < now() - interval '30 days'
+      AND (raw_activity <> '{}'::jsonb OR payload <> '{}'::jsonb)
+    ORDER BY processed_at ASC, id ASC
+    LIMIT v_batch_limit
+  )
+  UPDATE public.federated_activities AS activity
+     SET raw_activity = '{}'::jsonb,
+         payload = '{}'::jsonb
+    FROM expired
+   WHERE activity.id = expired.id;
+  GET DIAGNOSTICS v_activities_compacted = ROW_COUNT;
 
   -- Keep the remote object only while a durable local interaction or a newer
   -- child object depends on it. Local posts are in public.posts and are untouched.
@@ -217,6 +237,7 @@ BEGIN
     'timeline_entries_deleted', v_timeline_deleted,
     'webfinger_cache_deleted', v_webfinger_deleted,
     'replay_keys_deleted', v_replays_deleted,
+    'activity_payloads_compacted', v_activities_compacted,
     'has_more', v_has_more
   );
 END;
