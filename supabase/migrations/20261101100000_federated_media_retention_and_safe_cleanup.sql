@@ -151,8 +151,6 @@ REVOKE ALL ON FUNCTION public.cleanup_expired_fediverse_content(interval) FROM P
 
 -- Bound inbox/outbox/cache/view cleanup too. These tables are operational
 -- ledgers or disposable caches; pending/unprocessed activities are preserved.
-CREATE INDEX IF NOT EXISTS federation_remote_cache_fetched_at_idx
-  ON public.federation_remote_cache (fetched_at);
 CREATE INDEX IF NOT EXISTS federated_post_views_viewed_at_idx
   ON public.federated_post_views (viewed_at);
 
@@ -197,8 +195,8 @@ BEGIN
 
   WITH expired AS (
     SELECT cache_key FROM public.federation_remote_cache
-    WHERE expires_at < now() OR fetched_at < now() - interval '12 hours'
-    ORDER BY least(expires_at, fetched_at + interval '12 hours'), cache_key
+    WHERE expires_at < now()
+    ORDER BY expires_at, cache_key
     LIMIT v_batch_limit
   )
   DELETE FROM public.federation_remote_cache AS cache
