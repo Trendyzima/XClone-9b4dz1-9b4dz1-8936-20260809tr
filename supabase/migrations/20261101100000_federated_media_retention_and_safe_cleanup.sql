@@ -253,6 +253,10 @@ $schedule$;
 CREATE TABLE IF NOT EXISTS public.federated_media_cleanup_state (
   singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton IS TRUE),
   next_prefix integer NOT NULL DEFAULT 0 CHECK (next_prefix BETWEEN 0 AND 255),
+  last_run_at timestamptz,
+  last_deleted_count integer NOT NULL DEFAULT 0 CHECK (last_deleted_count >= 0),
+  last_prefixes_scanned integer NOT NULL DEFAULT 0 CHECK (last_prefixes_scanned >= 0),
+  last_error_code text,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
