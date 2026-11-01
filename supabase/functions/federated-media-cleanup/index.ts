@@ -88,7 +88,14 @@ Deno.serve(async (request) => {
         console.error("federated media list failed", { prefix, code: listed.error.name });
         nextPrefix = prefixNumber;
         await db.from("federated_media_cleanup_state")
-          .update({ next_prefix: nextPrefix, updated_at: new Date().toISOString() })
+          .update({
+            next_prefix: nextPrefix,
+            last_run_at: new Date().toISOString(),
+            last_deleted_count: objectsDeleted,
+            last_prefixes_scanned: prefixesScanned,
+            last_error_code: "storage_list_failed",
+            updated_at: new Date().toISOString(),
+          })
           .eq("singleton", true);
         return json({ ok: false, error: "Storage listing failed", prefixes_scanned: prefixesScanned }, 503);
       }
@@ -110,7 +117,14 @@ Deno.serve(async (request) => {
           console.error("federated media removal failed", { prefix, code: removed.error.name });
           nextPrefix = prefixNumber;
           await db.from("federated_media_cleanup_state")
-            .update({ next_prefix: nextPrefix, updated_at: new Date().toISOString() })
+            .update({
+              next_prefix: nextPrefix,
+              last_run_at: new Date().toISOString(),
+              last_deleted_count: objectsDeleted,
+              last_prefixes_scanned: prefixesScanned,
+              last_error_code: "storage_remove_failed",
+              updated_at: new Date().toISOString(),
+            })
             .eq("singleton", true);
           return json({
             ok: false,
@@ -134,7 +148,14 @@ Deno.serve(async (request) => {
 
     const cursor = await db
       .from("federated_media_cleanup_state")
-      .update({ next_prefix: nextPrefix, updated_at: new Date().toISOString() })
+      .update({
+        next_prefix: nextPrefix,
+        last_run_at: new Date().toISOString(),
+        last_deleted_count: objectsDeleted,
+        last_prefixes_scanned: prefixesScanned,
+        last_error_code: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq("singleton", true);
     if (cursor.error) {
       console.error("federated media cleanup cursor update failed", cursor.error.code);
