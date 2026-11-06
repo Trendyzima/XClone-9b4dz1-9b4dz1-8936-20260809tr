@@ -104,13 +104,24 @@ export default function AppwriteAuthPage() {
     event.preventDefault();
     setLoading(true); setError(''); setNotice(''); setLinkRequired(false);
     try {
-      await appwriteAuth.signInWithPassword({ email, password });
+      const account = await appwriteAuth.signInWithPassword({ email, password });
+      if (!account.emailVerification) {
+        await appwriteAuth.sendEmailVerification();
+        setNotice('Verify your email using the Appwrite link we just sent. Your existing account and KYC records remain unchanged.');
+        return;
+      }
       await finishCanonicalLogin();
     } catch (failure) {
       const issue = failure as { code?: string; message?: string };
       if (issue.code === 'IDENTITY_NOT_PROVISIONED' || issue.code === 'LEGACY_ACCOUNT_REQUIRES_LINK') {
-        setLinkRequired(true);
-        setError('This Appwrite account is not linked to its canonical Testagram profile yet.');
+        const rawDraft = window.localStorage.getItem(SIGNUP_DRAFT_KEY);
+        const draft = rawDraft ? JSON.parse(rawDraft) as { email?: string } : null;
+        if (draft?.email && draft.email.toLowerCase() === email.trim().toLowerCase()) {
+          setNotice('Your Appwrite account exists, but Testagram account provisioning is still pending the verified migration gates. Do not create another account.');
+        } else {
+          setLinkRequired(true);
+          setError('This Appwrite account is not linked to its canonical Testagram profile yet.');
+        }
       } else {
         setError(issue.message || 'Sign-in failed. Check your details and try again.');
       }
@@ -200,7 +211,6 @@ export default function AppwriteAuthPage() {
     setLoading(true); setError('');
     try {
       await identitySignup.verifyEmail(otp.trim());
-      await identitySignup.createIdentitySession();
       navigate('/verify-identity', { replace: true });
     } catch (failure) {
       const issue = failure as { message?: string };
