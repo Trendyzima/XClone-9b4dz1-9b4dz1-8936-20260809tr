@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 import { User } from '@supabase/supabase-js';
 import { AuthUser } from '@/types/app-types';
 
@@ -247,7 +248,16 @@ export class AuthService {
     return data.user;
   }
 
-  async signOut() { const { error } = await supabase.auth.signOut(); if (error) throw error; }
+  async signOut() {
+    const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+    if (provider === 'appwrite') { await appwriteAuth.signOut(); return; }
+    const { error } = await supabase.auth.signOut(); if (error) throw error;
+  }
+  async signOutAll() {
+    const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+    if (provider === 'appwrite') { await appwriteAuth.signOutAll(); return; }
+    const { error } = await supabase.auth.signOut({ scope: 'global' }); if (error) throw error;
+  }
   mapUser(user: User): AuthUser { return mapSupabaseUser(user); }
 }
 export const authService = new AuthService();
