@@ -154,6 +154,16 @@ export default function AppwriteAuthPage() {
       if (!consent?.birthDate) throw new Error('Accept the current Testagram policies and confirm your date of birth first.');
       if (!/^[A-Za-z0-9_]{3,30}$/.test(username.trim())) throw new Error('Username must contain 3–30 letters, numbers or underscores.');
       if (!displayName.trim() || displayName.trim().length > 80) throw new Error('Enter a display name of up to 80 characters.');
+      const readiness = await appwriteAuth.getRegistrationStatus();
+      if (!readiness.enabled) {
+        const messages: Record<string, string> = {
+          legacy_inventory_incomplete: 'New registrations are paused while the complete legacy account inventory is reconciled. Existing accounts can still be migrated without creating duplicates.',
+          kyc_binding_disabled: 'New registrations are paused until the trusted identity-verification service is connected to Appwrite.',
+          identity_database_unavailable: 'The identity database is temporarily unavailable. Please try again later.',
+        };
+        setNotice(messages[readiness.reason || ''] || 'New registrations are not enabled yet. Your existing account data remains safe.');
+        return;
+      }
       const normalizedEmail = email.trim().toLowerCase();
       window.localStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({ email: normalizedEmail, username: username.trim(), displayName: displayName.trim() }));
       await identitySignup.start({ email: normalizedEmail, birthDate: consent.birthDate, username: username.trim(), displayName: displayName.trim(), legalPolicyVersion: LEGAL_POLICY_VERSION });
