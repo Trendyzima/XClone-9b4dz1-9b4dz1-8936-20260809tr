@@ -6,8 +6,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { useSEO } from '@/hooks/useSEO';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { identitySignup, type IdentitySignupStatus, type VerificationUpload } from '@/lib/identitySignup';
+import { appwriteAuth } from '@/services/appwriteAuth';
+import { clearLegalConsent, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
 
 type EvidenceKind = 'id_front' | 'id_back' | 'selfie' | 'liveness_video';
+const APPWRITE_SIGNUP_DRAFT_KEY = 'testagram-appwrite-signup-draft';
 
 const labels: Record<EvidenceKind,string> = {
   id_front: 'National ID — front',
@@ -185,6 +188,35 @@ export default function IdentityVerificationPage() {
     }
     setFinalizing(true); setMessage('');
     try {
+      const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+      if (provider === 'appwrite') {
+        const rawDraft = window.localStorage.getItem(APPWRITE_SIGNUP_DRAFT_KEY);
+        const draft = rawDraft ? JSON.parse(rawDraft) as { email?: string; username?: string; displayName?: string } : null;
+        if (!draft?.email || !draft.username || !draft.displayName) throw new Error('APPWRITE_SIGNUP_DRAFT_MISSING');
+        try {
+          await appwriteAuth.signUpWithPassword({ email: draft.email, password, name: draft.displayName });
+        } catch (createError) {
+          // Retry is safe: if the Appwrite account was created before a transient
+          // email/worker failure, authenticate that same account and continue.
+          await appwriteAuth.signInWithPassword({ email: draft.email, password });
+        }
+        await identitySignup.bindAppwriteIdentity(await appwriteAuth.createBackendJWT(true));
+        const appwriteUser = await appwriteAuth.getCurrentUser();
+        if (!appwriteUser.emailVerification) {
+          setMessage('Your identity has been approved. Open the Appwrite verification email to activate your Testagram account. Your KYC approval is safely linked.');
+          navigate('/auth?appwrite_verify=1', { replace: true });
+          return;
+        }
+        const consent = readLegalConsent();
+        if (!consent?.birthDate) throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
+        await appwriteAuth.provisionCanonicalIdentity({ username: draft.username, displayName: draft.displayName, birthDate: consent.birthDate, policyVersion: consent.version });
+        const identity = await appwriteAuth.getCanonicalIdentity();
+        login({ id: identity.canonical_user_id, email: identity.email, username: identity.username });
+        window.localStorage.removeItem(APPWRITE_SIGNUP_DRAFT_KEY);
+        clearLegalConsent();
+        navigate('/', { replace: true });
+        return;
+      }
       const createdUser = await identitySignup.finalize(password);
       const finalized = await finalizeAuthenticatedSession(createdUser);
       login(finalized);
