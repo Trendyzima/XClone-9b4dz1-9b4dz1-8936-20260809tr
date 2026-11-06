@@ -186,6 +186,11 @@ export const appwriteAuth = {
     return payload.data;
   },
 
+  async getCurrentSession(): Promise<Models.Session> {
+    assertAppwriteAuthConfigured();
+    return appwriteAccount.getSession({ sessionId: 'current' });
+  },
+
   async getCurrentUser(): Promise<Models.User<Models.Preferences>> {
     assertAppwriteAuthConfigured();
     return appwriteAccount.get();
