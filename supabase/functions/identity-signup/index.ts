@@ -146,7 +146,7 @@ async function bindApprovedAppwriteIdentity(intent: any, appwriteJwt: string) {
     throw new Error("APPWRITE_BINDING_NOT_CONFIGURED");
   }
   if (!appwriteJwt || appwriteJwt.length > 8192) throw new Error("APPWRITE_SESSION_INVALID");
-  const accountResponse = await fetch(APPWRITE_ENDPOINT.replace(/\\/+$/, "") + "/account", {
+  const accountResponse = await fetch(APPWRITE_ENDPOINT.replace(/\/+$/, "") + "/account", {
     method: "GET",
     headers: { "X-Appwrite-Project": APPWRITE_PROJECT_ID, "X-Appwrite-JWT": appwriteJwt, "Accept": "application/json" },
     signal: AbortSignal.timeout(5000),
@@ -157,7 +157,7 @@ async function bindApprovedAppwriteIdentity(intent: any, appwriteJwt: string) {
   const appwriteEmail = normalizeEmail(account?.email);
   if (!/^[A-Za-z0-9._-]{1,36}$/.test(appwriteUserId) || appwriteEmail !== intent.email) throw new Error("APPWRITE_EMAIL_MISMATCH");
   const eventId = "testagram-kyc-" + String(intent.id);
-  const approvalResponse = await fetch(TESTAGRAM_BACKEND_URL.replace(/\\/+$/, "") + "/internal/identity/approval", {
+  const approvalResponse = await fetch(TESTAGRAM_BACKEND_URL.replace(/\/+$/, "") + "/internal/identity/approval", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
