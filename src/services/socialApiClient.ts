@@ -22,10 +22,22 @@ export class SocialApiError extends Error {
   }
 }
 
-const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '')
-  .trim()
-  .replace(/\/+$/, '');
-const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
+function socialAPIBase(): string {
+  const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim();
+  if (!configuredOrigin) return '/api/social';
+  let parsed: URL;
+  try {
+    parsed = new URL(configuredOrigin);
+  } catch {
+    throw new SocialApiError('VITE_TESTAGRAM_API_URL must be an absolute HTTPS origin.', 0, 'INVALID_API_URL');
+  }
+  const localHTTP = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(parsed.hostname);
+  if ((parsed.protocol !== 'https:' && !localHTTP) || parsed.username || parsed.password ||
+      parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new SocialApiError('VITE_TESTAGRAM_API_URL must be an HTTPS origin without credentials, path, query or fragment.', 0, 'INVALID_API_URL');
+  }
+  return `${parsed.origin}/api/social`;
+}
 
 async function getSessionToken(): Promise<string> {
   const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
@@ -60,7 +72,7 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
   const controller = new AbortController();
   const timer = globalThis.setTimeout(() => controller.abort(), 12000);
   try {
-    response = await fetch(`${apiBase}${path}`, {
+    response = await fetch(`${socialAPIBase()}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
