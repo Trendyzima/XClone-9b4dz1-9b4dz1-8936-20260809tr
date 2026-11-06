@@ -90,9 +90,7 @@ export const appwriteAuth = {
     });
     await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
     clearBackendJWT();
-    const user = await appwriteAccount.get();
-    await this.sendEmailVerification();
-    return user;
+    return appwriteAccount.get();
   },
 
   async signInWithPassword(input: {
