@@ -203,7 +203,8 @@ export default function AppwriteAuthPage() {
       if (account.emailVerification) {
         await completeLegacyLink();
       } else {
-        setNotice('Your existing account is verified. Open the Appwrite verification email, then the two identities will be linked to your original Testagram user ID.');
+        await appwriteAuth.sendEmailVerification();
+        setNotice('Your existing Testagram account is verified. We sent an Appwrite email-verification link. Open it on this device; then the two identities will be linked to your original Testagram user ID.');
         setMode('signin');
       }
     } catch (failure) {
