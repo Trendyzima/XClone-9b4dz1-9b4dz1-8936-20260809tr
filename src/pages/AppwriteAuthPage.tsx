@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { LegalAcceptanceGate, clearLegalConsent, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
+import { clearLegalConsent, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -22,11 +22,8 @@ export default function AppwriteAuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [legacyPassword, setLegacyPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [legalReady, setLegalReady] = useState(!!readLegalConsent());
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [linkRequired, setLinkRequired] = useState(false);
@@ -100,25 +97,6 @@ export default function AppwriteAuthPage() {
       } else {
         setError(issue.message || 'Sign-in failed. Check your details and try again.');
       }
-    } finally { setLoading(false); }
-  };
-
-  const submitSignUp = async (event: FormEvent) => {
-    event.preventDefault();
-    setLoading(true); setError(''); setNotice('');
-    try {
-      const consent = readLegalConsent();
-      if (!consent?.birthDate) throw new Error('Accept the current Testagram policies and confirm your date of birth first.');
-      if (password.length < 8 || password !== confirmation) throw new Error('Use a password of at least 8 characters and make sure both password fields match.');
-      if (!/^[A-Za-z0-9_]{3,30}$/.test(username.trim())) throw new Error('Username must contain 3–30 letters, numbers or underscores.');
-      if (!displayName.trim() || displayName.trim().length > 80) throw new Error('Enter a display name of up to 80 characters.');
-      window.localStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({ username: username.trim(), displayName: displayName.trim() }));
-      await appwriteAuth.signUpWithPassword({ email, password, name: displayName.trim() });
-      setNotice('Your Appwrite account has been created. Open the verification email on this device to finish setting up Testagram.');
-      setMode('signin');
-    } catch (failure) {
-      const issue = failure as { message?: string };
-      setError(issue.message || 'Account creation failed.');
     } finally { setLoading(false); }
   };
 
