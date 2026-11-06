@@ -14,6 +14,10 @@ export default function AccountPrivacyPage() {
 
   const runLifecycleAction = async (action: 'deactivate' | 'delete') => {
     if (!user || busy) return;
+    if ((import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase() === 'appwrite') {
+      toast.error('Account deactivation and deletion are not yet migrated to the Appwrite identity service. Your account has not been changed.');
+      return;
+    }
     if (action === 'delete' && confirm !== 'DELETE') {
       toast.error('Type DELETE to confirm permanent account deletion');
       return;
