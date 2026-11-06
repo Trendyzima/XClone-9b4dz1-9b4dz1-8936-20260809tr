@@ -10,6 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_GIPHY_API_KEY?: string;
   readonly VITE_API_URL?: string;
   readonly VITE_TESTAGRAM_API_URL?: string;
+  readonly VITE_TESTAGRAM_AUTH_PROVIDER?: string;
   readonly VITE_APPWRITE_ENDPOINT?: string;
   readonly VITE_APPWRITE_PROJECT_ID?: string;
   readonly VITE_APP_URL?: string;

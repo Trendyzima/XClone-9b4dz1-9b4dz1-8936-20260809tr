@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 
 type SocialEnvelope<T> = {
   ok: boolean;
@@ -27,6 +28,20 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 
 async function getSessionToken(): Promise<string> {
+  const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+  if (provider === 'appwrite') {
+    // Explicit provider selection: never fall back to a Supabase token when the
+    // backend is configured to trust Appwrite. The Go API resolves this JWT to
+    // the canonical UUID through the verified identity-link table.
+    try {
+      return await appwriteAuth.createBackendJWT();
+    } catch {
+      throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED');
+    }
+  }
+  if (provider !== 'supabase') {
+    throw new SocialApiError('Unsupported Testagram authentication provider.', 503, 'AUTH_PROVIDER_UNSUPPORTED');
+  }
   let token = (await supabase.auth.getSession()).data.session?.access_token;
   if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
   if (!token) throw new SocialApiError('Please sign in again to continue.', 401, 'AUTH_REQUIRED');
