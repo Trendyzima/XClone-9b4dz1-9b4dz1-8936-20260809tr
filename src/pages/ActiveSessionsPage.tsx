@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { authService } from '@/lib/auth';
+import { appwriteAuth } from '@/services/appwriteAuth';
 import { toast } from 'sonner';
 import {
   Smartphone, Monitor, Globe, Clock, LogOut, ShieldCheck, Loader2, CheckCircle2,
@@ -70,20 +71,26 @@ export default function ActiveSessionsPage() {
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
+    const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+    if (provider === 'appwrite') {
+      appwriteAuth.getCurrentSession().then((session) => {
+        setSessionId(session.$id.slice(0, 12) + '…');
+        setSessionUA(typeof navigator !== 'undefined' ? navigator.userAgent : '');
+        setSessionCreated(session.$createdAt || '');
+        setSessionExpires(session.expire || '');
+      }).catch(() => {}).finally(() => setLoading(false));
+      return;
+    }
     supabase.auth.getSession().then(({ data }) => {
       const s = data?.session;
       if (s) {
         setSessionId(s.access_token.slice(0, 12) + '…');
-        // User-Agent for the current browser
         setSessionUA(typeof navigator !== 'undefined' ? navigator.userAgent : '');
         setSessionCreated(s.user?.created_at ?? '');
-        // Decode exp from JWT
         try {
           const payload = JSON.parse(atob(s.access_token.split('.')[1]));
           setSessionExpires(new Date((payload.exp ?? 0) * 1000).toISOString());
-        } catch {
-          setSessionExpires('');
-        }
+        } catch { setSessionExpires(''); }
       }
       setLoading(false);
     });
@@ -91,16 +98,16 @@ export default function ActiveSessionsPage() {
 
   const handleSignOutAll = async () => {
     setSigningOut(true);
-    const { error } = await supabase.auth.signOut({ scope: 'global' });
-    if (error) {
-      toast.error(error.message || 'Failed to sign out all devices');
+    try {
+      await authService.signOutAll();
+    } catch (error) {
+      toast.error((error as Error)?.message || 'Failed to sign out all devices');
       setSigningOut(false);
       return;
     }
     setSignedOutAll(true);
     setSigningOut(false);
     toast.success('Signed out of all devices');
-    await authService.signOut().catch(() => {});
     logout();
     navigate('/auth');
   };
