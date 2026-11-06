@@ -12,7 +12,7 @@ This branch adds the frontend's canonical identity API adapter without changing 
 ## New API client operations
 
 `appwriteAuth.getCanonicalIdentity()` calls `GET /api/identity/session`.
-`appwriteAuth.provisionCanonicalIdentity({ username, displayName })` calls `POST /api/identity/provision`.
+`appwriteAuth.provisionCanonicalIdentity({ username, displayName, birthDate, policyVersion })` calls `POST /api/identity/provision` and sends explicit Terms, Privacy, Community Guidelines and age-confirmation flags. The Backend independently checks the adult birth date and records the acceptance in PostgreSQL in the same transaction as account creation.
 
 Both use a fresh short-lived Appwrite JWT, omit cookies, disable redirects, and require a valid response containing a canonical UUID. The API's 409 response for an unlinked legacy account is not treated as permission to create a second account.
 
