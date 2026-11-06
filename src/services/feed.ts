@@ -1,4 +1,5 @@
 import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import * as federation from '@/api/federation';
 
 export type Post = {
@@ -87,12 +88,17 @@ export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: nu
   const size = Math.min(Math.max(Math.floor(limit), 1), 50);
   const cursor = decodeMergedCursor(before);
 
+  const unifiedFeedEnabled = String(import.meta.env.VITE_TESTAGRAM_UNIFIED_FEED_ENABLED ?? 'false').trim().toLowerCase() === 'true';
   const [localResult, federatedResult] = await Promise.all([
-    backendCapabilities.listPosts(size, cursor.local, 'following'),
+    unifiedFeedEnabled
+      ? socialApi.getHomeFeed(size, cursor.local ?? undefined)
+      : backendCapabilities.listPosts(size, cursor.local, 'following'),
     federation.getFederatedTimelinePage({ limit: size, before: cursor.fed ?? undefined }),
   ]);
 
-  const localItems = Array.isArray(localResult?.items) ? localResult.items : [];
+  const localItems = unifiedFeedEnabled
+    ? (Array.isArray((localResult as any)?.posts) ? (localResult as any).posts : [])
+    : (Array.isArray((localResult as any)?.items) ? (localResult as any).items : []);
   const federatedItems = Array.isArray(federatedResult?.items) ? federatedResult.items : [];
 
   const localPosts = localItems.map(normalizeLocal);
@@ -106,12 +112,24 @@ export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: nu
     }
   });
 
-  const posts = Array.from(map.values())
-    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
-    .slice(0, size);
+  const posts = Array.from(map.values());
+  if (unifiedFeedEnabled && (localResult as any)?.ranking_mode === 'algorithm') {
+    const now = Date.now();
+    posts.forEach((post) => {
+      if (post.origin === 'federated') {
+        const ageHours = Math.max(0, (now - new Date(post.created_at).getTime()) / 3_600_000);
+        post.ranking_score = 0.30 * Math.exp(-Math.LN2 * ageHours / 24);
+        post.ranking_reasons = ['federated-recent'];
+      }
+    });
+    posts.sort((a, b) => Number(b.ranking_score ?? 0) - Number(a.ranking_score ?? 0));
+  } else {
+    posts.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+  }
+  posts.splice(size);
 
   const next_cursor = encodeMergedCursor({
-    local: localResult?.next_cursor ?? null,
+    local: unifiedFeedEnabled ? ((localResult as any)?.next_cursor ?? null) : (localResult?.next_cursor ?? null),
     fed: federatedResult?.pagination?.nextCursor ?? null,
   });
 
