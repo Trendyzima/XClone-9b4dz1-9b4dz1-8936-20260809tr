@@ -94,14 +94,18 @@ export type InteractionCounts = { likes: number; reposts: number; replies: numbe
 export async function getInteractionCounts(postId: string): Promise<InteractionCounts> {
   const empty: InteractionCounts = { likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0, shares: 0, bookmarks: 0, reaction_total: 0, reactions: {}, is_liked: false, is_reposted: false, is_bookmarked: false, user_reactions: [] };
   if (!postId) return empty;
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
-    body: { path: '/interaction-counts', method: 'GET', params: { post_id: postId } },
-  });
-  if (error) {
-    console.warn('[engagement] interaction counts unavailable', error);
+  const [legacyResult, independentResult] = await Promise.all([
+    supabase.functions.invoke('testagram-api', {
+      body: { path: '/interaction-counts', method: 'GET', params: { post_id: postId } },
+    }).catch((error) => ({ data: null, error })),
+    isRemoteStatus(postId) ? Promise.resolve(null) : socialApi.getInteractionSummary(postId).catch(() => null),
+  ]);
+  const data = legacyResult.error ? null : legacyResult.data;
+  if (legacyResult.error && !independentResult) {
+    console.warn('[engagement] interaction counts unavailable', legacyResult.error);
     return empty;
   }
-  return {
+  const legacy: InteractionCounts = {
     likes: Math.max(0, Number(data?.likes ?? 0)),
     reposts: Math.max(0, Number(data?.reposts ?? 0)),
     replies: Math.max(0, Number(data?.replies ?? 0)),
@@ -115,6 +119,20 @@ export async function getInteractionCounts(postId: string): Promise<InteractionC
     is_reposted: Boolean(data?.is_reposted),
     is_bookmarked: Boolean(data?.is_bookmarked),
     user_reactions: Array.isArray(data?.user_reactions) ? data.user_reactions.filter((x: unknown): x is string => typeof x === 'string') : [],
+  };
+  if (!independentResult) return legacy;
+  return {
+    ...legacy,
+    likes: independentResult.likes,
+    reposts: independentResult.reposts,
+    replies: independentResult.replies,
+    bookmarks: independentResult.bookmarks,
+    reaction_total: independentResult.reaction_total,
+    reactions: independentResult.reactions,
+    is_liked: independentResult.is_liked,
+    is_reposted: independentResult.is_reposted,
+    is_bookmarked: independentResult.is_bookmarked,
+    user_reactions: independentResult.user_reactions,
   };
 }
 
