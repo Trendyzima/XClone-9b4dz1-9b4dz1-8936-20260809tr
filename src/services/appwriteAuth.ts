@@ -252,10 +252,13 @@ export const appwriteAuth = {
 
   async signOut(): Promise<void> {
     assertAppwriteAuthConfigured();
-    try {
-      await appwriteAccount.deleteSession({ sessionId: 'current' });
-    } finally {
-      clearBackendJWT();
-    }
+    try { await appwriteAccount.deleteSession({ sessionId: 'current' }); }
+    finally { clearBackendJWT(); }
+  },
+
+  async signOutAll(): Promise<void> {
+    assertAppwriteAuthConfigured();
+    try { await appwriteAccount.deleteSessions(); }
+    finally { clearBackendJWT(); }
   },
 };
