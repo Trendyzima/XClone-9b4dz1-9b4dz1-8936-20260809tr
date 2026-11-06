@@ -55,6 +55,15 @@ export default function AppwriteAuthPage() {
       void (async () => {
         try {
           await appwriteAuth.completeEmailVerification(userId, secret);
+          const pendingMigrationEmail = window.localStorage.getItem(MIGRATION_DRAFT_KEY);
+          if (pendingMigrationEmail) {
+            window.localStorage.removeItem(MIGRATION_DRAFT_KEY);
+            setEmail(pendingMigrationEmail);
+            setLinkRequired(true);
+            setMode('signin');
+            setNotice('Your Appwrite email is verified. Enter the password for your existing Testagram account below to link it. Your original profile and social data will be preserved.');
+            return;
+          }
           const raw = window.localStorage.getItem(SIGNUP_DRAFT_KEY);
           const draft = raw ? JSON.parse(raw) as { email?: string; username?: string; displayName?: string } : null;
           const consent = readLegalConsent();
@@ -105,6 +114,29 @@ export default function AppwriteAuthPage() {
       } else {
         setError(issue.message || 'Sign-in failed. Check your details and try again.');
       }
+    } finally { setLoading(false); }
+  };
+
+  const submitExistingMigration = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoading(true); setError(''); setNotice(''); setLinkRequired(false);
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const legacy = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: legacyPassword });
+      if (legacy.error || !legacy.data.user) {
+        throw new Error('Your existing Testagram email or password could not be verified. No migration was started.');
+      }
+      const metadata = legacy.data.user.user_metadata || {};
+      const displayName = String(metadata.display_name || metadata.full_name || normalizedEmail.split('@')[0]).slice(0, 80);
+      await supabase.auth.signOut();
+      await appwriteAuth.signUpWithPassword({ email: normalizedEmail, password, name: displayName });
+      window.localStorage.setItem(MIGRATION_DRAFT_KEY, normalizedEmail);
+      setLegacyPassword(''); setPassword(''); setConfirmation('');
+      setNotice('Your existing account was verified and the new Appwrite identity was created. Verify the Appwrite email on this device, then link it to your original Testagram profile.');
+      setMode('signin');
+    } catch (failure) {
+      const issue = failure as { message?: string };
+      setError(issue.message || 'Existing-account migration could not be started. Your original account was not changed.');
     } finally { setLoading(false); }
   };
 
@@ -257,6 +289,7 @@ export default function AppwriteAuthPage() {
               <Input type="password" autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
               <Button className="w-full" disabled={loading}>{loading ? 'Please wait…' : 'Sign in'}</Button>
               <button type="button" className="text-sm text-primary underline" onClick={() => setMode('recover')}>Forgot password?</button>
+              <button type="button" className="text-sm text-primary underline" onClick={() => { setMode('migrate'); setError(''); setNotice(''); }}>Move an existing Testagram account to Appwrite</button>
             </form>}
             {mode === 'signup' && legalReady && <form onSubmit={submitSignUp} className="space-y-3">
               <Input type="text" placeholder="Display name" value={displayName} onChange={e => setDisplayName(e.target.value)} required maxLength={80} />
@@ -281,6 +314,16 @@ export default function AppwriteAuthPage() {
               <Input inputMode="numeric" autoComplete="one-time-code" placeholder="Six-digit email code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} required />
               <Button className="w-full" disabled={loading || otp.length !== 6}>{loading ? 'Verifying…' : 'Verify email and continue'}</Button>
               <button type="button" className="text-sm text-primary underline" onClick={() => void resendRegistrationEmail()}>Resend code</button>
+            </form>}
+            {mode === 'migrate' && <form onSubmit={submitExistingMigration} className="space-y-3">
+              <h2 className="font-semibold">Migrate your existing Testagram account</h2>
+              <p className="text-xs text-muted-foreground">First we verify your current Testagram password. Then Appwrite creates a new sign-in identity. After email verification, you prove the old password again to link the new identity to your existing canonical profile. Posts, followers and messages are not recreated.</p>
+              <Input type="email" autoComplete="email" placeholder="Existing Testagram email" value={email} onChange={e => setEmail(e.target.value)} required />
+              <Input type="password" autoComplete="current-password" placeholder="Existing Testagram password" value={legacyPassword} onChange={e => setLegacyPassword(e.target.value)} required />
+              <Input type="password" autoComplete="new-password" placeholder="New Appwrite password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+              <Input type="password" autoComplete="new-password" placeholder="Confirm new Appwrite password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} />
+              <Button className="w-full" disabled={loading || password !== confirmation}>{loading ? 'Verifying and preparing…' : 'Verify existing account & create Appwrite identity'}</Button>
+              <button type="button" className="text-sm text-primary underline" onClick={() => { setMode('signin'); setLegacyPassword(''); }}>Back to sign in</button>
             </form>}
             {mode === 'recover' && <form onSubmit={requestRecovery} className="space-y-3">
               <Input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
