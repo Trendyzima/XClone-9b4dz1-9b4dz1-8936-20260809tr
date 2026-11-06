@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export function useFollow(acct?: string) {
@@ -20,8 +21,8 @@ export function useFollow(acct?: string) {
     (async () => {
       try {
         const userId = await resolveUserId(acct);
-        const result = await backendCapabilities.getFollowState(userId);
-        if (!cancelled) setState(result.state?.following ? 'following' : result.state?.requested ? 'pending' : 'not');
+        const result = await socialApi.getFollowState(userId);
+        if (!cancelled) setState(result.following ? 'following' : result.requested ? 'pending' : 'not');
       } catch {
         if (!cancelled) setState('not');
       }
@@ -33,14 +34,16 @@ export function useFollow(acct?: string) {
     try {
       setState('pending');
       const userId = await resolveUserId(value);
-      const result = await backendCapabilities.followUser(userId, shouldFollow);
-      const following = Boolean(result.state?.following);
-      setState(following ? 'following' : result.state?.requested ? 'pending' : 'not');
+      const result = await socialApi.setFollow(userId, shouldFollow);
+      const status = shouldFollow && 'status' in result ? result.status : 'none';
+      const following = status === 'accepted';
+      const requested = status === 'pending';
+      setState(following ? 'following' : requested ? 'pending' : 'not');
       trackTestagramEvent(following ? TestagramEvent.USER_FOLLOWED : TestagramEvent.USER_UNFOLLOWED, {
         target_user_id: userId,
-        requested: Boolean(result.state?.requested),
+        requested,
       });
-      return result;
+      return { state: { following, requested, status } };
     } catch (err) {
       setState('error');
       throw err;
