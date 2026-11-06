@@ -1,4 +1,4 @@
-import { socialApi } from '@/services/socialApiClient';
+import { backendCapabilities } from '@/services/backendClient';
 import { supabase } from '@/lib/supabase';
 import type { LikeState, RepostState } from '@/services/testagramCapabilityClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
@@ -33,9 +33,9 @@ export async function togglePostLike(postId: string, currentlyLiked = false): Pr
     trackTestagramEvent(nextLiked ? TestagramEvent.POST_LIKED : TestagramEvent.POST_UNLIKED, { post_id: postId });
     return { is_liked: nextLiked, likes_count: Number(data?.remote?.like_count ?? data?.likes_count ?? 0) };
   }
-  const response = await socialApi.setLike(postId, !currentlyLiked);
-  trackTestagramEvent(response.liked ? TestagramEvent.POST_LIKED : TestagramEvent.POST_UNLIKED, { post_id: postId, likes_count: response.likes_count });
-  return { is_liked: response.liked, likes_count: response.likes_count };
+  const response = await backendCapabilities.likePost(postId);
+  trackTestagramEvent(response.state.is_liked ? TestagramEvent.POST_LIKED : TestagramEvent.POST_UNLIKED, { post_id: postId, likes_count: response.state.likes_count });
+  return response.state;
 }
 
 export async function togglePostRepost(postId: string, currentlyReposted = false): Promise<RepostState> {
@@ -47,13 +47,13 @@ export async function togglePostRepost(postId: string, currentlyReposted = false
     trackTestagramEvent(nextReposted ? TestagramEvent.POST_REPOSTED : TestagramEvent.POST_UNREPOSTED, { post_id: postId });
     return { is_reposted: nextReposted, reposts_count: Number(data?.remote?.announce_count ?? data?.reposts_count ?? 0) };
   }
-  const response = await socialApi.setRepost(postId, !currentlyReposted);
-  trackTestagramEvent(response.reposted ? TestagramEvent.POST_REPOSTED : TestagramEvent.POST_UNREPOSTED, { post_id: postId, reposts_count: response.reposts_count });
-  return { is_reposted: response.reposted, reposts_count: response.reposts_count };
+  const response = await backendCapabilities.repostPost(postId);
+  trackTestagramEvent(response.state.is_reposted ? TestagramEvent.POST_REPOSTED : TestagramEvent.POST_UNREPOSTED, { post_id: postId, reposts_count: response.state.reposts_count });
+  return response.state;
 }
 
 export async function createFederatedReply(postId: string, content: string) {
-  if (!isRemoteStatus(postId)) return socialApi.createReply(postId, content);
+  if (!isRemoteStatus(postId)) return backendCapabilities.createReply(postId, content);
   return remoteAction('reply', { post_id: postId, content });
 }
 
