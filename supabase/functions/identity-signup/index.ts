@@ -10,6 +10,7 @@ const APPWRITE_ENDPOINT = Deno.env.get("APPWRITE_ENDPOINT") ?? "";
 const APPWRITE_PROJECT_ID = Deno.env.get("APPWRITE_PROJECT_ID") ?? "";
 const TESTAGRAM_BACKEND_URL = Deno.env.get("TESTAGRAM_BACKEND_URL") ?? "";
 const APPWRITE_IDENTITY_INGEST_TOKEN = Deno.env.get("APPWRITE_IDENTITY_INGEST_TOKEN") ?? "";
+const APPWRITE_KYC_BINDING_ENABLED = Deno.env.get("APPWRITE_KYC_BINDING_ENABLED") === "true";
 const FROM = "Testagram <noreply@testagram.site>";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -137,6 +138,7 @@ function errorDetails(error: unknown) {
   return { message: String(error ?? "UNKNOWN_ERROR") };
 }
 async function bindApprovedAppwriteIdentity(intent: any, appwriteJwt: string) {
+  if (!APPWRITE_KYC_BINDING_ENABLED) throw new Error("APPWRITE_BINDING_DISABLED");
   if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
   if (intent.identity_status !== "approved" || !intent.verification_session_id) throw new Error("KYC_NOT_APPROVED");
   const engineResult = await db("get_engine_result", { session_id: intent.verification_session_id });
@@ -375,6 +377,7 @@ Deno.serve(async (req) => {
     const details = errorDetails(error);
     const internalMessage = details.message;
     const publicCodes = new Set([
+      "APPWRITE_BINDING_DISABLED",
       "INVALID_EMAIL", "INVALID_BIRTH_DATE", "INVALID_NATIONAL_ID",
       "AGE_RESTRICTION", "LEGAL_ACCEPTANCE_REQUIRED", "REGISTRATION_NOT_FOUND",
       "REGISTRATION_COMPLETED", "REGISTRATION_EXPIRED", "REGISTRATION_TOKEN_REQUIRED",
