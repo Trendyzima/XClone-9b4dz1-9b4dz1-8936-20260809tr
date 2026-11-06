@@ -90,7 +90,9 @@ export const appwriteAuth = {
     });
     await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
     clearBackendJWT();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    await this.sendEmailVerification();
+    return user;
   },
 
   async signInWithPassword(input: {
@@ -210,7 +212,7 @@ export const appwriteAuth = {
   async sendEmailVerification(): Promise<void> {
     assertAppwriteAuthConfigured();
     await appwriteAccount.createVerification({
-      url: `${window.location.origin}/auth/verify`,
+      url: `${window.location.origin}/auth?appwrite_verify=1`,
     });
   },
 
@@ -226,7 +228,7 @@ export const appwriteAuth = {
     assertAppwriteAuthConfigured();
     await appwriteAccount.createRecovery({
       email: normalizeEmail(emailInput),
-      url: `${window.location.origin}/auth/recovery`,
+      url: `${window.location.origin}/auth?appwrite_recovery=1`,
     });
   },
 
