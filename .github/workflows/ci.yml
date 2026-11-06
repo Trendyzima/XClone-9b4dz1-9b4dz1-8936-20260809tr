@@ -52,6 +52,7 @@ jobs:
       - run: npm run validate:home-feed-identity
       - run: npm run validate:fediverse-edge
       - run: npm run validate:replication-contract
+      - run: npm run validate:tv-health
       - run: npm run validate:routes
       - run: npm run build
 

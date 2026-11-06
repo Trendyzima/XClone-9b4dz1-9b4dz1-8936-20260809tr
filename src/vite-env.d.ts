@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY?: string;
   readonly VITE_GIPHY_API_KEY?: string;
   readonly VITE_API_URL?: string;
+  readonly VITE_TESTAGRAM_API_URL?: string;
   readonly VITE_APP_URL?: string;
 }
 
