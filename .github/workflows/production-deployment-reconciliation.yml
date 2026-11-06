@@ -1,13 +1,15 @@
 name: Production Deployment Reconciliation
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-    types: [closed]
+  # Production changes must be explicitly dispatched by an operator. A merge
+  # or push to main must never deploy production implicitly.
   workflow_dispatch:
     inputs:
+      confirm_production_deployment:
+        description: "Explicitly authorize this workflow to change production"
+        required: true
+        default: false
+        type: boolean
       target_sha:
         description: "Exact main commit to reconcile; must match the selected dispatch ref SHA"
         required: false
@@ -19,10 +21,7 @@ on:
         type: boolean
 
 concurrency:
-  # A closed-but-unmerged PR must not cancel an active production deployment.
-  # Merged PR closes and main pushes intentionally share the production lane.
-  group: production-deployment-reconciliation-${{ github.event_name == 'pull_request' && github.event.pull_request.merged == false && github.run_id || 'main' }}
-  # Queue legitimate main-push/merged-PR runs instead of cancelling a deployment mid-rollout.
+  group: production-deployment-reconciliation-main
   cancel-in-progress: false
 
 permissions:
@@ -35,7 +34,7 @@ env:
 
 jobs:
   reconcile-production:
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_production_deployment == true
     environment: production
     runs-on: ubuntu-24.04
     timeout-minutes: 30
