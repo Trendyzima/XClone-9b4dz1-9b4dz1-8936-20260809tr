@@ -22,10 +22,22 @@ export class SocialApiError extends Error {
   }
 }
 
-const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '')
-  .trim()
-  .replace(/\/+$/, '');
-const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
+function socialAPIBase(): string {
+  const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim();
+  if (!configuredOrigin) return '/api/social';
+  let parsed: URL;
+  try {
+    parsed = new URL(configuredOrigin);
+  } catch {
+    throw new SocialApiError('VITE_TESTAGRAM_API_URL must be an absolute HTTPS origin.', 0, 'INVALID_API_URL');
+  }
+  const localHTTP = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(parsed.hostname);
+  if ((parsed.protocol !== 'https:' && !localHTTP) || parsed.username || parsed.password ||
+      parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new SocialApiError('VITE_TESTAGRAM_API_URL must be an HTTPS origin without credentials, path, query or fragment.', 0, 'INVALID_API_URL');
+  }
+  return `${parsed.origin}/api/social`;
+}
 
 async function getSessionToken(): Promise<string> {
   const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
@@ -60,7 +72,7 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
   const controller = new AbortController();
   const timer = globalThis.setTimeout(() => controller.abort(), 12000);
   try {
-    response = await fetch(`${apiBase}${path}`, {
+    response = await fetch(`${socialAPIBase()}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
@@ -91,8 +103,37 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
 
 export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
 export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
+export type SocialFeedItem = {
+  id: string;
+  author_id: string;
+  text: string;
+  visibility: 'public' | 'followers' | 'private';
+  media_ids: unknown[];
+  created_at: string;
+  updated_at: string;
+  likes_count: number;
+  replies_count: number;
+  reposts_count: number;
+  rank_score: number;
+  author: { id: string; username: string; display_name: string; avatar_key: string };
+};
+
+export type SocialFeedPage = {
+  items: SocialFeedItem[];
+  next_cursor: string;
+  mode: 'for_you' | 'latest';
+  snapshot_expires_in_seconds?: number;
+};
 
 export const socialApi = {
+  listFeed(input: { mode?: 'for_you' | 'latest'; limit?: number; cursor?: string } = {}) {
+    const params = new URLSearchParams({
+      mode: input.mode ?? 'for_you',
+      limit: String(Math.min(50, Math.max(1, Math.floor(input.limit ?? 30)))),
+    });
+    if (input.cursor) params.set('cursor', input.cursor);
+    return request<SocialFeedPage>(`/feed?${params.toString()}`, 'GET');
+  },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
   },
