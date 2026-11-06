@@ -116,8 +116,21 @@ export const socialApi = {
       'POST',
     );
   },
+  getInteractionSummary(postId: string) {
+    return request<{
+      likes: number; reposts: number; replies: number; quotes: number; views: number; shares: number;
+      bookmarks: number; reaction_total: number; reactions: Record<string, number>;
+      is_liked: boolean; is_reposted: boolean; is_bookmarked: boolean; user_reactions: string[];
+    }>('/posts/' + encodeURIComponent(postId) + '/interaction-summary', 'GET');
+  },
+  getLikeState(postId: string) {
+    return request<SocialLikeState & { emoji: string }>('/posts/' + encodeURIComponent(postId) + '/reaction', 'GET');
+  },
+  getRepostState(postId: string) {
+    return request<SocialRepostState>('/posts/' + encodeURIComponent(postId) + '/reposts', 'GET');
+  },
   setLike(postId: string, active: boolean, emoji = '❤️') {
-    return request<SocialLikeState>(`/posts/${encodeURIComponent(postId)}/reaction`, active ? 'POST' : 'DELETE', active ? { emoji } : undefined);
+    return request<SocialLikeState>('/posts/' + encodeURIComponent(postId) + '/reaction', active ? 'POST' : 'DELETE', active ? { emoji } : undefined);
   },
   setRepost(postId: string, active: boolean, quote = '') {
     return request<SocialRepostState>(`/posts/${encodeURIComponent(postId)}/reposts`, active ? 'POST' : 'DELETE', active ? { quote } : undefined);
