@@ -7,13 +7,13 @@ const SESSION_KEY = 'testagram-identity-session-token';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-async function call<T>(endpoint: string, body: Record<string, unknown>, accessToken?: string): Promise<T> {
+async function call<T>(endpoint: string, body: Record<string, unknown>, accessToken?: string, extraHeaders: Record<string, string> = {}): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+      headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...extraHeaders },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -85,6 +85,17 @@ export const identitySignup = {
   async status() {
     const token = this.token(); if (!token) throw new Error('REGISTRATION_TOKEN_REQUIRED');
     return call<IdentitySignupStatus>(ENDPOINT, { action: 'status', registration_token: token });
+  },
+  async bindAppwriteIdentity(appwriteJwt: string) {
+    const token = this.token();
+    if (!token) throw new Error('REGISTRATION_TOKEN_REQUIRED');
+    if (!appwriteJwt || appwriteJwt.length > 8192) throw new Error('APPWRITE_SESSION_INVALID');
+    return call<{ ok: true; appwrite_user_id: string; registration_id: string }>(
+      ENDPOINT,
+      { action: 'bind_appwrite_identity', registration_token: token },
+      undefined,
+      { 'X-Appwrite-JWT': appwriteJwt },
+    );
   },
   async finalize(password: string) {
     const token = this.token(); if (!token) throw new Error('REGISTRATION_TOKEN_REQUIRED');
