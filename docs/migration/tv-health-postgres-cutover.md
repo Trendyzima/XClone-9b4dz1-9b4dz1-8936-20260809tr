@@ -15,7 +15,7 @@ The scheduled TV Channel Health Monitor was still writing to the Supabase `tv_ch
 
 ## Cutover prerequisites
 
-- Apply `migrations/20261107_tv_health_postgres.sql` using the normal reviewed migration runner after a verified backup.
+- Apply `migrations/20261106_tv_health_postgres.sql` using the normal reviewed migration runner after a verified backup.
 - Deploy the backend version that contains `POST /internal/tv/health` and `GET /api/tv/health`.
 - Configure the XClone repository Actions variable `TESTAGRAM_BACKEND_URL` with the HTTPS base URL of the deployed Go API. It is a URL, not a credential.
 - Verify an authorized staging workflow run persists results and the public GET endpoint returns them.
