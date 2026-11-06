@@ -1,0 +1,143 @@
+import { ID, type Models } from 'appwrite';
+import {
+  appwriteAccount,
+  assertAppwriteAuthConfigured,
+} from '@/lib/appwrite';
+
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 256;
+const BACKEND_JWT_CACHE_MS = 10 * 60 * 1000;
+
+let cachedBackendJWT: string | null = null;
+let backendJWTExpiresAt = 0;
+
+function normalizeEmail(value: string): string {
+  const email = value.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) {
+    throw new Error('Enter a valid email address.');
+  }
+  return email;
+}
+
+function validatePassword(value: string): void {
+  if (value.length < MIN_PASSWORD_LENGTH || value.length > MAX_PASSWORD_LENGTH) {
+    throw new Error('Password must contain between 8 and 256 characters.');
+  }
+}
+
+function clearBackendJWT(): void {
+  cachedBackendJWT = null;
+  backendJWTExpiresAt = 0;
+}
+
+export const appwriteAuth = {
+  async signUpWithPassword(input: {
+    email: string;
+    password: string;
+    name: string;
+  }): Promise<Models.User<Models.Preferences>> {
+    assertAppwriteAuthConfigured();
+    const email = normalizeEmail(input.email);
+    validatePassword(input.password);
+    const name = input.name.trim();
+    if (!name || name.length > 128) {
+      throw new Error('Enter a name up to 128 characters.');
+    }
+
+    await appwriteAccount.create({
+      userId: ID.unique(),
+      email,
+      password: input.password,
+      name,
+    });
+    await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
+    clearBackendJWT();
+    return appwriteAccount.get();
+  },
+
+  async signInWithPassword(input: {
+    email: string;
+    password: string;
+  }): Promise<Models.User<Models.Preferences>> {
+    assertAppwriteAuthConfigured();
+    await appwriteAccount.createEmailPasswordSession({
+      email: normalizeEmail(input.email),
+      password: input.password,
+    });
+    clearBackendJWT();
+    return appwriteAccount.get();
+  },
+
+  async getCurrentUser(): Promise<Models.User<Models.Preferences>> {
+    assertAppwriteAuthConfigured();
+    return appwriteAccount.get();
+  },
+
+  async createBackendJWT(forceRefresh = false): Promise<string> {
+    assertAppwriteAuthConfigured();
+    if (!forceRefresh && cachedBackendJWT && Date.now() < backendJWTExpiresAt) {
+      return cachedBackendJWT;
+    }
+    const result = await appwriteAccount.createJWT();
+    if (!result.jwt) throw new Error('Appwrite did not return a backend session token.');
+    cachedBackendJWT = result.jwt;
+    // Appwrite JWTs are short-lived; cache only in memory and below their
+    // documented lifetime. Never persist this JWT in browser storage.
+    backendJWTExpiresAt = Date.now() + BACKEND_JWT_CACHE_MS;
+    return result.jwt;
+  },
+
+  async getBackendAuthorizationHeader(): Promise<Record<string, string>> {
+    return { Authorization: `Bearer ${await this.createBackendJWT()}` };
+  },
+
+  async sendEmailVerification(): Promise<void> {
+    assertAppwriteAuthConfigured();
+    await appwriteAccount.createVerification({
+      url: `${window.location.origin}/auth/verify`,
+    });
+  },
+
+  async completeEmailVerification(userId: string, secret: string): Promise<void> {
+    assertAppwriteAuthConfigured();
+    if (!userId.trim() || !secret.trim()) {
+      throw new Error('Verification details are missing or expired.');
+    }
+    await appwriteAccount.updateVerification({ userId, secret });
+  },
+
+  async requestPasswordRecovery(emailInput: string): Promise<void> {
+    assertAppwriteAuthConfigured();
+    await appwriteAccount.createRecovery({
+      email: normalizeEmail(emailInput),
+      url: `${window.location.origin}/auth/recovery`,
+    });
+  },
+
+  async completePasswordRecovery(input: {
+    userId: string;
+    secret: string;
+    password: string;
+  }): Promise<void> {
+    assertAppwriteAuthConfigured();
+    validatePassword(input.password);
+    if (!input.userId.trim() || !input.secret.trim()) {
+      throw new Error('Password recovery details are missing or expired.');
+    }
+    await appwriteAccount.updateRecovery({
+      userId: input.userId,
+      secret: input.secret,
+      password: input.password,
+    });
+    clearBackendJWT();
+  },
+
+  async signOut(): Promise<void> {
+    assertAppwriteAuthConfigured();
+    try {
+      await appwriteAccount.deleteSession({ sessionId: 'current' });
+    } finally {
+      clearBackendJWT();
+    }
+  },
+};
