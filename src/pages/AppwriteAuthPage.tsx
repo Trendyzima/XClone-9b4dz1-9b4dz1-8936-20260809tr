@@ -186,7 +186,7 @@ export default function AppwriteAuthPage() {
           <div className="rounded-3xl border border-border bg-card p-6 shadow-xl space-y-4">
             <div className="flex gap-2">
               <Button type="button" variant={mode === 'signin' ? 'default' : 'outline'} onClick={() => { setMode('signin'); setError(''); }}>Sign in</Button>
-              <Button type="button" variant={mode === 'signup' ? 'default' : 'outline'} onClick={() => { setMode('signup'); setError(''); }} disabled={mode === 'reset'}>Create account</Button>
+              <Button type="button" variant="outline" onClick={() => { setMode('signup'); setError(''); }} disabled={mode === 'reset'}>Create account</Button>
             </div>
             {notice && <p role="status" className="rounded-xl bg-muted p-3 text-sm">{notice}</p>}
             {error && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
