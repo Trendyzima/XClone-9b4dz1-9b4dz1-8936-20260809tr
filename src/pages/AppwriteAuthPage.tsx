@@ -56,11 +56,11 @@ export default function AppwriteAuthPage() {
         try {
           await appwriteAuth.completeEmailVerification(userId, secret);
           const raw = window.localStorage.getItem(SIGNUP_DRAFT_KEY);
-          const draft = raw ? JSON.parse(raw) as { username?: string; displayName?: string } : null;
+          const draft = raw ? JSON.parse(raw) as { email?: string; username?: string; displayName?: string } : null;
           const consent = readLegalConsent();
-          if (!draft?.username || !draft.displayName || !consent?.birthDate) {
-            setNotice('Your email is verified. Complete your profile and policy confirmation to finish creating your Testagram account.');
-            setMode('signup');
+          if (!draft?.email || !draft?.username || !draft.displayName || !consent?.birthDate) {
+            setNotice('Your email is verified. Your approved identity registration is preserved; return to verification or contact support to complete setup.');
+            setMode('signin');
             return;
           }
           await appwriteAuth.provisionCanonicalIdentity({
@@ -74,9 +74,12 @@ export default function AppwriteAuthPage() {
           await finishCanonicalLogin();
         } catch (failure) {
           const issue = failure as { code?: string; message?: string };
-          if (issue.code === 'LEGACY_ACCOUNT_REQUIRES_LINK' || issue.code === 'LEGACY_INVENTORY_INCOMPLETE') {
+          if (issue.code === 'LEGACY_ACCOUNT_REQUIRES_LINK') {
             setLinkRequired(true);
-            setNotice(issue.message || 'This email may belong to an existing account. Link it using your existing account credentials.');
+            setNotice(issue.message || 'This email belongs to an existing account. Link it using your existing account credentials.');
+          } else if (issue.code === 'LEGACY_INVENTORY_INCOMPLETE') {
+            setNotice('Your Appwrite email is verified and your KYC approval is preserved. New account creation is paused until the complete legacy account inventory has been reconciled. Do not create another account.');
+            setMode('signin');
           } else {
             setError(issue.message || 'Email verification or account setup failed.');
           }
@@ -199,12 +202,8 @@ export default function AppwriteAuthPage() {
           <h1 className="text-2xl font-black">Testagram</h1>
           <p className="text-sm text-muted-foreground">Secure sign-in powered by Appwrite</p>
         </header>
-        {mode === 'signup' ? (
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-xl space-y-3">
-            <h2 className="text-lg font-bold">New registrations are temporarily paused</h2>
-            <p className="text-sm text-muted-foreground">We are migrating the existing identity-verification and one-account protection process before enabling Appwrite sign-up. This prevents duplicate accounts and preserves existing verification records.</p>
-            <Button className="w-full" variant="outline" onClick={() => setMode('signin')}>Back to sign in</Button>
-          </div>
+        {mode === 'signup' && !legalReady ? (
+          <LegalAcceptanceGate onAccepted={() => setLegalReady(true)} />
         ) : (
           <div className="rounded-3xl border border-border bg-card p-6 shadow-xl space-y-4">
             <div className="flex gap-2">
@@ -218,6 +217,18 @@ export default function AppwriteAuthPage() {
               <Input type="password" autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
               <Button className="w-full" disabled={loading}>{loading ? 'Please wait…' : 'Sign in'}</Button>
               <button type="button" className="text-sm text-primary underline" onClick={() => setMode('recover')}>Forgot password?</button>
+            </form>}
+            {mode === 'signup' && legalReady && <form onSubmit={submitSignUp} className="space-y-3">
+              <Input type="text" placeholder="Display name" value={displayName} onChange={e => setDisplayName(e.target.value)} required maxLength={80} />
+              <Input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={30} />
+              <Input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
+              <p className="text-xs text-muted-foreground">You will verify your email, complete Testagram's private identity verification, then create your Appwrite password. Your account is not created before KYC approval.</p>
+              <Button className="w-full" disabled={loading}>{loading ? 'Starting secure registration…' : 'Continue to email verification'}</Button>
+            </form>}
+            {mode === 'otp' && <form onSubmit={verifyRegistrationEmail} className="space-y-3">
+              <Input inputMode="numeric" autoComplete="one-time-code" placeholder="Six-digit email code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} required />
+              <Button className="w-full" disabled={loading || otp.length !== 6}>{loading ? 'Verifying…' : 'Verify email and continue'}</Button>
+              <button type="button" className="text-sm text-primary underline" onClick={() => void resendRegistrationEmail()}>Resend code</button>
             </form>}
             {mode === 'recover' && <form onSubmit={requestRecovery} className="space-y-3">
               <Input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
