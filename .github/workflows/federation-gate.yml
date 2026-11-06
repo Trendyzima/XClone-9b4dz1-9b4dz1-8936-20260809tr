@@ -37,6 +37,7 @@ jobs:
           deno check --node-modules-dir=none supabase/functions/megalodon-gateway/index.ts
           deno check --node-modules-dir=none supabase/functions/federated-feed/index.ts
           deno check --node-modules-dir=none supabase/functions/federated-discovery-feed/index.ts
+          deno check --node-modules-dir=none supabase/functions/federated-media-cleanup/index.ts
           deno check --node-modules-dir=none supabase/functions/mastodon-edge/index.ts
           deno check --node-modules-dir=none supabase/functions/federation-inbox/index.ts
           deno check --node-modules-dir=none supabase/functions/federation-transport/index.ts

@@ -94,3 +94,8 @@ verify_jwt = false
 # Trusted scheduler/operator-triggered inbox projection worker.
 [functions.replication-projector]
 verify_jwt = false
+
+# Scheduled media-cache eviction authenticates with the database-owned federation
+# worker token; the handler verifies it through verify_federation_worker_token.
+[functions.federated-media-cleanup]
+verify_jwt = false
