@@ -28,3 +28,24 @@ The current application still contains legacy Supabase auth listeners, direct Au
 4. Link existing accounts by simultaneous proof of the old and new sessions; never by matching email alone.
 5. Provision genuinely new Appwrite users only after the inventory gate is complete.
 6. Switch the XClone session provider in a staged release, with a rollback window.
+
+
+## KYC attestation bridge
+
+The existing private identity-verification engine remains the source of KYC decisions during this migration. The updated `identity-signup` Edge Function now exposes a server-side `bind_appwrite_identity` action. It:
+
+1. Loads the registration intent using its one-time registration token.
+2. Rechecks that the email OTP was verified, the identity state is approved, the engine decision is approved, the verified birth date matches and the national-ID fingerprint exists.
+3. Verifies the supplied Appwrite JWT against the Appwrite Account endpoint and checks that the Appwrite email matches the approved registration email.
+4. Calls the Backend's private `POST /internal/identity/approval` endpoint with a server-only ingest token and a stable provider event ID.
+
+Before enabling `APPWRITE_KYC_BINDING_ENABLED`, deploy the updated Edge Function and configure these Supabase Function secrets (never Vite variables):
+
+- `APPWRITE_ENDPOINT`
+- `APPWRITE_PROJECT_ID`
+- `TESTAGRAM_BACKEND_URL` (the private or authenticated Backend API origin)
+- `APPWRITE_IDENTITY_INGEST_TOKEN` (the exact high-entropy secret configured in the Backend secret store)
+
+The Backend registration-status endpoint returns disabled until the KYC binding flag, Appwrite server configuration and PostgreSQL legacy inventory are all ready. The XClone signup UI checks that endpoint before starting KYC, so users are not sent through verification while account provisioning is intentionally closed.
+
+Existing-account migration is separate: the user proves the old Supabase session and new Appwrite session; the Backend links them to the original canonical UUID. Do not import or copy password hashes.
