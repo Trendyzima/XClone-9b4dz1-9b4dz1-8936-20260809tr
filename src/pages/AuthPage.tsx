@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import AppwriteAuthPage from '@/pages/AppwriteAuthPage';
 import type { ComponentProps, ComponentType } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -56,7 +57,7 @@ function Field({ icon: Icon, ...props }: ComponentProps<typeof Input> & { icon: 
   return <div className="relative"><Icon className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input {...props} className={'h-13 rounded-2xl border-border/70 bg-background/80 pl-11 pr-4 shadow-sm transition focus-visible:ring-2 focus-visible:ring-primary/30 ' + (props.className || '')} /></div>;
 }
 
-export default function AuthPage() {
+function LegacyAuthPage() {
   useSEO({ noindex: true, title: 'Sign in · Testagram', url: '/auth' });
   const [mode, setMode] = useState<AuthMode>(() => {
     if (typeof window === 'undefined') return 'signin';
@@ -428,4 +429,12 @@ export default function AuthPage() {
       </div>
     </main>
   );
+}
+
+
+export default function AuthPage() {
+  const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+  if (provider === 'appwrite') return <AppwriteAuthPage />;
+  if (provider !== 'supabase') throw new Error('VITE_TESTAGRAM_AUTH_PROVIDER must be supabase or appwrite.');
+  return <LegacyAuthPage />;
 }
