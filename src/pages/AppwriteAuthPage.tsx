@@ -2,13 +2,14 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { clearLegalConsent, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
+import { LegalAcceptanceGate, clearLegalConsent, readLegalConsent, LEGAL_POLICY_VERSION } from '@/components/auth/LegalAcceptanceGate';
 import { appwriteAuth } from '@/services/appwriteAuth';
+import { identitySignup } from '@/lib/identitySignup';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import type { AuthUser } from '@/types/app-types';
 
-type Mode = 'signin' | 'signup' | 'recover' | 'reset';
+type Mode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
 const SIGNUP_DRAFT_KEY = 'testagram-appwrite-signup-draft';
 
 function mapIdentity(identity: Awaited<ReturnType<typeof appwriteAuth.getCanonicalIdentity>>): AuthUser {
@@ -23,6 +24,10 @@ export default function AppwriteAuthPage() {
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [legacyPassword, setLegacyPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [otp, setOtp] = useState('');
+  const [legalReady, setLegalReady] = useState(!!readLegalConsent());
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -133,6 +138,46 @@ export default function AppwriteAuthPage() {
       const issue = failure as { message?: string };
       setError(issue.message || 'Password recovery failed. Request a new recovery link.');
     } finally { setLoading(false); }
+  };
+
+  const submitSignUp = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoading(true); setError(''); setNotice('');
+    try {
+      const consent = readLegalConsent();
+      if (!consent?.birthDate) throw new Error('Accept the current Testagram policies and confirm your date of birth first.');
+      if (!/^[A-Za-z0-9_]{3,30}$/.test(username.trim())) throw new Error('Username must contain 3–30 letters, numbers or underscores.');
+      if (!displayName.trim() || displayName.trim().length > 80) throw new Error('Enter a display name of up to 80 characters.');
+      const normalizedEmail = email.trim().toLowerCase();
+      window.localStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({ email: normalizedEmail, username: username.trim(), displayName: displayName.trim() }));
+      await identitySignup.start({ email: normalizedEmail, birthDate: consent.birthDate, username: username.trim(), displayName: displayName.trim(), legalPolicyVersion: LEGAL_POLICY_VERSION });
+      setMode('otp');
+      setNotice('We sent a one-time email code. Verify your email, then complete Testagram identity verification before your Appwrite account is created.');
+    } catch (failure) {
+      const issue = failure as { message?: string };
+      setError(issue.message || 'Could not start secure account registration.');
+    } finally { setLoading(false); }
+  };
+
+  const verifyRegistrationEmail = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!/^\\d{6}$/.test(otp.trim())) { setError('Enter the six-digit code sent to your email.'); return; }
+    setLoading(true); setError('');
+    try {
+      await identitySignup.verifyEmail(otp.trim());
+      await identitySignup.createIdentitySession();
+      navigate('/verify-identity', { replace: true });
+    } catch (failure) {
+      const issue = failure as { message?: string };
+      setError(issue.message || 'Email verification failed. Request a new code.');
+    } finally { setLoading(false); }
+  };
+
+  const resendRegistrationEmail = async () => {
+    setLoading(true); setError('');
+    try { await identitySignup.resendEmail(); setOtp(''); setNotice('A new verification code has been sent.'); }
+    catch (failure) { const issue = failure as { message?: string }; setError(issue.message || 'Could not resend the verification code.'); }
+    finally { setLoading(false); }
   };
 
   const requestRecovery = async (event: FormEvent) => {
