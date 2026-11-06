@@ -6,6 +6,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
 const SERVICE_KEY = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
 const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
+const APPWRITE_ENDPOINT = Deno.env.get("APPWRITE_ENDPOINT") ?? "";
+const APPWRITE_PROJECT_ID = Deno.env.get("APPWRITE_PROJECT_ID") ?? "";
+const TESTAGRAM_BACKEND_URL = Deno.env.get("TESTAGRAM_BACKEND_URL") ?? "";
+const APPWRITE_IDENTITY_INGEST_TOKEN = Deno.env.get("APPWRITE_IDENTITY_INGEST_TOKEN") ?? "";
 const FROM = "Testagram <noreply@testagram.site>";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -17,7 +21,7 @@ async function db(action: string, payload: Record<string, unknown> = {}) {
 }
 const cors = {
   "Access-Control-Allow-Origin": "https://testagram.site",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-appwrite-jwt",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
@@ -132,6 +136,45 @@ function errorDetails(error: unknown) {
   }
   return { message: String(error ?? "UNKNOWN_ERROR") };
 }
+async function bindApprovedAppwriteIdentity(intent: any, appwriteJwt: string) {
+  if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
+  if (intent.identity_status !== "approved" || !intent.verification_session_id) throw new Error("KYC_NOT_APPROVED");
+  const engineResult = await db("get_engine_result", { session_id: intent.verification_session_id });
+  if (!engineResult || engineResult.decision !== "approved" || !intent.id_number_hmac) throw new Error("KYC_NOT_APPROVED");
+  if (!intent.verified_birth_date || !isAdult(intent.verified_birth_date) || intent.birth_date !== intent.verified_birth_date) throw new Error("KYC_NOT_APPROVED");
+  if (!APPWRITE_ENDPOINT || !APPWRITE_PROJECT_ID || !TESTAGRAM_BACKEND_URL || APPWRITE_IDENTITY_INGEST_TOKEN.length < 32) {
+    throw new Error("APPWRITE_BINDING_NOT_CONFIGURED");
+  }
+  if (!appwriteJwt || appwriteJwt.length > 8192) throw new Error("APPWRITE_SESSION_INVALID");
+  const accountResponse = await fetch(APPWRITE_ENDPOINT.replace(/\\/+$/, "") + "/account", {
+    method: "GET",
+    headers: { "X-Appwrite-Project": APPWRITE_PROJECT_ID, "X-Appwrite-JWT": appwriteJwt, "Accept": "application/json" },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!accountResponse.ok) throw new Error("APPWRITE_SESSION_INVALID");
+  const account = await accountResponse.json();
+  const appwriteUserId = String(account?.$id || "");
+  const appwriteEmail = normalizeEmail(account?.email);
+  if (!/^[A-Za-z0-9._-]{1,36}$/.test(appwriteUserId) || appwriteEmail !== intent.email) throw new Error("APPWRITE_EMAIL_MISMATCH");
+  const eventId = "testagram-kyc-" + String(intent.id);
+  const approvalResponse = await fetch(TESTAGRAM_BACKEND_URL.replace(/\\/+$/, "") + "/internal/identity/approval", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+      "X-Testagram-Identity-Ingest": APPWRITE_IDENTITY_INGEST_TOKEN,
+    },
+    body: JSON.stringify({
+      appwrite_user_id: appwriteUserId,
+      registration_id: String(intent.id),
+      provider_event_id: eventId,
+    }),
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!approvalResponse.ok) throw new Error("IDENTITY_APPROVAL_INGEST_FAILED");
+  return { appwrite_user_id: appwriteUserId, registration_id: String(intent.id) };
+}
+
 async function finalizeAccount(intent: any, password: string) {
   if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
   if (intent.identity_status !== "approved") throw new Error("IDENTITY_NOT_APPROVED");
@@ -284,6 +327,12 @@ Deno.serve(async (req) => {
     if (!token) return json({ ok:false,error:"REGISTRATION_TOKEN_REQUIRED" },400);
     const intent = await getIntent(token, action === "status");
 
+    if (action === "bind_appwrite_identity") {
+      const appwriteJwt = req.headers.get("X-Appwrite-JWT") || "";
+      const binding = await bindApprovedAppwriteIdentity(intent, appwriteJwt);
+      return json({ ok: true, ...binding });
+    }
+
     if (action === "verify_email") {
       const code = String(body.code || "").replace(/\s+/g,"");
       if (!/^\d{6}$/.test(code)) return json({ok:false,error:"INVALID_CODE"},400);
@@ -335,8 +384,8 @@ Deno.serve(async (req) => {
       "BIRTH_DATE_MISMATCH", "PASSWORD_TOO_SHORT", "IDENTITY_ALREADY_REGISTERED",
       "AUTH_REQUIRED", "UNKNOWN_ACTION", "VERIFICATION_SESSION_REQUIRED",
       "VERIFICATION_SESSION_NOT_FOUND", "VERIFICATION_SESSION_EXPIRED",
-      "VERIFICATION_SESSION_TERMINAL", "MISSING_EVIDENCE", "EVIDENCE_NOT_FOUND",
-      "IDENTITY_SECRET_NOT_CONFIGURED", "TESTAGRAM_MAIL_QUEUE_NOT_CONFIGURED",
+      "VERIFICATION_SESSION_TERMINAL", "MISSING_EVIDENCE", "EVIDENCE_NOT_FOUND", "APPWRITE_SESSION_INVALID", "APPWRITE_EMAIL_MISMATCH", "KYC_NOT_APPROVED", "IDENTITY_APPROVAL_INGEST_FAILED", "APPWRITE_SESSION_INVALID", "APPWRITE_EMAIL_MISMATCH", "KYC_NOT_APPROVED", "IDENTITY_APPROVAL_INGEST_FAILED",
+      "IDENTITY_SECRET_NOT_CONFIGURED", "TESTAGRAM_MAIL_QUEUE_NOT_CONFIGURED", "APPWRITE_BINDING_NOT_CONFIGURED",
     ]);
     const publicError = publicCodes.has(internalMessage) ? internalMessage : "IDENTITY_SERVICE_ERROR";
     const conflictCodes = new Set(["EMAIL_ALREADY_REGISTERED", "IDENTITY_ALREADY_REGISTERED"]);
