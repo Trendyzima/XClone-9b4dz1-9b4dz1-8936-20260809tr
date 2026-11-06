@@ -8,6 +8,23 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 256;
 const BACKEND_JWT_CACHE_MS = 10 * 60 * 1000;
 
+type CanonicalIdentity = {
+  canonical_user_id: string;
+  appwrite_user_id: string;
+  email: string;
+  email_verified: boolean;
+  username: string;
+  display_name: string;
+  account_status: 'active' | 'deactivated' | 'suspended';
+};
+
+type IdentityEnvelope = {
+  ok: boolean;
+  data?: CanonicalIdentity;
+  error?: { code?: string; message?: string };
+  request_id?: string;
+};
+
 type IdentityLinkResponse = {
   ok: boolean;
   data?: { canonical_user_id: string; linked: boolean; already_linked: boolean };
@@ -73,7 +90,9 @@ export const appwriteAuth = {
     });
     await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
     clearBackendJWT();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    await this.sendEmailVerification();
+    return user;
   },
 
   async signInWithPassword(input: {
@@ -122,6 +141,49 @@ export const appwriteAuth = {
       canonicalUserId: payload.data.canonical_user_id,
       alreadyLinked: payload.data.already_linked,
     };
+  },
+
+  async getCanonicalIdentity(): Promise<CanonicalIdentity> {
+    assertAppwriteAuthConfigured();
+    const response = await fetch(testagramAPIOrigin() + '/api/identity/session', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + await this.createBackendJWT(), Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+    });
+    let payload: IdentityEnvelope | null = null;
+    try { payload = await response.json() as IdentityEnvelope; } catch { /* handled below */ }
+    if (!response.ok || !payload?.ok || !payload.data?.canonical_user_id) {
+      const code = payload?.error?.code || 'IDENTITY_SESSION_FAILED';
+      const message = payload?.error?.message || 'Testagram could not resolve this account.';
+      throw Object.assign(new Error(message), { code, status: response.status, requestId: payload?.request_id });
+    }
+    return payload.data;
+  },
+
+  async provisionCanonicalIdentity(input: { username: string; displayName: string }): Promise<CanonicalIdentity> {
+    assertAppwriteAuthConfigured();
+    const response = await fetch(testagramAPIOrigin() + '/api/identity/provision', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + await this.createBackendJWT(true),
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ username: input.username.trim(), display_name: input.displayName.trim() }),
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+    });
+    let payload: IdentityEnvelope | null = null;
+    try { payload = await response.json() as IdentityEnvelope; } catch { /* handled below */ }
+    if (!response.ok || !payload?.ok || !payload.data?.canonical_user_id) {
+      const code = payload?.error?.code || 'IDENTITY_PROVISION_FAILED';
+      const message = payload?.error?.message || 'Testagram could not create the account profile.';
+      throw Object.assign(new Error(message), { code, status: response.status, requestId: payload?.request_id });
+    }
+    return payload.data;
   },
 
   async getCurrentUser(): Promise<Models.User<Models.Preferences>> {
