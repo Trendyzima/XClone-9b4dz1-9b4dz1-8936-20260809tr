@@ -270,6 +270,18 @@ export default function AppwriteAuthPage() {
               <Button className="w-full" disabled={loading || otp.length !== 6}>{loading ? 'Verifying…' : 'Verify email and continue'}</Button>
               <button type="button" className="text-sm text-primary underline" onClick={() => void resendRegistrationEmail()}>Resend code</button>
             </form>}
+            {mode === 'signup' && legalReady && <form onSubmit={submitSignUp} className="space-y-3">
+              <Input type="text" placeholder="Display name" value={displayName} onChange={e => setDisplayName(e.target.value)} required maxLength={80} />
+              <Input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={30} />
+              <Input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
+              <p className="text-xs text-muted-foreground">You will verify your email, complete Testagram's private identity verification, then create your Appwrite password. Your account is not created before KYC approval.</p>
+              <Button className="w-full" disabled={loading}>{loading ? 'Starting secure registration…' : 'Continue to email verification'}</Button>
+            </form>}
+            {mode === 'otp' && <form onSubmit={verifyRegistrationEmail} className="space-y-3">
+              <Input inputMode="numeric" autoComplete="one-time-code" placeholder="Six-digit email code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} required />
+              <Button className="w-full" disabled={loading || otp.length !== 6}>{loading ? 'Verifying…' : 'Verify email and continue'}</Button>
+              <button type="button" className="text-sm text-primary underline" onClick={() => void resendRegistrationEmail()}>Resend code</button>
+            </form>}
             {mode === 'recover' && <form onSubmit={requestRecovery} className="space-y-3">
               <Input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
               <Button className="w-full" disabled={loading}>{loading ? 'Sending…' : 'Send recovery link'}</Button>
