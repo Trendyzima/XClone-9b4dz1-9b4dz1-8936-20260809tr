@@ -49,6 +49,10 @@ async function getSessionToken(): Promise<string> {
 }
 
 async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
+  return requestAt<T>(`${apiBase}${path}`, method, body);
+}
+
+async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
   const token = await getSessionToken();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -60,7 +64,7 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
   const controller = new AbortController();
   const timer = globalThis.setTimeout(() => controller.abort(), 12000);
   try {
-    response = await fetch(`${apiBase}${path}`, {
+    response = await fetch(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
@@ -72,7 +76,7 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new SocialApiError('Social service timed out. Please retry.', 0, 'TIMEOUT');
     }
-    throw new SocialApiError('Social service is unreachable. Check your connection and API URL.', 0, 'NETWORK_ERROR');
+    throw new SocialApiError('Testagram API is unreachable. Check your connection and API URL.', 0, 'NETWORK_ERROR');
   } finally {
     globalThis.clearTimeout(timer);
   }
@@ -93,6 +97,13 @@ export type SocialLikeState = { liked: boolean; likes_count: number; removed?: b
 export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
 
 export const socialApi = {
+  getHomeFeed(limit = 20, before?: string) {
+    const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
+    if (before) query.set('before', before);
+    return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
+      `${configuredOrigin ? configuredOrigin : ''}/api/feed/home?${query.toString()}`, 'GET',
+    );
+  },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
   },
