@@ -143,6 +143,22 @@ export const appwriteAuth = {
     };
   },
 
+  async getRegistrationStatus(): Promise<{ enabled: boolean; reason?: string }> {
+    assertAppwriteAuthConfigured();
+    const response = await fetch(testagramAPIOrigin() + '/api/identity/registration-status', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+    });
+    const payload = await response.json().catch(() => null) as { ok?: boolean; data?: { new_account_registration_enabled?: boolean; reason?: string } } | null;
+    if (!response.ok || !payload?.ok || typeof payload.data?.new_account_registration_enabled !== 'boolean') {
+      throw new Error('REGISTRATION_STATUS_UNAVAILABLE');
+    }
+    return { enabled: payload.data.new_account_registration_enabled, reason: payload.data.reason };
+  },
+
   async getCanonicalIdentity(): Promise<CanonicalIdentity> {
     assertAppwriteAuthConfigured();
     const response = await fetch(testagramAPIOrigin() + '/api/identity/session', {
