@@ -239,6 +239,21 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     throw new Error('[TikVTV/Testagram Auth] Failed to remove TikVTV feed auth modal');
   }
 
+  // The pinned TikVTV upstream stylesheet has a bare scrollbar-width
+  // declaration at top level inside @layer base. Browsers ignore that invalid
+  // declaration, but PostCSS warns and the vendor build ships malformed CSS.
+  // Repair only this exact upstream defect for the duration of the build; the
+  // original submodule file is restored in the finally block below.
+  const originalVendorCss = original.get(indexCssPath);
+  const invalidScrollbarDeclaration = /(^|\n)\s*scrollbar-width:\s*none;\s*(?=\n\s*}\s*\n\s*@layer utilities)/;
+  if (invalidScrollbarDeclaration.test(originalVendorCss)) {
+    const repairedVendorCss = originalVendorCss.replace(
+      invalidScrollbarDeclaration,
+      '$1  * { scrollbar-width: none; }',
+    );
+    fs.writeFileSync(indexCssPath, repairedVendorCss, 'utf8');
+  }
+
   fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
   fs.writeFileSync(socialServicePath, "import { createClient } from '@supabase/supabase-js';\nimport { supabase } from '@/lib/supabase';\n\nconst SECONDARY_FUNCTION_URL = 'https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/iptv-social';\nconst SECONDARY_PUBLISHABLE_KEY = 'sb_publishable_f331BL1gsNy-otXRmQPtrw_SG8tCWLn';\n\nexport const secondaryRealtime = createClient(\n  'https://aepbqfrmheihfsauzcby.supabase.co',\n  SECONDARY_PUBLISHABLE_KEY,\n  { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },\n);\n\nexport async function iptvSocial<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {\n  const { data } = await supabase.auth.getSession();\n  const headers: Record<string, string> = {\n    apikey: SECONDARY_PUBLISHABLE_KEY,\n    'Content-Type': 'application/json',\n  };\n  if (data.session?.access_token) headers.Authorization = 'Bearer ' + data.session.access_token;\n  const response = await fetch(SECONDARY_FUNCTION_URL, {\n    method: 'POST',\n    headers,\n    body: JSON.stringify({ action, ...payload }),\n  });\n  const body = await response.json().catch(() => ({}));\n  if (!response.ok) throw new Error(body?.error || 'IPTV social request failed');\n  return body as T;\n}\n", 'utf8');
   fs.writeFileSync(reactionHookPath, "import { useState, useCallback, useEffect } from 'react';\nimport { iptvSocial } from '@/lib/testagramSocial';\n\nexport function useReactions(channelId: string, userId?: string) {\n  const [liked, setLiked] = useState(false);\n  const [likeCount, setLikeCount] = useState(0);\n  const [loading, setLoading] = useState(false);\n\n  useEffect(() => {\n    let mounted = true;\n    iptvSocial<{liked:boolean;likeCount:number}>('reactions_state', { channelId })\n      .then(r => { if (mounted) { setLiked(!!r.liked); setLikeCount(r.likeCount || 0); } })\n      .catch(() => {});\n    return () => { mounted = false; };\n  }, [channelId, userId]);\n\n  const toggleLike = useCallback(async (): Promise<boolean> => {\n    if (!userId || loading) return false;\n    setLoading(true);\n    try {\n      const r = await iptvSocial<{liked:boolean}>('reaction_toggle', { channelId });\n      setLiked(!!r.liked);\n      setLikeCount(n => Math.max(0, n + (r.liked ? 1 : -1)));\n      return true;\n    } catch { return false; }\n    finally { setLoading(false); }\n  }, [channelId, userId, loading]);\n\n  return { liked, likeCount, loading, toggleLike };\n}\n", 'utf8');
