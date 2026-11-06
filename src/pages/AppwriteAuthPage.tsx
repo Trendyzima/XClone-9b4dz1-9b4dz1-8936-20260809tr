@@ -176,8 +176,12 @@ export default function AppwriteAuthPage() {
           <h1 className="text-2xl font-black">Testagram</h1>
           <p className="text-sm text-muted-foreground">Secure sign-in powered by Appwrite</p>
         </header>
-        {mode === 'signup' && !legalReady ? (
-          <LegalAcceptanceGate onAccepted={() => setLegalReady(true)} />
+        {mode === 'signup' ? (
+          <div className="rounded-3xl border border-border bg-card p-6 shadow-xl space-y-3">
+            <h2 className="text-lg font-bold">New registrations are temporarily paused</h2>
+            <p className="text-sm text-muted-foreground">We are migrating the existing identity-verification and one-account protection process before enabling Appwrite sign-up. This prevents duplicate accounts and preserves existing verification records.</p>
+            <Button className="w-full" variant="outline" onClick={() => setMode('signin')}>Back to sign in</Button>
+          </div>
         ) : (
           <div className="rounded-3xl border border-border bg-card p-6 shadow-xl space-y-4">
             <div className="flex gap-2">
@@ -191,15 +195,6 @@ export default function AppwriteAuthPage() {
               <Input type="password" autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
               <Button className="w-full" disabled={loading}>{loading ? 'Please wait…' : 'Sign in'}</Button>
               <button type="button" className="text-sm text-primary underline" onClick={() => setMode('recover')}>Forgot password?</button>
-            </form>}
-            {mode === 'signup' && <form onSubmit={submitSignUp} className="space-y-3">
-              <Input type="text" placeholder="Display name" value={displayName} onChange={e => setDisplayName(e.target.value)} required maxLength={80} />
-              <Input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={30} />
-              <Input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
-              <Input type="password" autoComplete="new-password" placeholder="Password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
-              <Input type="password" autoComplete="new-password" placeholder="Confirm password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} />
-              <p className="text-xs text-muted-foreground">By continuing, you agree to the current Terms, Privacy Policy and Community Guidelines. Your 18+ confirmation is recorded by the Testagram Backend.</p>
-              <Button className="w-full" disabled={loading || !legalReady}>{loading ? 'Creating account…' : 'Create account and verify email'}</Button>
             </form>}
             {mode === 'recover' && <form onSubmit={requestRecovery} className="space-y-3">
               <Input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
