@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { AppwriteIdentityProvider } from '@/components/layout/AppwriteIdentityProvider';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -74,7 +75,7 @@ export async function sendActivityNotification({
   }
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
   const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
 
   useEffect(() => {
@@ -244,4 +245,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [login, logout, setLoading, setAuthError, clearAuthError]);
 
   return <>{children}</>;
+}
+
+
+/**
+ * Provider selection is explicit. Appwrite mode is opt-in for staging only
+ * until AuthPage, legal acceptance, recovery and remaining legacy feature
+ * adapters have completed their coordinated migration.
+ */
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+  if (provider === 'appwrite') return <AppwriteIdentityProvider>{children}</AppwriteIdentityProvider>;
+  if (provider !== 'supabase') throw new Error('VITE_TESTAGRAM_AUTH_PROVIDER must be supabase or appwrite.');
+  return <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
 }
