@@ -160,7 +160,7 @@ export const appwriteAuth = {
     return payload.data;
   },
 
-  async provisionCanonicalIdentity(input: { username: string; displayName: string }): Promise<CanonicalIdentity> {
+  async provisionCanonicalIdentity(input: { username: string; displayName: string; birthDate: string; policyVersion: string }): Promise<CanonicalIdentity> {
     assertAppwriteAuthConfigured();
     const response = await fetch(testagramAPIOrigin() + '/api/identity/provision', {
       method: 'POST',
@@ -169,7 +169,7 @@ export const appwriteAuth = {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({ username: input.username.trim(), display_name: input.displayName.trim() }),
+      body: JSON.stringify({ username: input.username.trim(), display_name: input.displayName.trim(), birth_date: input.birthDate, policy_version: input.policyVersion, terms_accepted: true, privacy_accepted: true, content_policy_accepted: true, age_confirmed: true }),
       cache: 'no-store',
       credentials: 'omit',
       redirect: 'error',
