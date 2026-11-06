@@ -104,21 +104,35 @@ export async function loadTvSource(source:TvSource,signal?:AbortSignal){
 export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
 export async function loadTvHealth(channelIds:string[]){
  const wanted=new Set(channelIds.map(String));
- try{
-  const {data,error}=await supabaseSecondary
-    .from('tv_catalog_health')
-    .select('channel_id,is_online,last_checked_at,latency_ms,consecutive_successes,priority')
-    .eq('is_online',true)
-    .limit(20000);
-  if(!error && Array.isArray(data) && data.length){
-   return new Map(data.filter((x:any)=>wanted.has(String(x.channel_id))).map((x:any)=>[String(x.channel_id),x]));
+ if(!wanted.size || typeof window==='undefined') return new Map<string,any>();
+ const configured=String(import.meta.env.VITE_TESTAGRAM_API_URL||'').trim();
+ let base=window.location.origin;
+ if(configured){
+  try{
+   const parsed=new URL(configured);
+   const localHTTP=parsed.protocol==='http:' && ['localhost','127.0.0.1','[::1]','::1'].includes(parsed.hostname);
+   if((parsed.protocol!=='https:'&&!localHTTP)||parsed.username||parsed.password||parsed.pathname!=='/'||parsed.search||parsed.hash){
+    throw new Error('VITE_TESTAGRAM_API_URL must be an HTTPS origin (HTTP only for localhost).');
+   }
+   base=parsed.origin;
+  }catch(error){
+   console.warn('[TV health] Invalid Testagram API origin:',error);
+   return new Map<string,any>();
   }
- }catch{}
- const url=supabaseUrl+'/rest/v1/tv_channel_health?is_online=eq.true&select=channel_id,is_online,last_checked_at,latency_ms,consecutive_successes,priority&limit=20000';
- const r=await fetch(url,{headers:{Accept:'application/json'}});
- if(!r.ok) return new Map<string,any>();
- const rows=await r.json();
- return new Map((Array.isArray(rows)?rows:[]).filter((x:any)=>wanted.has(String(x.channel_id))).map((x:any)=>[String(x.channel_id),x]));
+ }
+ try{
+  const response=await fetch(base+'/api/tv/health?online=true&limit=20000',{headers:{Accept:'application/json'}});
+  if(!response.ok) return new Map<string,any>();
+  const payload=await response.json();
+  const rows=Array.isArray(payload?.channels)?payload.channels:[];
+  return new Map(rows.filter((row:any)=>wanted.has(String(row.channel_id))).map((row:any)=>[String(row.channel_id),{
+   channel_id:String(row.channel_id),is_online:Boolean(row.is_online),last_checked_at:row.last_checked_at,
+   latency_ms:Number(row.latency_ms||0),consecutive_successes:Number(row.consecutive_successes||0),priority:Number(row.priority||0)
+  }]));
+ }catch(error){
+  console.warn('[TV health] Independent PostgreSQL health API is unavailable:',error);
+  return new Map<string,any>();
+ }
 }
 export function rankRecommendedTvChannels(channels:TvChannel[],health:Map<string,any>){
  return [...channels].sort((a,b)=>{

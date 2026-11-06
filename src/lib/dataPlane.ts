@@ -17,6 +17,7 @@ export const DATA_PLANE_FEATURES = {
   federationPublicReadCache: { canonical: 'secondary', clientAccess: 'secondary-read' },
   publicMediaCatalog: { canonical: 'secondary', clientAccess: 'secondary-read' },
   iptvWorldTvCatalog: { canonical: 'secondary', clientAccess: 'secondary-read' },
+  tvChannelHealth: { canonical: 'testagram-postgres', clientAccess: 'backend-read' },
   streamingMetadata: { canonical: 'secondary', clientAccess: 'secondary-read' },
   publicNewsAndPodcastCatalogs: { canonical: 'secondary', clientAccess: 'secondary-read' },
   legacyHighVolumeData: { canonical: 'secondary', clientAccess: 'secondary-read' },
