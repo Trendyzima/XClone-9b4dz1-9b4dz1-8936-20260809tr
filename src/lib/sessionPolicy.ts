@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 
 // Keep the browser-enforced maximum aligned with [auth.sessions].timebox in supabase/config.toml.
 export const TESTAGRAM_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
