@@ -52,7 +52,9 @@ export async function enforceTestagramSessionLifetime() {
 
   if (Date.now() - existing.startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS) {
     clearStart();
-    await supabase.auth.signOut();
+    const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+    if (provider === 'appwrite') await appwriteAuth.signOut();
+    else await supabase.auth.signOut();
     return false;
   }
 
