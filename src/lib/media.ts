@@ -1,9 +1,12 @@
-import { supabase } from './supabase';
+import { testagramApi } from '@/services/testagramApi';
+import { TestagramApiError } from '@/services/testagramApiClient';
 
-// Keep public uploads aligned with the Go backend's current 20 MiB public-media gate.
-// Raise this only after the backend, proxy limits, and storage policy are upgraded together.
 export const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
-export const ALLOWED_MEDIA_TYPES = new Set<string>();
+export const ALLOWED_MEDIA_TYPES = new Set<string>([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif',
+  'video/mp4', 'video/webm',
+  'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/webm',
+]);
 
 export type MediaUploadResult = {
   media_id: string;
@@ -17,64 +20,16 @@ export type MediaUploadResult = {
   post_id?: string | null;
 };
 
-function validateMedia(file: File) {
-  if (!file.type && !file.name) throw new Error('File type could not be determined.');
-  if (file.size <= 0 || file.size > MAX_MEDIA_BYTES) throw new Error('Attachments must be 20 MiB or smaller.');
-}
-
-function selfHostedMediaBase() {
-  const raw = String(import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim();
-  if (!raw) {
-    if (import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true') {
-      throw new Error(
-        'Self-hosted Testagram mode requires VITE_TESTAGRAM_API_URL. Refusing fallback to the hosted media path.',
-      );
-    }
-    return '';
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new Error('VITE_TESTAGRAM_API_URL must be an absolute HTTP(S) origin.');
-  }
-  const isLocalHTTP =
-    parsed.protocol === 'http:' &&
-    (parsed.hostname === 'localhost' ||
-      parsed.hostname === '127.0.0.1' ||
-      parsed.hostname === '[::1]' ||
-      parsed.hostname === '::1');
-  if (
-    (parsed.protocol !== 'https:' && !isLocalHTTP) ||
-    parsed.username ||
-    parsed.password ||
-    parsed.pathname !== '/' ||
-    parsed.search ||
-    parsed.hash
-  ) {
-    throw new Error(
-      'VITE_TESTAGRAM_API_URL must be an HTTPS origin (HTTP is allowed only for localhost) without a path, credentials, query, or fragment.',
-    );
-  }
-  return parsed.origin;
-}
-
-function resolveSelfHostedUploadURL(uploadURL: string, expectedKey: string): URL {
-  const apiBase = selfHostedMediaBase();
-  if (!apiBase) throw new Error('Self-hosted Testagram API URL is not configured.');
-  const resolved = new URL(uploadURL, apiBase + '/');
-  if (
-    resolved.origin !== apiBase ||
-    resolved.pathname !== '/api/media/upload' ||
-    resolved.searchParams.get('key') !== expectedKey ||
-    resolved.username ||
-    resolved.password
-  ) {
-    throw new Error('Self-hosted media API returned an unsafe upload URL.');
-  }
-  return resolved;
-}
+type UploadReservation = {
+  reservation_id: string;
+  object_id: string;
+  upload_url: string;
+  upload_method: string;
+  required_headers: Record<string, string>;
+  expires_at: string;
+  reserved_bytes: number;
+  status: string;
+};
 
 export class MediaApiError extends Error {
   readonly status: number;
@@ -90,216 +45,159 @@ export class MediaApiError extends Error {
   }
 }
 
-async function selfHostedMediaRequest(path: string, body: Record<string, unknown>) {
-  const base = selfHostedMediaBase();
-  if (!base) throw new Error('Self-hosted Testagram API URL is not configured.');
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new MediaApiError('Authentication required', 401, 'AUTH_REQUIRED');
-  const response = await fetch(base + path, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + session.access_token,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => null);
-  const error = payload && typeof payload === 'object' ? (payload as any).error : null;
-  if (!response.ok || !payload || payload.ok !== true || error) {
-    const message = typeof error === 'string'
-      ? error
-      : String(error?.message ?? 'Self-hosted media request failed (' + response.status + ').');
-    throw new MediaApiError(
-      message,
-      response.status,
-      typeof error?.code === 'string' ? error.code : null,
-      typeof payload?.request_id === 'string' ? payload.request_id : response.headers.get('X-Request-ID'),
-    );
+function validateMedia(file: File): string {
+  const mime = String(file.type || '').trim().toLowerCase();
+  if (!ALLOWED_MEDIA_TYPES.has(mime)) {
+    throw new MediaApiError('Choose a supported image, video, or audio format.', 415, 'MEDIA_TYPE_NOT_ALLOWED');
   }
-  if (!payload.data || typeof payload.data !== 'object') {
-    throw new MediaApiError(
-      'Self-hosted media API returned a malformed success response.',
-      response.status,
-      'MEDIA_RESPONSE_INVALID',
-      typeof payload.request_id === 'string' ? payload.request_id : response.headers.get('X-Request-ID'),
-    );
+  if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > MAX_MEDIA_BYTES) {
+    throw new MediaApiError('Attachments must be between 1 byte and 20 MiB.', 413, 'MEDIA_SIZE_NOT_ALLOWED');
   }
-  return payload.data;
+  return mime;
 }
 
 async function sha256Hex(file: File): Promise<string> {
-  // Public uploads are capped at 20 MiB until the backend and proxy limits are
-  // deliberately raised together, keeping WebCrypto's one-shot buffer bounded.
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function uploadMediaToSelfHosted(file: File, postId?: string | null): Promise<MediaUploadResult> {
-  const mime = String(file.type ?? '').trim().toLowerCase();
-  const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']);
-  const videoTypes = new Set(['video/mp4', 'video/webm']);
-  const maxBytes = imageTypes.has(mime) || videoTypes.has(mime) ? MAX_MEDIA_BYTES : 0;
-  if (!maxBytes) throw new Error('Self-hosted public media supports JPEG, PNG, WebP, AVIF, GIF, MP4, and WebM up to 20 MiB only.');
-  if (file.size <= 0 || file.size > maxBytes) {
-    throw new Error('Public media files must be 20 MiB or smaller.');
+function validateUploadURL(raw: string): URL {
+  let url: URL;
+  try { url = new URL(raw); }
+  catch { throw new MediaApiError('Media service returned an invalid upload URL.', 502, 'UPLOAD_URL_INVALID'); }
+  if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.hash) {
+    throw new MediaApiError('Media service returned an unsafe upload URL.', 502, 'UPLOAD_URL_UNSAFE');
   }
+  return url;
+}
 
-  const intent = await selfHostedMediaRequest('/api/media/upload-intent', {
-    name: file.name,
-    content_type: mime,
-    visibility: 'public',
-    size_bytes: file.size,
-  });
-  if (typeof intent?.url !== 'string' || !intent.url || typeof intent?.key !== 'string' || !intent.key) {
-    throw new Error('Self-hosted media API returned an invalid upload intent.');
-  }
-
-  // Never send the user's bearer token to an upload URL on another origin.
-  // The self-hosted API contract requires its bounded gateway endpoint.
-  const uploadURL = resolveSelfHostedUploadURL(intent.url, String(intent.key));
-  const checksum = await sha256Hex(file);
-  const { data: { session: uploadSession } } = await supabase.auth.getSession();
-  if (!uploadSession?.access_token) throw new Error('Authentication required');
-  const upload = await fetch(uploadURL.toString(), {
-    method: 'PUT',
-    headers: {
-      Authorization: 'Bearer ' + uploadSession.access_token,
-      'Content-Type': mime,
-    },
-    body: file,
-  });
-  if (!upload.ok) {
-    const failure = await upload.json().catch(() => ({} as any));
-    const message = typeof failure?.error === 'string'
-      ? failure.error
-      : String(failure?.error?.message ?? 'Self-hosted media upload failed (' + upload.status + ').');
-    throw new Error(message);
-  }
-
-  const completed = await selfHostedMediaRequest('/api/media/complete', {
-    key: String(intent.key),
-    visibility: 'public',
-    content_type: mime,
-    checksum_sha256: checksum,
-  });
-
-  // The Go upload-intent contract intentionally has no post_id field. Preserve
-  // the legacy uploadMedia(file, postId) behavior by using the owner-checked
-  // attachment endpoint only after the object has been verified and completed.
-  let attached: Record<string, unknown> | null = null;
-  if (postId) {
-    try {
-      attached = await selfHostedMediaRequest('/api/media/attach', {
-        key: String(intent.key),
-        post_id: postId,
-      });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'unknown attachment error';
-      throw new Error(
-        'Media was uploaded but could not be attached to the post. Retry attachment for media key ' +
-          String(intent.key) + ': ' + reason,
-      );
+function uploadHeaders(required: Record<string, string>, mime: string): Headers {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(required ?? {})) {
+    if (key.toLowerCase() !== 'content-type' || value.toLowerCase() !== mime) {
+      throw new MediaApiError('Media service returned unsupported upload headers.', 502, 'UPLOAD_HEADERS_INVALID');
     }
+    headers.set('Content-Type', value);
   }
-
-  const result = attached ?? completed;
-  return {
-    media_id: String(result.key ?? completed.key ?? intent.key),
-    object_key: String(result.key ?? completed.key ?? intent.key),
-    public_url: typeof result.public_url === 'string'
-      ? result.public_url
-      : typeof intent.public_url === 'string' ? intent.public_url : null,
-    size_bytes: Number(result.size_bytes ?? completed.size_bytes ?? file.size),
-    mime_type: String(result.content_type ?? completed.content_type ?? mime),
-    media_type: imageTypes.has(mime) ? 'image' : 'video',
-    status: 'uploaded',
-    etag: typeof result.etag === 'string' ? result.etag : typeof completed.etag === 'string' ? completed.etag : null,
-    post_id: postId ?? null,
-  };
+  if (!headers.has('Content-Type')) headers.set('Content-Type', mime);
+  return headers;
 }
 
-async function mediaFunction(action: string, body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('Authentication required');
-  const response = await fetch('/api/media', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, ...body }),
-  });
-  const data = await response.json().catch(() => ({} as any));
-  if (!response.ok || data?.error) {
-    const error = data?.error;
-    const message = typeof error === 'string'
-      ? error
-      : typeof error?.message === 'string'
-        ? error.message
-        : 'Media backend request failed (' + response.status + ').';
-    throw new Error(message);
-  }
-  return data;
+function classifyMedia(mime: string): 'image' | 'video' | 'audio' | 'file' {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  return 'file';
 }
 
+/**
+ * Uploads to the B2 primary origin using a short-lived, Backend-issued URL.
+ * Backend verifies the B2 object, replicates it to R2, then commits metadata
+ * and quota state through Appwrite. The browser never receives storage keys.
+ */
 export async function uploadMedia(file: File, postId?: string | null): Promise<MediaUploadResult> {
-  if (selfHostedMediaBase()) return uploadMediaToSelfHosted(file, postId);
-  validateMedia(file);
-  const initialized = await mediaFunction('init', { name:file.name, mime_type:file.type.toLowerCase() || 'application/octet-stream', size_bytes:file.size, post_id:postId ?? null });
+  if (postId) {
+    throw new MediaApiError(
+      'Media storage is available, but attaching media to posts is not yet exposed by the Backend API.',
+      503,
+      'MEDIA_ATTACH_NOT_PORTED',
+    );
+  }
+
+  const mime = validateMedia(file);
   const checksum = await sha256Hex(file);
-  const { data: { session: uploadSession } } = await supabase.auth.getSession();
-  if (!uploadSession?.access_token) throw new Error('Authentication required');
-  const uploadURL = String(initialized.upload_url);
-  const uploadHeaders: Record<string, string> = {
-    'Content-Type': file.type.toLowerCase() || 'application/octet-stream',
-  };
-  if (new URL(uploadURL, window.location.origin).pathname === '/api/media/upload') {
-    uploadHeaders.Authorization = 'Bearer ' + uploadSession.access_token;
-  }
-  const response = await fetch(uploadURL, {
-    method: 'PUT',
-    headers: uploadHeaders,
-    body: file,
+  const idempotencyKey = globalThis.crypto.randomUUID();
+  const reservation = await testagramApi.request<UploadReservation>('/v1/media/uploads/reservations', {
+    method: 'POST',
+    idempotencyKey,
+    body: {
+      bytes: file.size,
+      content_type: mime,
+      sha256: checksum,
+      scope: 'post_media',
+    },
   });
-  if (!response.ok) { await mediaFunction('delete',{media_id:initialized.media_id}).catch(()=>undefined); throw new Error('Media upload failed ('+response.status+').'); }
-  return mediaFunction('complete',{media_id:initialized.media_id, checksum_sha256:checksum});
-}
 
-export async function getPrivateMediaDownloadUrl(key: string): Promise<string> {
-  if (selfHostedMediaBase()) {
-    const data = await selfHostedMediaRequest('/api/media/private-download-url', { key });
-    if (typeof data?.url !== 'string' || !data.url) {
-      throw new Error('Private media API returned an invalid download URL.');
-    }
-    return data.url;
+  if (!reservation?.reservation_id || !reservation.object_id || !reservation.upload_url ||
+      reservation.upload_method !== 'PUT' || reservation.status !== 'reserved') {
+    throw new MediaApiError('Backend returned an invalid media upload reservation.', 502, 'UPLOAD_RESERVATION_INVALID');
   }
 
-  // Keep the existing adapter contract working for hosted/legacy builds. The
-  // adapter forwards this request to the same Go owner-checking endpoint and
-  // returns { url, expires_in }; no private object URL is synthesized client-side.
-  const legacy = await mediaFunction('private-download', { media_id: key, object_key: key });
-  if (typeof legacy?.url !== 'string' || !legacy.url) {
-    throw new Error('Private media API returned an invalid download URL.');
+  const uploadURL = validateUploadURL(reservation.upload_url);
+  const response = await fetch(uploadURL.toString(), {
+    method: 'PUT',
+    headers: uploadHeaders(reservation.required_headers, mime),
+    body: file,
+    credentials: 'omit',
+    cache: 'no-store',
+    redirect: 'error',
+  });
+  if (!response.ok) {
+    throw new MediaApiError(
+      'Primary media upload failed (HTTP ' + response.status + '). The reservation will expire automatically if it cannot be retried.',
+      response.status,
+      'MEDIA_PRIMARY_UPLOAD_FAILED',
+    );
   }
-  return legacy.url;
+
+  // Completion is safe to retry with the same reservation: the Backend state
+  // machine recognizes an already-protected object and never reserves quota twice.
+  const completePath = '/v1/media/uploads/' + encodeURIComponent(reservation.reservation_id) + '/complete';
+  try {
+    await testagramApi.request(completePath, {
+      method: 'POST',
+      body: {},
+      idempotencyKey,
+      timeoutMs: 30_000,
+    });
+  } catch (firstError) {
+    const retryable = firstError instanceof TestagramApiError &&
+      (firstError.status === 0 || firstError.status === 502 || firstError.status === 503 || firstError.status === 504);
+    if (!retryable) throw firstError;
+    await testagramApi.request(completePath, {
+      method: 'POST',
+      body: {},
+      idempotencyKey,
+      timeoutMs: 30_000,
+    });
+  }
+
+  return {
+    media_id: reservation.object_id,
+    object_key: reservation.object_id,
+    public_url: null,
+    size_bytes: file.size,
+    mime_type: mime,
+    media_type: classifyMedia(mime),
+    status: 'uploaded',
+    post_id: null,
+  };
 }
 
-export async function attachMediaToPost(mediaId:string,postId:string):Promise<MediaUploadResult>{
-  if (selfHostedMediaBase()) {
-    const data = await selfHostedMediaRequest('/api/media/attach', { key: mediaId, post_id: postId });
-    return {
-      media_id: String(data.key ?? mediaId),
-      object_key: String(data.key ?? mediaId),
-      public_url: typeof data.public_url === 'string' ? data.public_url : null,
-      size_bytes: Number(data.size_bytes ?? 0),
-      mime_type: String(data.content_type ?? 'application/octet-stream'),
-      media_type: data.media_type === 'image' || data.media_type === 'video' ? data.media_type : 'file',
-      status: 'uploaded',
-      etag: typeof data.etag === 'string' ? data.etag : null,
-      post_id: postId,
-    };
+export async function getPrivateMediaDownloadUrl(objectId: string): Promise<string> {
+  const id = objectId.trim();
+  if (!id || id.length > 128 || /[\\r\\n/]/.test(id)) {
+    throw new MediaApiError('Media object ID is invalid.', 400, 'MEDIA_ID_INVALID');
   }
-  return mediaFunction('attach',{media_id:mediaId,post_id:postId});
+  const result = await testagramApi.request<{ url?: string }>('/v1/media/' + encodeURIComponent(id) + '/download');
+  if (typeof result?.url !== 'string' || !result.url) {
+    throw new MediaApiError('Backend returned an invalid private media URL.', 502, 'MEDIA_DOWNLOAD_URL_INVALID');
+  }
+  return result.url;
 }
-export async function deleteMedia(mediaId:string){
-  if (selfHostedMediaBase()) return selfHostedMediaRequest('/api/media/delete', { key: mediaId });
-  return mediaFunction('delete',{media_id:mediaId});
+
+export async function attachMediaToPost(_mediaId: string, _postId: string): Promise<MediaUploadResult> {
+  throw new MediaApiError(
+    'Attaching media to posts is not yet exposed by the Backend API.',
+    503,
+    'MEDIA_ATTACH_NOT_PORTED',
+  );
+}
+
+export async function deleteMedia(_mediaId: string): Promise<never> {
+  throw new MediaApiError(
+    'Media deletion is not yet exposed by the Backend API.',
+    503,
+    'MEDIA_DELETE_NOT_PORTED',
+  );
 }
