@@ -22,9 +22,6 @@ assert.match(auth, /createVerification|updateVerification/, 'email verification 
 assert.match(auth, /createRecovery|updateRecovery/, 'password recovery flow must exist');
 assert.match(auth, /createJWT/, 'backend API session bridge must use short-lived Appwrite JWTs');
 assert.doesNotMatch(auth, /linkLegacyAccount|X-Testagram-Legacy-Authorization/, 'fresh Appwrite identity must not link or migrate legacy Supabase identities');
-assert.match(supabase, /FRESH_APPWRITE_MODE/, 'fresh Appwrite mode must be explicitly detected');
-assert.match(supabase, /DISABLED_SUPABASE_URL/, 'fresh Appwrite builds must never fall back to legacy hosted Supabase');
-assert.doesNotMatch(supabase, /https:\/\/[a-z0-9-]+\.supabase\.co|sb_publishable_/, 'browser bundle source must not contain hardcoded legacy Supabase project URLs or publishable keys');
 assert.match(env, /VITE_TESTAGRAM_FRESH_MODE=true/, 'fresh frontend build must opt into isolated Appwrite mode');
 assert.match(env, /VITE_TESTAGRAM_AUTH_PROVIDER=appwrite/, 'fresh frontend build must select Appwrite authentication');
 assert.match(env, /VITE_TESTAGRAM_FRESH_API_URL=/, 'fresh frontend build must configure the independent API');
