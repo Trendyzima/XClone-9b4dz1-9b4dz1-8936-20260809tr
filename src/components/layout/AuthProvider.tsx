@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { APPWRITE_AUTH_CHANGED_EVENT, appwriteAuth } from '@/services/appwriteAuth';
 import { useAuthStore } from '@/stores/authStore';
-import { finalizeAuthenticatedSession, mapAppwriteAuthUser } from '@/lib/auth';
-import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
+import { finalizeAuthenticatedSession } from '@/lib/auth';
 import {
   clearTestagramSessionLifetime,
   enforceTestagramSessionLifetime,
@@ -14,79 +13,101 @@ export async function sendActivityNotification(_input: {
   title: string;
   body: string;
   data?: Record<string, unknown>;
-}): Promise<void> {
-  // Notifications are server-owned. The previous Appwrite-only release already
-  // deferred this helper; do not recreate client-side database writes here.
+}) {
+  // Notification writes are moving to the canonical Go Backend event API.
+  // Never write directly to a legacy Supabase table or Edge Function.
+  console.warn('[Notification] Client-side notification writes are disabled; emit a Backend domain event instead.');
 }
-
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
 
   useEffect(() => {
     let mounted = true;
-    let hydrationGeneration = 0;
+    let hydration: Promise<void> | null = null;
 
-    const hydrateAppwriteSession = async () => {
-      const generation = ++hydrationGeneration;
-      setLoading(true);
-      clearAuthError();
-      try {
-        const appwriteUser = await appwriteAuth.getCurrentUser();
-        if (!mounted || generation !== hydrationGeneration) return;
-        if (!appwriteUser) {
-          clearTestagramSessionLifetime();
-          logout();
+    const hydrate = async () => {
+      if (hydration) return hydration;
+      hydration = (async () => {
+        setLoading(true);
+        clearAuthError();
+        try {
+          const user = await appwriteAuth.getCurrentUser();
+          if (!mounted) return;
+          if (!user) {
+            clearTestagramSessionLifetime();
+            logout();
+            setLoading(false);
+            return;
+          }
+          if (!user.emailVerification) {
+            logout();
+            setLoading(false);
+            const email = encodeURIComponent(user.email || '');
+            if (window.location.pathname !== '/auth' || !new URLSearchParams(window.location.search).has('verify')) {
+              window.location.replace('/auth?verify=1&email=' + email);
+            }
+            return;
+          }
+          const valid = await enforceTestagramSessionLifetime();
+          if (!valid) {
+            logout();
+            setLoading(false);
+            if (mounted) window.location.replace('/auth');
+            return;
+          }
+          markAuthenticatedSessionStarted(user.$id);
+          const mapped = await finalizeAuthenticatedSession(user);
+          if (!mounted) return;
+          login(mapped);
           setLoading(false);
-          return;
-        }
-
-        const user = mapAppwriteAuthUser(appwriteUser);
-        const valid = await enforceTestagramSessionLifetime();
-        if (!mounted || generation !== hydrationGeneration) return;
-        if (!valid) {
-          clearTestagramSessionLifetime();
-          logout();
+        } catch (error) {
+          if (!mounted) return;
+          const message = error instanceof Error ? error.message : 'Appwrite session could not be restored.';
+          if (message === 'EMAIL_NOT_VERIFIED') {
+            logout();
+            setLoading(false);
+            window.location.replace('/auth?verify=1');
+            return;
+          }
+          if (message === 'IDENTITY_VERIFICATION_REQUIRED') {
+            try { await appwriteAuth.signOut(); } catch { /* best-effort cleanup */ }
+            logout();
+            setLoading(false);
+            window.location.replace('/auth?identity=required');
+            return;
+          }
+          setAuthError(message);
           setLoading(false);
-          if (mounted) window.location.replace('/auth');
-          return;
+          console.error('[Auth] Appwrite session hydration failed:', error);
+        } finally {
+          hydration = null;
         }
-
-        markAuthenticatedSessionStarted(user.id);
-        const mappedUser = await finalizeAuthenticatedSession(user);
-        if (!mounted || generation !== hydrationGeneration) return;
-        login(mappedUser);
-        setLoading(false);
-      } catch (error) {
-        if (!mounted || generation !== hydrationGeneration) return;
-        const message = error instanceof Error ? error.message : 'Appwrite session could not be restored.';
-        setAuthError(message);
-        setLoading(false);
-        console.error('[Auth] Appwrite session hydration failed:', error);
-      }
+      })();
+      return hydration;
     };
 
-    const handleAppwriteAuthChange = () => { void hydrateAppwriteSession(); };
-    void hydrateAppwriteSession();
-    window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
+    const onAuthChange = () => {
+      void hydrate();
+    };
 
+    void hydrate();
+    window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChange);
     const lifetimeTimer = window.setInterval(() => {
       void enforceTestagramSessionLifetime().then((valid) => {
         if (!valid && mounted) {
-          clearTestagramSessionLifetime();
           logout();
           window.location.replace('/auth');
         }
       }).catch((error) => {
-        if (mounted) console.warn('[Auth] Appwrite session validation temporarily failed:', error);
+        if (mounted) console.warn('[Auth] Session lifetime check unavailable:', error);
       });
     }, 30_000);
 
     return () => {
       mounted = false;
-      hydrationGeneration += 1;
       window.clearInterval(lifetimeTimer);
-      window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
+      window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChange);
     };
   }, [login, logout, setLoading, setAuthError, clearAuthError]);
 
