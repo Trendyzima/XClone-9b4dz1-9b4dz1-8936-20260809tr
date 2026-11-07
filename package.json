@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "node _build.cjs",
     "build:dev": "node _build.cjs --mode development",
-    "lint": "npm run validate:appwrite-auth && eslint .",
+    "lint": "npm run validate:appwrite-auth && npm run validate:home-feed-proxy && eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "cd desktop/src-tauri && cargo tauri",
