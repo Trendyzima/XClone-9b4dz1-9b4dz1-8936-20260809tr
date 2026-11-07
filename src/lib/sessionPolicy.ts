@@ -1,6 +1,6 @@
-import { supabase } from './supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 
-// Keep the browser-enforced maximum aligned with [auth.sessions].timebox in supabase/config.toml.
+// Enforce the frontend's maximum authenticated-session lifetime independently of provider token expiry.
 export const TESTAGRAM_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEY = 'testagram-session-start-v2';
 
@@ -36,13 +36,13 @@ export function markAuthenticatedSessionStarted(userId: string) {
 }
 
 export async function enforceTestagramSessionLifetime() {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session?.user) {
+  const user = await appwriteAuth.getCurrentUser();
+  if (!user) {
     clearStart();
     return false;
   }
 
-  const userId = data.session.user.id;
+  const userId = user.$id;
   const existing = readStart();
 
   if (!existing || existing.userId !== userId) {
@@ -52,7 +52,7 @@ export async function enforceTestagramSessionLifetime() {
 
   if (Date.now() - existing.startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS) {
     clearStart();
-    await supabase.auth.signOut();
+    await appwriteAuth.signOut();
     return false;
   }
 
