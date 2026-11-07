@@ -6,9 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authService, finalizeAuthenticatedSession, mapAppwriteAuthUser } from '@/lib/auth';
-import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
-import { clearPasswordRecoverySession, getPasswordRecoveryUserId, hasPasswordRecoveryMarker, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
@@ -87,109 +85,29 @@ export default function AuthPage() {
   const [recoveryChecking, setRecoveryChecking] = useState(false);
 
   useEffect(() => {
-    if (isFreshAppwriteMode) {
-      const params = new URLSearchParams(window.location.search);
-      const userId = params.get("userId")?.trim() ?? "";
-      const secret = params.get("secret")?.trim() ?? "";
-      const isResetRoute = params.get("reset") === "1";
-      if (isResetRoute && userId && secret) {
-        const recoveryEmail = params.get("email")?.trim() ?? "";
-        appwriteAuth.saveRecoveryContext({ userId, secret, email: recoveryEmail });
-        if (recoveryEmail) setEmail(recoveryEmail);
-        setMode("reset");
-        setRecoveryReady(true);
-        setRecoveryChecking(false);
-        window.history.replaceState({}, document.title, "/auth?reset=1");
-      } else if (isResetRoute) {
-        setMode("reset");
-        setRecoveryReady(Boolean(appwriteAuth.getRecoveryContext()));
-        setRecoveryChecking(false);
-      }
-      return () => {};
-    }
     const params = new URLSearchParams(window.location.search);
+    const userId = params.get('userId')?.trim() ?? '';
+    const secret = params.get('secret')?.trim() ?? '';
     const isResetRoute = params.get('reset') === '1';
-    const isRecoveryCallback = isResetRoute || params.get('type') === 'recovery';
-    if (isRecoveryCallback) {
+
+    if (isResetRoute && userId && secret) {
+      const recoveryEmail = params.get('email')?.trim() ?? '';
+      appwriteAuth.saveRecoveryContext({ userId, secret, email: recoveryEmail });
+      if (recoveryEmail) setEmail(recoveryEmail);
       setMode('reset');
-      setRecoveryChecking(true);
-    }
-    const ref = params.get('ref')?.trim();
-    if (ref) window.localStorage.setItem('testagram-referral-code', ref);
-
-    let cancelled = false;
-    // PKCE recovery links are exchanged by Supabase's URL detector. Only the
-    // recovery event is allowed to unlock the password-reset form.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // A normal SIGNED_IN / INITIAL_SESSION can be an already-persisted
-      // session. Neither proves the reset code was redeemed, even when the URL
-      // merely contains a "code" query parameter.
-      const recoveryCallbackEvent = event === 'PASSWORD_RECOVERY';
-      if (recoveryCallbackEvent && session?.user) {
-        markPasswordRecoverySession(session.user.id);
-        setMode('reset');
-        setRecoveryReady(true);
-        setRecoveryChecking(false);
-        setLoading(false);
-        window.history.replaceState({}, document.title, '/auth?reset=1');
-      }
-    });
-
-    // PKCE exchange may have completed before this component mounted. A session
-    // is accepted here only when the early Auth listener recorded the actual
-    // PASSWORD_RECOVERY event for this exact user; the mere presence of "code"
-    // in the URL is never treated as proof of recovery.
-    if (isRecoveryCallback) {
-      void supabase.auth.getSession().then(({ data, error }) => {
-        if (cancelled) return;
-        const userId = data.session?.user?.id;
-        const recoveryUserId = getPasswordRecoveryUserId();
-        if (!error && userId && recoveryUserId === userId) {
-          setRecoveryReady(true);
-          window.history.replaceState({}, document.title, '/auth?reset=1');
-        }
-        setRecoveryChecking(false);
-      });
+      setRecoveryReady(true);
+      setRecoveryChecking(false);
+      window.history.replaceState({}, document.title, '/auth?reset=1');
+    } else if (isResetRoute) {
+      setMode('reset');
+      setRecoveryReady(Boolean(appwriteAuth.getRecoveryContext()));
+      setRecoveryChecking(false);
     }
 
-    const tokenHash = params.get('token_hash')?.trim();
-    const requestedTokenType = params.get('type')?.trim();
-    const allowedTokenTypes = new Set(['email', 'signup', 'magiclink', 'recovery', 'invite', 'email_change']);
-    if (!tokenHash || !requestedTokenType || !allowedTokenTypes.has(requestedTokenType)) {
-      return () => { cancelled = true; subscription.unsubscribe(); };
+    const referralCode = params.get('ref')?.trim();
+    if (referralCode) {
+      try { window.localStorage.setItem('testagram-referral-code', referralCode); } catch { /* optional */ }
     }
-    const tokenType = requestedTokenType as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | 'email_change';
-
-    (async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: tokenType });
-        if (error) throw error;
-        if (!data.user) throw new Error('Verification succeeded but no user session was returned');
-        if (cancelled) return;
-        if (tokenType === 'recovery') {
-          // Recovery is not a sign-in. Do not finalize/login/navigate until the
-          // user explicitly submits a new password.
-          setMode('reset');
-          setRecoveryReady(true);
-          setRecoveryChecking(false);
-          setLoading(false);
-          markPasswordRecoverySession(data.user.id);
-          window.history.replaceState({}, document.title, '/auth?reset=1');
-          return;
-        }
-        window.history.replaceState({}, document.title, '/auth');
-        await finishLogin(data.user);
-      } catch (error: any) {
-        if (!cancelled) {
-          setLoading(false);
-          setRecoveryChecking(false);
-          setRecoveryReady(false);
-          toast({ title: 'Verification link failed', description: friendlyAuthError(error, 'Request a new verification email.'), variant: 'destructive' });
-        }
-      }
-    })();
-    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -197,15 +115,8 @@ export default function AuthPage() {
   }, [authUser, mode, navigate]);
 
   const applyPendingReferral = async () => {
-    if (isFreshAppwriteMode) return;
-    const code = window.localStorage.getItem('testagram-referral-code');
-    if (!code) return;
-    try {
-      const { error } = await supabase.rpc('apply_referral_code', { p_code: code });
-      if (error && !error.message.includes('REFERRAL_ALREADY_APPLIED')) throw error;
-      await supabase.rpc('complete_referral');
-      window.localStorage.removeItem('testagram-referral-code');
-    } catch { /* Referral rewards never block authentication. */ }
+    // Referral rewards are processed by the Backend after the referral API
+    // contract is available; the browser must not write referral records.
   };
 
   const finishLogin = async (user: any) => {
@@ -245,7 +156,7 @@ export default function AuthPage() {
   };
 
   const startIdentitySignup = async () => {
-    if (isFreshAppwriteMode) throw new Error('APPWRITE_SIGNUP_MIGRATION_PENDING');
+    throw new Error('APPWRITE_SIGNUP_MIGRATION_PENDING');
     const consent = readLegalConsent();
     if (!consent?.birthDate) {
       setLegalAccepted(false);
@@ -333,25 +244,17 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      if (isFreshAppwriteMode) {
-        const recovery = appwriteAuth.getRecoveryContext();
-        if (!recovery?.email) throw new Error('APPWRITE_RECOVERY_CONTEXT_REQUIRED');
-        const appwriteUser = await appwriteAuth.completePasswordRecoveryAndSignIn({
-          userId: recovery.userId,
-          secret: recovery.secret,
-          email: recovery.email,
-          password,
-        });
-        const finalized = await finalizeAuthenticatedSession(mapAppwriteAuthUser(appwriteUser));
-        setRecoveryReady(false);
-        login(finalized);
-      } else {
-        const user = await authService.updatePassword(password);
-        const finalized = await finalizeAuthenticatedSession(user);
-        clearPasswordRecoverySession();
-        setRecoveryReady(false);
-        login(finalized);
-      }
+      const recovery = appwriteAuth.getRecoveryContext();
+      if (!recovery?.email) throw new Error('APPWRITE_RECOVERY_CONTEXT_REQUIRED');
+      const appwriteUser = await appwriteAuth.completePasswordRecoveryAndSignIn({
+        userId: recovery.userId,
+        secret: recovery.secret,
+        email: recovery.email,
+        password,
+      });
+      const finalized = await finalizeAuthenticatedSession(mapAppwriteAuthUser(appwriteUser));
+      setRecoveryReady(false);
+      login(finalized);
       window.history.replaceState({}, document.title, '/auth');
       navigate(getSafeReturnTo(), { replace: true });
     } catch (error: any) {
@@ -370,40 +273,16 @@ export default function AuthPage() {
     setPassword('');
     setConfirmation('');
     if (mode === 'reset' && next !== 'reset') {
-      if (isFreshAppwriteMode) {
-        const hadRecovery = recoveryReady || Boolean(appwriteAuth.getRecoveryContext());
-        appwriteAuth.clearRecoveryContext();
-        if (hadRecovery) {
-          void authService.signOut();
-        } else {
-          void appwriteAuth.getCurrentUser().then((user) => {
-            if (!user) return;
-            void finalizeAuthenticatedSession(mapAppwriteAuthUser(user)).then(login).catch((error) => console.error('[Auth] Could not restore Appwrite session after leaving reset URL:', error));
-          });
-        }
-        setRecoveryReady(false);
-        setRecoveryChecking(false);
-        window.history.replaceState({}, document.title, '/auth');
-        setMode(next);
-        return;
-      }
-      // Leaving the reset screen cancels its temporary session and removes the
-      // reset marker from the URL so refresh cannot reopen a stale reset flow.
-      const hasRecoveryMarker = hasPasswordRecoveryMarker();
-      clearPasswordRecoverySession();
-      if (recoveryReady || hasRecoveryMarker) {
-        // A redeemed recovery link creates a temporary session. Leaving the
-        // reset flow without changing the password must not turn that into a
-        // normal signed-in app session.
-        void supabase.auth.signOut();
+      const hadRecovery = recoveryReady || Boolean(appwriteAuth.getRecoveryContext());
+      appwriteAuth.clearRecoveryContext();
+      if (hadRecovery) {
+        void authService.signOut();
       } else {
-        // A malformed /auth?reset=1 URL must not strand a previously signed-in
-        // user in an unhydrated app state after they leave the reset screen.
-        void supabase.auth.getSession().then(({ data, error }) => {
-          if (error || !data.session?.user) return;
-          void finalizeAuthenticatedSession(data.session.user)
+        void appwriteAuth.getCurrentUser().then((user) => {
+          if (!user) return;
+          void finalizeAuthenticatedSession(mapAppwriteAuthUser(user))
             .then(login)
-            .catch((error) => console.error('[Auth] Could not restore existing session after leaving invalid reset URL:', error));
+            .catch((error) => console.error('[Auth] Could not restore Appwrite session after leaving reset URL:', error));
         });
       }
       setRecoveryReady(false);
@@ -479,7 +358,7 @@ export default function AuthPage() {
 
               {mode === 'reset' && (recoveryReady ? <form onSubmit={updatePassword} className="space-y-3.5"><div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-muted-foreground"><CheckCircle2 className="mb-2 h-5 w-5 text-emerald-600" />Recovery link verified. Choose a new password to complete the reset.</div><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} /><Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Update password'}</Button></form> : <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-5 text-sm text-muted-foreground">{recoveryChecking ? <><Loader2 className="mb-2 h-5 w-5 animate-spin" />Verifying your password-reset link…</> : <>This reset link is invalid, expired, or already used. Request a new password-reset email and open its newest link.</>}<Button type="button" variant="outline" className="w-full rounded-2xl" onClick={() => go('recover')}>Request a new reset link</Button></div>)}
 
-              <div className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] leading-5 text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Your account is protected by Supabase authentication.</div>
+              <div className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] leading-5 text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Your account is protected by Appwrite authentication.</div>
               <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">By continuing, you agree to the Terms, Privacy Policy and Community Guidelines. Testagram is for adults 18+.</p>
             </div>
           </section>
