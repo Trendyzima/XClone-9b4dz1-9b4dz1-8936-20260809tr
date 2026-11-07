@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { APPWRITE_AUTH_CHANGED_EVENT, appwriteAuth } from '@/services/appwriteAuth';
 import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
-import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 import {
   clearTestagramSessionLifetime,
   enforceTestagramSessionLifetime,
