@@ -74,6 +74,11 @@ export const appwriteAuth = {
       name,
     });
     await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
+    // Start verification immediately; the account remains usable for the
+    // verification flow but the backend must enforce verified-email policy.
+    await appwriteAccount.createVerification({
+      url: window.location.origin + '/auth?verify=1',
+    });
     if (input.username?.trim()) {
       await appwriteAccount.updatePrefs({ prefs: { username: input.username.trim().toLowerCase() } });
     }
@@ -93,7 +98,9 @@ export const appwriteAuth = {
       password: input.password,
     });
     clearBackendJWT();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+    return user;
   },
 
   async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
