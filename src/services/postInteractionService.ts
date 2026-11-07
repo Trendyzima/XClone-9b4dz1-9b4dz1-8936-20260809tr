@@ -1,14 +1,27 @@
 import { socialApi } from '@/services/socialApiClient';
-import { supabase } from '@/lib/supabase';
+import { gwRelay } from '@/api/federation';
 import type { LikeState, RepostState } from '@/services/testagramCapabilityClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 // Federation and local interaction identities are deliberately disjoint: ActivityPub URIs never enter local UUID tables.
 const isRemoteStatus = (postId: string) => /^https:\/\//i.test(postId);
+// Federated mutations now go through the central Backend federation API.
+// This adapter preserves the existing best-effort UI contract without using
+// Supabase Functions or exposing provider credentials to the browser.
+async function gatewayInvoke(_functionName: string, options: { body: { path: string; method?: string; body?: Record<string, unknown>; params?: Record<string, unknown> } }) {
+  try {
+    const path = options.body.path.startsWith('/') ? options.body.path : '/' + options.body.path;
+    const data = await gwRelay<any>(path, options.body.method ?? 'POST', options.body.body, options.body.params as Record<string, any> | undefined);
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 
 async function remoteAction(path: string, body: Record<string, unknown>) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: normalizedPath, method: 'POST', body },
   });
   // Federated interactions are best-effort: a remote server can reject an
@@ -64,7 +77,7 @@ export async function setFederatedReaction(postId: string, emoji: string, active
 
 export async function getFederatedReactionState(postId: string): Promise<{ emoji: string | null; active: boolean }> {
   if (!isRemoteStatus(postId)) return { emoji: null, active: false };
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: '/federated/reactions', method: 'GET', params: { object_uri: postId } },
   });
   if (error) return { emoji: null, active: false };
@@ -73,7 +86,7 @@ export async function getFederatedReactionState(postId: string): Promise<{ emoji
 
 export async function getFederatedReactionStateAll(postId: string): Promise<{ emojis: string[] }> {
   if (!isRemoteStatus(postId)) return { emojis: [] };
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: '/federated/reactions', method: 'GET', params: { object_uri: postId } },
   });
   if (error) return { emojis: [] };
@@ -82,7 +95,7 @@ export async function getFederatedReactionStateAll(postId: string): Promise<{ em
 
 export async function getFederatedReactionCounts(postId: string): Promise<Record<string, number>> {
   if (!isRemoteStatus(postId)) return {};
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: '/federated-reaction-counts', method: 'GET', params: { object_uri: postId } },
   });
   if (error || !data?.counts) return {};
@@ -95,7 +108,7 @@ export async function getInteractionCounts(postId: string): Promise<InteractionC
   const empty: InteractionCounts = { likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0, shares: 0, bookmarks: 0, reaction_total: 0, reactions: {}, is_liked: false, is_reposted: false, is_bookmarked: false, user_reactions: [] };
   if (!postId) return empty;
   const [legacyResult, independentResult] = await Promise.all([
-    supabase.functions.invoke('testagram-api', {
+    gatewayInvoke('testagram-api', {
       body: { path: '/interaction-counts', method: 'GET', params: { post_id: postId } },
     }).catch((error) => ({ data: null, error })),
     isRemoteStatus(postId) ? Promise.resolve(null) : socialApi.getInteractionSummary(postId).catch(() => null),
@@ -138,7 +151,7 @@ export async function getInteractionCounts(postId: string): Promise<InteractionC
 
 export async function recordPostShare(postId: string): Promise<number> {
   if (!postId || isRemoteStatus(postId)) return 0;
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: '/record-post-share', method: 'POST', body: { post_id: postId } },
   });
   if (error) throw error;
@@ -147,7 +160,7 @@ export async function recordPostShare(postId: string): Promise<number> {
 
 export async function recordPostView(postId: string): Promise<number> {
   if (!postId) return 0;
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: '/record-post-view', method: 'POST', body: { post_id: postId } },
   });
   if (error) throw error;
@@ -160,7 +173,7 @@ export async function getFederatedInteractionCounts(postId: string): Promise<Int
 
 export async function getFederatedReplies(postId: string): Promise<any[]> {
   if (!isRemoteStatus(postId)) return [];
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: 'federated-replies', method: 'GET', params: { object_uri: postId } },
   });
   if (error) {
@@ -172,7 +185,7 @@ export async function getFederatedReplies(postId: string): Promise<any[]> {
 
 export async function getFederatedInteractionState(postId: string): Promise<{ is_liked: boolean; is_reposted: boolean }> {
   if (!isRemoteStatus(postId)) return { is_liked: false, is_reposted: false };
-  const { data, error } = await supabase.functions.invoke('testagram-api', {
+  const { data, error } = await gatewayInvoke('testagram-api', {
     body: { path: 'federated-interaction-state', method: 'GET', params: { object_uri: postId } },
   });
   if (error) {
