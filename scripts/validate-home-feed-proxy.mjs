@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../api/home-feed.ts', import.meta.url), 'utf8');
 const socialClient = fs.readFileSync(new URL('../src/services/socialApiClient.ts', import.meta.url), 'utf8');
+const recommendations = fs.readFileSync(new URL('../src/services/recommendations.ts', import.meta.url), 'utf8');
 const failures = [];
 const requireText = (pattern, message) => {
   if (!pattern.test(source)) failures.push(message);
@@ -9,6 +10,12 @@ const requireText = (pattern, message) => {
 
 if (/supabase|postgrest|createClient|\.from\(['"]posts['"]\)/i.test(source)) {
   failures.push('Home-feed proxy must not query Supabase or own feed candidate retrieval.');
+}
+if (/supabase|postgrest|createClient|ENGAGEMENT_WEIGHTS|RECENCY_HALF_LIFE|scored\\.sort\\(/i.test(recommendations)) {
+  failures.push('Legacy recommendation module must not read social tables or score/sort feed candidates in XClone.');
+}
+if (!recommendations.includes('socialApi.getHomeFeed') || !recommendations.includes('Ranked by Testagram Algorithm')) {
+  failures.push('Personalized feed compatibility adapter must consume the Backend-ranked feed without local reordering.');
 }
 if (/candidateScore|function blend\(|recommendation_score|affinityScore/.test(source)) {
   failures.push('Home-feed proxy must not perform recommendation scoring or feed blending.');
