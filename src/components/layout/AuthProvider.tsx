@@ -1,303 +1,113 @@
 import { useEffect } from 'react';
-import { User } from '@supabase/supabase-js';
-import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { APPWRITE_AUTH_CHANGED_EVENT, appwriteAuth } from '@/services/appwriteAuth';
 import { useAuthStore } from '@/stores/authStore';
-import { finalizeAuthenticatedSession, mapAppwriteAuthUser } from '@/lib/auth';
-import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
-import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
-import { clearPasswordRecoverySession, getPasswordRecoverySessionUserId, hasPasswordRecoveryMarker } from '@/lib/passwordRecovery';
+import { finalizeAuthenticatedSession } from '@/lib/auth';
+import {
+  clearTestagramSessionLifetime,
+  enforceTestagramSessionLifetime,
+  markAuthenticatedSessionStarted,
+} from '@/lib/sessionPolicy';
 
-function normalizedPathname() {
-  if (typeof window === 'undefined') return '/';
-  const pathname = window.location.pathname.replace(/\/+$/, '');
-  return pathname || '/';
-}
-
-function withBootstrapTimeout<T>(operation: PromiseLike<T> | Promise<T>, label: string, timeoutMs = 7_000): Promise<T> {
-  let timeoutId: number | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = window.setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
-  });
-  return Promise.race([Promise.resolve(operation), timeout]).finally(() => {
-    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-  });
-}
-
-async function triggerKeygenForUser(userId: string) {
-  if (isFreshAppwriteMode) return;
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
-    if (!token) return;
-    const { data: existing } = await supabase.from('activitypub_keys').select('id').eq('user_id', userId).maybeSingle();
-    if (existing) return;
-    const backendUrl = import.meta.env.VITE_SUPABASE_URL;
-    if (!backendUrl) return;
-    await fetch(`${backendUrl}/functions/v1/activitypub-keygen`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ user_id: userId }),
-    });
-  } catch (err) {
-    console.warn('[ActivityPub] Keygen failed (non-fatal):', err);
-  }
-}
-
-export async function sendActivityNotification({
-  recipientUserId,
-  title,
-  body,
-  data,
-}: {
+export async function sendActivityNotification(_input: {
   recipientUserId: string;
   title: string;
   body: string;
-  data?: any;
+  data?: Record<string, unknown>;
 }) {
-  if (isFreshAppwriteMode) return;
-  try {
-    const notificationType = data?.type && ['like','repost','follow','reply','mention','verified'].includes(data.type) ? data.type : 'follow';
-    const { error: dbError } = await supabase.from('notifications').insert({ recipient_id: recipientUserId, kind: notificationType, actor_id: data?.fromUserId ?? null, post_id: data?.postId ?? null });
-    if (dbError) console.warn('[Notification] DB insert failed:', dbError.message);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
-    if (token) {
-      const backendUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (backendUrl) {
-        fetch(`${backendUrl}/functions/v1/send-push-notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ user_id: recipientUserId, title, body, data }),
-        }).catch(() => {});
-      }
-    }
-  } catch (error) {
-    console.warn('[Notification] Failed to send activity notification:', error);
-  }
+  // Notification writes are moving to the canonical Go Backend event API.
+  // Never write directly to a legacy Supabase table or Edge Function.
+  console.warn('[Notification] Client-side notification writes are disabled; emit a Backend domain event instead.');
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
 
   useEffect(() => {
-    if (isFreshAppwriteMode) {
-      let mounted = true;
-      const hydrateAppwriteSession = async () => {
+    let mounted = true;
+    let hydration: Promise<void> | null = null;
+
+    const hydrate = async () => {
+      if (hydration) return hydration;
+      hydration = (async () => {
         setLoading(true);
+        clearAuthError();
         try {
-          const appwriteUser = await appwriteAuth.getCurrentUser();
+          const user = await appwriteAuth.getCurrentUser();
           if (!mounted) return;
-          if (!appwriteUser) {
+          if (!user) {
             clearTestagramSessionLifetime();
             logout();
             setLoading(false);
             return;
           }
-          const user = mapAppwriteAuthUser(appwriteUser);
-          const valid = await withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation");
+          if (!user.emailVerification) {
+            logout();
+            setLoading(false);
+            const email = encodeURIComponent(user.email || '');
+            if (window.location.pathname !== '/auth' || !new URLSearchParams(window.location.search).has('verify')) {
+              window.location.replace('/auth?verify=1&email=' + email);
+            }
+            return;
+          }
+          const valid = await enforceTestagramSessionLifetime();
           if (!valid) {
-            await appwriteAuth.signOut();
-            clearTestagramSessionLifetime();
             logout();
             setLoading(false);
-            if (mounted) window.location.replace("/auth");
+            if (mounted) window.location.replace('/auth');
             return;
           }
-          markAuthenticatedSessionStarted(user.id);
-          const mappedUser = await finalizeAuthenticatedSession(user);
+          markAuthenticatedSessionStarted(user.$id);
+          const mapped = await finalizeAuthenticatedSession(user);
           if (!mounted) return;
-          login(mappedUser);
+          login(mapped);
           setLoading(false);
         } catch (error) {
           if (!mounted) return;
-          const message = error instanceof Error ? error.message : "Appwrite session could not be restored.";
+          const message = error instanceof Error ? error.message : 'Appwrite session could not be restored.';
+          if (message === 'EMAIL_NOT_VERIFIED') {
+            logout();
+            setLoading(false);
+            window.location.replace('/auth?verify=1');
+            return;
+          }
+          if (message === 'IDENTITY_VERIFICATION_REQUIRED') {
+            try { await appwriteAuth.signOut(); } catch { /* best-effort cleanup */ }
+            logout();
+            setLoading(false);
+            window.location.replace('/auth?identity=required');
+            return;
+          }
           setAuthError(message);
           setLoading(false);
-          console.error("[Auth] Appwrite session hydration failed:", error);
+          console.error('[Auth] Appwrite session hydration failed:', error);
+        } finally {
+          hydration = null;
         }
-      };
-      const handleAppwriteAuthChange = () => { void hydrateAppwriteSession(); };
-      void hydrateAppwriteSession();
-      window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
-      const lifetimeTimer = window.setInterval(() => {
-        void withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation").then(async (valid) => {
-          if (!valid && mounted) {
-            try { await appwriteAuth.signOut(); } catch { /* session may already be expired */ }
-            logout();
-            window.location.replace("/auth");
-          }
-        });
-      }, 30_000);
-      return () => {
-        mounted = false;
-        window.clearInterval(lifetimeTimer);
-        window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
-      };
-    }
+      })();
+      return hydration;
+    };
 
-    let mounted = true;
+    const onAuthChange = () => {
+      void hydrate();
+    };
 
+    void hydrate();
+    window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChange);
     const lifetimeTimer = window.setInterval(() => {
-      void withBootstrapTimeout(enforceTestagramSessionLifetime(), 'Session validation').then((valid) => {
+      void enforceTestagramSessionLifetime().then((valid) => {
         if (!valid && mounted) {
           logout();
           window.location.replace('/auth');
         }
+      }).catch((error) => {
+        if (mounted) console.warn('[Auth] Session lifetime check unavailable:', error);
       });
     }, 30_000);
-
-    const finalizationInFlight = new Map<string, Promise<void>>();
-
-    const hydrateUser = (user: User, requireFreshLegalConsent = false, retryAttempt = 0) => {
-      // A duplicate auth event can arrive while this user's hydration is already
-      // finishing. Do not set the global loading flag before checking the map:
-      // returning with an existing task after setting loading=true can strand the
-      // whole app on a spinner if that task has already cleared loading.
-      const existing = finalizationInFlight.get(user.id);
-      if (existing) return;
-
-      setLoading(true);
-      clearAuthError();
-
-      const task = new Promise<void>((resolve) => {
-        window.setTimeout(() => {
-          if (!mounted) {
-            resolve();
-            return;
-          }
-          void withBootstrapTimeout(enforceTestagramSessionLifetime(), 'Session validation').then((valid) => {
-            if (!valid) throw new Error('SESSION_EXPIRED');
-            markAuthenticatedSessionStarted(user.id);
-            return finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
-          })
-            .then(async (mappedUser) => {
-              if (!mounted) return;
-              login(mappedUser);
-              // Identity verification belongs to account creation and never blocks existing logins.
-              // Mobile contact is optional onboarding. A missing number or contact-RPC
-              // failure must never redirect users away from IPTV or interrupt playback.
-              setLoading(false);
-              void triggerKeygenForUser(user.id);
-              resolve();
-            })
-            .catch(async (error) => {
-              if (!mounted) {
-                resolve();
-                return;
-              }
-              const message = error instanceof Error ? error.message : 'Profile provisioning failed';
-              const terminalPolicyFailure = [
-                'SESSION_EXPIRED',
-                'AGE_RESTRICTION',
-                'LEGAL_ACCEPTANCE_REQUIRED',
-              ].includes(message);
-
-              setAuthError(message);
-              console.error('[Auth] Session finalization failed:', error);
-
-              if (terminalPolicyFailure) {
-                // Only explicit session/policy failures should end authentication.
-                // A failed profile or contact lookup is not proof that the token is
-                // invalid; signing out here made transient refresh-time outages look
-                // like an unexpected logout and destroyed the valid refresh token.
-                logout();
-                setLoading(false);
-                try { await supabase.auth.signOut(); } catch { /* best effort */ }
-              } else if (retryAttempt < 1) {
-                // Retry transient profile/RPC/network failures while keeping the
-                // existing Supabase session intact. A refresh must not revoke a
-                // valid session just because a dependent query failed once.
-                window.setTimeout(() => {
-                  if (mounted) hydrateUser(user, false, retryAttempt + 1);
-                }, 750 * (retryAttempt + 1));
-              } else {
-                // Preserve the Supabase session even if a dependent service remains
-                // unavailable. The next auth event or page load can retry hydration.
-                setLoading(false);
-                console.error('[Auth] Hydration retries exhausted; preserving auth session.');
-              }
-              resolve();
-            });
-        }, 0);
-      }).finally(() => {
-        finalizationInFlight.delete(user.id);
-      });
-
-      finalizationInFlight.set(user.id, task);
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        clearPasswordRecoverySession();
-        clearTestagramSessionLifetime();
-        trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
-        logout();
-        setLoading(false);
-        return;
-      }
-
-      if (!session?.user) {
-        if (event === 'INITIAL_SESSION') setLoading(false);
-        return;
-      }
-
-      // A password-recovery session proves possession of the reset link, not
-      // completion of a normal sign-in. Keep its Supabase session available to
-      // updateUser({ password }), but do not hydrate the app store, start the
-      // logged-in lifetime, or trigger application redirects until reset succeeds.
-      const authCallbackParams = new URLSearchParams(window.location.search);
-      const isPasswordResetRoute =
-        normalizedPathname() === '/auth' &&
-        (authCallbackParams.get('reset') === '1' || authCallbackParams.get('type') === 'recovery');
-      const recoveryUserId = getPasswordRecoverySessionUserId();
-      const recoveryMarkerPresent = hasPasswordRecoveryMarker();
-      const isRecoverySession =
-        recoveryMarkerPresent && (!recoveryUserId || recoveryUserId === session.user.id);
-      if (isPasswordResetRoute) {
-        if (event === 'INITIAL_SESSION') setLoading(false);
-        return;
-      }
-      if (isRecoverySession) {
-        // Recovery sessions may be used only to set a new password. If the user
-        // leaves the reset route or its short-lived marker expires, do not let a
-        // refresh turn that temporary session into a normal application login.
-        void supabase.auth.signOut();
-        logout();
-        setLoading(false);
-        return;
-      }
-
-      // Identity-first onboarding must never admit anonymous Auth sessions into
-      // the application. Even if a hosted Auth setting is misconfigured, an
-      // anonymous session is not a Testagram account and cannot bypass KYC.
-      if (session.user.is_anonymous) {
-        void supabase.auth.signOut();
-        logout();
-        setLoading(false);
-        return;
-      }
-
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        if (event === 'SIGNED_IN') {
-          trackTestagramEvent(TestagramEvent.LOGGED_IN, { auth_event: event });
-          // Password, OTP, and PKCE callbacks on /auth are finalized by AuthPage.
-          // Hydrating here as well duplicates several profile/legal RPCs during
-          // sign-in and can amplify database saturation exactly when auth is hot.
-          // Keep INITIAL_SESSION hydration below: it is needed for existing sessions.
-          if (normalizedPathname() === '/auth') return;
-        }
-        if (event === 'USER_UPDATED') {
-          trackTestagramEvent(TestagramEvent.PROFILE_UPDATED, { source: 'auth_user_updated' });
-        }
-        hydrateUser(session.user, false);
-      }
-    });
 
     return () => {
       mounted = false;
       window.clearInterval(lifetimeTimer);
-      subscription.unsubscribe();
+      window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChange);
     };
   }, [login, logout, setLoading, setAuthError, clearAuthError]);
 
