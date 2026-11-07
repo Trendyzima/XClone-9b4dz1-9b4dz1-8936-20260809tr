@@ -29,6 +29,7 @@ const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/soci
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
 const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/home` : '/api/feed/home';
 const freshApiSocialBase = freshApiOrigin ? `${freshApiOrigin}/api/social` : '/api/social';
+const freshApiMeBase = freshApiOrigin ? `${freshApiOrigin}/api/me` : '/api/me';
 
 function assertSocialAPIAvailable(allowFreshRoute = false): void {
   if (isFreshAppwriteMode && !allowFreshRoute) {
@@ -132,10 +133,10 @@ export const socialApi = {
     );
   },
   getFederationPreference() {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'GET', undefined, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiMeBase}/federation`, 'GET', undefined, true);
   },
   setFederationPreference(enabled: boolean) {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiMeBase}/federation`, 'PUT', { enabled }, true);
   },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
