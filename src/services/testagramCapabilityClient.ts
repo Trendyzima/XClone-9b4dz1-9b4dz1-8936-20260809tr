@@ -19,7 +19,7 @@ export class CapabilityClientError extends Error{readonly code:string;readonly r
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
 const apiOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??import.meta.env.VITE_TESTAGRAM_FRESH_API_URL??'').trim().replace(/\\/+$/, '');
-const CAPABILITY_GATEWAY_ENDPOINT=apiOrigin?`${apiOrigin}/v1/capabilities`:'/v1/capabilities';
+const CAPABILITY_GATEWAY_ENDPOINT=apiOrigin?`${apiOrigin}/api/capability`:'/api/capability';
 export class TestagramCapabilityClient{
  constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error('Capability endpoint is required');}
  async call<T>(capability: string, input: Record<string, unknown> = {}, tokenOverride?: string | null): Promise<T> {
