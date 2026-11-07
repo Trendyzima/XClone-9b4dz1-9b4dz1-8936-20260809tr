@@ -1,13 +1,9 @@
-import { supabase, supabasePublishableKey } from '@/lib/supabase';
-import { FunctionsHttpError } from '@supabase/supabase-js';
+import { appwriteAuth } from '@/services/appwriteAuth';
 import { megalodonGatewayService } from '@/services/megalodonGateway';
 
-async function getToken(): Promise<string | null> {
-  try {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
-  } catch { return null; }
-}
+const apiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\\/+$/, '');
+const apiBase = apiOrigin ? `${apiOrigin}/api/social` : '/api/social';
+async function getToken(): Promise<string | null> { try { return await appwriteAuth.createBackendJWT(); } catch { return null; } }
 function remoteInstanceFromHandle(acct: string): string | null {
   const normalized = acct.trim().replace(/^@/, ''); const parts = normalized.split('@');
   if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
@@ -15,20 +11,30 @@ function remoteInstanceFromHandle(acct: string): string | null {
 }
 async function api<T = any>(path: string, method = 'GET', body?: unknown, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
   const token = await getToken();
-  const cleanParams = params ? Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, String(v)])) : undefined;
-  const { data, error } = await supabase.functions.invoke('testagram-api', { body: { path, method, body, params: cleanParams }, headers: { apikey: supabasePublishableKey, ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
-  if (error) {
-    let msg = error.message;
-    if (error instanceof FunctionsHttpError) { try { const status = error.context?.status ?? 500; const text = await error.context?.text(); msg = `[${status}] ${text || error.message || 'Testagram API error'}`; } catch { msg = error.message ?? 'Testagram API error'; } }
-    throw new GatewayError(0, msg, path);
-  }
-  return data as T;
+  if (!token) throw new GatewayError(401, 'An authenticated Appwrite session is required', path);
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) if (value !== undefined && value !== null) query.set(key, String(value));
+  const url = `${apiBase}${path}${query.size ? (path.includes('?') ? '&' : '?') + query.toString() : ''}`;
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(url, { method, headers: { Accept: 'application/json', Authorization: `Bearer ${token}`,
+      'X-Testagram-API-Version': '1', 'X-Request-ID': globalThis.crypto?.randomUUID?.() ?? `fed-${Date.now()}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      body: body === undefined ? undefined : JSON.stringify(body), credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal });
+    const payload = await response.json().catch(() => null) as any;
+    if (!response.ok || payload?.ok === false) throw new GatewayError(response.status, payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`, path);
+    return (payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload) as T;
+  } catch (error) {
+    if (error instanceof GatewayError) throw error;
+    throw new GatewayError(0, error instanceof DOMException && error.name === 'AbortError' ? 'Testagram API request timed out' : 'Testagram API is unreachable', path);
+  } finally { globalThis.clearTimeout(timer); }
 }
 export class GatewayError extends Error {
   constructor(public status: number, public body: string, public path: string) { super(`Testagram API error on ${path}: ${body}`); this.name = 'GatewayError'; }
 }
 export function isGatewayAvailable(): boolean { return true; }
-export function getGatewayUrl(): string { return 'supabase://testagram-api'; }
+export function getGatewayUrl(): string { return apiBase; }
 export interface TimelineParams { limit?: number; before?: string; after?: string; feedId?: string; }
 export interface FederatedPage { items: any[]; pagination: { limit: number; hasMore: boolean; nextCursor: string | null }; }
 interface RemoteSearchResult { accounts?: any[]; statuses?: any[]; hashtags?: any[]; }
@@ -37,10 +43,8 @@ export async function getGlobalTimeline(params: TimelineParams = {}): Promise<an
 export async function getLocalTimeline(params: TimelineParams = {}): Promise<any[]> { return api('/timeline/local', 'GET', undefined, params as any); }
 export async function getFederatedTimeline(params: TimelineParams = {}): Promise<any[]> { return (await getFederatedTimelinePage(params)).items; }
 export async function getFederatedTimelinePage(params: TimelineParams = {}): Promise<FederatedPage> {
-  const token = await getToken(); const query = new URLSearchParams(); query.set('limit', String(Math.min(Math.max(params.limit ?? 20, 1), 50))); if (params.before) query.set('before', params.before); if (params.feedId) query.set('feed_id', params.feedId);
-  const { data, error } = await supabase.functions.invoke(`federated-feed?${query.toString()}`, { method: 'GET', headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (error) { let msg = error.message; if (error instanceof FunctionsHttpError) { try { const status = error.context?.status ?? 500; const text = await error.context?.text(); msg = `[${status}] ${text || error.message || 'Federated feed error'}`; } catch { msg = error.message ?? 'Federated feed error'; } } throw new GatewayError(0, msg, '/federated-feed'); }
-  return data as FederatedPage;
+  const query = new URLSearchParams({ limit: String(Math.min(Math.max(params.limit ?? 20, 1), 50)), ...(params.before ? { before: params.before } : {}), ...(params.feedId ? { feed_id: params.feedId } : {}) });
+  return api(`/federated-feed?${query.toString()}`);
 }
 export async function getUser(acct: string): Promise<any> {
   const instance = remoteInstanceFromHandle(acct);
@@ -137,19 +141,15 @@ export interface FederatedDiscoveryResult { users: any[]; posts: any[]; hashtags
 
 /** Unified federated discovery contract used by the standalone Discover surface. */
 export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: string, mode: 'search' | 'suggest' = 'search', kind: 'all' | 'people' | 'posts' | 'hashtags' | 'mentions' | 'media' | 'conversations' | 'instances' | 'fediverse' = 'all'): Promise<FederatedDiscoveryResult> {
-  const token = await getToken();
-  const { data, error } = await supabase.functions.invoke('search-discovery', {
-    method: 'POST', body: { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode, kind },
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (error) throw error;
-  if (!data?.ok) throw new GatewayError(0, data?.error?.message ?? 'Federated discovery failed', '/search-discovery');
-  return data.data ?? { users: [], posts: [], hashtags: [], communities: [], items: [], next_cursor: null };
+  return (await api<FederatedDiscoveryResult>('/search-discovery', 'POST', { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode, kind })) ?? { users: [], posts: [], hashtags: [], communities: [], items: [], next_cursor: null };
 }
 export async function getFollowing(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/following`, 'GET', undefined, params as any); }
 export async function getInstance(): Promise<any> { const remote = await megalodonGatewayService.getInstance('https://mastodon.social'); return remote.instance; }
 export async function getHealth(): Promise<any> { return megalodonGatewayService.detect('https://mastodon.social'); }
-export async function pollFediverseInbox(userId: string): Promise<any[]> { try { const res = await getNotifications({ limit: 50 }); return Array.isArray(res) ? res : []; } catch { try { const { data } = await supabase.from('activitypub_inbox').select('*').eq('local_user_id', userId).order('created_at', { ascending: false }).limit(50); return data ?? []; } catch { return []; } } }
+export async function pollFediverseInbox(_userId: string): Promise<any[]> {
+  try { const result = await getNotifications({ limit: 50 }); return Array.isArray(result) ? result : []; }
+  catch { return []; }
+}
 /** @deprecated Use the named exports above. */
 export async function gwRelay<T = any>(path: string, method = 'GET', body?: any, params?: Record<string, any>): Promise<T> { return api<T>(path, method, body, params); }
 
@@ -167,12 +167,6 @@ export async function unbookmarkRemote(postId: string): Promise<any> { if (!/^ht
 export async function remoteBookmarkState(postId: string): Promise<boolean> { if (!/^https:\/\//i.test(postId)) return false; const r=await api<{bookmarked:boolean}>('/bookmark-state','GET',undefined,{post_id:postId}); return Boolean(r?.bookmarked); }
 
 export async function getFederatedDiscoveryFeed(params: { limit?: number; surface?: string; cursor?: string } = {}): Promise<{ items: any[]; nextCursor?: string | null }> {
-  const token = await getToken();
   const query = new URLSearchParams({ limit: String(Math.min(Math.max(params.limit ?? 6, 1), 12)), surface: params.surface ?? 'home', ...(params.cursor ? { cursor: params.cursor } : {}) });
-  const { data, error } = await supabase.functions.invoke(`federated-discovery-feed?${query.toString()}`, {
-    method: 'GET',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (error) throw new GatewayError(0, error.message ?? 'Federated discovery feed error', '/federated-discovery-feed');
-  return data as { items: any[]; nextCursor?: string | null };
+  return api(`/federated-discovery-feed?${query.toString()}`, 'GET');
 }
