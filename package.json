@@ -27,7 +27,8 @@
     "validate:tv-health": "node scripts/validate-tv-health-postgres.mjs",
     "validate:appwrite-client": "node scripts/validate-appwrite-client.mjs",
     "validate:api": "node scripts/validate-central-api-client.mjs",
-    "audit:supabase": "node scripts/audit-supabase-references.mjs"
+    "audit:supabase": "node scripts/audit-supabase-references.mjs",
+    "validate:login-contract": "node scripts/validate-login-contract.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",
