@@ -90,12 +90,15 @@ export const socialApi = {
       { method: 'GET', query: { limit: Math.min(50, Math.max(1, Math.floor(limit))), before } },
     );
   },
-  createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
+  async createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
     const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.();
     if (!key) throw new SocialApiError('A stable idempotency key is required to publish.', 400, 'IDEMPOTENCY_KEY_REQUIRED');
-    return testagramApi.request<{ id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
+    const post = await testagramApi.request<{ id?: string; $id?: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
       '/v1/posts', { method: 'POST', body: { content, visibility, sensitive }, idempotencyKey: key },
     );
+    const id = post.$id ?? post.id;
+    if (!id) throw new SocialApiError('Backend returned a post without an identifier.', 502, 'INVALID_POST_RESPONSE');
+    return { ...post, id, $id: id };
   },
   moderateContent(content: string) {
     return testagramApi.request<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
