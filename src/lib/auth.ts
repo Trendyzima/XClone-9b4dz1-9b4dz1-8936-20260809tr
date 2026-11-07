@@ -92,17 +92,18 @@ export function mapAppwriteAuthUser(user: Models.User<Models.Preferences>): User
 const FRESH_BACKEND_API_URL = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? "").trim();
 
 async function freshBackendRequest<T>(path: string, jwt: string, method = "GET", body?: Record<string, unknown>): Promise<T> {
-  if (!FRESH_BACKEND_API_URL) throw new Error("Fresh Appwrite mode requires VITE_TESTAGRAM_API_URL to point to the private Testagram Backend API.");
+  if (!FRESH_BACKEND_API_URL) throw new Error("Fresh Appwrite mode requires VITE_TESTAGRAM_FRESH_API_URL or VITE_TESTAGRAM_API_URL to point to the private Testagram Backend API origin.");
   let base: URL;
   try { base = new URL(FRESH_BACKEND_API_URL); } catch { throw new Error("VITE_TESTAGRAM_API_URL must be an absolute HTTPS URL."); }
   const localHTTP = base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname);
-  if ((base.protocol !== "https:" && !localHTTP) || base.username || base.password || base.search || base.hash) {
+  if ((base.protocol !== "https:" && !localHTTP) || base.username || base.password || base.pathname !== "/" || base.search || base.hash) {
     throw new Error("VITE_TESTAGRAM_API_URL must use HTTPS (HTTP is allowed only for localhost) and must not contain credentials, query or fragment.");
   }
   const response = await fetch(base.toString().replace(/\/$/, "") + path, {
     method,
     headers: { Authorization: "Bearer " + jwt, "Content-Type": "application/json", Accept: "application/json" },
     body: body ? JSON.stringify(body) : undefined,
+    credentials: "omit",
     cache: "no-store",
   });
   const payload = await response.json().catch(() => null) as any;
