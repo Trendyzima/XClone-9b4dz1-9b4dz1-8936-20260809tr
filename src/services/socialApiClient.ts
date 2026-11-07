@@ -25,7 +25,7 @@ export class SocialApiError extends Error {
 const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '')
   .trim()
   .replace(/\/+$/, '');
-const apiBase = configuredOrigin;
+const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
 const freshApi = createTestagramApiClient({
   baseURL: freshApiOrigin,
