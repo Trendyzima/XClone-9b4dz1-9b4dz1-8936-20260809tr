@@ -42,3 +42,5 @@ assert.doesNotMatch(auth, /(?:localStorage|sessionStorage)\s*\.\s*(?:setItem|put
 assert.match(auth, /cachedBackendJWT\s*=\s*result\.jwt/, 'Backend JWT must be cached only in module memory');
 assert.doesNotMatch(env, /VITE_APPWRITE_API_KEY|VITE_APPWRITE_SECRET/, 'server API keys must never be exposed as VITE variables');
 console.log('Appwrite frontend client contract: PASS');
+assert.doesNotMatch(auth, /(?:localStorage|sessionStorage)\s*\.\s*(?:setItem|put)\s*\(\s*['\"][^'\"]*(?:jwt|backend.?token)[^'\"]*['\"]/i, 'Backend JWT must never be persisted in browser storage');
+assert.match(auth, /cachedBackendJWT\s*=\s*result\.jwt/, 'Backend JWT must be cached only in module memory');
