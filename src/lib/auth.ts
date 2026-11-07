@@ -69,7 +69,7 @@ function readLegalConsent(): { birthDate: string; version: string; acceptedAt: s
   }
 }
 
-function toCompatibleAppwriteUser(user: Models.User<Models.Preferences>): User {
+export function mapAppwriteAuthUser(user: Models.User<Models.Preferences>): User {
   return {
     id: user.$id,
     email: user.email ?? "",
@@ -314,7 +314,7 @@ export class AuthService {
     if (isFreshAppwriteMode) {
       const identifier = normalizeIdentifier(identifierInput);
       if (identifier.kind !== "email") throw new Error("PHONE_OTP_REQUIRED");
-      return toCompatibleAppwriteUser(await appwriteAuth.signInWithPassword({ email: identifier.value, password }));
+      return mapAppwriteAuthUser(await appwriteAuth.signInWithPassword({ email: identifier.value, password }));
     }
     const identifier = normalizeIdentifier(identifierInput);
     if (!password) throw new Error('Enter your password');
