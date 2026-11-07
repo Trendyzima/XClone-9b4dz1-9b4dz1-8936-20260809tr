@@ -1,6 +1,9 @@
 import { testagramApi } from '@/services/testagramApi';
 import { appwriteAuth } from '@/services/appwriteAuth';
 
+const freshAppwriteMode = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' ||
+  (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
+
 type SocialEnvelope<T> = {
   ok: boolean;
   data: T | null;
@@ -34,11 +37,22 @@ async function getSessionToken(): Promise<string> {
   }
 }
 
+
+function assertSocialAPIAvailable(path: string, allowFreshRoute = false): void {
+  if (!freshAppwriteMode || allowFreshRoute) return;
+  throw new SocialApiError(
+    'This feature is not yet available through the Testagram Backend API. The retired data source is disabled.',
+    503,
+    'FEATURE_NOT_PORTED',
+  );
+}
+
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, _allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
+async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
+  assertSocialAPIAvailable(url, allowFreshRoute);
   const token = await getSessionToken();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
