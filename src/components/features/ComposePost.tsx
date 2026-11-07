@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { backendCapabilities, requireAccessToken } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { pingGoogleSitemap } from '@/lib/pingGoogle';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -431,10 +432,24 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     if (!postContent.trim() || postContent.trim().length < 10) return true;
     if (violationCheckedRef.current) return true;
     if (isFreshAppwriteMode) {
-      setViolationScore(0);
-      setViolationReason('Fresh-mode publishing is paused because content moderation is not yet connected to the Backend API.');
-      setShowViolationWarning(true);
-      return false;
+      setCheckingContent(true);
+      try {
+        const result = await socialApi.moderateContent(postContent.trim());
+        setCheckingContent(false);
+        if (result.action !== 'pass') {
+          setViolationScore(result.overall_score);
+          setViolationReason(result.reason || 'This post requires moderation review.');
+          setShowViolationWarning(true);
+          return false;
+        }
+        return true;
+      } catch {
+        setCheckingContent(false);
+        setViolationScore(0);
+        setViolationReason('The Backend moderation service is unavailable. Publishing is paused; please retry later.');
+        setShowViolationWarning(true);
+        return false;
+      }
     }
     setCheckingContent(true);
     try {
