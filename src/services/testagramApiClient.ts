@@ -69,7 +69,7 @@ function appendQuery(url: string, query?: TestagramApiRequestOptions['query']): 
 
 function parseError(payload: any, response: Response, id: string): TestagramApiError {
   const error = payload?.error;
-  const message = typeof error === 'string' ? error : error?.message;
+  const message = typeof error === 'string' ? error : error?.message ?? payload?.message;
   const code = typeof error === 'object' ? error?.code : payload?.code;
   const responseRequestId = payload?.request_id ?? response.headers.get('X-Request-ID') ?? id;
   return new TestagramApiError(
@@ -87,7 +87,7 @@ function parseError(payload: any, response: Response, id: string): TestagramApiE
 }
 
 export function createTestagramApiClient(options: TestagramApiClientOptions) {
-  const baseURL = (options.baseURL ?? '').trim().replace(/\\/+$/, '');
+  const baseURL = (options.baseURL ?? '').trim().replace(/\/+$/, '');
   const fetcher = options.fetcher ?? fetch;
   const maxReadRetries = Math.min(3, Math.max(0, options.maxReadRetries ?? 2));
 
