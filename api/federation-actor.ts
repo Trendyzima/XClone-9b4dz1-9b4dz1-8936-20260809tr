@@ -40,6 +40,30 @@ function trustedFederationHost(hostname: string): boolean {
     host.endsWith('.local') || host === '::1' || isPrivateIPv4(host);
 }
 
+async function readBoundedBody(response: Response, maxBytes: number): Promise<Uint8Array | null> {
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(part.value);
+  }
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return result;
+}
+
 function federationOrigin(): string | null {
   const raw = (process.env.TESTAGRAM_FEDERATION_API_URL ?? '').trim();
   if (!raw) return null;
@@ -103,8 +127,8 @@ export default async function handler(request: Request): Promise<Response> {
     if (upstream.status >= 300 && upstream.status < 400) {
       return json(request, 502, { ok: false, error: { code: 'FEDERATION_REDIRECT_REJECTED' }, request_id: requestId }, requestId);
     }
-    const bytes = await upstream.arrayBuffer();
-    if (bytes.byteLength > 256 * 1024) {
+    const bytes = await readBoundedBody(upstream, 256 * 1024);
+    if (!bytes) {
       return json(request, 502, { ok: false, error: { code: 'ACTOR_RESPONSE_TOO_LARGE' }, request_id: requestId }, requestId);
     }
     const headers = corsHeaders(request);
