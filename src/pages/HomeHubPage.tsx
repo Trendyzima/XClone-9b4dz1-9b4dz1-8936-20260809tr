@@ -165,18 +165,14 @@ export default function HomeHubPage(){
   // Backend. The legacy Supabase aggregator and direct-table fallback are
   // intentionally not reachable from this component.
   const fetchTab=useCallback(async(target:Tab,_pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
-    if (!user?.id) {
-      setNextCursor(null);
-      nextCursorRef.current = null;
-      setHasMore(false);
-      return [];
-    }
     if (target !== 'all') {
       // These secondary discovery tabs are being moved to Backend endpoints.
       // Returning no legacy rows is safer than silently reintroducing Supabase.
       return [];
     }
-    const page = await socialApi.getHomeFeed(24, cursorOverride ?? undefined);
+    const page = user?.id
+      ? await socialApi.getHomeFeed(24, cursorOverride ?? undefined)
+      : await socialApi.getPublicHomeFeed(24, cursorOverride ?? undefined);
     const posts = Array.isArray(page?.posts) ? page.posts : [];
     const cursor = page?.next_cursor || null;
     setNextCursor(cursor);
