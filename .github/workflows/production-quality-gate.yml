@@ -59,8 +59,8 @@ jobs:
       - name: Production build
         run: npm run build
 
-  supabase-migration-static-check:
-    name: Supabase migration sanity check
+  legacy-data-migration-check:
+    name: Legacy data migration sanity check
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -74,5 +74,15 @@ jobs:
           grep -q "idempotency_key" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
           grep -q "wallet_risk_events" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
           echo "Migration sanity checks passed."
+
+  supabase-exit:
+    name: Supabase exit release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Audit tracked runtime and deployment files
+        run: node scripts/validate-supabase-exit.mjs
 
 # CI trigger heartbeat: intentionally no-op; keeps push-based gates active.
