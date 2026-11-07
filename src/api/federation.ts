@@ -1,7 +1,7 @@
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { megalodonGatewayService } from '@/services/megalodonGateway';
 
-const apiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\\/+$/, '');
+const apiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
 const apiBase = apiOrigin ? `${apiOrigin}/api/social` : '/api/social';
 async function getToken(): Promise<string | null> { try { return await appwriteAuth.createBackendJWT(); } catch { return null; } }
 function remoteInstanceFromHandle(acct: string): string | null {
