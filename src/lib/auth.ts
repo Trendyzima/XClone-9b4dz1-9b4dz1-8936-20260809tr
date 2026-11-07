@@ -1,5 +1,6 @@
 import { isFreshAppwriteMode, supabase } from './supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
+import { testagramApi } from '@/services/testagramApi';
 import type { Models } from 'appwrite';
 import { User } from '@supabase/supabase-js';
 import { AuthUser } from '@/types/app-types';
@@ -89,41 +90,25 @@ export function mapAppwriteAuthUser(user: Models.User<Models.Preferences>): User
   } as unknown as User;
 }
 
-const FRESH_BACKEND_API_URL = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? "").trim();
-
-async function freshBackendRequest<T>(path: string, jwt: string, method = "GET", body?: Record<string, unknown>): Promise<T> {
-  if (!FRESH_BACKEND_API_URL) throw new Error("Fresh Appwrite mode requires VITE_TESTAGRAM_FRESH_API_URL or VITE_TESTAGRAM_API_URL to point to the private Testagram Backend API origin.");
-  let base: URL;
-  try { base = new URL(FRESH_BACKEND_API_URL); } catch { throw new Error("VITE_TESTAGRAM_API_URL must be an absolute HTTPS URL."); }
-  const localHTTP = base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname);
-  if ((base.protocol !== "https:" && !localHTTP) || base.username || base.password || base.pathname !== "/" || base.search || base.hash) {
-    throw new Error("VITE_TESTAGRAM_API_URL must use HTTPS (HTTP is allowed only for localhost) and must not contain credentials, query or fragment.");
-  }
-  const response = await fetch(base.toString().replace(/\/$/, "") + path, {
-    method,
-    headers: { Authorization: "Bearer " + jwt, "Content-Type": "application/json", Accept: "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: "omit",
-    cache: "no-store",
-  });
-  const payload = await response.json().catch(() => null) as any;
-  if (!response.ok) {
-    const message = payload?.error?.message ?? payload?.message ?? ("Backend request failed (" + response.status + ").");
-    throw new Error(String(message));
-  }
-  return payload as T;
+async function freshBackendRequest<T>(
+  path: string,
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+  body?: Record<string, unknown>,
+): Promise<T> {
+  // Keep every frontend API call on the shared versioned transport: Appwrite
+  // JWT, request ID, timeout, bounded read retry and response-envelope parsing.
+  return testagramApi.request<T>(path, { method, body });
 }
 
 async function mapFreshAppwriteUserWithCanonicalProfile(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
-  const jwt = await appwriteAuth.createBackendJWT();
   let profile: any;
   try {
-    profile = await freshBackendRequest<any>("/v1/me", jwt);
+    profile = await freshBackendRequest<any>("/v1/me");
   } catch (error) {
     if (!(error instanceof Error) || !/profile not found/i.test(error.message)) throw error;
     const candidate = profileCandidate(user);
     const displayName = String(candidate.displayName || candidate.username).slice(0, 80);
-    const saveProfile = (handle: string) => freshBackendRequest<any>("/v1/me/profile", jwt, "PUT", { display_name: displayName, handle, bio: "" });
+    const saveProfile = (handle: string) => freshBackendRequest<any>("/v1/me/profile", "PUT", { display_name: displayName, handle, bio: "" });
     try {
       profile = await saveProfile(candidate.username);
     } catch {
@@ -134,7 +119,7 @@ async function mapFreshAppwriteUserWithCanonicalProfile(user: User, options: { r
   }
 
   const consent = readLegalConsent();
-  const legal = await freshBackendRequest<any>("/v1/me/legal", jwt);
+  const legal = await freshBackendRequest<any>("/v1/me/legal");
   const legalData = legal?.data ?? legal;
   const alreadyAccepted = Boolean(
     legalData?.birth_date && legalData?.legal_terms_accepted_at && legalData?.legal_privacy_accepted_at &&
@@ -150,7 +135,7 @@ async function mapFreshAppwriteUserWithCanonicalProfile(user: User, options: { r
   if (options.requireFreshLegalConsent && !consent) throw new Error("LEGAL_ACCEPTANCE_REQUIRED");
   if (!alreadyAccepted) {
     if (!consent) throw new Error("LEGAL_ACCEPTANCE_REQUIRED");
-    await freshBackendRequest<any>("/v1/me/legal", jwt, "PUT", {
+    await freshBackendRequest<any>("/v1/me/legal", "PUT", {
       birth_date: consent.birthDate, policy_version: consent.version, terms_accepted: true,
       privacy_accepted: true, content_policy_accepted: true, age_confirmed: true,
     });
