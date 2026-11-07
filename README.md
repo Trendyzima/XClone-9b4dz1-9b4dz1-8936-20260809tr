@@ -295,3 +295,8 @@ The browser-facing `POST /api/media` route is a compatibility adapter; the Go ba
 The browser uploads bytes directly to the signed R2 `PUT` URL. Configure R2 CORS for `https://testagram.site` and `https://www.testagram.site` with the `Content-Type` request header. Keep public and private buckets separate; only the public bucket should be served through `https://media.testagram.site/v1/<object-key>`.
 
 A passing build is not an end-to-end release signal. Staging still must verify authenticated upload → completion → post attachment → CDN render, private downloads, cross-account denial, retry/idempotency, and deletion against real R2 and the product database.
+
+
+## Fresh Appwrite authentication status
+
+Fresh mode now has an Appwrite email/password sign-in and password-recovery path backed by short-lived Appwrite JWTs to the private Backend API. This is not the complete identity migration: new-account identity verification, email/phone OTP, magic links, legacy-user migration and the remaining social API surfaces are still release gates.
