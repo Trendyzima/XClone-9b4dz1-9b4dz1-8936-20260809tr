@@ -11,7 +11,7 @@ const requireText = (pattern, message) => {
 if (/supabase|postgrest|createClient|\.from\(['"]posts['"]\)/i.test(source)) {
   failures.push('Home-feed proxy must not query Supabase or own feed candidate retrieval.');
 }
-if (/supabase|postgrest|createClient|ENGAGEMENT_WEIGHTS|RECENCY_HALF_LIFE|scored\\.sort\\(/i.test(recommendations)) {
+if (/supabase|postgrest|createClient|ENGAGEMENT_WEIGHTS|RECENCY_HALF_LIFE|scored\.sort\(/i.test(recommendations)) {
   failures.push('Legacy recommendation module must not read social tables or score/sort feed candidates in XClone.');
 }
 if (!recommendations.includes('socialApi.getHomeFeed') || !recommendations.includes('Ranked by Testagram Algorithm')) {
