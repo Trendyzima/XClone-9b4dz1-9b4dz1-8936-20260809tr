@@ -77,7 +77,15 @@ export async function getUser(acct: string): Promise<any> {
 export async function webfinger(acct: string): Promise<any> { return getUser(acct); }
 export async function getActor(username: string): Promise<any> {
   const instance = remoteInstanceFromHandle(username); if (instance) { const normalized = username.trim().replace(/^@/, ''); const [accountName] = normalized.split('@'); const remote = await megalodonGatewayService.search(instance, `@${accountName}`, 'accounts') as { result?: RemoteSearchResult }; return remote.result?.accounts?.[0] ?? null; }
-  return api(`/users/${encodeURIComponent(username)}`);
+  const response = await fetch(`/api/federation-actor?username=${encodeURIComponent(username)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"' },
+    credentials: 'same-origin',
+    cache: 'no-store',
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Federation actor lookup failed (${response.status})`);
+  return response.json();
 }
 export async function postStatus(payload: { content: string; mediaIds?: string[]; visibility?: 'public' | 'unlisted' | 'followers' | 'direct'; inReplyTo?: string; sensitive?: boolean; spoilerText?: string }): Promise<any> { return api('/posts', 'POST', payload); }
 export async function deletePost(postId: string): Promise<void> { return api(`/posts/${encodeURIComponent(postId)}`, 'DELETE'); }
