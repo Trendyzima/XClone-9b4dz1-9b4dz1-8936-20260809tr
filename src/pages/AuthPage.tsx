@@ -371,7 +371,7 @@ export default function AuthPage() {
     setConfirmation('');
     if (mode === 'reset' && next !== 'reset') {
       if (isFreshAppwriteMode) {
-        const hadRecovery = recoveryReady || hasAppwriteRecovery();
+        const hadRecovery = recoveryReady || Boolean(appwriteAuth.getRecoveryContext());
         appwriteAuth.clearRecoveryContext();
         if (hadRecovery) {
           void authService.signOut();
