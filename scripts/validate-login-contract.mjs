@@ -40,6 +40,7 @@ assert.match(transport, /headers\.set\('Authorization'/, 'Backend API calls must
 assert.ok(transport.includes("if (!token || /[\r\n]/.test(token))"), 'JWT validation must reject CR/LF only, not ordinary letters such as r or n.');
 assert.ok(transport.includes("path.startsWith('//') || /[\r\n\\]/.test(path))"), 'Path validation must reject CR/LF and backslashes without rejecting ordinary route characters.');
 assert.match(transport, /X-Testagram-API-Version/, 'Backend API calls must declare the versioned contract.');
+assert.match(transport, /X-Request-ID/, 'Backend API calls must include a request correlation ID.');
 assert.match(transport, /credentials: 'omit'/, 'Backend API calls must not forward ambient browser cookies.');
 assert.match(transport, /cache: 'no-store'/, 'Private authenticated API responses must not be cached.');
 assert.match(env, /VITE_APPWRITE_ENDPOINT=/, 'Fresh build must configure the Appwrite endpoint.');
