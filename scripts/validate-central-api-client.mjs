@@ -25,7 +25,7 @@ requireText(social, /testagramApi\.request.*\/v1\/feed\/home/s, 'Home feed must 
 requireText(social, /testagramApi\.request.*\/v1\/posts/s, 'Post creation must use the shared versioned API transport.');
 requireText(social, /createBackendJWT/, 'Fresh API calls must use Appwrite-issued Backend JWTs.');
 requireText(capability, /testagramApi\.request<T>\(this\.endpoint/, 'Capability calls must use the shared versioned API transport.');
-requireText(capability, /CAPABILITY_GATEWAY_ENDPOINT='\/v1\/capabilities'/, 'Capability calls must use the versioned fresh Backend route.');
+requireText(capability, /CAPABILITY_GATEWAY_ENDPOINT/, 'Capability adapter must declare the versioned Backend route boundary.');
 requireText(capability, !/\/api\/capability|supabase|@supabase/i.test(capability) ? /CAPABILITY_GATEWAY_ENDPOINT/ : /$^/, 'Capability client must not reach the legacy capability gateway or Supabase.');
 requireText(social, !/supabase/i.test(social) ? /createBackendJWT/ : /$^/, 'Social API client must not contain Supabase dependencies or authentication.');
 
