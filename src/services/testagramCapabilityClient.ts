@@ -18,6 +18,8 @@ export type TestagramCapabilityClientOptions={endpoint:string;getAccessToken:()=
 export class CapabilityClientError extends Error{readonly code:string;readonly requestId:string|null;readonly status:number|null;constructor(message:string,o:{code?:string;requestId?:string|null;status?:number|null}={}){super(message);this.name="CapabilityClientError";this.code=o.code??"CAPABILITY_REQUEST_FAILED";this.requestId=o.requestId??null;this.status=o.status??null;}}
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
+const apiOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??import.meta.env.VITE_TESTAGRAM_FRESH_API_URL??'').trim().replace(/\\/+$/, '');
+const CAPABILITY_GATEWAY_ENDPOINT=apiOrigin?`${apiOrigin}/v1/capabilities`:'/v1/capabilities';
 export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;private apiKey:string;
  constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));this.apiKey=o.apiKey??"";}
