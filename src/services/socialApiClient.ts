@@ -1,4 +1,5 @@
 import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
+import { createTestagramApiClient } from '@/services/testagramApiClient';
 import { appwriteAuth } from '@/services/appwriteAuth';
 
 type SocialEnvelope<T> = {
@@ -26,7 +27,16 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
   .trim()
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
-const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\\/+$/, '');
+const freshApi = createTestagramApiClient({
+  baseURL: freshApiOrigin,
+  getAccessToken: async () => {
+    try { return await appwriteAuth.createBackendJWT(); }
+    catch { throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED'); }
+  },
+  defaultTimeoutMs: 10000,
+  maxReadRetries: 2,
+});
 const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
 
 function assertSocialAPIAvailable(allowFreshRoute = false): void {
@@ -113,28 +123,28 @@ export type SocialRepostState = { reposted: boolean; reposts_count: number; remo
 
 export const socialApi = {
   getHomeFeed(limit = 20, before?: string) {
-    const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
-    if (before) query.set('before', before);
-    return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
-      `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
+    return freshApi.request<{ posts: any[]; next_cursor: string | null; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
+      '/v1/feed/home',
+      { method: 'GET', query: { limit: Math.min(50, Math.max(1, Math.floor(limit))), before } },
     );
   },
   createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
-    const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `post-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    return requestAt<{ $id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
-      `${freshApiOrigin}/v1/posts`, 'POST', { content, visibility, sensitive }, true, { 'Idempotency-Key': key },
+    const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.();
+    if (!key) throw new SocialApiError('A stable idempotency key is required to publish.', 400, 'IDEMPOTENCY_KEY_REQUIRED');
+    return freshApi.request<{ id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
+      '/v1/posts', { method: 'POST', body: { content, visibility, sensitive }, idempotencyKey: key },
     );
   },
   moderateContent(content: string) {
-    return requestAt<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
-      `${freshApiOrigin}/v1/moderation/check`, 'POST', { content }, true,
+    return freshApi.request<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
+      '/v1/moderation/check', { method: 'POST', body: { content } },
     );
   },
   getFederationPreference() {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'GET', undefined, true);
+    return freshApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'GET' });
   },
   setFederationPreference(enabled: boolean) {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
+    return freshApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'PUT', body: { enabled } });
   },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
