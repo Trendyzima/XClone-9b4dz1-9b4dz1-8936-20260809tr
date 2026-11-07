@@ -93,13 +93,13 @@ export function createTestagramApiClient(options: TestagramApiClientOptions) {
 
   return {
     async request<T>(path: string, requestOptions: TestagramApiRequestOptions = {}): Promise<T> {
-      if (!path.startsWith('/v1/') || path.startsWith('/v1/internal/') || path.includes('\\\\') || path.includes('..') || path.includes('?') || path.includes('#')) {
+      if (!path.startsWith('/v1/') || path.startsWith('/v1/internal/') || path.includes('\\') || path.includes('..') || path.includes('?') || path.includes('#')) {
         throw new TestagramApiError('Only safe public, versioned Backend API paths are allowed.', 0, 'API_PATH_NOT_ALLOWED');
       }
       const method = requestOptions.method ?? 'GET';
       const url = appendQuery(`${baseURL}${path}`, requestOptions.query);
       const token = await options.getAccessToken();
-      if (!token || /[\\r\\n]/.test(token)) throw new TestagramApiError('A valid Testagram session is required.', 401, 'AUTH_REQUIRED');
+      if (!token || /[\r\n]/.test(token)) throw new TestagramApiError('A valid Testagram session is required.', 401, 'AUTH_REQUIRED');
       const id = requestId();
       const headers = new Headers(requestOptions.headers);
       // Caller-supplied headers cannot replace authentication, tracing or API version.
