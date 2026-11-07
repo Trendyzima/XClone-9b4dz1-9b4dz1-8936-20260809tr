@@ -22,28 +22,65 @@ const apiOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??import.meta.env.VITE_TE
 const CAPABILITY_GATEWAY_ENDPOINT=apiOrigin?`${apiOrigin}/v1/capabilities`:'/v1/capabilities';
 export class TestagramCapabilityClient{
  constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error('Capability endpoint is required');}
- async call<T>(_capability: string, _input: Record<string, unknown> = {}, _tokenOverride?: string | null): Promise<T> {
-  throw new CapabilityClientError(
-    'This capability has not yet been implemented on the centralized Testagram Backend API.',
-    { code: 'FRESH_API_CAPABILITY_NOT_PORTED', status: 503 },
-  );
+ async call<T>(capability: string, input: Record<string, unknown> = {}, tokenOverride?: string | null): Promise<T> {
+  const normalizedCapability = capability.trim();
+  if (!/^[a-z][a-z0-9_.-]{2,127}$/.test(normalizedCapability)) {
+    throw new CapabilityClientError('Capability name is invalid.', { code: 'CAPABILITY_NAME_INVALID', status: 400 });
+  }
+  const token = tokenOverride ?? await this.token();
+  if (!token || /[\\r\\n]/.test(token)) {
+    throw new CapabilityClientError('An authenticated Appwrite session is required.', { code: 'AUTH_REQUIRED', status: 401 });
+  }
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), this.timeout);
+  const requestId = globalThis.crypto?.randomUUID?.() ?? `cap-${Date.now().toString(36)}`;
+  try {
+    const response = await fetch(this.endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Request-ID': requestId,
+        'X-Testagram-API-Version': '1',
+        'X-Testagram-Client': this.name,
+        'X-Testagram-Client-Version': this.version,
+      },
+      body: JSON.stringify({ capability: normalizedCapability, input }),
+      credentials: 'omit',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => null) as any;
+    if (!response.ok || payload?.ok === false) {
+      const error = payload?.error;
+      throw new CapabilityClientError(
+        typeof error === 'string' ? error : error?.message ?? `Backend capability request failed (HTTP ${response.status}).`,
+        { code: error?.code ?? payload?.code ?? 'CAPABILITY_REQUEST_FAILED', status: response.status, requestId: payload?.request_id ?? response.headers.get('X-Request-ID') ?? requestId },
+      );
+    }
+    if (payload && typeof payload === 'object' && 'data' in payload) return payload.data as T;
+    return payload as T;
+  } catch (error) {
+    if (error instanceof CapabilityClientError) throw error;
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new CapabilityClientError('Backend capability request timed out.', { code: 'CAPABILITY_TIMEOUT', status: 0, requestId });
+    }
+    throw new CapabilityClientError('Backend capability API is unreachable.', { code: 'CAPABILITY_NETWORK_ERROR', status: 0, requestId });
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
  }
  listCapabilities(){return this.call<{capabilities:unknown[]}>("testagram.capabilities.list")} health(){return this.call<{services:unknown[]}>("testagram.health.read")}
  listPosts(n=20,c?:string,feed:"following"|"global"|"profile"|"community"="following",targetId?:string){return this.call<CapabilityPage<unknown>>("testagram.posts.list",{limit:limit(n),feed,...targetId?{target_id:targetId}:{},...cursor(c)})}
  searchPosts(q:string,n=20,c?:string,options:{mediaOnly?:boolean;verifiedOnly?:boolean}={}){return this.call<CapabilityPage<any>>("testagram.search.posts",{q,limit:limit(n),...options.mediaOnly?{media_only:true}:{},...options.verifiedOnly?{verified_only:true}:{},...cursor(c)})}
  searchUsers(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.users",{q,limit:limit(n),...cursor(c)})}
  searchHashtags(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.hashtags",{q,limit:limit(n),...cursor(c)})}
- async searchUnified(
-  _q: string,
-  _kind: "all"|"people"|"posts"|"hashtags"|"threads"|"communities"|"fediverse"|"media"|"latest"|"top"|"instances" = "all",
-  _n = 40,
-  _offset = 0,
-  _sort = "relevance",
-) {
-  throw new CapabilityClientError(
-    'Unified search is not yet exposed by the centralized Testagram Backend API.',
-    { code: 'FRESH_API_SEARCH_NOT_PORTED', status: 503 },
-  );
+ async searchUnified(q: string, kind: "all"|"people"|"posts"|"hashtags"|"threads"|"communities"|"fediverse"|"media"|"latest"|"top"|"instances" = "all", n = 40, offset = 0, sort = "relevance") {
+  return this.call<{ items: unknown[]; next_cursor: string | null }>("testagram.search.unified", {
+    q, kind, limit: limit(n), offset: Math.max(0, Math.floor(offset)), sort,
+  });
  }
  searchCommunities(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.communities",{q,limit:limit(n),...cursor(c)})}
  async searchDiscovery(_endpoint:string,q:string,mode:"search"|"suggest"="search",n=20,c?:string):Promise<SearchDiscoveryPage>{const size=limit(mode==="suggest"?Math.min(n,8):n);const normalized=q.trim().replace(/^[@#]/,'');const [users,hashtags,posts,communities]=await Promise.all([this.searchUsers(normalized,size,c),this.searchHashtags(normalized,size,c),this.searchPosts(q.trim(),size,c),this.searchCommunities(normalized,size,c)]);return{users:users.items,hashtags:hashtags.items,posts:posts.items,communities:communities.items,next_cursor:posts.next_cursor};}
