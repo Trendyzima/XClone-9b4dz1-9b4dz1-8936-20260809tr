@@ -1,5 +1,5 @@
-import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
-import { requireAccessToken } from '@/services/backendClient';
+import { freshMediaApi } from '@/services/freshMediaApi';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 export type MediaCompleted = { media_id:string; object_key:string; mime_type:string; media_type:'image'|'video'|'audio'|'file'; status:string; media_url:string|null; etag?:string|null; size_bytes:number; public_url:string|null; };
 export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
@@ -12,20 +12,25 @@ function friendlyMediaError(error:unknown){
   return m||'Media upload failed. Please try again.';
 }
 
-async function uploadAttempt(file:File,postId?:string|null,threadId?:string|null,accessTokenOverride?:string){
-  const accessToken = accessTokenOverride ?? await requireAccessToken();
-  const form=new FormData();
-  form.append('file',file,file.name);
-  if(postId) form.append('post_id',postId);
-  if(threadId) form.append('thread_id',threadId);
-  const response=await fetch(supabaseUrl+'/functions/v1/post-media-upload',{
-    method:'POST',
-    headers:{Authorization:'Bearer '+accessToken,apikey:supabasePublishableKey},
-    body:form,
-  });
-  const payload=await response.json().catch(()=>({}));
-  if(!response.ok) throw new Error(payload?.error||('Upload failed ('+response.status+')'));
-  return payload as MediaCompleted;
+async function uploadAttempt(file: File, postId?: string | null, threadId?: string | null) {
+  const result = await freshMediaApi.upload(file);
+  if (postId || threadId) {
+    await backendCapabilities.call('testagram.media.attach', {
+      media_id: result.objectId,
+      ...(postId ? { post_id: postId } : {}),
+      ...(threadId ? { thread_id: threadId } : {}),
+    });
+  }
+  return {
+    media_id: result.objectId,
+    object_key: result.objectId,
+    mime_type: file.type || 'application/octet-stream',
+    media_type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'file',
+    status: 'protected',
+    media_url: null,
+    public_url: null,
+    size_bytes: file.size,
+  } as MediaCompleted;
 }
 
 export async function uploadTestagramMedia(file:File,postId?:string|null,threadId?:string|null,accessTokenOverride?:string):Promise<MediaCompleted>{
@@ -46,17 +51,9 @@ export async function uploadTestagramMedia(file:File,postId?:string|null,threadI
   } catch(error){ throw new Error(friendlyMediaError(error)); }
 }
 
-export async function attachTestagramMedia(mediaId:string,postId:string,accessTokenOverride?:string):Promise<void>{
-  const accessToken = accessTokenOverride ?? await requireAccessToken();
-  const normalizedMediaId=String(mediaId??'').trim();
-  const normalizedPostId=String(postId??'').trim();
-  if(!normalizedMediaId||!normalizedPostId) throw new Error('Media attachment could not start because the media or post ID was missing.');
-  const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:normalizedMediaId,media_asset_id:normalizedMediaId,post_id:normalizedPostId})});
-  const payload=await response.json().catch(()=>({}));
-  if(!response.ok) throw new Error(payload?.error||('Media attach failed ('+response.status+')'));
+export async function attachTestagramMedia(mediaId: string, postId: string): Promise<void> {
+  await backendCapabilities.call('testagram.media.attach', { media_id: mediaId, post_id: postId });
 }
-export async function deleteTestagramMedia(mediaId:string,accessTokenOverride?:string):Promise<void>{
-  let accessToken:string;
-  try { accessToken = accessTokenOverride ?? await requireAccessToken(); } catch { return; }
-  await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'delete',media_id:mediaId})}).catch(()=>undefined);
+export async function deleteTestagramMedia(mediaId: string): Promise<void> {
+  await backendCapabilities.call('testagram.media.delete', { media_id: mediaId });
 }
