@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
 import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
-import { clearAppwriteRecovery, getAppwriteAuthUser, hasAppwriteRecovery, saveAppwriteRecovery } from '@/lib/appwriteAuth';
+import { appwriteAuth } from '@/services/appwriteAuth';
+import { mapAppwriteAuthUser } from '@/lib/auth';
 import { clearPasswordRecoverySession, getPasswordRecoveryUserId, hasPasswordRecoveryMarker, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
@@ -23,6 +24,7 @@ function friendlyAuthError(error: unknown, fallback: string) {
     APPWRITE_EMAIL_OTP_NOT_YET_ENABLED: 'Email code sign-in is being migrated to Appwrite. Use your email and password for now.',
     APPWRITE_MAGIC_LINK_NOT_YET_ENABLED: 'Magic-link sign-in is not enabled in the fresh Appwrite release yet.',
     APPWRITE_SIGNUP_MIGRATION_PENDING: 'New account registration is temporarily unavailable while identity verification is migrated to Appwrite.',
+    APPWRITE_RECOVERY_CONTEXT_REQUIRED: 'Open the password recovery link from your email before choosing a new password.',
     PHONE_OTP_REQUIRED: 'Phone sign-in is being migrated. Sign in with your email and password for now.',
     LEGAL_ACCEPTANCE_REQUIRED: 'Please review and accept the required policies before continuing.',
     INVALID_EMAIL: 'Enter a valid email address.',
@@ -93,7 +95,7 @@ export default function AuthPage() {
       const isResetRoute = params.get("reset") === "1";
       if (isResetRoute && userId && secret) {
         const recoveryEmail = params.get("email")?.trim() ?? "";
-        saveAppwriteRecovery(userId, secret, recoveryEmail);
+        appwriteAuth.saveRecoveryContext({ userId, secret, email: recoveryEmail });
         if (recoveryEmail) setEmail(recoveryEmail);
         setMode("reset");
         setRecoveryReady(true);
@@ -101,7 +103,7 @@ export default function AuthPage() {
         window.history.replaceState({}, document.title, "/auth?reset=1");
       } else if (isResetRoute) {
         setMode("reset");
-        setRecoveryReady(hasAppwriteRecovery());
+        setRecoveryReady(Boolean(appwriteAuth.getRecoveryContext()));
         setRecoveryChecking(false);
       }
       return () => {};
@@ -332,11 +334,25 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      const user = await authService.updatePassword(password);
-      const finalized = await finalizeAuthenticatedSession(user);
-      clearPasswordRecoverySession();
-      setRecoveryReady(false);
-      login(finalized);
+      if (isFreshAppwriteMode) {
+        const recovery = appwriteAuth.getRecoveryContext();
+        if (!recovery?.email) throw new Error('APPWRITE_RECOVERY_CONTEXT_REQUIRED');
+        const appwriteUser = await appwriteAuth.completePasswordRecoveryAndSignIn({
+          userId: recovery.userId,
+          secret: recovery.secret,
+          email: recovery.email,
+          password,
+        });
+        const finalized = await finalizeAuthenticatedSession(mapAppwriteAuthUser(appwriteUser));
+        setRecoveryReady(false);
+        login(finalized);
+      } else {
+        const user = await authService.updatePassword(password);
+        const finalized = await finalizeAuthenticatedSession(user);
+        clearPasswordRecoverySession();
+        setRecoveryReady(false);
+        login(finalized);
+      }
       window.history.replaceState({}, document.title, '/auth');
       navigate(getSafeReturnTo(), { replace: true });
     } catch (error: any) {
@@ -357,13 +373,12 @@ export default function AuthPage() {
     if (mode === 'reset' && next !== 'reset') {
       if (isFreshAppwriteMode) {
         const hadRecovery = recoveryReady || hasAppwriteRecovery();
-        clearAppwriteRecovery();
+        appwriteAuth.clearRecoveryContext();
         if (hadRecovery) {
           void authService.signOut();
         } else {
-          void getAppwriteAuthUser().then((user) => {
-            if (!user) return;
-            void finalizeAuthenticatedSession(user).then(login).catch((error) => console.error('[Auth] Could not restore Appwrite session after leaving reset URL:', error));
+          void appwriteAuth.getCurrentUser().then((user) => {
+            void finalizeAuthenticatedSession(mapAppwriteAuthUser(user)).then(login).catch((error) => console.error('[Auth] Could not restore Appwrite session after leaving reset URL:', error));
           });
         }
         setRecoveryReady(false);
