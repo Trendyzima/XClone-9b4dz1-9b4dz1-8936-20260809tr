@@ -1,4 +1,5 @@
-const DB_NAME='testagram-feed-cache-v2';
+// v3 deliberately invalidates cached rows from the retired Supabase feed.
+const DB_NAME='testagram-feed-cache-v3';
 const STORE='home-feed';
 // Keep a bounded offline window; page size is six so this aligns with full feed pages.
 export const HOME_FEED_CACHE_LIMIT=288;
