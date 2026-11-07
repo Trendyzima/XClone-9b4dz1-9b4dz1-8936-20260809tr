@@ -13,6 +13,12 @@ requireText(client, /cache: 'no-store'/, 'Private API requests must bypass brows
 requireText(client, /method === 'GET'.*maxReadRetries/s, 'Only safe GET requests may be retried.');
 requireText(client, /Idempotency-Key/, 'Mutation idempotency keys must be supported.');
 requireText(client, /\/v1\//, 'Client must reject unversioned API routes.');
+
+requireText(client, /!path\.startsWith\('\/v1\/'\).*path\.startsWith\('\/v1\/internal\/'\)/s, 'Browser transport must reject private internal API routes.');
+requireText(client, /new Headers\(requestOptions\.headers\)/, 'Caller headers must be normalized before protected headers are set.');
+requireText(client, /headers\.set\('Authorization'.*headers\.set\('X-Testagram-API-Version'/s, 'Caller headers must not override authentication or API version.');
+requireText(client, /payload = await response\.json\(\).*finally/s, 'Request timeout must cover response-body consumption.');
+requireText(client, /timedOut.*API_TIMEOUT/s, 'Transport must distinguish timeout from caller cancellation.');
 requireText(client, /typeof payload\.ok === 'boolean'.*payload\.data/s, 'Client must accept the transition envelope format.');
 requireText(social, /testagramApi\.request.*\/v1\/feed\/home/s, 'Home feed must use the shared versioned API transport.');
 requireText(social, /testagramApi\.request.*\/v1\/posts/s, 'Post creation must use the shared versioned API transport.');
