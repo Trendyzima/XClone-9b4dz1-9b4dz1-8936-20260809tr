@@ -27,7 +27,7 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
   .trim()
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
-const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\\/+$/, '');
+const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
 const freshApi = createTestagramApiClient({
   baseURL: freshApiOrigin,
   getAccessToken: async () => {
@@ -37,7 +37,6 @@ const freshApi = createTestagramApiClient({
   defaultTimeoutMs: 10000,
   maxReadRetries: 2,
 });
-const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
 
 function assertSocialAPIAvailable(allowFreshRoute = false): void {
   if (isFreshAppwriteMode && !allowFreshRoute) {
