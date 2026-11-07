@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
 
 type SocialEnvelope<T> = {
@@ -27,12 +27,22 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 
+function assertSocialAPIAvailable(): void {
+  if (isFreshAppwriteMode) {
+    throw new SocialApiError(
+      'This social feature has not yet been connected to the fresh Appwrite API.',
+      503,
+      'FRESH_API_FEATURE_NOT_PORTED',
+    );
+  }
+}
+
 async function getSessionToken(): Promise<string> {
   const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
   if (provider === 'appwrite') {
-    // Explicit provider selection: never fall back to a Supabase token when the
-    // backend is configured to trust Appwrite. The Go API resolves this JWT to
-    // the canonical UUID through the verified identity-link table.
+    // Explicit provider selection: never fall back to a Supabase token. The
+    // fresh Go API verifies this Appwrite JWT directly; it does not link legacy
+    // Supabase identities or read legacy identity mappings.
     try {
       return await appwriteAuth.createBackendJWT();
     } catch {
@@ -53,6 +63,7 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
 }
 
 async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
+  assertSocialAPIAvailable();
   const token = await getSessionToken();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
