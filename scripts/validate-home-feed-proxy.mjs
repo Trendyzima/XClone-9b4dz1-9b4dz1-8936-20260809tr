@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../api/home-feed.ts', import.meta.url), 'utf8');
-const socialClient = fs.readFileSync(new URL('../src/services/socialApiClient.ts', import.meta.url), 'utf8');
+if (!socialClient.includes('/api/feed/home') || socialClient.includes('/v1/feed/home')) failures.push('The fresh-mode social client must call the Backend registered /api/feed/home route.');
 const failures = [];
 const requireText = (pattern, message) => {
   if (!pattern.test(source)) failures.push(message);
