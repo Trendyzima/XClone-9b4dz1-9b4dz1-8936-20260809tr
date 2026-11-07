@@ -10,6 +10,7 @@ const requireText = (source, pattern, message) => {
 const cache = read('src/lib/homeFeedCache.ts');
 const home = read('src/pages/HomeHubPage.tsx');
 const aggregator = read('api/home-feed.ts');
+const socialApi = read('src/services/socialApiClient.ts');
 const search = read('src/pages/SearchPageV3.tsx');
 const richText = read('src/components/features/FediverseRichText.tsx');
 const federationWorker = read('supabase/functions/federation-inbound-worker/index.ts');
@@ -31,10 +32,14 @@ requireText(home, /homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT/,
   'HomeHub must use the same identity helper as the offline cache.');
 requireText(home, /socialApi\.getHomeFeed\(24, cursorOverride \?\? undefined\)/,
   'Home timeline must use the authenticated Testagram Backend feed API.');
+requireText(home, /socialApi\.getPublicHomeFeed\(24, cursorOverride \?\? undefined\)/,
+  'Signed-out visitors must receive only the anonymous public Backend feed.');
+requireText(socialApi, /\/api\/feed\/home[\s\S]*\/api\/feed\/public/,
+  'Both authenticated and anonymous home feeds must use the canonical Go Backend routes.');
 if (/supabase\.|SUPABASE_URL|FEDERATED_FUNCTION_BASE/i.test(home)) failures.push('Home timeline must not contain legacy Supabase reads or Supabase Edge Function calls.');
 requireText(cache, /testagram-feed-cache-v3/,
   'Home feed cache version must invalidate rows previously fetched from Supabase.');
-requireText(aggregator, /LEGACY_FEED_RETIRED[\\s\\S]*status: 410|status: 410[\\s\\S]*LEGACY_FEED_RETIRED/,
+requireText(aggregator, /LEGACY_FEED_RETIRED[\s\S]*status: 410|status: 410[\s\S]*LEGACY_FEED_RETIRED/,
   'Legacy /api/home-feed must be permanently retired with HTTP 410.');
 if (/createClient|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|\.from\('posts'\)/.test(aggregator)) failures.push('Retired home-feed API must not retain Supabase credentials or database queries.');
 
