@@ -31,6 +31,8 @@ assert.match(legalGate, /LEGAL_POLICY_VERSION/, 'The consent gate must use the c
 assert.match(legalGate, /age < 18/, 'The consent gate must enforce the adult-only policy.');
 assert.match(legalGate, /localStorage\.setItem\(LEGAL_CONSENT_STORAGE_KEY/, 'The consent gate must persist a pending consent payload for Backend submission.');
 assert.match(page, /Log in securely/, 'Login form must expose an actionable submit control.');
+assert.match(page, /Registration temporarily paused/, 'New registration must remain closed until Backend-owned identity verification is migrated.');
+assert.match(page, /Existing Appwrite accounts can still sign in/, 'The paused registration notice must not imply that existing approved users cannot log in.');
 
 assert.match(domain, /\/v1\/me/, 'Session finalization must resolve the canonical Backend profile.');
 assert.match(domain, /\/v1\/me\/legal/, 'Session finalization must enforce canonical legal consent.');
