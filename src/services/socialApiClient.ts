@@ -61,7 +61,7 @@ async function getSessionToken(): Promise<string> {
   return token;
 }
 
-async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
+async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
@@ -129,6 +129,12 @@ export const socialApi = {
     return requestAt<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
       `${freshApiOrigin}/v1/moderation/check`, 'POST', { content }, true,
     );
+  },
+  getFederationPreference() {
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'GET', undefined, true);
+  },
+  setFederationPreference(enabled: boolean) {
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
   },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
