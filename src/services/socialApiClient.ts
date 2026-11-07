@@ -65,7 +65,7 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
+async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
   assertSocialAPIAvailable(allowFreshRoute);
   const token = await getSessionToken();
   const headers: Record<string, string> = {
