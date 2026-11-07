@@ -182,11 +182,13 @@ export function createTestagramApiClient(options: TestagramApiClientOptions) {
           }
           throw parseError(payload, response, id);
         }
-        if (payload && typeof payload === 'object' && typeof payload.ok === 'boolean' && 'data' in payload) {
-          if (!payload.ok || payload.data == null) {
-            throw new TestagramApiError(payload.error?.message || 'API returned an empty response.', response.status, payload.error?.code || 'API_EMPTY_RESPONSE', payload.request_id ?? id);
-          }
-          return payload.data as T;
+        if (payload && typeof payload === 'object' && typeof payload.ok === 'boolean') {
+          if (!payload.ok) throw parseError(payload, response, id);
+          // Some mutation endpoints return a compact status object without a
+          // data member; preserve it instead of turning a successful response
+          // into undefined.
+          if ('data' in payload) return payload.data as T;
+          return payload as T;
         }
         return payload as T;
       }
