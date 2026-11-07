@@ -17,7 +17,7 @@ export default function IdentityVerificationPage() {
           <p className="text-xs font-black uppercase tracking-[.18em] text-primary">Testagram account security</p>
           <h1 className="mt-2 text-2xl font-black">Identity verification is being upgraded</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            We are moving identity registration, verification evidence and approval records out of the legacy Supabase services and into the private Go Backend, Appwrite identity records and protected Backblaze B2 storage.
+            We are moving identity registration, verification evidence and approval records into the private Go Backend, Appwrite identity records and protected Backblaze B2 storage.
           </p>
           <div className="my-6 space-y-3 rounded-2xl border border-border bg-muted/30 p-4">
             <div className="flex items-start gap-3"><LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><p className="text-sm leading-5">Your identity evidence must remain private and must never be uploaded to an unapproved public bucket.</p></div>
