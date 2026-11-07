@@ -125,6 +125,11 @@ export const socialApi = {
       `${freshApiOrigin}/v1/posts`, 'POST', { content, visibility, sensitive }, true, { 'Idempotency-Key': key },
     );
   },
+  moderateContent(content: string) {
+    return requestAt<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
+      `${freshApiOrigin}/v1/moderation/check`, 'POST', { content }, true,
+    );
+  },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
   },

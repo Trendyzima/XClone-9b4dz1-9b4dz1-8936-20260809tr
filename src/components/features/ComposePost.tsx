@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { backendCapabilities, requireAccessToken } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { pingGoogleSitemap } from '@/lib/pingGoogle';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -73,13 +74,15 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
   const [violationReason, setViolationReason] = useState('');
   const [checkingContent, setCheckingContent] = useState(false);
   const violationCheckedRef = useRef(false);
+  // Reuse one idempotency key for retries of the same fresh-mode publish.
+  const publishIdempotencyRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [embedPlatform, setEmbedPlatform] = useState(null as string | null);
   const { toast } = useToast();
 
   // Daily content allowance: posts + threads share one 10/day quota.
   const [creationQuota, setCreationQuota] = useState({ used: 0, remaining: 10, limit: 10 });
   const loadCreationQuota = useCallback(async () => {
-    if (!user) return;
+    if (!user || isFreshAppwriteMode) return;
     const { data, error } = await supabase.rpc('get_daily_content_creation_status');
     if (!error && data) {
       const row = Array.isArray(data) ? data[0] : data;
@@ -428,6 +431,26 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
   const checkContentViolation = async (postContent: string): Promise<boolean> => {
     if (!postContent.trim() || postContent.trim().length < 10) return true;
     if (violationCheckedRef.current) return true;
+    if (isFreshAppwriteMode) {
+      setCheckingContent(true);
+      try {
+        const result = await socialApi.moderateContent(postContent.trim());
+        setCheckingContent(false);
+        if (result.action !== 'pass') {
+          setViolationScore(result.overall_score);
+          setViolationReason(result.reason || 'This post requires moderation review.');
+          setShowViolationWarning(true);
+          return false;
+        }
+        return true;
+      } catch {
+        setCheckingContent(false);
+        setViolationScore(0);
+        setViolationReason('The Backend moderation service is unavailable. Publishing is paused; please retry later.');
+        setShowViolationWarning(true);
+        return false;
+      }
+    }
     setCheckingContent(true);
     try {
       const { data, error } = await supabase.functions.invoke('ai-moderation', {
@@ -548,9 +571,16 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       }
 
       let postResult: { post_id: string; poll_id?: string | null; created: boolean };
+      const publishContent = content.trim() || '';
+      const publishFingerprint = JSON.stringify([publishContent, 'public', false]);
+      if (!publishIdempotencyRef.current || publishIdempotencyRef.current.fingerprint !== publishFingerprint) {
+        const key = globalThis.crypto?.randomUUID?.() ?? `post-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        publishIdempotencyRef.current = { fingerprint: publishFingerprint, key };
+      }
       try {
         postResult = await backendCapabilities.createPost({
-        content: content.trim() || '',
+        content: publishContent,
+        idempotencyKey: publishIdempotencyRef.current.key,
         communityId,
         mediaUrls,
         mediaCount: mediaUrls.length,
@@ -569,6 +599,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         await Promise.allSettled(uploadedMediaIds.map(mediaId => deleteTestagramMedia(mediaId, publishAccessToken)));
         throw createError;
       }
+      publishIdempotencyRef.current = null;
       const resolvedPostId = String((postResult as any)?.post_id || (postResult as any)?.id || (postResult as any)?.post?.id || (postResult as any)?.data?.post_id || '');
       if (!resolvedPostId) throw new Error('Post was created but the backend did not return its post ID. Media cannot be attached safely.');
       const postData = { id: resolvedPostId };
@@ -980,17 +1011,17 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
               <button type="button" onClick={() => setShowPollDialog(true)} disabled={loading || !!pollData} className="flex h-10 w-full items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Add poll" aria-label="Add poll"><BarChart3 className="w-5 h-5" /></button>
               <button type="button" onClick={() => setShowScheduleDialog(true)} disabled={loading || !!scheduledDate} className="flex h-10 w-full items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Schedule post" aria-label="Schedule post"><Calendar className="w-5 h-5" /></button>
               <button type="button" onClick={() => setShowProductDialog(true)} disabled={loading} className="flex h-10 w-full items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Tag products" aria-label="Tag products"><ShoppingBag className="w-5 h-5" /></button>
-              <button type="button" onClick={() => setShowThreadMode(v => !v)} disabled={loading || creationQuota.remaining <= 0} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showThreadMode ? 'bg-primary/20 text-primary' : 'hover:bg-primary/10 text-muted-foreground'}`} title="Thread composer" aria-label="Thread composer"><Hash className="w-5 h-5" /></button>
+              {!isFreshAppwriteMode && <button type="button" onClick={() => setShowThreadMode(v => !v)} disabled={loading || creationQuota.remaining <= 0} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showThreadMode ? 'bg-primary/20 text-primary' : 'hover:bg-primary/10 text-muted-foreground'}`} title="Thread composer" aria-label="Thread composer"><Hash className="w-5 h-5" /></button>}
               <button type="button" onClick={() => setShowCaptionGen(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showCaptionGen ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'hover:bg-primary/10 text-muted-foreground'}`} title="AI Caption Generator" aria-label="AI Caption Generator"><Sparkles className="w-5 h-5" /></button>
               <button type="button" onClick={() => setShowAiWriter(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showAiWriter ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'hover:bg-primary/10 text-muted-foreground'}`} title="AI Post Writer" aria-label="AI Post Writer"><Wand2 className="w-5 h-5" /></button>
               <button type="button" onClick={() => setPostToFediverse(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${postToFediverse ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'hover:bg-primary/10 text-muted-foreground'}`} title={postToFediverse ? 'Will post to Fediverse' : 'Also post to Fediverse'} aria-label="Post to Fediverse"><Globe className="w-5 h-5" /></button>
               <button type="button" onClick={() => setShowEmbedDialog(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showEmbedDialog ? 'bg-blue-500/20 text-blue-600' : 'hover:bg-primary/10 text-muted-foreground'}`} title="Embed media" aria-label="Embed media"><Link2 className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-              <div className="inline-flex w-fit max-w-full items-center gap-2 px-2.5 py-1.5 rounded-full bg-muted/60 border border-border text-xs whitespace-nowrap" title="Posts and threads share this daily limit">
+              {!isFreshAppwriteMode && <div className="inline-flex w-fit max-w-full items-center gap-2 px-2.5 py-1.5 rounded-full bg-muted/60 border border-border text-xs whitespace-nowrap" title="Posts and threads share this daily limit">
                 <span className={creationQuota.remaining === 0 ? 'text-destructive font-bold' : 'text-muted-foreground'}>{creationQuota.used}/{creationQuota.limit} today</span>
                 <span className={creationQuota.remaining === 0 ? 'text-destructive font-semibold' : 'text-primary font-semibold'}>{creationQuota.remaining} remaining</span>
-              </div>
+              </div>}
               <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground sm:justify-end">
                 {images.length > 0 && <span className="whitespace-nowrap">{images.length}/4 images</span>}
                 {content.length > 0 && <span className={`whitespace-nowrap ${content.length > 680 ? 'text-destructive' : ''}`}>{content.length}/700</span>}
@@ -1103,19 +1134,19 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
                     <span className="text-xl">⚠️</span>
                   </div>
                   <div>
-                    <h3 className="font-black text-base">Policy Warning</h3>
-                    <p className="text-xs text-muted-foreground">Score: {violationScore}/100</p>
+                    <h3 className="font-black text-base">{isFreshAppwriteMode ? 'Publishing Paused' : 'Policy Warning'}</h3>
+                    {!isFreshAppwriteMode && <p className="text-xs text-muted-foreground">Score: {violationScore}/100</p>}
                   </div>
                   <button onClick={() => setShowViolationWarning(false)} className="ml-auto text-muted-foreground"><X className="w-4 h-4" /></button>
                 </div>
-                <p className="text-sm text-muted-foreground mb-1">AI detected potential policy violation:</p>
+                <p className="text-sm text-muted-foreground mb-1">{isFreshAppwriteMode ? 'Why you cannot publish yet:' : 'AI detected potential policy violation:'}</p>
                 <p className="text-sm font-semibold text-orange-600 mb-4">{violationReason}</p>
-                <p className="text-xs text-muted-foreground mb-1">You can edit your post or post anyway. Repeated violations may result in account restrictions.</p>
+                <p className="text-xs text-muted-foreground mb-1">{isFreshAppwriteMode ? 'Fresh-mode publishing remains paused until Backend moderation is available.' : 'You can edit your post or post anyway. Repeated violations may result in account restrictions.'}</p>
                 <button onClick={() => { setShowViolationWarning(false); navigate('/policy'); }} className="text-xs text-primary hover:underline font-semibold mb-3 block">View Content Policy →</button>
                 <div className="flex gap-2">
                   <button onClick={() => setShowViolationWarning(false)}
                     className="flex-1 py-2.5 border border-border rounded-xl text-sm font-bold hover:bg-muted">Edit Post</button>
-                  <button
+                  {!isFreshAppwriteMode && <button
                     onClick={() => {
                       setShowViolationWarning(false);
                       violationCheckedRef.current = true; // skip next check
@@ -1123,7 +1154,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
                     }}
                     className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:opacity-90">
                     Post Anyway
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>
