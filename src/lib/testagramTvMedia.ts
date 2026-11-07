@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 
 type TvRole = 'host' | 'viewer' | 'guest';
 type GuestControl = 'mute' | 'unmute' | 'block' | 'unblock' | 'grant-speak' | 'deny-speak';
@@ -12,27 +12,24 @@ const tvApi = () => {
   return origin + '/api/live';
 };
 
-const ensureRealtimeAuth = async (required: boolean) => {
-  const { data } = await supabase.auth.getSession();
-  if (data.session) {
-    await supabase.realtime.setAuth(data.session.access_token);
-    return data.session;
-  }
-  if (!required) return null;
-  const { data: anonymous, error } = await supabase.auth.signInAnonymously();
-  if (error || !anonymous.session) {
-    throw new Error('TV viewer authorization is unavailable. Enable Supabase Anonymous Sign-Ins or sign in to Testagram.');
-  }
-  await supabase.realtime.setAuth(anonymous.session.access_token);
-  return anonymous.session;
-};
-
 const api = async (body: Record<string, unknown>) => {
-  const { data } = await supabase.auth.getSession();
+  const action = typeof body.action === 'string' ? body.action : '';
+  const streamId = typeof body.stream_id === 'string' ? body.stream_id : '';
+  if (action === 'viewer') {
+    const url = new URL(tvApi());
+    url.searchParams.set('action', 'viewer');
+    url.searchParams.set('stream_id', streamId);
+    const response = await fetch(url.toString(), { method: 'GET', cache: 'no-store', redirect: 'error' });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error?.message || 'TV viewer request failed.');
+    return payload?.data;
+  }
+  const accessToken = await appwriteAuth.createBackendJWT();
   const response = await fetch(tvApi(), {
     method: 'POST',
     cache: 'no-store',
-    headers: { 'Content-Type': 'application/json', ...(data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {}) },
+    redirect: 'error',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => null);
@@ -53,7 +50,7 @@ export class TestagramTvMediaSession {
   readonly role: TvRole;
   readonly roomId: string;
   private topic = '';
-  private channel: ReturnType<typeof supabase.channel> | null = null;
+  private channel: any | null = null;
   private localStream: MediaStream | null = null;
   private peers = new Map<string, RTCPeerConnection>();
   private peerRoles = new Map<string, TvRole>();
@@ -157,132 +154,13 @@ export class TestagramTvMediaSession {
   }
 
   private async startHostGuestBridge() {
-    const realtimeSession = await ensureRealtimeAuth(false);
-    const data = await api({ action: 'viewer', stream_id: this.roomId });
-    if (Array.isArray(data?.ice_servers) && data.ice_servers.length) {
-      this.iceServers = data.ice_servers as RTCIceServer[];
-    }
-    if (realtimeSession?.access_token) await supabase.realtime.setAuth(realtimeSession.access_token);
-    this.topic = data?.signaling_topic || ('tv:' + this.roomId);
-    this.channel = supabase.channel(this.topic, {
-      config: { broadcast: { ack: true, self: false }, private: true },
-    });
-    this.channel
-      .on('broadcast', { event: 'tv-join' }, payload => void this.onJoin(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-offer' }, payload => void this.onOffer(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-answer' }, payload => void this.onAnswer(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-candidate' }, payload => void this.onCandidate(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-leave' }, payload => void this.onLeave(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-native-capacity' }, payload => {
-        const p = payload.payload as Signal;
-        if (this.role === 'viewer' && p.to === this.peerId) {
-          this.lastDiagnostics = { ...this.lastDiagnostics, nativeCapacity: 'full', nativeViewerLimit: TestagramTvMediaSession.MAX_NATIVE_VIEWERS, nativeViewerCount: Number(p.count || 0) };
-          this.readyResolve?.();
-          this.readyResolve = undefined;
-        }
-      })
-      .on('broadcast', { event: 'tv-guest-control' }, payload => {
-        const p = payload.payload as Signal;
-        if (this.role === 'guest' && Number(p.toGuestSlot) === this.guestSlot && p.control) this.onGuestControl?.(p.control);
-      })
-      .on('broadcast', { event: 'tv-guest-signal' }, payload => {
-        const p = payload.payload as Signal;
-        const slot = Number(p.guestSlot || 0);
-        if (this.role === 'host' && p.guestSignal && p.from && this.peerGuestSlots.get(p.from) === slot) this.onGuestSignal?.(p.guestSignal, slot);
-      });
-    await new Promise<void>((resolve, reject) => {
-      this.channel!.subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') resolve();
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error('TV guest signaling channel ' + status.toLowerCase() + (err ? '.' : '')));
-      });
-    });
-    this.lastDiagnostics = { provider: 'mux', guestBridge: true, signaling: 'supabase-realtime', topic: this.topic, peerId: this.peerId };
+    throw new Error('TV_SIGNALING_NOT_PORTED: Backend-owned WebSocket signaling is not yet available.');
   }
 
-  private async start(action: 'start' | 'existing-host' | 'viewer' | 'guest') {
-    const realtimeSession = await ensureRealtimeAuth(action !== 'start');
-
-    // The host must subscribe to signaling before the control plane marks the
-    // stream live. Otherwise a viewer can join in the small window where the
-    // database says "live" but the host is not yet listening for tv-join.
-    let data: any = null;
-    if (action === 'start' || action === 'existing-host') {
-      this.topic = `tv:${this.roomId}`;
-    } else {
-      data = await api({
-        action,
-        stream_id: this.roomId,
-        invite_token: action === 'guest' ? this.guestToken : undefined,
-      });
-      this.topic = data.signaling_topic;
-      if (Array.isArray(data?.ice_servers) && data.ice_servers.length) {
-        this.iceServers = data.ice_servers as RTCIceServer[];
-      }
-      if (action === 'guest') this.guestSlot = Number(data?.guest_slot || 0);
-    }
-
-    if (realtimeSession?.access_token) await supabase.realtime.setAuth(realtimeSession.access_token);
-    this.channel = supabase.channel(this.topic, {
-      config: { broadcast: { ack: true, self: false }, private: true },
-    });
-
-    this.channel
-      .on('broadcast', { event: 'tv-join' }, payload => void this.onJoin(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-offer' }, payload => void this.onOffer(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-answer' }, payload => void this.onAnswer(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-candidate' }, payload => void this.onCandidate(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-leave' }, payload => void this.onLeave(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-presence' }, payload => {
-        const p = payload.payload as Signal;
-        this.onViewerCount?.(Number(p.count || 0), Number(p.guestCount || 0));
-      })
-      .on('broadcast', { event: 'tv-guest-control' }, payload => {
-        const p = payload.payload as Signal;
-        if (this.role === 'guest' && Number(p.toGuestSlot) === this.guestSlot && p.control) this.onGuestControl?.(p.control);
-      })
-      .on('broadcast', { event: 'tv-guest-signal' }, payload => {
-        const p = payload.payload as Signal;
-        const slot = Number(p.guestSlot || 0);
-        if (this.role === 'host' && p.guestSignal && p.from && this.peerGuestSlots.get(p.from) === slot) {
-          this.onGuestSignal?.(p.guestSignal, slot);
-        }
-      });
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        this.channel!.subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') resolve();
-          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            const detail = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
-            reject(new Error(`TV signaling channel ${status.toLowerCase()}.${detail ? ` ${detail}` : ''}`));
-          }
-        });
-      });
-
-      // Only now publish the live state and start host health heartbeats.
-      if (action === 'start') {
-        data = await api({ action: 'start', stream_id: this.roomId });
-      }
-    } catch (error) {
-      await this.channel?.unsubscribe().catch(() => undefined);
-      this.channel = null;
-      throw error;
-    }
-
-    this.lastDiagnostics = { provider: 'native-p2p', signaling: 'supabase-realtime', topic: this.topic, peerId: this.peerId };
-
-    if (this.role !== 'host') {
-      this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
-      await this.send({ event: 'tv-join', payload: { from: this.peerId, peerRole: this.role, guestSlot: this.role === 'guest' ? this.guestSlot : undefined } });
-    } else {
-      this.lastDiagnostics = { ...this.lastDiagnostics, programTracks: this.localStream?.getTracks().map(t => t.kind) || [] };
-      this.startHeartbeat('starting');
-    }
+  private async start(_action: 'start' | 'existing-host' | 'viewer' | 'guest') {
+    throw new Error('TV_SIGNALING_NOT_PORTED: Backend-owned WebSocket signaling is not yet available.');
   }
+
   private async send(message: { event: string; payload: Signal }) {
     if (!this.channel) throw new Error('TV signaling channel is not connected.');
     const result = await this.channel.send({ type: 'broadcast', event: message.event, payload: message.payload });
@@ -780,7 +658,6 @@ export class TestagramTvMediaSession {
     this.reconnectTimers.clear();
     if (this.channel) {
       await this.send({ event: 'tv-leave', payload: { from: this.peerId } }).catch(() => undefined);
-      await supabase.removeChannel(this.channel);
       this.channel = null;
     }
     for (const pc of this.peers.values()) pc.close();
