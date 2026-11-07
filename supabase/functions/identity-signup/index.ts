@@ -73,7 +73,7 @@ function base64url(value: string) {
   const bytes = new TextEncoder().encode(value);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 async function otpHash(email: string, code: string) {
   return hmacHex("otp|" + email + "|" + code);
@@ -159,6 +159,9 @@ async function finalizeAccount(intent: any, password: string) {
     birth_date: intent.verified_birth_date,
     session_id: String(intent.verification_session_id),
     fingerprint: intent.id_number_hmac,
+    username: String(intent.username || "").toLowerCase(),
+    display_name: String(intent.display_name || intent.username || "").slice(0, 80),
+    policy_version: String(intent.legal_policy_version || ""),
     issued_at: issuedAt,
     expires_at: issuedAt + 900,
   };
