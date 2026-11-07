@@ -41,7 +41,8 @@ async function backendRequest<T>(path: string, jwt: string, method = 'GET', body
     });
     const payload = await response.json().catch(() => null) as any;
     if (!response.ok) {
-      const error = new Error(String(payload?.error?.message ?? payload?.message ?? ('Backend request failed (' + response.status + ').')));
+      const errorMessage = payload?.error?.message ?? (typeof payload?.error === 'string' ? payload.error : undefined) ?? payload?.message ?? ('Backend request failed (' + response.status + ').');
+      const error = new Error(String(errorMessage));
       (error as Error & { status?: number }).status = response.status;
       throw error;
     }
