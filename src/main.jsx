@@ -26,7 +26,7 @@ try {
 }
 
 // Appwrite is the sole browser identity provider. Never hydrate analytics or
-// the frontend from a legacy Supabase session.
+// the frontend from any retired identity-provider session.
 const identifyCurrentAppwriteUser = async () => {
   try {
     const user = await appwriteAuth.getCurrentUser();
