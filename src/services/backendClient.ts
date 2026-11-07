@@ -2,6 +2,8 @@ import { FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js';
 import { isFreshAppwriteMode, supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { TestagramCapabilityClient } from '@/services/testagramCapabilityClient';
+import { testagramApi } from '@/services/testagramApi';
+import type { TestagramApiRequestOptions } from '@/services/testagramApiClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export type BackendFunctionError = {
@@ -23,6 +25,23 @@ export class BackendClientError extends Error {
     this.code = options.code ?? null;
     this.details = options.details ?? null;
   }
+}
+
+
+/** Call a versioned public Backend endpoint using the current Appwrite session. */
+export function requestBackendAPI<T>(path: string, options: TestagramApiRequestOptions = {}): Promise<T> {
+  if (!path.startsWith('/v1/')) {
+    throw new BackendClientError('Public Backend paths must be versioned under /v1.', { code: 'API_PATH_NOT_VERSIONED', status: 400 });
+  }
+  return testagramApi.request<T>(path, options).catch((error: unknown) => {
+    if (error instanceof BackendClientError) throw error;
+    if (error instanceof Error) throw new BackendClientError(error.message, {
+      status: 'status' in error && typeof (error as any).status === 'number' ? (error as any).status : null,
+      code: 'code' in error && typeof (error as any).code === 'string' ? (error as any).code : 'BACKEND_API_ERROR',
+      details: 'requestId' in error ? (error as any).requestId : null,
+    });
+    throw new BackendClientError('Backend request failed.');
+  });
 }
 
 export async function requireAccessToken(client: SupabaseClient = supabase): Promise<string> {
