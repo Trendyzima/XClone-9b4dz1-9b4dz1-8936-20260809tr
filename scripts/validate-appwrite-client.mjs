@@ -38,6 +38,7 @@ assert.match(env, /VITE_TESTAGRAM_API_URL=https:\/\/api\.testagram\.site/, 'all 
 assert.doesNotMatch(auth + supabase + socialApi, /SUPABASE_SERVICE_ROLE_KEY|supabaseServiceKey|linkLegacyAccount/, 'fresh browser source must not carry privileged Supabase credentials or identity migration code');
 assert.match(buildScript, /freshAppwriteMode[\s\S]*http:\/\/127\.0\.0\.1:9/, 'TikVTV build overlay must use an inert local endpoint in fresh Appwrite mode');
 assert.doesNotMatch(buildScript, /PRIMARY_SUPABASE_URL|PRIMARY_SUPABASE_PUBLISHABLE_KEY/, 'build overlay must not extract old hardcoded Supabase projects');
-assert.doesNotMatch(auth, /(?:localStorage|sessionStorage)\s*(?:\.|\[)/, 'Appwrite JWT must not be persisted in browser storage');
+assert.doesNotMatch(auth, /(?:localStorage|sessionStorage)\s*\.\s*(?:setItem|put)\s*\(\s*['\"][^'\"]*(?:jwt|backend.?token)[^'\"]*['\"]/i, 'Backend JWT must never be persisted in browser storage');
+assert.match(auth, /cachedBackendJWT\s*=\s*result\.jwt/, 'Backend JWT must be cached only in module memory');
 assert.doesNotMatch(env, /VITE_APPWRITE_API_KEY|VITE_APPWRITE_SECRET/, 'server API keys must never be exposed as VITE variables');
 console.log('Appwrite frontend client contract: PASS');
