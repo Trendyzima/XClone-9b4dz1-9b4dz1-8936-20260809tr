@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../api/home-feed.ts', import.meta.url), 'utf8');
+const socialClient = fs.readFileSync(new URL('../src/services/socialApiClient.ts', import.meta.url), 'utf8');
 const failures = [];
 const requireText = (pattern, message) => {
   if (!pattern.test(source)) failures.push(message);
@@ -16,6 +17,7 @@ requireText(/function isPrivateIPv4\([\s\S]*?a === 10[\s\S]*?a === 172[\s\S]*?a 
 requireText(/function isTrustedPrivateBackendHost\([\s\S]*?host === 'backend'[\s\S]*?host\.endsWith\('\.internal'\)/, 'Docker/private service hostnames must be accepted for internal Backend routing.');
 requireText(/url\.protocol !== 'https:'[\s\S]*?url\.protocol === 'http:' && privateHost/, 'Plain HTTP must be restricted to trusted private Backend hosts.');
 requireText(/\/api\/feed\/home/, 'The proxy must call the canonical Backend home-feed endpoint.');
+if (!/\\/api\\/feed\\/home/.test(socialClient) || /\\/v1\\/feed\\/home/.test(socialClient)) failures.push('The fresh-mode social client must call the Backend registered /api/feed/home route.');
 requireText(/'X-Testagram-API-Version': '1'/, 'The proxy must send the versioned API contract header.');
 requireText(/'X-Request-ID': requestId/, 'The proxy must propagate a request ID.');
 requireText(/Authorization: authorization/, 'The proxy must forward the verified user session to Backend.');
