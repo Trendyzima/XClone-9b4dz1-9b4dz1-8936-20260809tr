@@ -26,7 +26,8 @@
     "validate:replication-contract": "node scripts/validate-replication-contract.mjs",
     "validate:tv-health": "node scripts/validate-tv-health-postgres.mjs",
     "validate:appwrite-client": "node scripts/validate-appwrite-client.mjs",
-    "validate:appwrite-auth": "node scripts/validate-appwrite-auth.mjs"
+    "validate:appwrite-auth": "node scripts/validate-appwrite-auth.mjs",
+    "validate:login-contract": "node scripts/validate-login-contract.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",
