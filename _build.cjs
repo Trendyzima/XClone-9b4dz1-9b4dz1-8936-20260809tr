@@ -20,6 +20,22 @@ const root = __dirname;
 const preloadPath = path.resolve(root, '_preload.cjs');
 const selfHealPath = path.resolve(root, '_self-heal.cjs');
 
+// The fresh Appwrite branch must build consistently in local shells and CI.
+// Load only missing variables from the committed example; explicit process
+// environment values always win. This file contains public endpoints only.
+function loadFreshBuildDefaults() {
+  const envFile = path.resolve(root, '.env.fresh.example');
+  if (!fs.existsSync(envFile)) return;
+  for (const rawLine of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match || process.env[match[1]] !== undefined) continue;
+    process.env[match[1]] = match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+  }
+}
+loadFreshBuildDefaults();
+
 function cleanNodeOptions(v) {
   return (v || '')
     .replace(/--require\s+\S*_preload\S*/g, '')
