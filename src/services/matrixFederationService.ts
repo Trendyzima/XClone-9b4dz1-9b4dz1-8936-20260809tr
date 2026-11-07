@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 export interface MatrixIdentity {
   user_id: string;
@@ -15,11 +15,8 @@ export interface MatrixRoom {
   status: 'pending' | 'active' | 'disabled';
 }
 
-async function invoke<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke('matrix-bridge', { body });
-  if (error) throw new Error(`Matrix bridge request failed: ${error.message}`);
-  if (!data?.ok) throw new Error(data?.error ?? 'Matrix bridge request failed');
-  return data as T;
+async function invoke<T>(input: Record<string, unknown>): Promise<T> {
+  return backendCapabilities.call<T>('testagram.matrix.bridge', input);
 }
 
 export async function linkMatrixIdentity(matrixUserId: string, homeserver: string): Promise<MatrixIdentity> {
