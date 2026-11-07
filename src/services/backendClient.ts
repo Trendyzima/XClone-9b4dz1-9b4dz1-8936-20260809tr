@@ -1,5 +1,6 @@
 import { FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js';
-import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { isFreshAppwriteMode, supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 import { TestagramCapabilityClient } from '@/services/testagramCapabilityClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
@@ -25,6 +26,10 @@ export class BackendClientError extends Error {
 }
 
 export async function requireAccessToken(client: SupabaseClient = supabase): Promise<string> {
+  if (isFreshAppwriteMode) {
+    try { return await appwriteAuth.createBackendJWT(); }
+    catch { throw new BackendClientError('Your Appwrite session is unavailable. Please sign in again.', { code: 'AUTH_REQUIRED', status: 401 }); }
+  }
   // The composer can render immediately from the auth hook while Supabase Auth is
   // still hydrating its persisted session. Do not turn that short race into a
   // false "Authentication required" failure. Read the session, briefly retry
@@ -62,6 +67,7 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
   body: TBody,
   client: SupabaseClient = supabase,
 ): Promise<TResponse> {
+  if (isFreshAppwriteMode) throw new BackendClientError(`Legacy function ${functionName} is not yet migrated to the centralized Testagram Backend API.`, { code: 'FRESH_API_FUNCTION_NOT_PORTED', status: 503 });
   const accessToken = await requireAccessToken(client);
   const { data, error } = await client.functions.invoke(functionName, {
     body,

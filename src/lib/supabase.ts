@@ -1,13 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { clearPasswordRecoverySession, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 
-const PRIMARY_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
-const PRIMARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
-
-const SECONDARY_SUPABASE_URL = 'https://aepbqfrmheihfsauzcby.supabase.co';
-const SECONDARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_f331BL1gsNy-otXRmQPtrw_SG8tCWLn';
-
 const SELF_HOSTED_MODE = import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true';
+const FRESH_APPWRITE_MODE = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' ||
+  (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
+
+// A fresh Appwrite build must never silently fall back to either legacy hosted
+// Supabase project. Existing Supabase-dependent screens remain unavailable
+// until each feature is ported to the fresh API; loopback is intentionally inert.
+const DISABLED_SUPABASE_URL = 'http://127.0.0.1:9';
+const DISABLED_SUPABASE_KEY = 'fresh-appwrite-disabled';
 const configuredPrimaryUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const configuredPrimaryKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
@@ -16,6 +18,17 @@ const configuredSecondaryUrl = import.meta.env.VITE_SUPABASE_SECONDARY_URL?.trim
 const configuredSecondaryKey =
   import.meta.env.VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY?.trim() ||
   import.meta.env.VITE_SUPABASE_SECONDARY_ANON_KEY?.trim();
+
+if (!FRESH_APPWRITE_MODE && (!configuredPrimaryUrl || !configuredPrimaryKey)) {
+  throw new Error(
+    'Legacy Supabase mode requires explicit VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY configuration.',
+  );
+}
+if (!FRESH_APPWRITE_MODE && Boolean(configuredSecondaryUrl) !== Boolean(configuredSecondaryKey)) {
+  throw new Error(
+    'Secondary Supabase configuration requires both VITE_SUPABASE_SECONDARY_URL and VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY.',
+  );
+}
 
 function validateSelfHostedSupabaseOrigin(value: string, variableName: string): string {
   let parsed: URL;
@@ -71,14 +84,19 @@ if (SELF_HOSTED_MODE && configuredSecondaryUrl) {
   validateSelfHostedSupabaseOrigin(configuredSecondaryUrl, 'VITE_SUPABASE_SECONDARY_URL');
 }
 
-export const supabaseUrl = SELF_HOSTED_MODE
-  ? configuredPrimaryUrl!
-  : configuredPrimaryUrl || PRIMARY_SUPABASE_URL;
-export const supabasePublishableKey = SELF_HOSTED_MODE
-  ? configuredPrimaryKey!
-  : configuredPrimaryKey || PRIMARY_SUPABASE_PUBLISHABLE_KEY;
+export const supabaseUrl = FRESH_APPWRITE_MODE
+  ? DISABLED_SUPABASE_URL
+  : SELF_HOSTED_MODE
+    ? configuredPrimaryUrl!
+    : configuredPrimaryUrl!;
+export const supabasePublishableKey = FRESH_APPWRITE_MODE
+  ? DISABLED_SUPABASE_KEY
+  : SELF_HOSTED_MODE
+    ? configuredPrimaryKey!
+    : configuredPrimaryKey!;
 export const supabaseAnonKey = supabasePublishableKey;
 export const isTestagramSelfHosted = SELF_HOSTED_MODE;
+export const isFreshAppwriteMode = FRESH_APPWRITE_MODE;
 
 // Primary project: canonical Testagram identity/session and user-owned writes.
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
@@ -124,12 +142,16 @@ supabase.auth.onAuthStateChange((event, session) => {
 // uses its own issuer/session boundary. In self-hosted mode it defaults to the
 // configured local project instead of silently reaching a hosted project; set
 // VITE_SUPABASE_SECONDARY_URL/key only if a second self-hosted project is intended.
-export const supabaseSecondaryUrl = SELF_HOSTED_MODE
-  ? configuredSecondaryUrl || configuredPrimaryUrl!
-  : configuredSecondaryUrl || SECONDARY_SUPABASE_URL;
-export const supabaseSecondaryPublishableKey = SELF_HOSTED_MODE
-  ? configuredSecondaryKey || configuredPrimaryKey!
-  : configuredSecondaryKey || SECONDARY_SUPABASE_PUBLISHABLE_KEY;
+export const supabaseSecondaryUrl = FRESH_APPWRITE_MODE
+  ? DISABLED_SUPABASE_URL
+  : SELF_HOSTED_MODE
+    ? configuredSecondaryUrl || configuredPrimaryUrl!
+    : configuredSecondaryUrl || configuredPrimaryUrl!;
+export const supabaseSecondaryPublishableKey = FRESH_APPWRITE_MODE
+  ? DISABLED_SUPABASE_KEY
+  : SELF_HOSTED_MODE
+    ? configuredSecondaryKey || configuredPrimaryKey!
+    : configuredSecondaryKey || configuredPrimaryKey!;
 export const supabaseSecondary = createClient(
   supabaseSecondaryUrl,
   supabaseSecondaryPublishableKey,

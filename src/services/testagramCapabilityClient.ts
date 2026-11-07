@@ -1,5 +1,5 @@
 import { socialApi } from '@/services/socialApiClient';
-import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { isFreshAppwriteMode, supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 export type CapabilityError={code:string;message:string};
 export type CapabilityResponse<T>={ok:boolean;data:T|null;error:CapabilityError|null;request_id:string};
@@ -110,6 +110,7 @@ export class TestagramCapabilityClient{
   }
  }
  async call<T>(capability:string,input:Record<string,unknown>={},tokenOverride?:string|null):Promise<T>{
+  if (isFreshAppwriteMode) throw new CapabilityClientError('This capability is not yet exposed by the centralized Testagram Backend API.', { code: 'FRESH_API_CAPABILITY_NOT_PORTED', status: 503 });
   if(!capability.trim())throw new CapabilityClientError("Capability name is required",{code:"CAPABILITY_REQUIRED"});
   const isPublic=PUBLIC_CAPABILITIES.has(capability);
   let token=tokenOverride ?? await this.token();

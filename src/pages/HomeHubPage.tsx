@@ -7,6 +7,10 @@ import { ThreadCard } from '@/components/features/ThreadCard';
 
 import { TopBar } from '@/components/layout/TopBar';
 import { supabase, supabasePublishableKey } from '@/lib/supabase';
+
+const FEDERATED_FUNCTION_BASE = (import.meta.env.VITE_TESTAGRAM_FEDERATED_API_URL ||
+  import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:9').replace(/\/+$/, '') +
+  '/functions/v1/federated-feed';
 import { useAuth } from '@/hooks/useAuth';
 import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
@@ -201,7 +205,7 @@ export default function HomeHubPage(){
       if(!token) return [];
       const params = new URLSearchParams({ limit: '24' });
       if (cursorOverride) params.set('before', cursorOverride);
-      const response = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + params.toString(), {
+      const response = await fetch((FEDERATED_FUNCTION_BASE + '?') + params.toString(), {
         headers: {
           Authorization: 'Bearer ' + token,
           apikey: supabasePublishableKey,
@@ -246,7 +250,7 @@ export default function HomeHubPage(){
           if (!cursorOverride && includeFederated && token) {
             try {
               const fedParams = new URLSearchParams({ limit: '24' });
-              const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
+              const fedResponse = await fetch((FEDERATED_FUNCTION_BASE + '?') + fedParams.toString(), {
                 headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
                 cache: 'no-store',
               });
@@ -328,7 +332,7 @@ export default function HomeHubPage(){
           if (cursorOverride?.startsWith('fallback:') && federatedCursorRef.current) {
             fedParams.set('before', federatedCursorRef.current);
           }
-          const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
+          const fedResponse = await fetch((FEDERATED_FUNCTION_BASE + '?') + fedParams.toString(), {
             headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
             cache: 'no-store',
           });
@@ -549,7 +553,7 @@ export default function HomeHubPage(){
           const token = (await supabase.auth.getSession()).data.session?.access_token;
           if (token) {
             const fedParams = new URLSearchParams({ limit: '24', before: federatedCursorRef.current });
-            const fedResponse = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + fedParams.toString(), {
+            const fedResponse = await fetch((FEDERATED_FUNCTION_BASE + '?') + fedParams.toString(), {
               headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
               cache: 'no-store',
             });
