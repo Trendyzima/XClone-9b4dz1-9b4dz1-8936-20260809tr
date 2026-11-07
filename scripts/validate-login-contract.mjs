@@ -12,6 +12,8 @@ const transport = read('src/services/testagramApiClient.ts');
 const env = read('.env.fresh.example');
 
 assert.match(auth, /createEmailPasswordSession/, 'Login must create a real Appwrite email/password session.');
+assert.doesNotMatch(auth, /appwriteAccount\\.create\\(/, 'The browser must not create Appwrite accounts outside Backend identity approval.');
+assert.doesNotMatch(domain, /profileCandidate|\\/v1\\/me\\/profile/, 'The browser must not self-provision or self-approve a missing canonical profile.');
 assert.match(auth, /const user = await appwriteAccount\.get\(\)/, 'Login must return the authenticated Appwrite account.');
 assert.match(auth, /notifyAuthChanged\(\)/, 'Login/logout must notify the app session provider.');
 assert.match(auth, /async getCurrentUser[\s\S]*appwriteAccount\.get\(\)/, 'Reload must restore the Appwrite account from the persisted SDK session.');
