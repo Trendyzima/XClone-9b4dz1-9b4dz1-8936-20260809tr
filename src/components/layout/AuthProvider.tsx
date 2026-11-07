@@ -70,6 +70,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             window.location.replace('/auth?verify=1');
             return;
           }
+          if (message === 'IDENTITY_VERIFICATION_REQUIRED') {
+            try { await appwriteAuth.signOut(); } catch { /* best-effort cleanup */ }
+            logout();
+            setLoading(false);
+            window.location.replace('/auth?identity=required');
+            return;
+          }
           setAuthError(message);
           setLoading(false);
           console.error('[Auth] Appwrite session hydration failed:', error);
