@@ -146,25 +146,6 @@ export const appwriteAuth = {
     });
   },
 
-  async completePasswordRecoveryAndSignIn(input: {
-    userId: string;
-    secret: string;
-    email: string;
-    password: string;
-  }): Promise<Models.User<Models.Preferences>> {
-    await this.completePasswordRecovery({
-      userId: input.userId,
-      secret: input.secret,
-      password: input.password,
-    });
-    await appwriteAccount.createEmailPasswordSession({
-      email: normalizeEmail(input.email),
-      password: input.password,
-    });
-    clearBackendJWT();
-    return appwriteAccount.get();
-  },
-
   saveRecoveryContext,
   getRecoveryContext,
   clearRecoveryContext,
