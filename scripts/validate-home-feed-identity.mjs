@@ -31,12 +31,12 @@ requireText(home, /homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT/,
   'HomeHub must use the same identity helper as the offline cache.');
 requireText(home, /socialApi\.getHomeFeed\(24, cursorOverride \?\? undefined\)/,
   'Home timeline must use the authenticated Testagram Backend feed API.');
-if (/supabase\\.|SUPABASE_URL|FEDERATED_FUNCTION_BASE/.test(home)) failures.push('Home timeline must not contain legacy Supabase reads or Supabase Edge Function calls.');
+if (/supabase\.|SUPABASE_URL|FEDERATED_FUNCTION_BASE/i.test(home)) failures.push('Home timeline must not contain legacy Supabase reads or Supabase Edge Function calls.');
 requireText(cache, /testagram-feed-cache-v3/,
   'Home feed cache version must invalidate rows previously fetched from Supabase.');
 requireText(aggregator, /LEGACY_FEED_RETIRED[\\s\\S]*status: 410|status: 410[\\s\\S]*LEGACY_FEED_RETIRED/,
   'Legacy /api/home-feed must be permanently retired with HTTP 410.');
-if (/createClient|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|\\.from\\('posts'\\)/.test(aggregator)) failures.push('Retired home-feed API must not retain Supabase credentials or database queries.');
+if (/createClient|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|\.from\('posts'\)/.test(aggregator)) failures.push('Retired home-feed API must not retain Supabase credentials or database queries.');
 
 requireText(home, /new Set\(existing\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)\)/,
   'HomeHub page append must seed its deduplication set from canonical identities.');
@@ -44,13 +44,6 @@ requireText(home, /previous\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)/,
   'Background refresh must compare incoming content against canonical identities.');
 requireText(home, /setItems\(prev=>appendUniqueFeedItems\(fresh,prev\)\)/,
   'Background refresh must preserve existing items while deduplicating newly discovered content.');
-requireText(aggregator, /function sourceKey\(item: any\)[\s\S]*data\.remote_status_uri[\s\S]*data\.uri[\s\S]*url\.hostname = url\.hostname\.toLowerCase\(\)/,
-  'Server-side aggregation must canonicalize object URIs before blending source lanes.');
-requireText(aggregator, /item\?\.type === 'post' \|\| item\?\.type === 'fedpost' \? 'content'/,
-  'Server-side aggregation must collapse local/Fediverse wrappers with the same fallback ID.');
-requireText(aggregator, /postsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)[\s\S]*threadsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)/,
-  'Home feed source queries must be independently time-bounded so one slow lane cannot block the entire page.');
-
 requireText(search, /function normalizeSearchHashtag[\s\S]*encodeURIComponent\(tag\)[\s\S]*function GlobalSearchResults/,
   'Search hashtag links must normalize optional # prefixes and URL-encode the canonical tag.');
 requireText(search, /api\.searchUnified\(clean[\s\S]*searchFederatedDiscovery/,
