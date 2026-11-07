@@ -26,9 +26,11 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
   .trim()
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
+const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
 
-function assertSocialAPIAvailable(): void {
-  if (isFreshAppwriteMode) {
+function assertSocialAPIAvailable(allowFreshRoute = false): void {
+  if (isFreshAppwriteMode && !allowFreshRoute) {
     throw new SocialApiError(
       'This social feature has not yet been connected to the fresh Appwrite API.',
       503,
@@ -63,8 +65,8 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
-  assertSocialAPIAvailable();
+async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false): Promise<T> {
+  assertSocialAPIAvailable(allowFreshRoute);
   const token = await getSessionToken();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -113,7 +115,7 @@ export const socialApi = {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
     if (before) query.set('before', before);
     return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
-      `${configuredOrigin ? configuredOrigin : ''}/api/feed/home?${query.toString()}`, 'GET',
+      `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
     );
   },
   getFollowState(userId: string) {
