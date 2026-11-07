@@ -38,7 +38,8 @@ function assertSocialAPIAvailable(): void {
 }
 
 async function getSessionToken(): Promise<string> {
-  const provider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? 'supabase').trim().toLowerCase();
+  const configuredProvider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase();
+  const provider = configuredProvider || (isFreshAppwriteMode ? 'appwrite' : 'supabase');
   if (provider === 'appwrite') {
     // Explicit provider selection: never fall back to a Supabase token. The
     // fresh Go API verifies this Appwrite JWT directly; it does not link legacy
