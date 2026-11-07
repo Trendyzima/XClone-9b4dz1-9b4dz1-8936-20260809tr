@@ -378,6 +378,7 @@ export default function AuthPage() {
           void authService.signOut();
         } else {
           void appwriteAuth.getCurrentUser().then((user) => {
+            if (!user) return;
             void finalizeAuthenticatedSession(mapAppwriteAuthUser(user)).then(login).catch((error) => console.error('[Auth] Could not restore Appwrite session after leaving reset URL:', error));
           });
         }
