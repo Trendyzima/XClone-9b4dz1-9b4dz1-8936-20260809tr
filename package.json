@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "node _build.cjs",
     "build:dev": "node _build.cjs --mode development",
-    "lint": "eslint .",
+    "lint": "npm run validate:appwrite-auth && eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "cd desktop/src-tauri && cargo tauri",
@@ -25,7 +25,8 @@
     "validate:routes": "node scripts/validate-page-route-contract.mjs",
     "validate:replication-contract": "node scripts/validate-replication-contract.mjs",
     "validate:tv-health": "node scripts/validate-tv-health-postgres.mjs",
-    "validate:appwrite-client": "node scripts/validate-appwrite-client.mjs"
+    "validate:appwrite-client": "node scripts/validate-appwrite-client.mjs",
+    "validate:appwrite-auth": "node scripts/validate-appwrite-auth.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",
