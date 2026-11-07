@@ -15,7 +15,7 @@ if (/candidateScore|function blend\(|recommendation_score|affinityScore/.test(so
 requireText(/function isPrivateIPv4\([\s\S]*?a === 10[\s\S]*?a === 172[\s\S]*?a === 192/, 'Private IPv4 service ranges must be recognized for internal Backend routing.');
 requireText(/function isTrustedPrivateBackendHost\([\s\S]*?host === 'backend'[\s\S]*?host\.endsWith\('\.internal'\)/, 'Docker/private service hostnames must be accepted for internal Backend routing.');
 requireText(/url\.protocol !== 'https:'[\s\S]*?url\.protocol === 'http:' && privateHost/, 'Plain HTTP must be restricted to trusted private Backend hosts.');
-requireText(/\/v1\/feed\/home/, 'The proxy must call the canonical Backend home-feed endpoint.');
+requireText(/\/api\/feed\/home/, 'The proxy must call the canonical Backend home-feed endpoint.');
 requireText(/'X-Testagram-API-Version': '1'/, 'The proxy must send the versioned API contract header.');
 requireText(/'X-Request-ID': requestId/, 'The proxy must propagate a request ID.');
 requireText(/Authorization: authorization/, 'The proxy must forward the verified user session to Backend.');
