@@ -8,26 +8,6 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 256;
 const BACKEND_JWT_CACHE_MS = 10 * 60 * 1000;
 
-type IdentityLinkResponse = {
-  ok: boolean;
-  data?: { canonical_user_id: string; linked: boolean; already_linked: boolean };
-  error?: { code?: string; message?: string };
-  request_id?: string;
-};
-
-function testagramAPIOrigin(): string {
-  const raw = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim();
-  if (!raw) throw new Error('Testagram independent API URL is not configured.');
-  let parsed: URL;
-  try { parsed = new URL(raw); } catch { throw new Error('Testagram API URL must be an absolute HTTPS origin.'); }
-  const localHTTP = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(parsed.hostname);
-  if ((parsed.protocol !== 'https:' && !localHTTP) || parsed.username || parsed.password ||
-      parsed.pathname !== '/' || parsed.search || parsed.hash) {
-    throw new Error('Testagram API URL must be an HTTPS origin (HTTP only on localhost), without credentials, path, query, or fragment.');
-  }
-  return parsed.origin;
-}
-
 
 let cachedBackendJWT: string | null = null;
 let backendJWTExpiresAt = 0;
@@ -87,41 +67,6 @@ export const appwriteAuth = {
     });
     clearBackendJWT();
     return appwriteAccount.get();
-  },
-
-  /**
-   * Explicitly links the current verified Appwrite identity to an existing
-   * Supabase account. The legacy access token is used once as proof of control;
-   * neither token is persisted by this method. This does not switch the global
-   * application session or migrate account data.
-   */
-  async linkLegacyAccount(legacyAccessToken: string): Promise<{
-    canonicalUserId: string;
-    alreadyLinked: boolean;
-  }> {
-    assertAppwriteAuthConfigured();
-    const legacyToken = legacyAccessToken.trim();
-    if (!legacyToken || legacyToken.length > 8192 || /[\r\n]/.test(legacyToken)) {
-      throw new Error('Sign in to your existing Testagram account before linking.');
-    }
-    const response = await fetch(testagramAPIOrigin() + '/api/identity/link', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + await this.createBackendJWT(true),
-        'X-Testagram-Legacy-Authorization': 'Bearer ' + legacyToken,
-      },
-      cache: 'no-store',
-      credentials: 'omit',
-    });
-    let payload: IdentityLinkResponse | null = null;
-    try { payload = await response.json() as IdentityLinkResponse; } catch { /* handled below */ }
-    if (!response.ok || !payload?.ok || !payload.data?.canonical_user_id) {
-      throw new Error(payload?.error?.message || 'Account linking failed (HTTP ' + response.status + ').');
-    }
-    return {
-      canonicalUserId: payload.data.canonical_user_id,
-      alreadyLinked: payload.data.already_linked,
-    };
   },
 
   async getCurrentUser(): Promise<Models.User<Models.Preferences>> {
