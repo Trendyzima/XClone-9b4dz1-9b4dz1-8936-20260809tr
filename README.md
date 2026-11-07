@@ -145,6 +145,20 @@ The repository contains a React + TypeScript application using Vite, Tailwind CS
 
 The checked-in repository and deployed configuration are authoritative for the exact production service topology. Some feature screens integrate with external providers and may require separate service configuration.
 
+The diagram above describes the legacy Supabase-backed application surfaces. The separate fresh Appwrite runtime is an explicit migration path; it must not silently fall back between identity providers. When a surface is configured for the fresh path, XClone calls the public Testagram Backend API and never calls private Federation, Algorithm or Data Centre services directly.
+
+## Five-repository Testagram runtime architecture
+
+| Repository | Responsibility | XClone integration rule |
+| --- | --- | --- |
+| **XClone (this repository)** | Web/mobile UI, navigation, presentation and user interactions | Client only; no private service tokens or server-side authorization |
+| [Testagram Backend](https://github.com/Trendyzima/Testagram-backend-) | Canonical Appwrite identity, profiles, posts, social graph, permissions, visibility, feed orchestration and API | All fresh-mode user actions go through its public, authenticated API |
+| [Federated Content](https://github.com/Trendyzima/federated-content) | ActivityPub WebFinger, actor documents, signed inbox, protocol outbox and remote delivery | Never call it from the browser/mobile client; Backend owns local identity and permissions |
+| [the-algorithm](https://github.com/Trendyzima/the-algorithm) | Private feed ranking and recommendation scoring | Never call it from the client; Backend sends candidates and rechecks visibility |
+| [Testagram Data Centre](https://github.com/Trendyzima/Testagram-data-centre-) | Deployment, private networking, B2/R2 media durability, storage nodes, backups and recovery | Use only Backend-issued, authorized media/API URLs; no infrastructure credentials in the client |
+
+The legacy Supabase integration remains in the repository during migration. The fresh Appwrite path is separate and opt-in until its identity, social, media and release acceptance gates are complete. Backend remains the source of truth for local users, posts, follows, blocks, permissions and visibility. Algorithm returns ranking order only. Federation owns ActivityPub protocol records, not local account state. Data Centre owns storage durability and runtime infrastructure.
+
 ## Technology stack
 
 | Area | Technology |
