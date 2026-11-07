@@ -303,7 +303,7 @@ export default function HomeHubPage(){
     return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);};
   },[tab,user?.id]);
 
-  useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab]);
+  useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab,user?.id,load]);
   useEffect(()=>{if(newCount>0&&window.scrollY<500)setNewCount(0);},[newCount]);
 
   const loadMore=useCallback(async()=>{
