@@ -35,5 +35,7 @@ assert.match(transport, /cache: 'no-store'/, 'Private authenticated API response
 assert.match(env, /VITE_APPWRITE_ENDPOINT=/, 'Fresh build must configure the Appwrite endpoint.');
 assert.match(env, /VITE_APPWRITE_PROJECT_ID=/, 'Fresh build must configure the Appwrite project.');
 assert.match(env, /VITE_TESTAGRAM_FRESH_API_URL=/, 'Fresh build must configure the Backend API origin.');
+assert.doesNotMatch(auth + provider + page + domain + api + transport, /supabase|@supabase/i, 'The Appwrite login path must not import, call or fall back to Supabase.');
+assert.doesNotMatch(env, /SUPABASE/i, 'Fresh Appwrite environment must not contain Supabase configuration.');
 
 console.log('Testagram Appwrite login, session restore and Backend authorization contract: PASS');
