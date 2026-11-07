@@ -8,29 +8,27 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 256;
 export const APPWRITE_AUTH_CHANGED_EVENT = 'testagram:appwrite-auth-changed';
 const BACKEND_JWT_CACHE_MS = 10 * 60 * 1000;
-const RECOVERY_USER_ID_KEY = "testagram-appwrite-recovery-user";
-const RECOVERY_SECRET_KEY = "testagram-appwrite-recovery-secret";
-const RECOVERY_EMAIL_KEY = "testagram-appwrite-recovery-email";
-
 export type AppwriteRecoveryContext = { userId: string; secret: string; email: string };
 
+// Recovery links contain a short-lived, single-use secret. Keep it only in
+// module memory while the reset screen is mounted; never persist it in
+// localStorage, sessionStorage, cookies, or another browser storage surface.
+// A reload intentionally requires the user to reopen the original email link.
+let recoveryContext: AppwriteRecoveryContext | null = null;
+
 function saveRecoveryContext(input: AppwriteRecoveryContext): void {
-  window.sessionStorage.setItem(RECOVERY_USER_ID_KEY, input.userId);
-  window.sessionStorage.setItem(RECOVERY_SECRET_KEY, input.secret);
-  if (input.email) window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, input.email);
+  if (!input.userId.trim() || !input.secret.trim()) {
+    throw new Error('Password recovery details are missing or expired.');
+  }
+  recoveryContext = { userId: input.userId, secret: input.secret, email: input.email };
 }
 
 function getRecoveryContext(): AppwriteRecoveryContext | null {
-  const userId = window.sessionStorage.getItem(RECOVERY_USER_ID_KEY) ?? "";
-  const secret = window.sessionStorage.getItem(RECOVERY_SECRET_KEY) ?? "";
-  const email = window.sessionStorage.getItem(RECOVERY_EMAIL_KEY) ?? "";
-  return userId && secret ? { userId, secret, email } : null;
+  return recoveryContext ? { ...recoveryContext } : null;
 }
 
 function clearRecoveryContext(): void {
-  window.sessionStorage.removeItem(RECOVERY_USER_ID_KEY);
-  window.sessionStorage.removeItem(RECOVERY_SECRET_KEY);
-  window.sessionStorage.removeItem(RECOVERY_EMAIL_KEY);
+  recoveryContext = null;
 }
 
 
