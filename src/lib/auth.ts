@@ -28,29 +28,15 @@ async function backendRequest<T>(
   return testagramApi.request<T>(path, { method, body });
 }
 
-function profileCandidate(user: Models.User<Models.Preferences>) {
-  const prefs = (user.prefs ?? {}) as Record<string, unknown>;
-  const emailName = (user.email || '').split('@')[0] || '';
-  const rawHandle = typeof prefs.username === 'string' ? prefs.username : emailName || ('user_' + user.$id.slice(0, 10));
-  let handle = rawHandle.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24);
-  if (handle.length < 3) handle = 'user_' + user.$id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-  const displayName = (user.name || (typeof prefs.display_name === 'string' ? prefs.display_name : '') || handle).trim().slice(0, 80);
-  return { handle, displayName };
-}
-
-async function provisionProfile(user: Models.User<Models.Preferences>) {
-  try { return await backendRequest<any>('/v1/me'); }
-  catch (error) {
-    if (!(error instanceof Error) || (error as Error & { status?: number }).status !== 404) throw error;
+async function provisionProfile(_user: Models.User<Models.Preferences>) {
+  // The Backend creates the profile atomically with its verified identity
+  // registration flow. A browser session must never invent or self-approve a
+  // missing profile; /v1/me/profile is an update endpoint, not registration.
+  const profile = await backendRequest<any>('/v1/me');
+  if (profile?.identity_verification_status !== 'approved') {
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   }
-  const candidate = profileCandidate(user);
-  try {
-    return await backendRequest<any>('/v1/me/profile', 'PUT', { display_name: candidate.displayName, handle: candidate.handle, bio: '' });
-  } catch (error) {
-    if (!(error instanceof Error) || (error as Error & { status?: number }).status !== 409) throw error;
-    const fallback = candidate.handle.slice(0, 14) + '_' + user.$id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-    return backendRequest<any>('/v1/me/profile', 'PUT', { display_name: candidate.displayName, handle: fallback.toLowerCase(), bio: '' });
-  }
+  return profile;
 }
 
 export async function ensureCanonicalProfile(user: Models.User<Models.Preferences>): Promise<void> {
