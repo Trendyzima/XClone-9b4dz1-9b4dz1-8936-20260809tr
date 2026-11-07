@@ -12,7 +12,7 @@ function friendlyMediaError(error:unknown){
   return m||'Media upload failed. Please try again.';
 }
 
-async function uploadAttempt(file: File, postId?: string | null, threadId?: string | null) {
+async function uploadAttempt(file: File, postId?: string | null, threadId?: string | null, _accessTokenOverride?: string) {
   const result = await freshMediaApi.upload(file);
   if (postId || threadId) {
     await backendCapabilities.call('testagram.media.attach', {
@@ -51,9 +51,9 @@ export async function uploadTestagramMedia(file:File,postId?:string|null,threadI
   } catch(error){ throw new Error(friendlyMediaError(error)); }
 }
 
-export async function attachTestagramMedia(mediaId: string, postId: string): Promise<void> {
+export async function attachTestagramMedia(mediaId: string, postId: string, _accessTokenOverride?: string): Promise<void> {
   await backendCapabilities.call('testagram.media.attach', { media_id: mediaId, post_id: postId });
 }
-export async function deleteTestagramMedia(mediaId: string): Promise<void> {
+export async function deleteTestagramMedia(mediaId: string, _accessTokenOverride?: string): Promise<void> {
   await backendCapabilities.call('testagram.media.delete', { media_id: mediaId });
 }
