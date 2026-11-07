@@ -1,4 +1,5 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 
 const ENDPOINT = `${supabaseUrl}/functions/v1/identity-signup`;
 const VERIFICATION_ENDPOINT = `${supabaseUrl}/functions/v1/identity-verification`;
@@ -88,11 +89,31 @@ export const identitySignup = {
   },
   async finalize(password: string) {
     const token = this.token(); if (!token) throw new Error('REGISTRATION_TOKEN_REQUIRED');
-    const result = await call<{ user_id: string; email: string }>(ENDPOINT, { action: 'finalize', registration_token: token, password });
+    const result = await call<{ email: string; username: string; display_name: string; identity_approval_token: string }>(
+      ENDPOINT,
+      { action: 'finalize', registration_token: token, password },
+    );
+    const backendURL = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim();
+    if (!backendURL) throw new Error('IDENTITY_SERVICE_UNAVAILABLE');
+    const base = new URL(backendURL);
+    if ((base.protocol !== 'https:' && !(base.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname))) || base.username || base.password || base.pathname !== '/' || base.search || base.hash) {
+      throw new Error('IDENTITY_SERVICE_UNAVAILABLE');
+    }
+    const response = await fetch(base.toString().replace(/\/$/, '') + '/v1/identity/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ identity_approval_token: result.identity_approval_token, password }),
+      credentials: 'omit',
+      cache: 'no-store',
+    });
+    const payload = await response.json().catch(() => null) as any;
+    if (!response.ok) {
+      const message = String(payload?.error?.message ?? payload?.message ?? 'IDENTITY_SERVICE_UNAVAILABLE');
+      throw new Error(message);
+    }
+    const user = await appwriteAuth.signInWithPassword({ email: result.email, password });
     this.clearToken();
-    const { data, error } = await supabase.auth.signInWithPassword({ email: result.email, password });
-    if (error || !data.user) throw error || new Error('ACCOUNT_SIGN_IN_FAILED');
-    return data.user;
+    return user;
   },
   async verification(action: string, body: Record<string, unknown> = {}) {
     const sessionToken = this.sessionToken(); if (!sessionToken) throw new Error('VERIFICATION_SESSION_REQUIRED');
