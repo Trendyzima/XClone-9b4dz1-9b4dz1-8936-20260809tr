@@ -76,7 +76,7 @@ jobs:
           echo "Migration sanity checks passed."
 
   supabase-exit:
-    name: Supabase exit release gate
+    name: Legacy identity runtime exit gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
