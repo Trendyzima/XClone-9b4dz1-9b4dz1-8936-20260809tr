@@ -6,15 +6,10 @@ import { PollCard as FeedPollCard } from '@/components/features/PollCard';
 import { ThreadCard } from '@/components/features/ThreadCard';
 
 import { TopBar } from '@/components/layout/TopBar';
-import { supabase, supabasePublishableKey } from '@/lib/supabase';
-
-const FEDERATED_FUNCTION_BASE = (import.meta.env.VITE_TESTAGRAM_FEDERATED_API_URL ||
-  import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:9').replace(/\/+$/, '') +
-  '/functions/v1/federated-feed';
+import { socialApi } from '@/services/socialApiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
-import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable, homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT } from '@/lib/homeFeedCache';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
@@ -181,206 +176,49 @@ export default function HomeHubPage(){
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
-  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,includeFederated=true):Promise<Item[]>=>{
-    const pageSize=target==='communities'||target==='polls'||target==='shopping'?12:10;
-    const offset=pageNum*pageSize;
-    if(target==='communities'){
-      const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(offset,offset+pageSize-1);
-      if(error)throw error;
-      return (data??[]).map((x:any)=>({type:'community',data:x}));
+  const cacheKey = `home:${user?.id ?? 'signed-out'}`;
+
+  // The home timeline is sourced exclusively from the authenticated Testagram
+  // Backend. The legacy Supabase aggregator and direct-table fallback are
+  // intentionally not reachable from this component.
+  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
+    if (!user?.id) {
+      setNextCursor(null);
+      nextCursorRef.current = null;
+      setHasMore(false);
+      return [];
     }
-    if(target==='polls'){
-      const {data,error}=await supabase.from('polls').select('*').order('created_at',{ascending:false}).range(offset,offset+pageSize-1);
-      if(error)throw error;
-      return (data??[]).map((x:any)=>({type:'poll',data:x}));
+    if (target !== 'all') {
+      // These secondary discovery tabs are being moved to Backend endpoints.
+      // Returning no legacy rows is safer than silently reintroducing Supabase.
+      return [];
     }
-    if(target==='shopping'){
-      const {data,error}=await supabase.from('products').select('*').eq('is_active',true).order('created_at',{ascending:false}).range(offset,offset+pageSize-1);
-      if(error)throw error;
-      return (data??[]).map((x:any)=>({type:'product',data:x}));
-    }
-
-    if(target==='federated'){
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      if(!token) return [];
-      const params = new URLSearchParams({ limit: '24' });
-      if (cursorOverride) params.set('before', cursorOverride);
-      const response = await fetch((FEDERATED_FUNCTION_BASE + '?') + params.toString(), {
-        headers: {
-          Authorization: 'Bearer ' + token,
-          apikey: supabasePublishableKey,
-        },
-      });
-      if(!response.ok) throw new Error('Federated feed unavailable');
-      const payload = await response.json();
-      const fedItems = Array.isArray(payload?.items) ? payload.items : [];
-      setNextCursor(payload?.pagination?.nextCursor ?? null);
-      nextCursorRef.current = payload?.pagination?.nextCursor ?? null;
-      setHasMore(Boolean(payload?.pagination?.hasMore) && fedItems.length > 0);
-      return normalizeFederatedFeedItems(fedItems);
-    }
-
-    if(target==='all'){
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const params = new URLSearchParams({ limit: '24', includeFederated: includeFederated ? '1' : '0' });
-      if (cursorOverride) params.set('before', cursorOverride);
-
-      // The edge aggregator is the preferred source because it blends local,
-      // following, recommendations, threads and federation. Android WebView
-      // environments can occasionally fail an edge request even while the
-      // canonical Supabase API is healthy. Never turn a transient aggregator
-      // failure into an empty Home/For You screen: fall back to the same public
-      // local data the canonical web UI can render.
-      try {
-        const response = await fetch('/api/home-feed?'+params.toString(), {
-          headers: token ? { Authorization: 'Bearer '+token } : {},
-          cache: 'no-store',
-          // Do not leave the first screen waiting indefinitely on a degraded
-          // aggregator. The catch below immediately enters the direct local
-          // post/thread fallback; cached feed content has already hydrated.
-          signal: AbortSignal.timeout(15000),
-        });
-        if (response.ok) {
-          const payload = await response.json();
-          const next = Array.isArray(payload?.items) ? payload.items : [];
-          let supplementalFederatedItems: Item[] = [];
-          // The aggregator remains the primary ranked source, while the direct
-          // federation timeline fills discovery gaps and protects the homepage
-          // from an aggregator that returns very few remote posts.
-          if (!cursorOverride && includeFederated && token) {
-            try {
-              const fedParams = new URLSearchParams({ limit: '24' });
-              const fedResponse = await fetch((FEDERATED_FUNCTION_BASE + '?') + fedParams.toString(), {
-                headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
-                cache: 'no-store',
-              });
-              if (fedResponse.ok) {
-                const fedPayload = await fedResponse.json();
-                const fedPosts = Array.isArray(fedPayload?.items) ? fedPayload.items : [];
-                supplementalFederatedItems = normalizeFederatedFeedItems(fedPosts);
-                federatedCursorRef.current = fedPayload?.pagination?.nextCursor ?? null;
-                federatedExhaustedRef.current = !Boolean(fedPayload?.pagination?.hasMore) || !federatedCursorRef.current;
-              }
-            } catch (federationError) {
-              console.warn('[home-hub] direct federated discovery temporarily unavailable', federationError);
-            }
-          }
-          if (next.length > 0 || cursorOverride || supplementalFederatedItems.length > 0) {
-            setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
-            setHasMore((Boolean(payload?.hasMore) && next.length > 0) || Boolean(federatedCursorRef.current));
-
-            // A slow federation source must never erase already-rendered remote
-            // posts from the Home cache. The aggregator reports degradation
-            // explicitly; retain the existing Fediverse slice until the next
-            // successful federation refresh.
-            const federationDegraded = Boolean(payload?.instrumentation?.federationError);
-            if (federationDegraded && feedBufferRef.current.some((item) => item.type === 'fedpost')) {
-              const incomingKeys = new Set(next.map((item:any) => String(item?.data?.id ?? item?.data?.uri ?? '')));
-              const retainedFed = feedBufferRef.current.filter((item) =>
-                item.type === 'fedpost' &&
-                !incomingKeys.has(String(item.data?.id ?? item.data?.uri ?? ''))
-              );
-              return [...next, ...retainedFed].slice(0, 12) as Item[];
-            }
-
-            const normalizedNext = next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
-            return appendUniqueFeedItems(normalizedNext, supplementalFederatedItems);
-          }
-        }
-      } catch (error) {
-        console.warn('[home-hub] edge feed unavailable; using direct public fallback', error);
-      }
-
-      const fallbackLimit = 12;
-      // The direct fallback has its own explicit offset cursor. Never interpret
-      // the aggregator's opaque cursor as an offset, but do continue fallback
-      // pages when the aggregator itself is unavailable.
-      const parsedFallbackOffset = cursorOverride?.startsWith('fallback:')
-        ? Number.parseInt(cursorOverride.slice('fallback:'.length), 10)
-        : 0;
-      const fallbackOffset = Number.isSafeInteger(parsedFallbackOffset) && parsedFallbackOffset >= 0
-        ? parsedFallbackOffset
-        : 0;
-      const fallbackPosts = supabase.from('posts')
-        .select('*, '+profileSelect)
-        .is('community_id', null)
-        .is('deleted_at', null)
-        .order('created_at', {ascending:false})
-        .range(fallbackOffset, fallbackOffset + fallbackLimit - 1);
-      const fallbackThreads = supabase.from('threads')
-        .select('*')
-        .eq('visibility','public')
-        .is('deleted_at',null)
-        .order('created_at',{ascending:false})
-        .range(fallbackOffset, fallbackOffset + fallbackLimit - 1);
-      const [{data:postData,error:postError},{data:threadData,error:threadError}] =
-        await Promise.all([fallbackPosts,fallbackThreads]);
-      if (postError) console.warn('[home-hub] direct post fallback', postError);
-      if (threadError) console.warn('[home-hub] direct thread fallback', threadError);
-
-      let fallbackItems: Item[] = [
-        ...(postData ?? []).map((post:any)=>({type:'post' as const,data:post})),
-        ...(threadData ?? []).map((thread:any)=>({type:'thread' as const,data:thread})),
-      ].sort((a,b)=>Date.parse(String(b.data?.created_at??''))-Date.parse(String(a.data?.created_at??'')));
-
-      // The local fallback must not silently drop federation. Query the
-      // canonical stored Fediverse timeline independently when the mixed
-      // aggregator is unavailable, then continue with its own cursor.
-      if (includeFederated && token) {
-        try {
-          const fedParams = new URLSearchParams({ limit: '24' });
-          if (cursorOverride?.startsWith('fallback:') && federatedCursorRef.current) {
-            fedParams.set('before', federatedCursorRef.current);
-          }
-          const fedResponse = await fetch((FEDERATED_FUNCTION_BASE + '?') + fedParams.toString(), {
-            headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
-            cache: 'no-store',
-          });
-          if (fedResponse.ok) {
-            const fedPayload = await fedResponse.json();
-            const fedPosts = Array.isArray(fedPayload?.items) ? fedPayload.items : [];
-            fallbackItems = appendUniqueFeedItems(fallbackItems, normalizeFederatedFeedItems(fedPosts));
-            federatedCursorRef.current = fedPayload?.pagination?.nextCursor ?? null;
-            federatedExhaustedRef.current = !Boolean(fedPayload?.pagination?.hasMore) || !federatedCursorRef.current;
-          }
-        } catch (federationError) {
-          console.warn('[home-hub] federated fallback temporarily unavailable', federationError);
-        }
-      }
-
-      const hasMoreFallbackRows = (postData?.length ?? 0) >= fallbackLimit
-        || (threadData?.length ?? 0) >= fallbackLimit;
-      const fallbackCursor = hasMoreFallbackRows ? 'fallback:' + (fallbackOffset + fallbackLimit) : null;
-      setNextCursor(fallbackCursor);
-      nextCursorRef.current = fallbackCursor;
-      setHasMore(Boolean(fallbackCursor) || Boolean(federatedCursorRef.current));
-      return fallbackItems;
-    }
-
-    let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
-    if(target==='following'&&user){
-      const {data:follows,error:followsError}=await supabase.from('follows').select('following_id').eq('follower_id',user.id);
-      if(followsError)throw followsError;
-      const ids=(follows??[]).map((x:any)=>x.following_id);
-      if(!ids.length)return [];
-      query=query.in('user_id',ids);
-    }
-    if(target==='media')query=query.or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0');
-    if(target==='explore')query=query.order('likes_count',{ascending:false}).order('views_count',{ascending:false});
-    else query=query.order('created_at',{ascending:false});
-    const {data,error}=await query.range(offset,offset+pageSize-1);
-    if(error)throw error;
-    return (data??[]).map((x:any)=>({type:'post' as const,data:x}));
+    const page = await socialApi.getHomeFeed(24, cursorOverride ?? undefined);
+    const posts = Array.isArray(page?.posts) ? page.posts : [];
+    const cursor = page?.next_cursor || null;
+    setNextCursor(cursor);
+    nextCursorRef.current = cursor;
+    setHasMore(Boolean(page?.has_more && cursor));
+    return posts.map((post:any)=>({
+      type: 'post' as const,
+      data: {
+        ...post,
+        author: post.author ?? post.user_profiles ?? {},
+        user_profiles: post.user_profiles ?? post.author ?? {},
+        profile: post.profile ?? post.author ?? post.user_profiles ?? {},
+        origin: post.origin ?? 'local',
+      },
+    }));
   },[user?.id]);
 
   const persistBuffer=useCallback(async()=>{
     try{
-      await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:feedBufferRef.current[0]?.data?.id??null});
+      await writeHomeFeedCache({key:cacheKey,items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:feedBufferRef.current[0]?.data?.id??null},cacheKey);
     }catch(error){
       // Storage quota/private browsing must not break scrolling or pagination.
       console.warn('[home-hub] feed cache write skipped',error);
     }
-  },[]);
+  },[cacheKey]);
 
   const hydratePublisherLayer=useCallback(async(seed:string|null = null)=>{
     try{
@@ -442,7 +280,7 @@ export default function HomeHubPage(){
       await persistBuffer();
       void hydratePublisherLayer(background ? nextCursorRef.current : null);
     }catch(e){console.error('[home-hub]',e);if(!background){
-      const cached=await readHomeFeedCache().catch(()=>null);
+      const cached=await readHomeFeedCache(cacheKey).catch(()=>null);
       if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; feedBufferOffsetRef.current=cached.items.length; setItems(cached.items); cacheCursorRef.current=cached.cursor; nextCursorRef.current=cached.cursor; setHasMore(Boolean(cached.cursor)); }
       else {setItems([]);setHasMore(false);}
       setLoading(false);
@@ -452,7 +290,7 @@ export default function HomeHubPage(){
   useEffect(()=>{
     let active=true;
     if(tab!=='all'){void load(tab);return()=>{active=false;};}
-    void readHomeFeedCache().then(cached=>{
+    void readHomeFeedCache(cacheKey).then(cached=>{
       if(!active)return;
       if(cached?.items?.length){
         // Keep cached federation entries across refreshes. The server-side
@@ -493,20 +331,15 @@ export default function HomeHubPage(){
         void load('all',true);
       },1500);
     };
-    const channel=supabase.channel('home-feed-live')
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},scheduleRefresh)
-       .on('postgres_changes',{event:'INSERT',schema:'public',table:'threads'},scheduleRefresh)
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'federated_objects'},scheduleRefresh)
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'federated_objects'},scheduleRefresh)
-      .on('postgres_changes',{event:'DELETE',schema:'public',table:'federated_objects'},scheduleRefresh)
-      .subscribe();
+    // Backend polling is the temporary refresh transport until the dedicated
+    // Testagram realtime ticket channel is wired into this page.
     const fallback=window.setInterval(()=>{
       if(document.visibilityState!=='visible')return;
       const active=document.activeElement;
       if(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)return;
       void load('all',true);
     },30000);
-    return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);void supabase.removeChannel(channel);};
+    return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);};
   },[tab]);
 
   useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab]);
@@ -545,39 +378,6 @@ export default function HomeHubPage(){
             setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
             await persistBuffer();
             return true;
-          }
-        }
-        // When the mixed aggregator is exhausted, continue with the
-        // independent Fediverse cursor instead of ending the reader's session.
-        if (federatedCursorRef.current && !federatedExhaustedRef.current) {
-          const token = (await supabase.auth.getSession()).data.session?.access_token;
-          if (token) {
-            const fedParams = new URLSearchParams({ limit: '24', before: federatedCursorRef.current });
-            const fedResponse = await fetch((FEDERATED_FUNCTION_BASE + '?') + fedParams.toString(), {
-              headers: { Authorization: 'Bearer ' + token, apikey: supabasePublishableKey },
-              cache: 'no-store',
-            });
-            if (fedResponse.ok) {
-              const fedPayload = await fedResponse.json();
-              const fedPosts = Array.isArray(fedPayload?.items) ? fedPayload.items : [];
-              federatedCursorRef.current = fedPayload?.pagination?.nextCursor ?? null;
-              federatedExhaustedRef.current = !Boolean(fedPayload?.pagination?.hasMore) || !federatedCursorRef.current;
-              const fedItems = normalizeFederatedFeedItems(fedPosts);
-              const beforeLength = feedBufferRef.current.length;
-              feedBufferRef.current = appendUniqueFeedItems(feedBufferRef.current, fedItems);
-              const page = feedBufferRef.current.slice(beforeLength, beforeLength + 6);
-              if (page.length) {
-                feedBufferOffsetRef.current = beforeLength + page.length;
-                setItems(prev => appendUniqueFeedItems(prev, page));
-                setHasMore(Boolean(nextCursorRef.current) || Boolean(federatedCursorRef.current) || feedBufferOffsetRef.current < feedBufferRef.current.length);
-                await persistBuffer();
-                return true;
-              }
-              if (federatedCursorRef.current && !federatedExhaustedRef.current) {
-                setHasMore(true);
-                return true;
-              }
-            }
           }
         }
         cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);return false;
