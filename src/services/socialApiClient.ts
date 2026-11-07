@@ -28,6 +28,7 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
 const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/home` : '/api/feed/home';
+const freshApiSocialBase = freshApiOrigin ? `${freshApiOrigin}/api/social` : '/api/social';
 
 function assertSocialAPIAvailable(allowFreshRoute = false): void {
   if (isFreshAppwriteMode && !allowFreshRoute) {
@@ -122,7 +123,7 @@ export const socialApi = {
   createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
     const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `post-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return requestAt<{ $id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
-      `${freshApiOrigin}/v1/posts`, 'POST', { content, visibility, sensitive }, true, { 'Idempotency-Key': key },
+      `${freshApiSocialBase}/posts`, 'POST', { content, visibility, sensitive }, true, { 'Idempotency-Key': key },
     );
   },
   moderateContent(content: string) {
