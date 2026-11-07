@@ -34,7 +34,7 @@ export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
   const files = input.media ?? [];
   // Keep all post creation on the canonical capability boundary. The former
   // direct table INSERT duplicated the write contract and was the source of
-  // production RLS failures when Auth hydration and the PostgREST JWT diverged.
+  // the canonical Backend API is the only write boundary.
   const postResult = await backendCapabilities.createPost({
     content: body,
     communityId: input.communityId ?? undefined,
