@@ -88,12 +88,15 @@ export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: nu
   const size = Math.min(Math.max(Math.floor(limit), 1), 50);
   const cursor = decodeMergedCursor(before);
 
-  const unifiedFeedEnabled = String(import.meta.env.VITE_TESTAGRAM_UNIFIED_FEED_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+  const freshAppwriteMode = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' || (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
+  const unifiedFeedEnabled = freshAppwriteMode || String(import.meta.env.VITE_TESTAGRAM_UNIFIED_FEED_ENABLED ?? 'false').trim().toLowerCase() === 'true';
   const [localResult, federatedResult] = await Promise.all([
     unifiedFeedEnabled
       ? socialApi.getHomeFeed(size, cursor.local ?? undefined)
       : backendCapabilities.listPosts(size, cursor.local, 'following'),
-    federation.getFederatedTimelinePage({ limit: size, before: cursor.fed ?? undefined }),
+    freshAppwriteMode
+      ? Promise.resolve({ items: [], pagination: { nextCursor: null } })
+      : federation.getFederatedTimelinePage({ limit: size, before: cursor.fed ?? undefined }),
   ]);
 
   const localItems = unifiedFeedEnabled

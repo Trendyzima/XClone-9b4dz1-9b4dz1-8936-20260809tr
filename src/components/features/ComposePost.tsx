@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FunctionsHttpError } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { backendCapabilities, requireAccessToken } from '@/services/backendClient';
 import { pingGoogleSitemap } from '@/lib/pingGoogle';
 import { Button } from '@/components/ui/button';
@@ -456,6 +456,10 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
   // ── Post handler ──────────────────────────────────────────────────────────
   const handlePost = async () => {
     if (!content.trim() && images.length === 0 && !video && !gifUrl && !pollData) return;
+    if (isFreshAppwriteMode && (images.length > 0 || video || gifUrl || pollData || taggedProducts.length > 0 || communityId || quotedPostId || scheduledDate || postToFediverse)) {
+      sonnerToast.error('Fresh Appwrite publishing currently supports text-only posts. Media, polls, scheduling, communities, quotes, product tags and federation are still being integrated.');
+      return;
+    }
     // Real-time violation check before posting
     if (content.trim() && !violationCheckedRef.current) {
       const canPost = await checkContentViolation(content);
