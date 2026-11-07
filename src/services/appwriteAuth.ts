@@ -54,6 +54,10 @@ function clearBackendJWT(): void {
   backendJWTExpiresAt = 0;
 }
 
+function notifyAuthChanged(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+}
+
 export const appwriteAuth = {
   async signUpWithPassword(input: {
     email: string;
@@ -76,7 +80,9 @@ export const appwriteAuth = {
     });
     await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
     clearBackendJWT();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    notifyAuthChanged();
+    return user;
   },
 
   async signInWithPassword(input: {
@@ -89,7 +95,9 @@ export const appwriteAuth = {
       password: input.password,
     });
     clearBackendJWT();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    notifyAuthChanged();
+    return user;
   },
 
   async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
@@ -158,7 +166,9 @@ export const appwriteAuth = {
     await appwriteAccount.createEmailPasswordSession({ email: normalizeEmail(input.email), password: input.password });
     clearBackendJWT();
     clearRecoveryContext();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    notifyAuthChanged();
+    return user;
   },
 
   async completePasswordRecovery(input: {
@@ -185,7 +195,7 @@ export const appwriteAuth = {
       await appwriteAccount.deleteSession({ sessionId: 'current' });
     } finally {
       clearBackendJWT();
-      if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+      notifyAuthChanged();
     }
   },
 };
