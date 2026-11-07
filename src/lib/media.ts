@@ -15,7 +15,8 @@ export type MediaUploadResult = {
   size_bytes: number;
   mime_type: string;
   media_type?: 'image' | 'video' | 'audio' | 'file';
-  status: 'uploaded';
+  status: 'protected';
+  reservation_id?: string;
   etag?: string | null;
   post_id?: string | null;
 };
@@ -95,7 +96,12 @@ function classifyMedia(mime: string): 'image' | 'video' | 'audio' | 'file' {
  * Backend verifies the B2 object, replicates it to R2, then commits metadata
  * and quota state through Appwrite. The browser never receives storage keys.
  */
-export async function uploadMedia(file: File, postId?: string | null): Promise<MediaUploadResult> {
+export async function uploadMedia(
+  file: File,
+  postId?: string | null,
+  idempotencyKey = globalThis.crypto.randomUUID(),
+  scope: 'post_media' | 'story_media' = 'post_media',
+): Promise<MediaUploadResult> {
   if (postId) {
     throw new MediaApiError(
       'Media storage is available, but attaching media to posts is not yet exposed by the Backend API.',
@@ -106,7 +112,6 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
 
   const mime = validateMedia(file);
   const checksum = await sha256Hex(file);
-  const idempotencyKey = globalThis.crypto.randomUUID();
   const reservation = await testagramApi.request<UploadReservation>('/v1/media/uploads/reservations', {
     method: 'POST',
     idempotencyKey,
@@ -114,7 +119,7 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
       bytes: file.size,
       content_type: mime,
       sha256: checksum,
-      scope: 'post_media',
+      scope,
     },
   });
 
@@ -169,7 +174,8 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
     size_bytes: file.size,
     mime_type: mime,
     media_type: classifyMedia(mime),
-    status: 'uploaded',
+    status: 'protected',
+    reservation_id: reservation.reservation_id,
     post_id: null,
   };
 }
