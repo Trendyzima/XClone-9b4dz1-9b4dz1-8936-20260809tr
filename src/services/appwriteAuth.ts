@@ -59,30 +59,14 @@ function notifyAuthChanged(): void {
 }
 
 export const appwriteAuth = {
-  async signUpWithPassword(input: {
+  async signUpWithPassword(_input: {
     email: string;
     password: string;
     name: string;
   }): Promise<Models.User<Models.Preferences>> {
-    assertAppwriteAuthConfigured();
-    const email = normalizeEmail(input.email);
-    validatePassword(input.password);
-    const name = input.name.trim();
-    if (!name || name.length > 128) {
-      throw new Error('Enter a name up to 128 characters.');
-    }
-
-    await appwriteAccount.create({
-      userId: ID.unique(),
-      email,
-      password: input.password,
-      name,
-    });
-    await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
-    clearBackendJWT();
-    const user = await appwriteAccount.get();
-    notifyAuthChanged();
-    return user;
+    // New accounts must be created by the Backend only after it validates the
+    // short-lived identity-approval token and provisions the approved profile.
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   },
 
   async signInWithPassword(input: {
