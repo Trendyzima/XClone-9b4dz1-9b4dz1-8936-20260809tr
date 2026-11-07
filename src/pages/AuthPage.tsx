@@ -255,6 +255,7 @@ export default function AuthPage() {
     setLoading(false);
     setPassword('');
     setConfirmation('');
+    if (mode === 'otp' && next !== 'otp') identitySignup.clearToken();
     if (mode === 'reset' && next !== 'reset') {
       appwriteAuth.clearRecoveryContext();
       setRecoveryReady(false);
@@ -271,7 +272,7 @@ export default function AuthPage() {
     : mode === 'recover' ? 'Reset your password'
     : 'Choose a new password';
   const subtitle = mode === 'signin' ? 'Sign in securely with your Testagram account.'
-    : mode === 'signup' ? 'Create your account using Appwrite authentication.'
+     : mode === 'signup' ? 'Verify your email and identity before your Appwrite account is created.'
     : mode === 'otp' ? 'Enter the six-digit registration code sent to ' + (email || 'your email address') + '.'
     : mode === 'verify' ? 'Open the secure Appwrite verification link sent to ' + (email || 'your email address') + '.'
     : mode === 'recover' ? 'We’ll send a secure, time-limited recovery link to your email.'
@@ -319,7 +320,7 @@ export default function AuthPage() {
                       <Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
                       <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
                     </div>}
-                    <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in securely' : 'Create Appwrite account'}</Button>
+                    <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" />  : mode === 'signin' ? 'Log in securely' : 'Continue to email verification'}</Button>
                   </form>
                   {mode === 'signin' && <button type="button" onClick={() => go('recover')} className="mt-4 w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary">Forgot your password?</button>}
                 </>
