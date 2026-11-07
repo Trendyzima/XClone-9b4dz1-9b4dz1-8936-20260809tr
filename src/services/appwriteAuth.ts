@@ -94,9 +94,15 @@ export const appwriteAuth = {
     return appwriteAccount.get();
   },
 
-  async getCurrentUser(): Promise<Models.User<Models.Preferences>> {
+  async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
     assertAppwriteAuthConfigured();
-    return appwriteAccount.get();
+    try {
+      return await appwriteAccount.get();
+    } catch (error) {
+      const code = Number((error as { code?: unknown } | null)?.code ?? 0);
+      if (code === 401 || code === 404) return null;
+      throw error;
+    }
   },
 
   async createBackendJWT(forceRefresh = false): Promise<string> {
