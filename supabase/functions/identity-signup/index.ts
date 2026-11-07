@@ -68,6 +68,13 @@ async function sha256(value: string) {
 async function tokenHash(token: string) {
   return sha256("testagram:identity-registration:" + token);
 }
+
+function base64url(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+}
 async function otpHash(email: string, code: string) {
   return hmacHex("otp|" + email + "|" + code);
 }
@@ -138,67 +145,31 @@ async function finalizeAccount(intent: any, password: string) {
   if (!intent.verification_session_id) throw new Error("VERIFICATION_SESSION_MISSING");
   const engineResult = await db("get_engine_result", { session_id: intent.verification_session_id });
   if (!engineResult || engineResult.decision !== "approved") throw new Error("IDENTITY_ENGINE_APPROVAL_REQUIRED");
-  if (!intent.id_number_hmac) throw new Error("IDENTITY_FINGERPRINT_MISSING");
+  if (!intent.id_number_hmac || !/^[a-f0-9]{64}$/.test(intent.id_number_hmac)) throw new Error("IDENTITY_FINGERPRINT_MISSING");
   if (!intent.verified_birth_date || !isAdult(intent.verified_birth_date)) throw new Error("AGE_RESTRICTION");
   if (intent.birth_date !== intent.verified_birth_date) throw new Error("BIRTH_DATE_MISMATCH");
   if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
 
-  const created = await admin.auth.admin.createUser({
-    email: intent.email,
-    password,
-    email_confirm: true,
-    user_metadata: { username: intent.username || undefined, full_name: intent.display_name || undefined },
-    app_metadata: { testagram_identity_verified: true },
-  });
-  if (created.error || !created.data?.user) {
-    const message = created.error?.message || "ACCOUNT_CREATION_FAILED";
-    if (/already registered|already exists/i.test(message)) throw new Error("EMAIL_ALREADY_REGISTERED");
-    throw new Error(message);
-  }
-  const user = created.data.user;
-  try {
-    const now = new Date().toISOString();
-    const { error: identityError } = await admin.from("identity_verifications").insert({
-      user_id: user.id,
-      id_type: "ke_national_id",
-      id_number_hmac: intent.id_number_hmac,
-      id_number_last4: intent.id_number_last4,
-      country_code: "KE",
-      status: "approved",
-      verification_method: "self_hosted",
-      provider: null,
-      provider_reference: null,
-      submitted_at: now,
-      reviewed_at: now,
-      email_snapshot: intent.email,
-    });
-    if (identityError) {
-      if (identityError.code === "23505" && /id_number_hmac/i.test(identityError.message || "")) throw new Error("IDENTITY_ALREADY_REGISTERED");
-      throw identityError;
-    }
-    const { error: profileError } = await admin.from("profiles").update({
-      birth_date: intent.verified_birth_date,
-      legal_terms_accepted_at: intent.legal_terms_accepted_at,
-      legal_privacy_accepted_at: intent.legal_privacy_accepted_at,
-      legal_content_policy_accepted_at: intent.legal_content_policy_accepted_at,
-      legal_age_confirmed_at: intent.legal_age_confirmed_at,
-      legal_policy_version: intent.legal_policy_version,
-      identity_verification_status: "approved",
-      identity_verified_at: now,
-    }).eq("id", user.id);
-    if (profileError) throw profileError;
-    const { error: auditLinkError } = await admin.from("identity_verification_events")
-      .update({ user_id: user.id })
-      .is("user_id", null)
-      .filter("metadata->>session_id", "eq", String(intent.verification_session_id));
-    if (auditLinkError) throw auditLinkError;
-    await db("update_intent", { id: intent.id, completed_user_id: user.id, updated_at: now });
-    
-    return user;
-  } catch (error) {
-    await admin.auth.admin.deleteUser(user.id).catch(() => {});
-    throw error;
-  }
+  // The identity service no longer creates a Supabase Auth account. It issues
+  // a short-lived, HMAC-signed approval assertion which the Go Backend binds
+  // to the newly created Appwrite account before granting application access.
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const payload = {
+    email: normalizeEmail(intent.email),
+    birth_date: intent.verified_birth_date,
+    session_id: String(intent.verification_session_id),
+    fingerprint: intent.id_number_hmac,
+    issued_at: issuedAt,
+    expires_at: issuedAt + 900,
+  };
+  const encoded = base64url(JSON.stringify(payload));
+  const signature = await hmacHex("testagram:identity-approval:" + encoded);
+  return {
+    email: payload.email,
+    username: intent.username || "",
+    display_name: intent.display_name || intent.username || payload.email.split("@")[0],
+    identity_approval_token: encoded + "." + signature,
+  };
 }
 
 Deno.serve(async (req) => {
