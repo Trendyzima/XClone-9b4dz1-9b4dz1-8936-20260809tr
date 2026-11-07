@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const lifetimeTimer = window.setInterval(() => {
         void withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation").then(async (valid) => {
           if (!valid && mounted) {
-            try { await appwriteSignOut(); } catch { /* session may already be expired */ }
+            try { await appwriteAuth.signOut(); } catch { /* session may already be expired */ }
             logout();
             window.location.replace("/auth");
           }
