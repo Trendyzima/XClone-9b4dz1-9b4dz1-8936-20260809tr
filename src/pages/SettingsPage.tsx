@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { SettingsMiniSidebar } from '@/components/layout/SettingsMiniSidebar';
@@ -17,6 +17,7 @@ import {
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { applyAppearance, applyTheme, getStoredAppearance, THEME_PRESETS, type AppearanceSettings, type ThemeChoice, type ThemePresetId } from '@/theme/themes';
 import { authService } from '@/lib/auth';
+import { socialApi } from '@/services/socialApiClient';
 import { toast } from 'sonner';
 
 
@@ -73,6 +74,9 @@ export default function SettingsPage({ section = 'all' }: { section?: 'all' | 'a
   const [privateAccount, setPrivateAccount] = useState(false);
   const [discoverableByUsername, setDiscoverableByUsername] = useState(true);
   const [savingPrivacyDiscovery, setSavingPrivacyDiscovery] = useState(false);
+  const [federationEnabled, setFederationEnabled] = useState(false);
+  const [loadingFederation, setLoadingFederation] = useState(false);
+  const [savingFederation, setSavingFederation] = useState(false);
   const [appearance, setAppearance] = useState<AppearanceSettings>(() => getStoredAppearance());
   const [themeChoice, setThemeChoice] = useState<ThemeChoice>(() => getStoredAppearance().mode);
   const [savingAppearance, setSavingAppearance] = useState(false);
@@ -154,7 +158,7 @@ export default function SettingsPage({ section = 'all' }: { section?: 'all' | 'a
 
   // Load profile privacy/discovery settings
   useEffect(() => {
-    if (!user) return;
+    if (!user || isFreshAppwriteMode) return;
     supabase.from('profiles').select('protected_account, discoverable_by_username').eq('id', user.id).single()
       .then(({ data }) => {
         if (!data) return;
@@ -162,6 +166,30 @@ export default function SettingsPage({ section = 'all' }: { section?: 'all' | 'a
         setDiscoverableByUsername(data.discoverable_by_username !== false);
       });
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || !isFreshAppwriteMode) return;
+    let active = true;
+    setLoadingFederation(true);
+    socialApi.getFederationPreference()
+      .then(result => { if (active) setFederationEnabled(result.enabled === true); })
+      .catch(() => { if (active) toast.error('Could not load your federation setting from Backend.'); })
+      .finally(() => { if (active) setLoadingFederation(false); });
+    return () => { active = false; };
+  }, [user?.id]);
+
+  const toggleFederation = async (enabled: boolean) => {
+    setSavingFederation(true);
+    try {
+      const result = await socialApi.setFederationPreference(enabled);
+      setFederationEnabled(result.enabled === true);
+      toast.success(enabled ? 'Fediverse discovery enabled' : 'Fediverse discovery disabled');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update federation setting');
+    } finally {
+      setSavingFederation(false);
+    }
+  };
 
   const savePrivacyDiscovery = async (patch: { protected_account?: boolean; discoverable_by_username?: boolean }) => {
     if (!user) return;
@@ -963,6 +991,24 @@ export default function SettingsPage({ section = 'all' }: { section?: 'all' | 'a
         <div className="p-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Privacy & Security</h2>
           <div className="space-y-1">
+            {isFreshAppwriteMode && (
+              <div className="p-3 border border-border rounded-xl space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-sky-500/10 flex items-center justify-center shrink-0">
+                      <Globe className="w-4 h-4 text-sky-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm">Fediverse discovery</p>
+                      <p className="text-xs text-muted-foreground">Allow other ActivityPub servers to find your public Testagram profile. This does not publish private or followers-only posts.</p>
+                    </div>
+                  </div>
+                  <Switch checked={federationEnabled} onCheckedChange={toggleFederation} disabled={loadingFederation || savingFederation} />
+                </div>
+                {loadingFederation && <p className="text-[11px] text-muted-foreground pl-12">Loading your Backend preference…</p>}
+                {!loadingFederation && federationEnabled && <p className="text-[11px] text-muted-foreground pl-12">Your public profile can be discoverable by remote Fediverse users.</p>}
+              </div>
+            )}
             {/* ── Two-Factor Authentication ── */}
             <div className="p-3 border border-border rounded-xl space-y-2">
               <div className="flex items-center justify-between">
