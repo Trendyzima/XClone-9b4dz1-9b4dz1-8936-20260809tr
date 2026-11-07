@@ -35,6 +35,8 @@ assert.match(domain, /\/v1\/me\/legal/, 'Session finalization must enforce canon
 assert.match(domain, /identity_verification_status[\s\S]*approved/, 'Only Backend-approved identities may enter the app.');
 assert.match(api, /appwriteAuth\.createBackendJWT\(\)/, 'Shared API client must obtain the Appwrite JWT.');
 assert.match(transport, /headers\.set\('Authorization'/, 'Backend API calls must carry the Appwrite JWT.');
+assert.ok(transport.includes(String.raw`if (!token || /[\\r\\n]/.test(token))`), 'JWT validation must reject CR/LF only, not ordinary letters such as r or n.');
+assert.ok(transport.includes(String.raw`path.startsWith('//') || /[\\r\\n\\\\]/.test(path))`), 'Path validation must reject CR/LF and backslashes without rejecting ordinary route characters.');
 assert.match(transport, /X-Testagram-API-Version/, 'Backend API calls must declare the versioned contract.');
 assert.match(transport, /credentials: 'omit'/, 'Backend API calls must not forward ambient browser cookies.');
 assert.match(transport, /cache: 'no-store'/, 'Private authenticated API responses must not be cached.');
