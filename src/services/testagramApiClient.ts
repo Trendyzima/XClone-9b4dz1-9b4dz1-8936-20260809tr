@@ -81,7 +81,7 @@ function normalizeBaseURL(value: string): URL {
 
 function normalizePath(path: string, base: URL): URL {
   if (typeof path !== 'string' || !path.startsWith('/v1/') || path.startsWith('/v1/internal/') ||
-      path.startsWith('//') || /[\\r\\n\\\\]/.test(path)) {
+      path.startsWith('//') || /[\r\n\\]/.test(path)) {
     throw new TestagramApiError('Browser transport accepts public, versioned /v1 routes only.', 0, 'API_PATH_NOT_ALLOWED');
   }
   const url = new URL(path, base);
@@ -121,7 +121,7 @@ export function createTestagramApiClient(options: TestagramApiClientOptions) {
       const url = appendQuery(normalizePath(path, base), requestOptions.query);
       const method = requestOptions.method ?? 'GET';
       const token = await options.getAccessToken();
-      if (!token || /[\\r\\n]/.test(token)) {
+      if (!token || /[\r\n]/.test(token)) {
         throw new TestagramApiError('A valid Testagram session is required.', 401, 'AUTH_REQUIRED');
       }
 
