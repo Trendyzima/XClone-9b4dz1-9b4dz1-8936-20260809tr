@@ -13,7 +13,6 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable, homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT } from '@/lib/homeFeedCache';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
-import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 import { TvPostStream } from '@/components/features/TvPostStream';
 import { NewsifyTrendingRail } from '@/components/features/NewsifyTrendingRail';
 import { OrganicSportsStories } from '@/components/features/OrganicSportsStories';
@@ -42,16 +41,6 @@ function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.
   return out;
 }
 
-function blendPublisherItems(nativeItems: Item[], publishers: FeedItem[], seed: string|null): Item[] {
-  if (!nativeItems.length || !publishers.length) return nativeItems;
-  const hash = Array.from(seed ?? 'home').reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
-  const slot = Math.min(nativeItems.length, 3 + (hash % 3));
-  const publisher = publishers[hash % publishers.length];
-  if (!publisher) return nativeItems;
-  const existing = new Set(nativeItems.filter(item => item.type === 'publisher').map(item => String(item.data?.id)));
-  if (existing.has(String(publisher.id))) return nativeItems;
-  return [...nativeItems.slice(0, slot), { type:'publisher' as const, data:publisher }, ...nativeItems.slice(slot)];
-}
 function composeForYouContent(items: Item[]): Item[] {
   if (items.length < 3) return items;
 
@@ -156,7 +145,6 @@ function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:
     {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>onNavigate('/c/'+item.data.name)}/>}
     {item.type==='poll'&&<FeedPollCard poll={item.data} postId={item.data?.post_id} repliesCount={item.data?.replies_count ?? 0} />}
     {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>onNavigate('/p/'+item.data.id)}/>}
-    {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
     
   </div>;
 }
@@ -223,22 +211,7 @@ export default function HomeHubPage(){
     }
   },[]);
 
-  const hydratePublisherLayer=useCallback(async(seed:string|null = null)=>{
-    try{
-      const publisherItems=await loadPublisherFeed();
-      if(!publisherItems.length)return;
-      // Publisher discovery is secondary content. Never insert it into a feed
-      // while the reader is away from the top; doing so changes heights above
-      // the viewport and makes Android WebView appear to jump.
-      if (window.scrollY > 80) return;
-      setItems(prev=>{
-        const merged=blendPublisherItems(prev,publisherItems,seed);
-        if(merged===prev)return prev;
-        return merged;
-      });
-      await persistBuffer();
-    }catch(e){console.warn('[home-hub] publisher layer',e);}
-  },[persistBuffer]);
+
 
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
@@ -247,7 +220,7 @@ export default function HomeHubPage(){
         const next=await fetchTab(target,0);
         setItems(next);
         if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='polls'||target==='shopping'?12:10));
-      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}
+      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoadMoreError(e instanceof Error ? e.message : 'This section is temporarily unavailable.');}}
       finally{if(!background)setLoading(false);}
       return;
     }
@@ -281,14 +254,11 @@ export default function HomeHubPage(){
       }
       setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
-      void hydratePublisherLayer(background ? nextCursorRef.current : null);
     }catch(e){console.error('[home-hub]',e);if(!background){
-      const cached=await readHomeFeedCache().catch(()=>null);
-      if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; feedBufferOffsetRef.current=cached.items.length; setItems(cached.items); cacheCursorRef.current=cached.cursor; nextCursorRef.current=cached.cursor; setHasMore(Boolean(cached.cursor)); }
-      else {setItems([]);setHasMore(false);}
+      setItems([]);setHasMore(false);setLoadMoreError(e instanceof Error ? e.message : 'Feed unavailable.');
       setLoading(false);
     }}
-  },[fetchTab,persistBuffer,hydratePublisherLayer]);
+  },[fetchTab,persistBuffer]);
 
   useEffect(()=>{
     let active=true;
@@ -357,7 +327,7 @@ export default function HomeHubPage(){
           if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
           feedBufferOffsetRef.current=offset+page.length;
           setItems(prev=>appendUniqueFeedItems(prev,page));
-          setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+          setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
           return true;
         }
         if(nextCursorRef.current){
@@ -382,11 +352,6 @@ export default function HomeHubPage(){
           }
         }
         cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);return false;
-      }
-      if(tab==='federated'){
-        const next=await fetchTab('federated',0,nextCursor);
-        if(next.length)setItems(prev=>appendUniqueFeedItems(prev,next));
-        return next.length>0;
       }
       const nextPage=tabPageRef.current+1;
       const next=await fetchTab(tab,nextPage);
