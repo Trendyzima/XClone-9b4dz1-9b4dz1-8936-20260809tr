@@ -213,7 +213,6 @@ export default function AuthPage() {
   };
 
   const title = mode === 'signin' ? 'Welcome back'
-    : mode === 'signup' ? 'Create your account'
     : mode === 'signup' ? 'Registration is moving to Appwrite'
     : mode === 'verify' ? 'Verify your Appwrite email'
     : mode === 'recover' ? 'Reset your password'
