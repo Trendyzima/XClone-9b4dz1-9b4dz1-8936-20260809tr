@@ -1,4 +1,5 @@
-import { supabase } from './supabase';
+import { isFreshAppwriteMode, supabase } from './supabase';
+import { appwriteCompletePasswordRecovery, appwriteCreatePasswordRecovery, appwriteSignInWithPassword, appwriteSignOut, createAppwriteUserJWT } from './appwriteAuth';
 import { User } from '@supabase/supabase-js';
 import { AuthUser } from '@/types/app-types';
 
@@ -67,7 +68,86 @@ function readLegalConsent(): { birthDate: string; version: string; acceptedAt: s
   }
 }
 
+const FRESH_BACKEND_API_URL = import.meta.env.VITE_TESTAGRAM_API_URL?.trim() ?? "";
+
+async function freshBackendRequest<T>(path: string, jwt: string, method = "GET", body?: Record<string, unknown>): Promise<T> {
+  if (!FRESH_BACKEND_API_URL) throw new Error("Fresh Appwrite mode requires VITE_TESTAGRAM_API_URL to point to the private Testagram Backend API.");
+  let base: URL;
+  try { base = new URL(FRESH_BACKEND_API_URL); } catch { throw new Error("VITE_TESTAGRAM_API_URL must be an absolute HTTPS URL."); }
+  const localHTTP = base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname);
+  if ((base.protocol !== "https:" && !localHTTP) || base.username || base.password || base.search || base.hash) {
+    throw new Error("VITE_TESTAGRAM_API_URL must use HTTPS (HTTP is allowed only for localhost) and must not contain credentials, query or fragment.");
+  }
+  const response = await fetch(base.toString().replace(/\/$/, "") + path, {
+    method,
+    headers: { Authorization: "Bearer " + jwt, "Content-Type": "application/json", Accept: "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => null) as any;
+  if (!response.ok) {
+    const message = payload?.error?.message ?? payload?.message ?? ("Backend request failed (" + response.status + ").");
+    throw new Error(String(message));
+  }
+  return payload as T;
+}
+
+async function mapFreshAppwriteUserWithCanonicalProfile(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
+  const jwt = await createAppwriteUserJWT();
+  let profile: any;
+  try {
+    profile = await freshBackendRequest<any>("/v1/me", jwt);
+  } catch (error) {
+    if (!(error instanceof Error) || !/profile not found/i.test(error.message)) throw error;
+    const candidate = profileCandidate(user);
+    const displayName = String(candidate.displayName || candidate.username).slice(0, 80);
+    const saveProfile = (handle: string) => freshBackendRequest<any>("/v1/me/profile", jwt, "PUT", { display_name: displayName, handle, bio: "" });
+    try {
+      profile = await saveProfile(candidate.username);
+    } catch {
+      const suffix = user.id.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 8);
+      const fallbackHandle = (candidate.username.slice(0, 15) + "_" + suffix).toLowerCase();
+      profile = await saveProfile(fallbackHandle);
+    }
+  }
+
+  const consent = readLegalConsent();
+  const legal = await freshBackendRequest<any>("/v1/me/legal", jwt);
+  const legalData = legal?.data ?? legal;
+  const alreadyAccepted = Boolean(
+    legalData?.birth_date && legalData?.legal_terms_accepted_at && legalData?.legal_privacy_accepted_at &&
+    legalData?.legal_content_policy_accepted_at && legalData?.legal_age_confirmed_at &&
+    legalData?.legal_policy_version === LEGAL_POLICY_VERSION
+  );
+  if (legalData?.birth_date) {
+    const birthDate = new Date(legalData.birth_date + "T00:00:00");
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 18);
+    if (Number.isNaN(birthDate.getTime()) || birthDate > cutoff) throw new Error("AGE_RESTRICTION");
+  }
+  if (options.requireFreshLegalConsent && !consent) throw new Error("LEGAL_ACCEPTANCE_REQUIRED");
+  if (!alreadyAccepted) {
+    if (!consent) throw new Error("LEGAL_ACCEPTANCE_REQUIRED");
+    await freshBackendRequest<any>("/v1/me/legal", jwt, "PUT", {
+      birth_date: consent.birthDate, policy_version: consent.version, terms_accepted: true,
+      privacy_accepted: true, content_policy_accepted: true, age_confirmed: true,
+    });
+    try { window.localStorage.removeItem(LEGAL_CONSENT_STORAGE_KEY); } catch { /* storage is optional */ }
+  }
+
+  const username = String(profile?.handle ?? profile?.username ?? user.user_metadata?.username ?? "");
+  if (!username) throw new Error("Backend profile response did not include a canonical handle.");
+  return {
+    id: user.id, email: user.email || "", username,
+    avatar: typeof profile?.avatar_url === "string" ? profile.avatar_url : undefined,
+    verified: Boolean(profile?.verified_tier && profile.verified_tier !== "none"),
+    identityVerificationStatus: profile?.identity_verification_status ?? "pending",
+    identityVerifiedAt: profile?.identity_verified_at ?? undefined,
+  };
+}
+
 async function finalizeAuthenticatedSessionInternal(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
+  if (isFreshAppwriteMode) return mapFreshAppwriteUserWithCanonicalProfile(user, options);
   const consent = readLegalConsent();
   const { data: legalProfile, error: legalReadError } = await supabase
     .from('profiles')
@@ -118,6 +198,7 @@ async function finalizeAuthenticatedSessionInternal(user: User, options: { requi
 }
 
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
+  if (isFreshAppwriteMode) return mapFreshAppwriteUserWithCanonicalProfile(user);
   const mapped = mapSupabaseUser(user);
   let { data: profile, error } = await supabase.from('profiles').select('id, username, avatar_url, verified_tier, identity_verification_status, identity_verified_at').eq('id', user.id).maybeSingle();
   if (error) throw new Error(`Canonical profile lookup failed: ${error.message}`);
@@ -150,6 +231,7 @@ async function withAuthTimeout<T>(operation: PromiseLike<T> | Promise<T>, label:
 
 export class AuthService {
   async sendEmailOtp(emailInput: string, shouldCreateUser = false) {
+    if (isFreshAppwriteMode) throw new Error("APPWRITE_EMAIL_OTP_NOT_YET_ENABLED");
     const identifier = normalizeIdentifier(emailInput);
     if (identifier.kind !== 'email') throw new Error('Enter an email address for email verification');
     const { error } = await withAuthTimeout(
@@ -164,6 +246,7 @@ export class AuthService {
   }
 
   async verifyEmailOtp(emailInput: string, token: string, type: 'email' | 'signup' = 'email') {
+    if (isFreshAppwriteMode) throw new Error("APPWRITE_EMAIL_OTP_NOT_YET_ENABLED");
     const identifier = normalizeIdentifier(emailInput);
     if (identifier.kind !== 'email') throw new Error('Enter the email used for verification');
     const code = token.trim().replace(/\s+/g, '');
@@ -178,6 +261,7 @@ export class AuthService {
   }
 
   async sendMagicLink(emailInput: string) {
+    if (isFreshAppwriteMode) throw new Error("APPWRITE_MAGIC_LINK_NOT_YET_ENABLED");
     const identifier = normalizeIdentifier(emailInput);
     if (identifier.kind !== 'email') throw new Error('Enter an email address for your sign-in link');
     const { data, error } = await withAuthTimeout(
@@ -206,6 +290,11 @@ export class AuthService {
   }
 
   async signInWithPassword(identifierInput: string, password: string) {
+    if (isFreshAppwriteMode) {
+      const identifier = normalizeIdentifier(identifierInput);
+      if (identifier.kind !== "email") throw new Error("PHONE_OTP_REQUIRED");
+      return appwriteSignInWithPassword(identifier.value, password);
+    }
     const identifier = normalizeIdentifier(identifierInput);
     if (!password) throw new Error('Enter your password');
     const credentials = identifier.kind === 'email' ? { email: identifier.value, password } : { phone: identifier.value, password };
@@ -233,6 +322,12 @@ export class AuthService {
   }
 
   async resetPassword(email: string) {
+    if (isFreshAppwriteMode) {
+      const identifier = normalizeIdentifier(email);
+      if (identifier.kind !== "email") throw new Error("Password recovery requires an email address");
+      await appwriteCreatePasswordRecovery(identifier.value, CANONICAL_AUTH_REDIRECT_URL + "?reset=1");
+      return;
+    }
     const identifier = normalizeIdentifier(email);
     if (identifier.kind !== 'email') throw new Error('Password recovery requires an email address');
     const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(identifier.value, { redirectTo: `${CANONICAL_AUTH_REDIRECT_URL}?reset=1` }), 'Password recovery email');
@@ -241,13 +336,14 @@ export class AuthService {
 
   async updatePassword(password: string) {
     if (password.length < 8) throw new Error('Password must be at least 8 characters');
+    if (isFreshAppwriteMode) return appwriteCompletePasswordRecovery(password);
     const { data, error } = await withAuthTimeout(supabase.auth.updateUser({ password }), 'Password update');
     if (error) throw error;
     if (!data.user) throw new Error('Password update did not return a user');
     return data.user;
   }
 
-  async signOut() { const { error } = await supabase.auth.signOut(); if (error) throw error; }
+  async signOut() { if (isFreshAppwriteMode) return appwriteSignOut(); const { error } = await supabase.auth.signOut(); if (error) throw error; }
   mapUser(user: User): AuthUser { return mapSupabaseUser(user); }
 }
 export const authService = new AuthService();
