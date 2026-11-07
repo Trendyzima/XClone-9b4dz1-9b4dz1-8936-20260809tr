@@ -54,6 +54,7 @@ jobs:
       - run: npm run validate:replication-contract
       - run: npm run validate:tv-health
       - run: npm run validate:appwrite-client
+      - run: npm run validate:login-contract
       - run: npm run validate:routes
       - run: npm run build
 
