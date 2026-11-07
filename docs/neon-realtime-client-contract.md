@@ -14,7 +14,7 @@ XClone is a presentation/client only. It must not connect directly to Neon Postg
 
 1. XClone calls an authenticated Backend endpoint to request a conversation-scoped realtime ticket.
 2. Backend verifies conversation membership and returns a short-lived ticket (maximum five minutes).
-3. XClone opens wss://realtime.testagram.site/v1/realtime/conversations/{conversation_id} with the ticket in the Authorization Bearer header. Never put tickets in URL query parameters.
+3. Because the browser WebSocket API cannot set Authorization headers, XClone opens `wss://realtime.testagram.site/v1/realtime/conversations/{conversation_id}` with subprotocols `["testagram.realtime.v1", "ticket." + ticket]`. The Worker validates the ticket and negotiates only `testagram.realtime.v1`; it must never echo the ticket subprotocol. Never put tickets in URL query parameters, log them, or persist them.
 4. The WebSocket is receive-only for application events. XClone sends only ping frames.
 5. Sending/editing/deleting messages remains a normal authenticated Backend API request with a stable client_message_id/idempotency key.
 6. Backend commits the message to Neon and then publishes a signed event to Cloudflare Durable Objects.
