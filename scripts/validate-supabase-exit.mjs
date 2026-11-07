@@ -3,14 +3,14 @@ import { execFileSync } from 'node:child_process';
 
 // This is a release gate, not a compatibility shim. Fresh Testagram must have
 // no Supabase runtime, SDK, deployment, environment, or Edge Function surface.
-const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\\0').filter(Boolean);
+const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const targets = tracked.filter((file) =>
   file === 'package.json' || file === 'package-lock.json' ||
   file.startsWith('src/') || file.startsWith('api/') ||
   file.startsWith('supabase/') || file.startsWith('functions/') ||
   file.startsWith('.github/workflows/') ||
-  /^\\.env(?:\\.|$)/.test(file) ||
-  /^(?:vite|vitest|wrangler|netlify|vercel)\\./.test(file)
+  /^\.env(?:\.|$)/.test(file) ||
+  /^(?:vite|vitest|wrangler|netlify|vercel)\./.test(file)
 );
 const violations = [];
 for (const file of targets) {
