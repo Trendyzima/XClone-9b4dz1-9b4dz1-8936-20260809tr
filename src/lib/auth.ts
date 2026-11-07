@@ -1,5 +1,6 @@
 import { isFreshAppwriteMode, supabase } from './supabase';
-import { appwriteCompletePasswordRecovery, appwriteCreatePasswordRecovery, appwriteSignInWithPassword, appwriteSignOut, createAppwriteUserJWT } from './appwriteAuth';
+import { appwriteAuth } from '@/services/appwriteAuth';
+import type { Models } from 'appwrite';
 import { User } from '@supabase/supabase-js';
 import { AuthUser } from '@/types/app-types';
 
@@ -68,7 +69,27 @@ function readLegalConsent(): { birthDate: string; version: string; acceptedAt: s
   }
 }
 
-const FRESH_BACKEND_API_URL = import.meta.env.VITE_TESTAGRAM_API_URL?.trim() ?? "";
+function toCompatibleAppwriteUser(user: Models.User<Models.Preferences>): User {
+  return {
+    id: user.$id,
+    email: user.email ?? "",
+    phone: user.phone ?? "",
+    user_metadata: {
+      ...(user.prefs ?? {}),
+      name: user.name ?? "",
+      full_name: user.name ?? "",
+      username: typeof user.prefs?.username === "string" ? user.prefs.username : undefined,
+      avatar_url: typeof user.prefs?.avatar_url === "string" ? user.prefs.avatar_url : undefined,
+    },
+    app_metadata: { provider: "appwrite", providers: ["appwrite"] },
+    aud: "authenticated",
+    created_at: user.$createdAt,
+    updated_at: user.$updatedAt,
+    is_anonymous: false,
+  } as unknown as User;
+}
+
+const FRESH_BACKEND_API_URL = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? "").trim();
 
 async function freshBackendRequest<T>(path: string, jwt: string, method = "GET", body?: Record<string, unknown>): Promise<T> {
   if (!FRESH_BACKEND_API_URL) throw new Error("Fresh Appwrite mode requires VITE_TESTAGRAM_API_URL to point to the private Testagram Backend API.");
@@ -93,7 +114,7 @@ async function freshBackendRequest<T>(path: string, jwt: string, method = "GET",
 }
 
 async function mapFreshAppwriteUserWithCanonicalProfile(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
-  const jwt = await createAppwriteUserJWT();
+  const jwt = await appwriteAuth.createBackendJWT();
   let profile: any;
   try {
     profile = await freshBackendRequest<any>("/v1/me", jwt);
@@ -293,7 +314,7 @@ export class AuthService {
     if (isFreshAppwriteMode) {
       const identifier = normalizeIdentifier(identifierInput);
       if (identifier.kind !== "email") throw new Error("PHONE_OTP_REQUIRED");
-      return appwriteSignInWithPassword(identifier.value, password);
+      return toCompatibleAppwriteUser(await appwriteAuth.signInWithPassword({ email: identifier.value, password }));
     }
     const identifier = normalizeIdentifier(identifierInput);
     if (!password) throw new Error('Enter your password');
@@ -325,7 +346,7 @@ export class AuthService {
     if (isFreshAppwriteMode) {
       const identifier = normalizeIdentifier(email);
       if (identifier.kind !== "email") throw new Error("Password recovery requires an email address");
-      await appwriteCreatePasswordRecovery(identifier.value, CANONICAL_AUTH_REDIRECT_URL + "?reset=1");
+      await appwriteAuth.requestPasswordRecovery(identifier.value);
       return;
     }
     const identifier = normalizeIdentifier(email);
@@ -336,14 +357,14 @@ export class AuthService {
 
   async updatePassword(password: string) {
     if (password.length < 8) throw new Error('Password must be at least 8 characters');
-    if (isFreshAppwriteMode) return appwriteCompletePasswordRecovery(password);
+    if (isFreshAppwriteMode) throw new Error("APPWRITE_RECOVERY_CONTEXT_REQUIRED");
     const { data, error } = await withAuthTimeout(supabase.auth.updateUser({ password }), 'Password update');
     if (error) throw error;
     if (!data.user) throw new Error('Password update did not return a user');
     return data.user;
   }
 
-  async signOut() { if (isFreshAppwriteMode) return appwriteSignOut(); const { error } = await supabase.auth.signOut(); if (error) throw error; }
+  async signOut() { if (isFreshAppwriteMode) return appwriteAuth.signOut(); const { error } = await supabase.auth.signOut(); if (error) throw error; }
   mapUser(user: User): AuthUser { return mapSupabaseUser(user); }
 }
 export const authService = new AuthService();
