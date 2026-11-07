@@ -5,6 +5,7 @@ const read = (path) => fs.readFileSync(path, 'utf8');
 const auth = read('src/services/appwriteAuth.ts');
 const provider = read('src/components/layout/AuthProvider.tsx');
 const page = read('src/pages/AuthPage.tsx');
+const legalGate = read('src/components/auth/LegalAcceptanceGate.tsx');
 const domain = read('src/lib/auth.ts');
 const api = read('src/services/testagramApi.ts');
 const transport = read('src/services/testagramApiClient.ts');
@@ -22,6 +23,11 @@ assert.match(provider, /appwriteAuth\.getCurrentUser\(\)/, 'App launch must hydr
 assert.match(provider, /finalizeAuthenticatedSession\(user\)/, 'Restored sessions must be checked against the canonical Backend.');
 assert.match(page, /appwriteAuth\.signInWithPassword\(\{ email, password \}\)/, 'Login form must use Appwrite email/password authentication.');
 assert.match(page, /await finishLogin\(user\)/, 'Successful Appwrite login must finish Backend authorization before navigation.');
+assert.match(page, /LegalAcceptanceGate/, 'Approved users missing current consent must be shown the legal acceptance gate rather than being stranded on the login form.');
+assert.match(page, /finishLogin\(legalPendingUser, true\)/, 'Legal acceptance must be persisted to the Backend before navigation.');
+assert.match(legalGate, /LEGAL_POLICY_VERSION/, 'The consent gate must use the current policy version.');
+assert.match(legalGate, /age < 18/, 'The consent gate must enforce the adult-only policy.');
+assert.match(legalGate, /localStorage\.setItem\(LEGAL_CONSENT_STORAGE_KEY/, 'The consent gate must persist a pending consent payload for Backend submission.');
 assert.match(page, /Log in securely/, 'Login form must expose an actionable submit control.');
 
 assert.match(domain, /\/v1\/me/, 'Session finalization must resolve the canonical Backend profile.');
