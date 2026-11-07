@@ -1119,12 +1119,12 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
                     <span className="text-xl">⚠️</span>
                   </div>
                   <div>
-                    <h3 className="font-black text-base">Policy Warning</h3>
-                    <p className="text-xs text-muted-foreground">Score: {violationScore}/100</p>
+                    <h3 className="font-black text-base">{isFreshAppwriteMode ? 'Publishing Paused' : 'Policy Warning'}</h3>
+                    {!isFreshAppwriteMode && <p className="text-xs text-muted-foreground">Score: {violationScore}/100</p>}
                   </div>
                   <button onClick={() => setShowViolationWarning(false)} className="ml-auto text-muted-foreground"><X className="w-4 h-4" /></button>
                 </div>
-                <p className="text-sm text-muted-foreground mb-1">AI detected potential policy violation:</p>
+                <p className="text-sm text-muted-foreground mb-1">{isFreshAppwriteMode ? 'Why you cannot publish yet:' : 'AI detected potential policy violation:'}</p>
                 <p className="text-sm font-semibold text-orange-600 mb-4">{violationReason}</p>
                 <p className="text-xs text-muted-foreground mb-1">{isFreshAppwriteMode ? 'Fresh-mode publishing remains paused until Backend moderation is available.' : 'You can edit your post or post anyway. Repeated violations may result in account restrictions.'}</p>
                 <button onClick={() => { setShowViolationWarning(false); navigate('/policy'); }} className="text-xs text-primary hover:underline font-semibold mb-3 block">View Content Policy →</button>
