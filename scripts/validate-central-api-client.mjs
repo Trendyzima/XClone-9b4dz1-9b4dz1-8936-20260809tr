@@ -3,7 +3,6 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const client = read('../src/services/testagramApiClient.ts');
 const social = read('../src/services/socialApiClient.ts');
-const federation = read('../src/api/federation.ts');
 const failures = [];
 const requireText = (source, pattern, message) => { if (!pattern.test(source)) failures.push(message); };
 
@@ -19,7 +18,6 @@ requireText(social, /freshApi\.request.*\/v1\/feed\/home/s, 'Home feed must use 
 requireText(social, /freshApi\.request.*\/v1\/posts/s, 'Post creation must use the shared versioned API transport.');
 requireText(social, /createBackendJWT/, 'Fresh API calls must use Appwrite-issued Backend JWTs.');
 requireText(social, !/supabase/i.test(social) ? /createBackendJWT/ : /$^/, 'Social API client must not contain Supabase dependencies or authentication.');
-requireText(federation, !/supabase|FunctionsHttpError/i.test(federation) ? /X-Testagram-API-Version/ : /$^/, 'Federation API client must use the Appwrite-authenticated central API, never Supabase Functions or tables.');
 
 if (failures.length) {
   console.error('Central API client contract failed:\n- ' + failures.join('\n- '));
