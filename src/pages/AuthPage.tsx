@@ -228,7 +228,6 @@ export default function AuthPage() {
     : 'Choose a new password';
   const subtitle = mode === 'signin' ? 'Sign in securely with your Testagram account.'
      : mode === 'signup' ? 'Verify your email and identity before your Appwrite account is created.'
-    : mode === 'otp' ? 'Enter the six-digit registration code sent to ' + (email || 'your email address') + '.'
     : mode === 'verify' ? 'Open the secure Appwrite verification link sent to ' + (email || 'your email address') + '.'
     : mode === 'recover' ? 'We’ll send a secure, time-limited recovery link to your email.'
     : 'Choose a new password for your Testagram account.';
