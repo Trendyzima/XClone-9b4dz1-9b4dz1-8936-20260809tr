@@ -84,6 +84,8 @@ export default function AuthPage() {
     } catch (error) {
       if (error instanceof Error && error.message === 'IDENTITY_VERIFICATION_REQUIRED') {
         try { await appwriteAuth.signOut(); } catch { /* best-effort cleanup */ }
+        setLegalPendingUser(null);
+        setMode('signin');
       }
       if (error instanceof Error && error.message === 'LEGAL_ACCEPTANCE_REQUIRED') {
         setLegalPendingUser(user);
