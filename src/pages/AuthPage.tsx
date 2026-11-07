@@ -278,7 +278,7 @@ export default function AuthPage() {
                   ) : (
                     <div className="space-y-4 rounded-3xl border border-amber-500/20 bg-amber-500/5 p-5">
                       <div className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-amber-600" /> Registration temporarily paused</div>
-                      <p className="text-sm leading-6 text-muted-foreground">We are replacing the remaining Supabase identity-verification and evidence-upload services with the Go Backend and private Backblaze B2 storage. New accounts will remain unavailable until that secure flow is complete. Existing Appwrite accounts can still sign in.</p>
+                      <p className="text-sm leading-6 text-muted-foreground">Identity approval and evidence upload must be completed by the Backend before an account can be provisioned. New accounts remain paused until that secure flow is complete. Existing approved Appwrite accounts can still sign in.</p>
                       <Button type="button" variant="outline" onClick={() => go('signin')} className="w-full rounded-2xl">Back to sign in</Button>
                     </div>
                   )}
