@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 export type WalletPhoneIdentity = {
   id: string;
@@ -13,7 +14,7 @@ export type WalletPhoneIdentity = {
 };
 
 /**
- * Normalize Kenyan mobile numbers before handing them to Supabase Auth.
+ * Normalize Kenyan mobile numbers before requesting Backend-managed phone verification.
  * The wallet stores the E.164 representation so M-Pesa and wallet lookups
  * have one canonical address.
  */
@@ -25,66 +26,33 @@ export function normalizeKenyaPhone(input: string): string {
   throw new Error('Enter a valid Kenyan mobile number, e.g. 0712345678.');
 }
 
-/**
- * Starts phone verification for an already authenticated Testagram account.
- * This is deliberately updateUser(), not signInWithOtp(): the existing
- * Supabase identity remains authoritative and the phone becomes a verified
- * credential attached to that identity rather than a second user account.
- */
+/** Phone OTP is delivered and verified by Backend; Appwrite remains the account identity. */
 export async function requestWalletPhoneOtp(phoneInput: string) {
   const phone = normalizeKenyaPhone(phoneInput);
-  const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData.session?.user) throw new Error('Authentication required.');
-
-  const { error } = await supabase.auth.updateUser({ phone });
-  if (error) throw error;
+  const user = await appwriteAuth.getCurrentUser();
+  if (!user) throw new Error('Authentication required.');
+  await backendCapabilities.call('testagram.wallet.phone.request_otp', { phone });
   return { phone };
 }
 
-/**
- * Verifies the SMS code issued by updateUser({ phone }). Supabase uses the
- * phone_change OTP type for this flow; successful verification refreshes the
- * authenticated session with the verified phone claim.
- */
 export async function verifyWalletPhoneOtp(phoneInput: string, token: string) {
   const phone = normalizeKenyaPhone(phoneInput);
   const cleanToken = token.replace(/\D/g, '');
-  if (cleanToken.length < 6) throw new Error('Enter the 6-digit OTP.');
-
-  const { data, error } = await supabase.auth.verifyOtp({
-    phone,
-    token: cleanToken,
-    type: 'phone_change',
-  });
-  if (error) throw error;
-  if (!data.user) throw new Error('Phone verification did not return a user.');
-
-  return { phone, userId: data.user.id, user: data.user, session: data.session };
+  if (!/^\d{6}$/.test(cleanToken)) throw new Error('Enter the 6-digit OTP.');
+  const result = await backendCapabilities.call<{ verified: boolean }>('testagram.wallet.phone.verify_otp', { phone, otp: cleanToken });
+  if (!result.verified) throw new Error('Phone verification could not be confirmed.');
+  const user = await appwriteAuth.getCurrentUser();
+  if (!user) throw new Error('Authentication required.');
+  return { phone, userId: user.$id, user };
 }
 
-/**
- * Makes the verified phone the wallet's canonical address. The database RLS
- * policy requires the phone to match the verified phone claim in the current
- * Supabase JWT, so an unverified number cannot be attached by the browser.
- */
 export async function linkVerifiedPhoneToWallet(walletId: string, phoneInput: string) {
   const phone = normalizeKenyaPhone(phoneInput);
-  const { data, error } = await supabase.rpc('link_verified_phone_to_wallet', {
-    p_wallet_id: walletId,
-    p_phone_e164: phone,
-  });
-  if (error) throw error;
-  return data as WalletPhoneIdentity;
+  return backendCapabilities.call<WalletPhoneIdentity>('testagram.wallet.phone.link', { wallet_id: walletId, phone_e164: phone });
 }
 
 export async function getWalletPhoneIdentity(walletId: string) {
-  const { data, error } = await supabase
-    .from('wallet_phone_identities')
-    .select('*')
-    .eq('wallet_id', walletId)
-    .maybeSingle();
-  if (error) throw error;
-  return data as WalletPhoneIdentity | null;
+  return backendCapabilities.call<WalletPhoneIdentity | null>('testagram.wallet.phone.read', { wallet_id: walletId });
 }
 
 export const walletPhoneAuthService = {
