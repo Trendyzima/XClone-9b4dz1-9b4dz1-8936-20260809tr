@@ -13,7 +13,6 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable, homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT } from '@/lib/homeFeedCache';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
-import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 import { TvPostStream } from '@/components/features/TvPostStream';
 import { NewsifyTrendingRail } from '@/components/features/NewsifyTrendingRail';
 import { OrganicSportsStories } from '@/components/features/OrganicSportsStories';
@@ -27,7 +26,7 @@ const ContentSuggestionsWidget = lazy(() => import('@/components/features/Conten
 const UserSuggestionsWidget = lazy(() => import('@/components/features/UserSuggestionsWidget').then(m => ({ default: m.UserSuggestionsWidget })));
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
-type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'|'publisher'; data:any };
+type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
 
 function normalizeFederatedFeedItems(posts:any[]):Item[]{
   return posts.map((p:any)=>({type:'fedpost' as const,data:{...p,id:p.id??p.uri,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published,user_profiles:p.user_profiles??p.remote_account??p.actor??p.account??p.author??{},media_urls:p.media_urls??p.mediaUrls??p.attachments??[],image_url:p.image_url??p.preview_image_url??p.thumbnail_url,video_url:p.video_url??p.videoUrl,is_video:Boolean(p.is_video||p.video_url||p.videoUrl),is_federated:true}}));
@@ -46,16 +45,6 @@ function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.
   return out;
 }
 
-function blendPublisherItems(nativeItems: Item[], publishers: FeedItem[], seed: string|null): Item[] {
-  if (!nativeItems.length || !publishers.length) return nativeItems;
-  const hash = Array.from(seed ?? 'home').reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
-  const slot = Math.min(nativeItems.length, 3 + (hash % 3));
-  const publisher = publishers[hash % publishers.length];
-  if (!publisher) return nativeItems;
-  const existing = new Set(nativeItems.filter(item => item.type === 'publisher').map(item => String(item.data?.id)));
-  if (existing.has(String(publisher.id))) return nativeItems;
-  return [...nativeItems.slice(0, slot), { type:'publisher' as const, data:publisher }, ...nativeItems.slice(slot)];
-}
 function composeForYouContent(items: Item[]): Item[] {
   if (items.length < 3) return items;
 
@@ -135,7 +124,6 @@ const TABS: {id:Tab;label:string}[] = [
   {id:'shopping',label:'Shopping'},{id:'federated',label:'Federated'},
 ];
 const StoriesStrip = lazy(() => import('@/components/features/StoriesStrip').then(m => ({ default: m.StoriesStrip })));
-const profileSelect='user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)';
 
 function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:Item;index:number;lastElementRef:((node:HTMLElement|null)=>void)|null;tab:Tab;onUpdate:()=>void;onNavigate:(path:string)=>void}) {
   const hostRef=useRef<HTMLDivElement|null>(null);
@@ -162,7 +150,6 @@ function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:
     {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>onNavigate('/c/'+item.data.name)}/>}
     {item.type==='poll'&&<FeedPollCard poll={item.data} postId={item.data?.post_id} repliesCount={item.data?.replies_count ?? 0} />}
     {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>onNavigate('/p/'+item.data.id)}/>}
-    {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
     
   </div>;
 }
@@ -172,7 +159,7 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
-  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined); const federatedCursorRef=useRef<string|null>(null); const federatedExhaustedRef=useRef(false);
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined); 
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
@@ -220,23 +207,6 @@ export default function HomeHubPage(){
     }
   },[cacheKey]);
 
-  const hydratePublisherLayer=useCallback(async(seed:string|null = null)=>{
-    try{
-      const publisherItems=await loadPublisherFeed();
-      if(!publisherItems.length)return;
-      // Publisher discovery is secondary content. Never insert it into a feed
-      // while the reader is away from the top; doing so changes heights above
-      // the viewport and makes Android WebView appear to jump.
-      if (window.scrollY > 80) return;
-      setItems(prev=>{
-        const merged=blendPublisherItems(prev,publisherItems,seed);
-        if(merged===prev)return prev;
-        return merged;
-      });
-      await persistBuffer();
-    }catch(e){console.warn('[home-hub] publisher layer',e);}
-  },[persistBuffer]);
-
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
       if(!background){setLoading(true);tabPageRef.current=0;setLoadMoreError(null);}
@@ -276,16 +246,15 @@ export default function HomeHubPage(){
         cacheCursorRef.current=nextCursorRef.current;
         setLoading(false);
       }
-      setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+      setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
-      void hydratePublisherLayer(background ? nextCursorRef.current : null);
     }catch(e){console.error('[home-hub]',e);if(!background){
       const cached=await readHomeFeedCache(cacheKey).catch(()=>null);
       if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; feedBufferOffsetRef.current=cached.items.length; setItems(cached.items); cacheCursorRef.current=cached.cursor; nextCursorRef.current=cached.cursor; setHasMore(Boolean(cached.cursor)); }
       else {setItems([]);setHasMore(false);}
       setLoading(false);
     }}
-  },[fetchTab,persistBuffer,hydratePublisherLayer]);
+  },[fetchTab,persistBuffer,cacheKey]);
 
   useEffect(()=>{
     let active=true;
@@ -340,7 +309,7 @@ export default function HomeHubPage(){
       void load('all',true);
     },30000);
     return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);};
-  },[tab]);
+  },[tab,user?.id]);
 
   useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab]);
   useEffect(()=>{if(newCount>0&&window.scrollY<500)setNewCount(0);},[newCount]);
@@ -356,7 +325,7 @@ export default function HomeHubPage(){
           if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
           feedBufferOffsetRef.current=offset+page.length;
           setItems(prev=>appendUniqueFeedItems(prev,page));
-          setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+          setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
           return true;
         }
         if(nextCursorRef.current){
@@ -375,7 +344,7 @@ export default function HomeHubPage(){
             if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
             feedBufferOffsetRef.current=beforeLength+page.length;
             setItems(prev=>appendUniqueFeedItems(prev,page));
-            setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+            setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
             await persistBuffer();
             return true;
           }
