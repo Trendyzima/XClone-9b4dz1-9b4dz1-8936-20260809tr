@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import type { ComponentProps, ComponentType } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -69,9 +69,9 @@ export default function AuthPage() {
   const authUser = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
 
-  const finishLogin = async (user: Models.User<Models.Preferences>, requireFreshLegalConsent = false) => {
+  const finishLogin = useCallback(async (user: Models.User<Models.Preferences>, requireFreshLegalConsent = false) => {
     if (!user.emailVerification) {
-      setEmail(user.email || email);
+      setEmail(user.email || '');
       setMode('verify');
       setLoading(false);
       return;
@@ -80,7 +80,7 @@ export default function AuthPage() {
     login(finalized);
     setLoading(false);
     navigate(getSafeReturnTo(), { replace: true });
-  };
+  }, [login, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,7 +127,7 @@ export default function AuthPage() {
     }
 
     return () => { cancelled = true; };
-  }, []);
+  }, [finishLogin, login, navigate, toast]);
 
   useEffect(() => {
     if (authUser && !['verify', 'reset'].includes(mode)) navigate(getSafeReturnTo(), { replace: true });
