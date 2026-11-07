@@ -1,40 +1,44 @@
-import { appwriteAuth } from '@/services/appwriteAuth';
+import { testagramApi } from '@/services/testagramApi';
+import { TestagramApiError } from '@/services/testagramApiClient';
 import { megalodonGatewayService } from '@/services/megalodonGateway';
 
-const apiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
-const apiBase = apiOrigin ? `${apiOrigin}/api/social` : '/api/social';
-async function getToken(): Promise<string | null> { try { return await appwriteAuth.createBackendJWT(); } catch { return null; } }
 function remoteInstanceFromHandle(acct: string): string | null {
   const normalized = acct.trim().replace(/^@/, ''); const parts = normalized.split('@');
   if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
   return `https://${parts[1].replace(/\/$/, '')}`;
 }
 async function api<T = any>(path: string, method = 'GET', body?: unknown, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
-  const token = await getToken();
-  if (!token) throw new GatewayError(401, 'An authenticated Appwrite session is required', path);
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params ?? {})) if (value !== undefined && value !== null) query.set(key, String(value));
-  const url = `${apiBase}${path}${query.size ? (path.includes('?') ? '&' : '?') + query.toString() : ''}`;
-  const controller = new AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), 12000);
+  const [routePath, rawQuery] = path.split('?', 2);
+  const query = new URLSearchParams(rawQuery ?? '');
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== null) query.set(key, String(value));
+  }
+  const cleanParams = Object.fromEntries(query.entries());
   try {
-    const response = await fetch(url, { method, headers: { Accept: 'application/json', Authorization: `Bearer ${token}`,
-      'X-Testagram-API-Version': '1', 'X-Request-ID': globalThis.crypto?.randomUUID?.() ?? `fed-${Date.now()}`,
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-      body: body === undefined ? undefined : JSON.stringify(body), credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal });
-    const payload = await response.json().catch(() => null) as any;
-    if (!response.ok || payload?.ok === false) throw new GatewayError(response.status, payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`, path);
-    return (payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload) as T;
+    return await testagramApi.request<T>('/v1/capabilities', {
+      method: 'POST',
+      body: {
+        capability: 'testagram.federation.gateway',
+        input: {
+          path: routePath.startsWith('/') ? routePath : '/' + routePath,
+          method: method.toUpperCase(),
+          ...(body === undefined ? {} : { body }),
+          ...(Object.keys(cleanParams).length ? { params: cleanParams } : {}),
+        },
+      },
+    });
   } catch (error) {
-    if (error instanceof GatewayError) throw error;
-    throw new GatewayError(0, error instanceof DOMException && error.name === 'AbortError' ? 'Testagram API request timed out' : 'Testagram API is unreachable', path);
-  } finally { globalThis.clearTimeout(timer); }
+    if (error instanceof TestagramApiError) {
+      throw new GatewayError(error.status, error.message, routePath);
+    }
+    throw new GatewayError(0, error instanceof Error ? error.message : 'Testagram Backend is unavailable', routePath);
+  }
 }
 export class GatewayError extends Error {
   constructor(public status: number, public body: string, public path: string) { super(`Testagram API error on ${path}: ${body}`); this.name = 'GatewayError'; }
 }
 export function isGatewayAvailable(): boolean { return true; }
-export function getGatewayUrl(): string { return apiBase; }
+export function getGatewayUrl(): string { return '/v1/capabilities'; }
 export interface TimelineParams { limit?: number; before?: string; after?: string; feedId?: string; }
 export interface FederatedPage { items: any[]; pagination: { limit: number; hasMore: boolean; nextCursor: string | null }; }
 interface RemoteSearchResult { accounts?: any[]; statuses?: any[]; hashtags?: any[]; }
