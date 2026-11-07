@@ -75,7 +75,15 @@ export default function AuthPage() {
       setLoading(false);
       return;
     }
-    const finalized = await finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
+    let finalized;
+    try {
+      finalized = await finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'IDENTITY_VERIFICATION_REQUIRED') {
+        try { await appwriteAuth.signOut(); } catch { /* best-effort cleanup */ }
+      }
+      throw error;
+    }
     login(finalized);
     setLoading(false);
     navigate(getSafeReturnTo(), { replace: true });
