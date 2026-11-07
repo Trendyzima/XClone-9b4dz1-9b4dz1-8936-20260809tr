@@ -111,6 +111,30 @@ async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELET
 export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
 export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
 
+
+async function requestPublicFeed(url: string): Promise<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(12000),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new SocialApiError('Feed request timed out. Please retry.', 0, 'TIMEOUT');
+    }
+    throw new SocialApiError('Testagram feed service is unreachable.', 0, 'NETWORK_ERROR');
+  }
+  const payload = await response.json().catch(() => null) as SocialEnvelope<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }> | null;
+  if (!response.ok || !payload?.ok || payload.data == null) {
+    throw new SocialApiError(payload?.error?.message || `Public feed request failed (${response.status}).`, response.status, payload?.error?.code || 'SOCIAL_API_ERROR', payload?.request_id || null);
+  }
+  return payload.data;
+}
+
 export const socialApi = {
   getHomeFeed(limit = 20, before?: string) {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
@@ -118,6 +142,12 @@ export const socialApi = {
     return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
       `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
     );
+  },
+  getPublicHomeFeed(limit = 20, before?: string) {
+    const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
+    if (before) query.set('before', before);
+    const base = freshApiOrigin ? `${freshApiOrigin}/v1/feed/public` : '/v1/feed/public';
+    return requestPublicFeed(`${base}?${query.toString()}`);
   },
   createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
     const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `post-${Date.now()}-${Math.random().toString(36).slice(2)}`;
