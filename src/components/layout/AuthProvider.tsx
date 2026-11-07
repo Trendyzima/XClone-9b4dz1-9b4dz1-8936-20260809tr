@@ -87,14 +87,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(true);
         try {
           const appwriteUser = await appwriteAuth.getCurrentUser();
-          const user = mapAppwriteAuthUser(appwriteUser);
           if (!mounted) return;
-          if (!user) {
+          if (!appwriteUser) {
             clearTestagramSessionLifetime();
             logout();
             setLoading(false);
             return;
           }
+          const user = mapAppwriteAuthUser(appwriteUser);
           const valid = await withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation");
           if (!valid) {
             await appwriteAuth.signOut();
