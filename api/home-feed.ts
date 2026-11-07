@@ -24,13 +24,32 @@ function json(request: Request, status: number, body: unknown, requestId = ''): 
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+function isPrivateIPv4(hostname: string): boolean {
+  const parts = hostname.split('.');
+  if (parts.length !== 4) return false;
+  const octets = parts.map((part) => /^\\d{1,3}$/.test(part) ? Number(part) : -1);
+  if (octets.some((part) => part < 0 || part > 255)) return false;
+  const [a, b] = octets;
+  return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) || (a === 169 && b === 254);
+}
+
+function isTrustedPrivateBackendHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\\[|\\]$/g, '');
+  return host === 'localhost' || host === 'backend' || host === 'api' ||
+    host.endsWith('.internal') || host.endsWith('.local') || host === '::1' ||
+    isPrivateIPv4(host);
+}
+
 function backendOrigin(): string | null {
   const raw = (process.env.TESTAGRAM_BACKEND_API_URL ?? process.env.TESTAGRAM_FRESH_API_URL ?? '').trim();
   if (!raw) return null;
   try {
     const url = new URL(raw);
-    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) ||
+    const privateHost = isTrustedPrivateBackendHost(url.hostname);
+    // Internal Docker/Kubernetes service discovery commonly uses HTTP on a
+    // private network. Public hosts must use HTTPS; redirects are never followed.
+    if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && privateHost)) ||
         url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
     return url.origin;
   } catch {
