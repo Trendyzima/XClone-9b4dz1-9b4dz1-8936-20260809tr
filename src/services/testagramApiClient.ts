@@ -55,16 +55,40 @@ function retryDelay(response: Response, attempt: number): number {
   return Math.min(1000, 150 * (2 ** attempt));
 }
 
-function appendQuery(url: string, query?: TestagramApiRequestOptions['query']): string {
+function appendQuery(url: URL, query?: TestagramApiRequestOptions['query']): URL {
   if (!query) return url;
-  const params = query instanceof URLSearchParams ? new URLSearchParams(query) : new URLSearchParams();
-  if (!(query instanceof URLSearchParams)) {
+  if (query instanceof URLSearchParams) {
+    query.forEach((value, key) => url.searchParams.set(key, value));
+  } else {
     for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined && value !== null) params.set(key, String(value));
+      if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
   }
-  const encoded = params.toString();
-  return encoded ? `${url}${url.includes('?') ? '&' : '?'}${encoded}` : url;
+  return url;
+}
+
+function normalizeBaseURL(value: string): URL {
+  let base: URL;
+  try { base = new URL(value); }
+  catch { throw new TestagramApiError('Testagram Backend API origin is not configured as an absolute URL.', 0, 'API_ORIGIN_INVALID'); }
+  const localHTTP = base.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname);
+  if ((base.protocol !== 'https:' && !localHTTP) || base.username || base.password ||
+      (base.pathname !== '/' && base.pathname !== '') || base.search || base.hash) {
+    throw new TestagramApiError('Testagram Backend API origin must use HTTPS (HTTP only on localhost) and contain no credentials, path, query or fragment.', 0, 'API_ORIGIN_INVALID');
+  }
+  return base;
+}
+
+function normalizePath(path: string, base: URL): URL {
+  if (typeof path !== 'string' || !path.startsWith('/v1/') || path.startsWith('/v1/internal/') ||
+      path.startsWith('//') || /[\\r\\n\\\\]/.test(path)) {
+    throw new TestagramApiError('Browser transport accepts public, versioned /v1 routes only.', 0, 'API_PATH_NOT_ALLOWED');
+  }
+  const url = new URL(path, base);
+  if (url.origin !== base.origin || !url.pathname.startsWith('/v1/') || url.pathname.startsWith('/v1/internal/')) {
+    throw new TestagramApiError('API request path escaped the configured Backend origin.', 0, 'API_PATH_NOT_ALLOWED');
+  }
+  return url;
 }
 
 function parseError(payload: any, response: Response, id: string): TestagramApiError {
@@ -72,60 +96,66 @@ function parseError(payload: any, response: Response, id: string): TestagramApiE
   const message = typeof error === 'string' ? error : error?.message ?? payload?.message;
   const code = typeof error === 'object' ? error?.code : payload?.code;
   const responseRequestId = payload?.request_id ?? response.headers.get('X-Request-ID') ?? id;
+  const rawRetryAfter = response.headers.get('Retry-After');
+  let retryAfterMs: number | null = null;
+  if (rawRetryAfter) {
+    const seconds = Number(rawRetryAfter);
+    retryAfterMs = Number.isFinite(seconds) ? Math.max(0, seconds * 1000) : Math.max(0, Date.parse(rawRetryAfter) - Date.now());
+  }
   return new TestagramApiError(
     message || `Testagram API request failed (HTTP ${response.status}).`,
     response.status,
     code || 'API_REQUEST_FAILED',
     responseRequestId,
-    (() => {
-      const raw = response.headers.get('Retry-After');
-      if (!raw) return null;
-      const seconds = Number(raw);
-      return Number.isFinite(seconds) ? Math.max(0, seconds * 1000) : Math.max(0, Date.parse(raw) - Date.now());
-    })(),
+    retryAfterMs,
   );
 }
 
 export function createTestagramApiClient(options: TestagramApiClientOptions) {
-  const baseURL = (options.baseURL ?? '').trim().replace(/\/+$/, '');
   const fetcher = options.fetcher ?? fetch;
   const maxReadRetries = Math.min(3, Math.max(0, options.maxReadRetries ?? 2));
 
   return {
     async request<T>(path: string, requestOptions: TestagramApiRequestOptions = {}): Promise<T> {
-      if (!path.startsWith('/v1/') || path.startsWith('/v1/internal/') || path.includes('\\') || path.includes('..') || path.includes('?') || path.includes('#')) {
-        throw new TestagramApiError('Only safe public, versioned Backend API paths are allowed.', 0, 'API_PATH_NOT_ALLOWED');
-      }
+      const base = normalizeBaseURL((options.baseURL ?? '').trim());
+      const url = appendQuery(normalizePath(path, base), requestOptions.query);
       const method = requestOptions.method ?? 'GET';
-      const url = appendQuery(`${baseURL}${path}`, requestOptions.query);
       const token = await options.getAccessToken();
-      if (!token || /[\r\n]/.test(token)) throw new TestagramApiError('A valid Testagram session is required.', 401, 'AUTH_REQUIRED');
+      if (!token || /[\\r\\n]/.test(token)) {
+        throw new TestagramApiError('A valid Testagram session is required.', 401, 'AUTH_REQUIRED');
+      }
+
       const id = requestId();
       const headers = new Headers(requestOptions.headers);
-      // Caller-supplied headers cannot replace authentication, tracing or API version.
+      // Set protected headers after caller headers so they cannot be overridden.
       headers.set('Accept', 'application/json');
       headers.set('Authorization', `Bearer ${token}`);
       headers.set('X-Request-ID', id);
       headers.set('X-Testagram-API-Version', '1');
       if (requestOptions.body !== undefined) headers.set('Content-Type', 'application/json');
       if (requestOptions.idempotencyKey) headers.set('Idempotency-Key', requestOptions.idempotencyKey);
-      const attempts = method === 'GET' ? maxReadRetries + 1 : 1;
 
+      const attempts = method === 'GET' ? maxReadRetries + 1 : 1;
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const controller = new AbortController();
         const timeoutMs = Math.max(500, Math.min(30000, requestOptions.timeoutMs ?? options.defaultTimeoutMs ?? 10000));
         let timedOut = false;
+        let callerAborted = false;
         const timer = globalThis.setTimeout(() => {
           timedOut = true;
           controller.abort();
         }, timeoutMs);
-        const abort = () => controller.abort();
-        if (requestOptions.signal?.aborted) controller.abort();
-        else requestOptions.signal?.addEventListener('abort', abort, { once: true });
+        const abortFromCaller = () => {
+          callerAborted = true;
+          controller.abort();
+        };
+        if (requestOptions.signal?.aborted) abortFromCaller();
+        else requestOptions.signal?.addEventListener('abort', abortFromCaller, { once: true });
+
         let response: Response;
         let payload: any;
         try {
-          response = await fetcher(url, {
+          response = await fetcher(url.toString(), {
             method,
             headers,
             body: requestOptions.body === undefined ? undefined : JSON.stringify(requestOptions.body),
@@ -134,22 +164,17 @@ export function createTestagramApiClient(options: TestagramApiClientOptions) {
             redirect: 'error',
             signal: controller.signal,
           });
+          // Keep the timeout active until the response body has been consumed.
           payload = await response.json().catch(() => null) as any;
         } catch (error) {
-          if (timedOut) {
-            throw new TestagramApiError('Testagram API request timed out.', 0, 'API_TIMEOUT', id);
-          }
-          if (requestOptions.signal?.aborted) {
-            throw new TestagramApiError('Testagram API request was cancelled.', 0, 'API_ABORTED', id);
-          }
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            throw new TestagramApiError('Testagram API request was aborted.', 0, 'API_ABORTED', id);
-          }
+          if (timedOut) throw new TestagramApiError('Testagram API request timed out.', 0, 'API_TIMEOUT', id);
+          if (callerAborted) throw new TestagramApiError('Testagram API request was cancelled.', 0, 'API_ABORTED', id);
           throw new TestagramApiError('Testagram API is unreachable.', 0, 'API_NETWORK_ERROR', id);
         } finally {
           globalThis.clearTimeout(timer);
-          requestOptions.signal?.removeEventListener('abort', abort);
+          requestOptions.signal?.removeEventListener('abort', abortFromCaller);
         }
+
         if (!response.ok) {
           if (method === 'GET' && attempt + 1 < attempts && [429, 502, 503, 504].includes(response.status)) {
             await new Promise(resolve => globalThis.setTimeout(resolve, retryDelay(response, attempt)));
@@ -157,8 +182,6 @@ export function createTestagramApiClient(options: TestagramApiClientOptions) {
           }
           throw parseError(payload, response, id);
         }
-        // Backend v1 endpoints return resource objects directly. Also accept the
-        // standard envelope used by capability endpoints during the transition.
         if (payload && typeof payload === 'object' && typeof payload.ok === 'boolean' && 'data' in payload) {
           if (!payload.ok || payload.data == null) {
             throw new TestagramApiError(payload.error?.message || 'API returned an empty response.', response.status, payload.error?.code || 'API_EMPTY_RESPONSE', payload.request_id ?? id);
