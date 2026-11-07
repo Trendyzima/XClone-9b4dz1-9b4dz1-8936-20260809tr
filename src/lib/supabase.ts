@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import { clearPasswordRecoverySession, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 
 const SELF_HOSTED_MODE = import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true';
-const FRESH_APPWRITE_MODE = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' ||
-  (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
+// Appwrite is the only active identity provider. Missing frontend env flags
+// must never silently enable the retired Supabase session provider.
+const FRESH_APPWRITE_MODE = true;
 
 // A fresh Appwrite build must never silently fall back to either legacy hosted
 // Supabase project. Existing Supabase-dependent screens remain unavailable
