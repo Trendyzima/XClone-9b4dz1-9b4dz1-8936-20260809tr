@@ -18,6 +18,7 @@ function friendlyAuthError(error: unknown, fallback: string) {
   const safeMessages: Record<string, string> = {
     AGE_RESTRICTION: 'You must be at least 18 years old to create a Testagram account.',
     EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
+    IDENTITY_VERIFICATION_REQUIRED: 'Identity verification is required before this account can be activated. New registration is temporarily paused while that flow is migrated to Appwrite and Backend.',
     APPWRITE_RECOVERY_CONTEXT_REQUIRED: 'Open the newest password recovery link from your email before choosing a new password.',
     LEGAL_ACCEPTANCE_REQUIRED: 'Please review and accept the required policies before continuing.',
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
@@ -51,6 +52,7 @@ export default function AuthPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('reset') === '1') return 'reset';
     if (params.get('verify') === '1') return 'verify';
+    if (params.get('identity') === 'required') return 'signup';
     return 'signin';
   });
   const [email, setEmail] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('email') || '');
