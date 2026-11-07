@@ -6,7 +6,6 @@ import { useCreatorTierAlert } from '@/hooks/useCreatorTierAlert';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from 'sonner';
 import { Loader2, X, Minus, Plus, Maximize2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { startTestagramHeartbeat } from '@/services/heartbeatClient';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
 import { useAuth } from '@/hooks/useAuth';
@@ -387,16 +386,7 @@ function AppearanceBootstrap() {
     const load = async () => {
       const local = getStoredAppearance();
       applyAppearance(local);
-      if (!user) return;
-      const { data } = await (supabase.from('profiles') as any)
-        .select('appearance_settings')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (cancelled) return;
-      const remote = data?.appearance_settings;
-      if (!remote || typeof remote !== 'object') return;
-      const merged = { ...local, ...remote };
-      applyAppearance(merged);
+      // Appearance is local until the canonical Backend preference endpoint is wired.
     };
     void load();
     return () => { cancelled = true; };
