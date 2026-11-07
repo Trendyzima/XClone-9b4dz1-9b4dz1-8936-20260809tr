@@ -1,5 +1,6 @@
 import { socialApi } from '@/services/socialApiClient';
-import { appwriteAuth } from '@/services/appwriteAuth';
+import { testagramApi } from '@/services/testagramApi';
+import { TestagramApiError } from '@/services/testagramApiClient';
 
 const isFreshAppwriteMode = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' ||
   (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
@@ -14,62 +15,42 @@ export type NotificationItem={id:string;recipient_id:string;actor_id:string|null
 export type PushConfig={public_key:string;subject:string};
 export type NewsifyTrendItem={id:string;newsify_item_id:string;newsify_trend_id:string|null;trend_title:string|null;title:string;excerpt:string|null;detail_url:string|null;source_url:string|null;source_name:string;geo:string;language:string;importance_score:number|null;importance_tier:number|null;trend_traffic:number|null;published_at:string;fetched_at:string;updated_at:string;metadata:Record<string,unknown>};
 export type NotificationPreference={id:string;user_id:string;notif_type:string;in_app:boolean;push:boolean;email:boolean;sound_enabled:boolean;vibration_enabled:boolean;digest_frequency:string;quiet_hours_start:string|null;quiet_hours_end:string|null;timezone:string;muted_until:string|null;updated_at:string};
-export type TestagramCapabilityClientOptions={endpoint:string;getAccessToken:()=>Promise<string|null>;clientName?:string;clientVersion?:string;timeoutMs?:number;apiKey?:string};
+export type TestagramCapabilityClientOptions={endpoint:string;getAccessToken?:()=>Promise<string|null>;clientName?:string;clientVersion?:string;timeoutMs?:number;apiKey?:string};
 export class CapabilityClientError extends Error{readonly code:string;readonly requestId:string|null;readonly status:number|null;constructor(message:string,o:{code?:string;requestId?:string|null;status?:number|null}={}){super(message);this.name="CapabilityClientError";this.code=o.code??"CAPABILITY_REQUEST_FAILED";this.requestId=o.requestId??null;this.status=o.status??null;}}
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
-const apiOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??import.meta.env.VITE_TESTAGRAM_FRESH_API_URL??'').trim().replace(/\\/+$/, '');
-const CAPABILITY_GATEWAY_ENDPOINT=apiOrigin?`${apiOrigin}/api/capability`:'/api/capability';
+const CAPABILITY_GATEWAY_ENDPOINT='/v1/capabilities';
 export class TestagramCapabilityClient{
- constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error('Capability endpoint is required');}
- async call<T>(capability: string, input: Record<string, unknown> = {}, tokenOverride?: string | null): Promise<T> {
+ private readonly endpoint: string;
+ constructor(o:TestagramCapabilityClientOptions){
+  const endpoint = o.endpoint.trim();
+  if (!endpoint.startsWith('/v1/') || endpoint.startsWith('/v1/internal/') || endpoint.startsWith('//')) {
+   throw new Error('Capability endpoint must be a public, versioned Backend route.');
+  }
+  this.endpoint = endpoint;
+ }
+ async call<T>(capability: string, input: Record<string, unknown> = {}, _tokenOverride?: string | null): Promise<T> {
   const normalizedCapability = capability.trim();
   if (!/^[a-z][a-z0-9_.-]{2,127}$/.test(normalizedCapability)) {
-    throw new CapabilityClientError('Capability name is invalid.', { code: 'CAPABILITY_NAME_INVALID', status: 400 });
+   throw new CapabilityClientError('Capability name is invalid.', { code: 'CAPABILITY_NAME_INVALID', status: 400 });
   }
-  const token = tokenOverride ?? await this.token();
-  if (!token || /[\\r\\n]/.test(token)) {
-    throw new CapabilityClientError('An authenticated Appwrite session is required.', { code: 'AUTH_REQUIRED', status: 401 });
-  }
-  const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), this.timeout);
-  const requestId = globalThis.crypto?.randomUUID?.() ?? `cap-${Date.now().toString(36)}`;
   try {
-    const response = await fetch(this.endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-Request-ID': requestId,
-        'X-Testagram-API-Version': '1',
-        'X-Testagram-Client': this.name,
-        'X-Testagram-Client-Version': this.version,
-      },
-      body: JSON.stringify({ capability: normalizedCapability, input }),
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: controller.signal,
-    });
-    const payload = await response.json().catch(() => null) as any;
-    if (!response.ok || payload?.ok === false) {
-      const error = payload?.error;
-      throw new CapabilityClientError(
-        typeof error === 'string' ? error : error?.message ?? `Backend capability request failed (HTTP ${response.status}).`,
-        { code: error?.code ?? payload?.code ?? 'CAPABILITY_REQUEST_FAILED', status: response.status, requestId: payload?.request_id ?? response.headers.get('X-Request-ID') ?? requestId },
-      );
-    }
-    if (payload && typeof payload === 'object' && 'data' in payload) return payload.data as T;
-    return payload as T;
+   return await testagramApi.request<T>(this.endpoint, {
+    method: 'POST',
+    body: { capability: normalizedCapability, input },
+   });
   } catch (error) {
-    if (error instanceof CapabilityClientError) throw error;
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new CapabilityClientError('Backend capability request timed out.', { code: 'CAPABILITY_TIMEOUT', status: 0, requestId });
-    }
-    throw new CapabilityClientError('Backend capability API is unreachable.', { code: 'CAPABILITY_NETWORK_ERROR', status: 0, requestId });
-  } finally {
-    globalThis.clearTimeout(timeout);
+   if (error instanceof TestagramApiError) {
+    throw new CapabilityClientError(error.message, {
+     code: error.code,
+     status: error.status,
+     requestId: error.requestId,
+    });
+   }
+   if (error instanceof CapabilityClientError) throw error;
+   throw new CapabilityClientError(error instanceof Error ? error.message : 'Backend capability request failed.', {
+    code: 'CAPABILITY_REQUEST_FAILED',
+   });
   }
  }
  listCapabilities(){return this.call<{capabilities:unknown[]}>("testagram.capabilities.list")} health(){return this.call<{services:unknown[]}>("testagram.health.read")}
@@ -117,6 +98,5 @@ schedulePost(body:string,scheduledFor:string){return this.call<{scheduled_post_i
 
 export const backendCapabilities = new TestagramCapabilityClient({
  endpoint: CAPABILITY_GATEWAY_ENDPOINT,
- getAccessToken: async () => { try { return await appwriteAuth.createBackendJWT(); } catch { return null; } },
 });
 // Canonical capability client boundary: authenticated browser gateway only.
