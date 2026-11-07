@@ -28,10 +28,6 @@ const UserSuggestionsWidget = lazy(() => import('@/components/features/UserSugge
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
 
-function normalizeFederatedFeedItems(posts:any[]):Item[]{
-  return posts.map((p:any)=>({type:'fedpost' as const,data:{...p,id:p.id??p.uri,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published,user_profiles:p.user_profiles??p.remote_account??p.actor??p.account??p.author??{},media_urls:p.media_urls??p.mediaUrls??p.attachments??[],image_url:p.image_url??p.preview_image_url??p.thumbnail_url,video_url:p.video_url??p.videoUrl,is_video:Boolean(p.is_video||p.video_url||p.videoUrl),is_federated:true}}));
-}
-
 function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.MAX_SAFE_INTEGER): Item[] {
   const seen = new Set(existing.map(homeFeedItemIdentity).filter(Boolean));
   const out = [...existing];
@@ -168,7 +164,7 @@ export default function HomeHubPage(){
   // The home timeline is sourced exclusively from the authenticated Testagram
   // Backend. The legacy Supabase aggregator and direct-table fallback are
   // intentionally not reachable from this component.
-  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
+  const fetchTab=useCallback(async(target:Tab,_pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
     if (!user?.id) {
       setNextCursor(null);
       nextCursorRef.current = null;
