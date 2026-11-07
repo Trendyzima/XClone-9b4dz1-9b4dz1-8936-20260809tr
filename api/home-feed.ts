@@ -97,7 +97,7 @@ export default async function handler(request: Request): Promise<Response> {
     return json(request, 400, { ok: false, error: { code: 'INVALID_CURSOR', message: 'Feed cursor is invalid.' }, request_id: requestId }, requestId);
   }
 
-  const target = new URL('/v1/feed/home', backend);
+  const target = new URL('/api/feed/home', backend);
   target.searchParams.set('limit', String(limit));
   if (before) target.searchParams.set('before', before);
 
