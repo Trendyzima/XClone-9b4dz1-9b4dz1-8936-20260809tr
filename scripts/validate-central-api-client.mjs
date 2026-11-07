@@ -4,6 +4,7 @@ const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const client = read('../src/services/testagramApiClient.ts');
 const social = read('../src/services/socialApiClient.ts');
 const capability = read('../src/services/testagramCapabilityClient.ts');
+const federation = read('../src/api/federation.ts');
 const failures = [];
 const requireText = (source, pattern, message) => { if (!pattern.test(source)) failures.push(message); };
 
@@ -23,12 +24,13 @@ requireText(client, /timedOut.*API_TIMEOUT/s, 'Transport must distinguish timeou
 requireText(client, /typeof payload\.ok === 'boolean'.*payload\.data/s, 'Client must accept the transition envelope format.');
 requireText(social, /testagramApi\.request.*\/v1\/feed\/home/s, 'Home feed must use the shared versioned API transport.');
 requireText(social, /testagramApi\.request.*\/v1\/posts/s, 'Post creation must use the shared versioned API transport.');
-requireText(social, /createBackendJWT/, 'Fresh API calls must use Appwrite-issued Backend JWTs.');
 requireText(social, /capabilityRequest.*testagramApi\.request/s, 'Unported social operations must use the shared versioned capability route.');
 requireText(social, !/\/api\/social|supabase|@supabase/i.test(social) ? /capabilityRequest/ : /$^/, 'Social API client must not use legacy social endpoints or Supabase.');
-requireText(capability, /FRESH_API_CAPABILITY_NOT_PORTED/, 'Unported capabilities must fail closed instead of calling a retired data plane.');
-requireText(capability, /CAPABILITY_GATEWAY_ENDPOINT/, 'Capability adapter must declare the versioned Backend route boundary.');
+requireText(capability, /testagramApi\.request<T>\(this\.endpoint/, 'Capability calls must use the shared versioned API transport.');
+requireText(capability, /CAPABILITY_GATEWAY_ENDPOINT='\/v1\/capabilities'/, 'Capability adapter must use the versioned Backend route.');
 requireText(capability, !/\/api\/capability|supabase|@supabase/i.test(capability) ? /CAPABILITY_GATEWAY_ENDPOINT/ : /$^/, 'Capability client must not reach the legacy capability gateway or Supabase.');
+requireText(federation, /testagramApi\.request<T>\('\/v1\/capabilities'/, 'Federation calls must use the shared versioned Backend capability route.');
+requireText(federation, !/\/api\/social|supabase|@supabase/i.test(federation) ? /testagram\.federation\.gateway/ : /$^/, 'Federation client must not use legacy social routes or Supabase.');
 requireText(social, !/supabase/i.test(social) ? /createBackendJWT/ : /$^/, 'Social API client must not contain Supabase dependencies or authentication.');
 
 if (failures.length) {
