@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const client = read('../src/services/testagramApiClient.ts');
 const social = read('../src/services/socialApiClient.ts');
+const capability = read('../src/services/testagramCapabilityClient.ts');
 const failures = [];
 const requireText = (source, pattern, message) => { if (!pattern.test(source)) failures.push(message); };
 
@@ -23,6 +24,9 @@ requireText(client, /typeof payload\.ok === 'boolean'.*payload\.data/s, 'Client 
 requireText(social, /testagramApi\.request.*\/v1\/feed\/home/s, 'Home feed must use the shared versioned API transport.');
 requireText(social, /testagramApi\.request.*\/v1\/posts/s, 'Post creation must use the shared versioned API transport.');
 requireText(social, /createBackendJWT/, 'Fresh API calls must use Appwrite-issued Backend JWTs.');
+requireText(capability, /testagramApi\.request<T>\(this\.endpoint/, 'Capability calls must use the shared versioned API transport.');
+requireText(capability, /CAPABILITY_GATEWAY_ENDPOINT='\/v1\/capabilities'/, 'Capability calls must use the versioned fresh Backend route.');
+requireText(capability, !/\/api\/capability|supabase|@supabase/i.test(capability) ? /CAPABILITY_GATEWAY_ENDPOINT/ : /$^/, 'Capability client must not reach the legacy capability gateway or Supabase.');
 requireText(social, !/supabase/i.test(social) ? /createBackendJWT/ : /$^/, 'Social API client must not contain Supabase dependencies or authentication.');
 
 if (failures.length) {
