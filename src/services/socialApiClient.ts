@@ -1,9 +1,6 @@
 import { testagramApi } from '@/services/testagramApi';
 import { appwriteAuth } from '@/services/appwriteAuth';
 
-const freshAppwriteMode = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' ||
-  (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
-
 type SocialEnvelope<T> = {
   ok: boolean;
   data: T | null;
@@ -38,41 +35,35 @@ async function getSessionToken(): Promise<string> {
 }
 
 
-function assertSocialAPIAvailable(path: string, allowFreshRoute = false): void {
-  if (!freshAppwriteMode || allowFreshRoute) return;
-  throw new SocialApiError(
-    'This feature is not yet available through the Testagram Backend API. The retired data source is disabled.',
-    503,
-    'FEATURE_NOT_PORTED',
-  );
-}
-
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
 async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
-  assertSocialAPIAvailable(url, allowFreshRoute);
+  void allowFreshRoute;
   const token = await getSessionToken();
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
-    ...extraHeaders,
-  };
-  if (body) headers['Content-Type'] = 'application/json';
+  const headers = new Headers(extraHeaders);
+  headers.set('Authorization', `Bearer ${token}`);
+  headers.set('Accept', 'application/json');
+  headers.set('X-Testagram-API-Version', '1');
+  headers.set('X-Request-ID', globalThis.crypto?.randomUUID?.() ?? `social-${Date.now().toString(36)}`);
+  if (body !== undefined) headers.set('Content-Type', 'application/json');
 
-  let response: Response;
   const controller = new AbortController();
   const timer = globalThis.setTimeout(() => controller.abort(), 12000);
+  let response: Response;
+  let payload: SocialEnvelope<T> | null;
   try {
     response = await fetch(url, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'omit',
       cache: 'no-store',
+      redirect: 'error',
       signal: controller.signal,
     });
+    payload = await response.json().catch(() => null) as SocialEnvelope<T> | null;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new SocialApiError('Social service timed out. Please retry.', 0, 'TIMEOUT');
@@ -82,7 +73,6 @@ async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELET
     globalThis.clearTimeout(timer);
   }
 
-  const payload = await response.json().catch(() => null) as SocialEnvelope<T> | null;
   if (!response.ok || !payload?.ok || payload.data == null) {
     throw new SocialApiError(
       payload?.error?.message || `Social request failed (${response.status}).`,
