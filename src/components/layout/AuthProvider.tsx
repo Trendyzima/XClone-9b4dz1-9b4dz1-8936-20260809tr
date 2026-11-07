@@ -15,7 +15,7 @@ export async function sendActivityNotification(_input: {
   data?: Record<string, unknown>;
 }) {
   // Notification writes are moving to the canonical Go Backend event API.
-  // Never write directly to a legacy Supabase table or Edge Function.
+  // Never write directly to a legacy provider table or serverless function.
   console.warn('[Notification] Client-side notification writes are disabled; emit a Backend domain event instead.');
 }
 
