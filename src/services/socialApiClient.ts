@@ -1,4 +1,4 @@
-import { createTestagramApiClient } from '@/services/testagramApiClient';
+import { testagramApi } from '@/services/testagramApi';
 import { appwriteAuth } from '@/services/appwriteAuth';
 
 type SocialEnvelope<T> = {
@@ -26,17 +26,6 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
   .trim()
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
-const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
-const freshApi = createTestagramApiClient({
-  baseURL: freshApiOrigin,
-  getAccessToken: async () => {
-    try { return await appwriteAuth.createBackendJWT(); }
-    catch { throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED'); }
-  },
-  defaultTimeoutMs: 10000,
-  maxReadRetries: 2,
-});
-
 async function getSessionToken(): Promise<string> {
   try {
     return await appwriteAuth.createBackendJWT();
@@ -96,7 +85,7 @@ export type SocialRepostState = { reposted: boolean; reposts_count: number; remo
 
 export const socialApi = {
   getHomeFeed(limit = 20, before?: string) {
-    return freshApi.request<{ posts: any[]; next_cursor: string | null; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
+    return testagramApi.request<{ posts: any[]; next_cursor: string | null; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
       '/v1/feed/home',
       { method: 'GET', query: { limit: Math.min(50, Math.max(1, Math.floor(limit))), before } },
     );
@@ -104,20 +93,20 @@ export const socialApi = {
   createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
     const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.();
     if (!key) throw new SocialApiError('A stable idempotency key is required to publish.', 400, 'IDEMPOTENCY_KEY_REQUIRED');
-    return freshApi.request<{ id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
+    return testagramApi.request<{ id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
       '/v1/posts', { method: 'POST', body: { content, visibility, sensitive }, idempotencyKey: key },
     );
   },
   moderateContent(content: string) {
-    return freshApi.request<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
+    return testagramApi.request<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
       '/v1/moderation/check', { method: 'POST', body: { content } },
     );
   },
   getFederationPreference() {
-    return freshApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'GET' });
+    return testagramApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'GET' });
   },
   setFederationPreference(enabled: boolean) {
-    return freshApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'PUT', body: { enabled } });
+    return testagramApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'PUT', body: { enabled } });
   },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
