@@ -11,6 +11,7 @@ import type { Models } from 'appwrite';
 import type { AuthUser } from '@/types/app-types';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
+import { LegalAcceptanceGate } from '@/components/auth/LegalAcceptanceGate';
 
 type AuthMode = 'signin' | 'signup' | 'verify' | 'recover' | 'reset';
 
@@ -63,6 +64,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [recoveryReady, setRecoveryReady] = useState(false);
+  const [legalPendingUser, setLegalPendingUser] = useState<Models.User<Models.Preferences> | null>(null);
   const [recoveryChecking, setRecoveryChecking] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -83,8 +85,14 @@ export default function AuthPage() {
       if (error instanceof Error && error.message === 'IDENTITY_VERIFICATION_REQUIRED') {
         try { await appwriteAuth.signOut(); } catch { /* best-effort cleanup */ }
       }
+      if (error instanceof Error && error.message === 'LEGAL_ACCEPTANCE_REQUIRED') {
+        setLegalPendingUser(user);
+        setLoading(false);
+        return;
+      }
       throw error;
     }
+    setLegalPendingUser(null);
     login(finalized);
     setLoading(false);
     navigate(getSafeReturnTo(), { replace: true });
@@ -231,6 +239,24 @@ export default function AuthPage() {
     : mode === 'verify' ? 'Open the secure Appwrite verification link sent to ' + (email || 'your email address') + '.'
     : mode === 'recover' ? 'We’ll send a secure, time-limited recovery link to your email.'
     : 'Choose a new password for your Testagram account.';
+
+  if (legalPendingUser) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
+        <LegalAcceptanceGate onAccepted={() => {
+          setLoading(true);
+          void finishLogin(legalPendingUser, true).catch(error => {
+            setLoading(false);
+            toast({
+              title: 'Could not complete sign-in',
+              description: friendlyAuthError(error, 'Your consent could not be saved. Please retry.'),
+              variant: 'destructive',
+            });
+          });
+        }} />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/.13),_transparent_38%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/.35))] px-4 py-6 sm:py-10">
