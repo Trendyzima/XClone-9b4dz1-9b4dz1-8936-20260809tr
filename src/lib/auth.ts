@@ -1,5 +1,6 @@
 import type { Models } from 'appwrite';
 import { appwriteAuth } from '@/services/appwriteAuth';
+import { testagramApi } from '@/services/testagramApi';
 import type { AuthUser } from '@/types/app-types';
 import { LEGAL_CONSENT_STORAGE_KEY, LEGAL_POLICY_VERSION, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
 
@@ -17,79 +18,34 @@ export function mapAppwriteAuthUser(user: Models.User<Models.Preferences>): Mode
   return user;
 }
 
-const API_URL = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim();
 const REQUEST_TIMEOUT_MS = 15_000;
 
-async function backendRequest<T>(path: string, jwt: string, method = 'GET', body?: Record<string, unknown>): Promise<T> {
-  if (!API_URL) throw new Error('VITE_TESTAGRAM_FRESH_API_URL must point to the Testagram Backend API.');
-  let base: URL;
-  try { base = new URL(API_URL); } catch { throw new Error('Testagram Backend API URL is invalid.'); }
-  const localHTTP = base.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname);
-  if ((base.protocol !== 'https:' && !localHTTP) || base.username || base.password || base.pathname !== '/' || base.search || base.hash) {
-    throw new Error('Testagram Backend API must use HTTPS (HTTP is allowed only for localhost).');
-  }
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const response = await fetch(base.toString().replace(/\/$/, '') + path, {
-      method,
-      headers: { Authorization: 'Bearer ' + jwt, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: 'omit',
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-    const payload = await response.json().catch(() => null) as any;
-    if (!response.ok) {
-      const errorMessage = payload?.error?.message ?? (typeof payload?.error === 'string' ? payload.error : undefined) ?? payload?.message ?? ('Backend request failed (' + response.status + ').');
-      const error = new Error(String(errorMessage));
-      (error as Error & { status?: number }).status = response.status;
-      throw error;
-    }
-    return payload as T;
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw new Error('Backend request timed out. Please try again.');
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
+async function backendRequest<T>(
+  path: string,
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
+  body?: Record<string, unknown>,
+): Promise<T> {
+  return testagramApi.request<T>(path, { method, body });
 }
 
-function profileCandidate(user: Models.User<Models.Preferences>) {
-  const prefs = (user.prefs ?? {}) as Record<string, unknown>;
-  const emailName = (user.email || '').split('@')[0] || '';
-  const rawHandle = typeof prefs.username === 'string' ? prefs.username : emailName || ('user_' + user.$id.slice(0, 10));
-  let handle = rawHandle.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24);
-  if (handle.length < 3) handle = 'user_' + user.$id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-  const displayName = (user.name || (typeof prefs.display_name === 'string' ? prefs.display_name : '') || handle).trim().slice(0, 80);
-  return { handle, displayName };
-}
-
-async function provisionProfile(user: Models.User<Models.Preferences>, jwt: string) {
-  try { return await backendRequest<any>('/v1/me', jwt); }
-  catch (error) {
-    if (!(error instanceof Error) || (error as Error & { status?: number }).status !== 404) throw error;
+async function provisionProfile(_user: Models.User<Models.Preferences>) {
+  // Only Backend-approved identities may have a canonical profile. A browser
+  // session must never create or self-approve a missing profile.
+  const profile = await backendRequest<any>('/v1/me');
+  if (profile?.identity_verification_status !== 'approved') {
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   }
-  const candidate = profileCandidate(user);
-  try {
-    return await backendRequest<any>('/v1/me/profile', jwt, 'PUT', { display_name: candidate.displayName, handle: candidate.handle, bio: '' });
-  } catch (error) {
-    if (!(error instanceof Error) || (error as Error & { status?: number }).status !== 409) throw error;
-    const fallback = candidate.handle.slice(0, 14) + '_' + user.$id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-    return backendRequest<any>('/v1/me/profile', jwt, 'PUT', { display_name: candidate.displayName, handle: fallback.toLowerCase(), bio: '' });
-  }
+  return profile;
 }
 
 export async function ensureCanonicalProfile(user: Models.User<Models.Preferences>): Promise<void> {
-  const jwt = await appwriteAuth.createBackendJWT();
-  await provisionProfile(user, jwt);
+  await provisionProfile(user);
 }
 
 async function finalizeAuthenticatedSessionInternal(user: Models.User<Models.Preferences>, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
   if (!user.emailVerification) throw new Error('EMAIL_NOT_VERIFIED');
-  const jwt = await appwriteAuth.createBackendJWT();
-  const profile = await provisionProfile(user, jwt);
-  const legalResponse = await backendRequest<any>('/v1/me/legal', jwt);
+  const profile = await provisionProfile(user);
+  const legalResponse = await backendRequest<any>('/v1/me/legal');
   const legal = legalResponse?.data ?? legalResponse;
   const accepted = Boolean(legal?.birth_date && legal?.legal_terms_accepted_at && legal?.legal_privacy_accepted_at &&
     legal?.legal_content_policy_accepted_at && legal?.legal_age_confirmed_at && legal?.legal_policy_version === LEGAL_POLICY_VERSION);
@@ -103,7 +59,7 @@ async function finalizeAuthenticatedSessionInternal(user: Models.User<Models.Pre
   if ((options.requireFreshLegalConsent || !accepted) && !consent) throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
   if (!accepted || options.requireFreshLegalConsent) {
     if (!consent) throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
-    await backendRequest('/v1/me/legal', jwt, 'PUT', {
+    await backendRequest('/v1/me/legal', 'PUT', {
       birth_date: consent.birthDate,
       policy_version: consent.version,
       terms_accepted: true,
@@ -145,8 +101,10 @@ export class AuthService {
   async signInWithPassword(email: string, password: string) {
     return appwriteAuth.signInWithPassword({ email, password });
   }
-  async signUpWithPassword(email: string, password: string, username?: string) {
-    return appwriteAuth.signUpWithPassword({ email, password, name: username || email.split('@')[0] });
+  async signUpWithPassword(_email: string, _password: string, _username?: string): Promise<never> {
+    // Backend must provision accounts only after identity approval. Do not
+    // allow callers to bypass that gate by creating Appwrite users in-browser.
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   }
   async sendEmailVerification() { await appwriteAuth.sendEmailVerification(); }
   async sendEmailOtp(_email: string, _shouldCreateUser = false): Promise<never> {
