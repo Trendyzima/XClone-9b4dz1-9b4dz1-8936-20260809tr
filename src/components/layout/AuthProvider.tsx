@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
+import { AUTH_CHANGED_EVENT, appwriteSignOut, getAppwriteAuthUser } from '@/lib/appwriteAuth';
 import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
@@ -24,6 +25,7 @@ function withBootstrapTimeout<T>(operation: PromiseLike<T> | Promise<T>, label: 
 }
 
 async function triggerKeygenForUser(userId: string) {
+  if (isFreshAppwriteMode) return;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
@@ -53,6 +55,7 @@ export async function sendActivityNotification({
   body: string;
   data?: any;
 }) {
+  if (isFreshAppwriteMode) return;
   try {
     const notificationType = data?.type && ['like','repost','follow','reply','mention','verified'].includes(data.type) ? data.type : 'follow';
     const { error: dbError } = await supabase.from('notifications').insert({ recipient_id: recipientUserId, kind: notificationType, actor_id: data?.fromUserId ?? null, post_id: data?.postId ?? null });
@@ -78,6 +81,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
 
   useEffect(() => {
+    if (isFreshAppwriteMode) {
+      let mounted = true;
+      const hydrateAppwriteSession = async () => {
+        setLoading(true);
+        try {
+          const user = await getAppwriteAuthUser();
+          if (!mounted) return;
+          if (!user) {
+            clearTestagramSessionLifetime();
+            logout();
+            setLoading(false);
+            return;
+          }
+          const valid = await withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation");
+          if (!valid) {
+            await appwriteSignOut();
+            clearTestagramSessionLifetime();
+            logout();
+            setLoading(false);
+            if (mounted) window.location.replace("/auth");
+            return;
+          }
+          markAuthenticatedSessionStarted(user.id);
+          const mappedUser = await finalizeAuthenticatedSession(user);
+          if (!mounted) return;
+          login(mappedUser);
+          setLoading(false);
+        } catch (error) {
+          if (!mounted) return;
+          const message = error instanceof Error ? error.message : "Appwrite session could not be restored.";
+          setAuthError(message);
+          setLoading(false);
+          console.error("[Auth] Appwrite session hydration failed:", error);
+        }
+      };
+      const handleAppwriteAuthChange = () => { void hydrateAppwriteSession(); };
+      void hydrateAppwriteSession();
+      window.addEventListener(AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
+      const lifetimeTimer = window.setInterval(() => {
+        void withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation").then(async (valid) => {
+          if (!valid && mounted) {
+            try { await appwriteSignOut(); } catch { /* session may already be expired */ }
+            logout();
+            window.location.replace("/auth");
+          }
+        });
+      }, 30_000);
+      return () => {
+        mounted = false;
+        window.clearInterval(lifetimeTimer);
+        window.removeEventListener(AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
+      };
+    }
+
     let mounted = true;
 
     const lifetimeTimer = window.setInterval(() => {
