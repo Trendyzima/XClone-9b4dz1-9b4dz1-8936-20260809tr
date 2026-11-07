@@ -25,16 +25,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let hydrationInFlight = false;
+    let hydrationGeneration = 0;
 
     const hydrateAppwriteSession = async () => {
-      if (hydrationInFlight) return;
-      hydrationInFlight = true;
+      const generation = ++hydrationGeneration;
       setLoading(true);
       clearAuthError();
       try {
         const appwriteUser = await appwriteAuth.getCurrentUser();
-        if (!mounted) return;
+        if (!mounted || generation !== hydrationGeneration) return;
         if (!appwriteUser) {
           clearTestagramSessionLifetime();
           logout();
@@ -44,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const user = mapAppwriteAuthUser(appwriteUser);
         const valid = await enforceTestagramSessionLifetime();
-        if (!mounted) return;
+        if (!mounted || generation !== hydrationGeneration) return;
         if (!valid) {
           clearTestagramSessionLifetime();
           logout();
@@ -55,17 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         markAuthenticatedSessionStarted(user.id);
         const mappedUser = await finalizeAuthenticatedSession(user);
-        if (!mounted) return;
+        if (!mounted || generation !== hydrationGeneration) return;
         login(mappedUser);
         setLoading(false);
       } catch (error) {
-        if (!mounted) return;
+        if (!mounted || generation !== hydrationGeneration) return;
         const message = error instanceof Error ? error.message : 'Appwrite session could not be restored.';
         setAuthError(message);
         setLoading(false);
         console.error('[Auth] Appwrite session hydration failed:', error);
-      } finally {
-        hydrationInFlight = false;
       }
     };
 
@@ -87,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      hydrationGeneration += 1;
       window.clearInterval(lifetimeTimer);
       window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
     };
