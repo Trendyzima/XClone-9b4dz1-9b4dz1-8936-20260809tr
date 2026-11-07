@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { appwriteAuth } from '@/services/appwriteAuth';
 import type { Models } from 'appwrite';
+import type { AuthUser } from '@/types/app-types';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -75,7 +76,7 @@ export default function AuthPage() {
       setLoading(false);
       return;
     }
-    let finalized;
+    let finalized: AuthUser;
     try {
       finalized = await finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
     } catch (error) {
