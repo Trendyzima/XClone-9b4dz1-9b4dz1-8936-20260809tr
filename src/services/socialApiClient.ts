@@ -1,12 +1,5 @@
 import { testagramApi } from '@/services/testagramApi';
-import { appwriteAuth } from '@/services/appwriteAuth';
-
-type SocialEnvelope<T> = {
-  ok: boolean;
-  data: T | null;
-  error: { code?: string; message?: string } | null;
-  request_id?: string;
-};
+import { TestagramApiError } from '@/services/testagramApiClient';
 
 export class SocialApiError extends Error {
   readonly status: number;
@@ -22,66 +15,18 @@ export class SocialApiError extends Error {
   }
 }
 
-const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '')
-  .trim()
-  .replace(/\/+$/, '');
-const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
-async function getSessionToken(): Promise<string> {
+async function capabilityRequest<T>(capability: string, input: Record<string, unknown>): Promise<T> {
   try {
-    return await appwriteAuth.createBackendJWT();
-  } catch {
-    throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED');
-  }
-}
-
-
-async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
-  return requestAt<T>(`${apiBase}${path}`, method, body);
-}
-
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
-  void allowFreshRoute;
-  const token = await getSessionToken();
-  const headers = new Headers(extraHeaders);
-  headers.set('Authorization', `Bearer ${token}`);
-  headers.set('Accept', 'application/json');
-  headers.set('X-Testagram-API-Version', '1');
-  headers.set('X-Request-ID', globalThis.crypto?.randomUUID?.() ?? `social-${Date.now().toString(36)}`);
-  if (body !== undefined) headers.set('Content-Type', 'application/json');
-
-  const controller = new AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), 12000);
-  let response: Response;
-  let payload: SocialEnvelope<T> | null;
-  try {
-    response = await fetch(url, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: controller.signal,
+    return await testagramApi.request<T>('/v1/capabilities', {
+      method: 'POST',
+      body: { capability, input },
     });
-    payload = await response.json().catch(() => null) as SocialEnvelope<T> | null;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new SocialApiError('Social service timed out. Please retry.', 0, 'TIMEOUT');
+    if (error instanceof TestagramApiError) {
+      throw new SocialApiError(error.message, error.status, error.code, error.requestId);
     }
-    throw new SocialApiError('Testagram API is unreachable. Check your connection and API URL.', 0, 'NETWORK_ERROR');
-  } finally {
-    globalThis.clearTimeout(timer);
+    throw new SocialApiError(error instanceof Error ? error.message : 'Social request failed.', 0, 'SOCIAL_API_ERROR');
   }
-
-  if (!response.ok || !payload?.ok || payload.data == null) {
-    throw new SocialApiError(
-      payload?.error?.message || `Social request failed (${response.status}).`,
-      response.status,
-      payload?.error?.code || 'SOCIAL_API_ERROR',
-      payload?.request_id || null,
-    );
-  }
-  return payload.data;
 }
 
 export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
@@ -116,66 +61,59 @@ export const socialApi = {
     return testagramApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'PUT', body: { enabled } });
   },
   getFollowState(userId: string) {
-    return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
+    return capabilityRequest<{ following: boolean; requested: boolean; status: string }>('testagram.follows.state', { target_user_id: userId });
   },
   setFollow(userId: string, active: boolean) {
     return active
-      ? request<{ status: string; already_following: boolean }>('/follows', 'POST', { target_user_id: userId })
-      : request<{ unfollowed: boolean }>(`/follows/${encodeURIComponent(userId)}`, 'DELETE');
+      ? capabilityRequest<{ status: string; already_following: boolean }>('testagram.follows.create', { target_user_id: userId })
+      : capabilityRequest<{ unfollowed: boolean }>('testagram.follows.delete', { target_user_id: userId });
   },
   setBlock(userId: string, active: boolean) {
     return active
-      ? request<{ blocked: boolean }>('/blocks', 'POST', { target_user_id: userId })
-      : request<{ unblocked: boolean }>(`/blocks/${encodeURIComponent(userId)}`, 'DELETE');
+      ? capabilityRequest<{ blocked: boolean }>('testagram.blocks.create', { target_user_id: userId })
+      : capabilityRequest<{ unblocked: boolean }>('testagram.blocks.delete', { target_user_id: userId });
   },
   listFollowRequests(limit = 30) {
-    const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
-    return request<{ items: unknown[] }>(`/follow-requests?${query.toString()}`, 'GET');
+    return capabilityRequest<{ items: unknown[] }>('testagram.follow_requests.list', { limit: Math.min(100, Math.max(1, Math.floor(limit))) });
   },
   respondFollowRequest(followerId: string, action: 'accept' | 'reject') {
-    return request<{ status: string; accepted: boolean }>(
-      `/follow-requests/${encodeURIComponent(followerId)}/${action}`,
-      'POST',
-    );
+    return capabilityRequest<{ status: string; accepted: boolean }>('testagram.follow_requests.respond', { follower_id: followerId, action });
   },
   getInteractionSummary(postId: string) {
-    return request<{
+    return capabilityRequest<{
       likes: number; reposts: number; replies: number; quotes: number; views: number; shares: number;
       bookmarks: number; reaction_total: number; reactions: Record<string, number>;
       is_liked: boolean; is_reposted: boolean; is_bookmarked: boolean; user_reactions: string[];
-    }>('/posts/' + encodeURIComponent(postId) + '/interaction-summary', 'GET');
+    }>('testagram.posts.interaction_summary', { post_id: postId });
   },
   getLikeState(postId: string) {
-    return request<SocialLikeState & { emoji: string }>('/posts/' + encodeURIComponent(postId) + '/reaction', 'GET');
+    return capabilityRequest<SocialLikeState & { emoji: string }>('testagram.posts.like.state', { post_id: postId });
   },
   getRepostState(postId: string) {
-    return request<SocialRepostState>('/posts/' + encodeURIComponent(postId) + '/reposts', 'GET');
+    return capabilityRequest<SocialRepostState>('testagram.posts.repost.state', { post_id: postId });
   },
   setLike(postId: string, active: boolean, emoji = '❤️') {
-    return request<SocialLikeState>('/posts/' + encodeURIComponent(postId) + '/reaction', active ? 'POST' : 'DELETE', active ? { emoji } : undefined);
+    return active
+      ? capabilityRequest<SocialLikeState>('testagram.posts.like', { post_id: postId, emoji })
+      : capabilityRequest<SocialLikeState>('testagram.posts.unlike', { post_id: postId });
   },
   setRepost(postId: string, active: boolean, quote = '') {
-    return request<SocialRepostState>(`/posts/${encodeURIComponent(postId)}/reposts`, active ? 'POST' : 'DELETE', active ? { quote } : undefined);
+    return active
+      ? capabilityRequest<SocialRepostState>('testagram.posts.repost', { post_id: postId, quote })
+      : capabilityRequest<SocialRepostState>('testagram.posts.unrepost', { post_id: postId });
   },
   createReply(postId: string, content: string, parentReplyId?: string) {
-    return request<{ reply_id: string; post_id: string; content: string }>(
-      `/posts/${encodeURIComponent(postId)}/replies`,
-      'POST',
-      { content, ...(parentReplyId ? { parent_reply_id: parentReplyId } : {}) },
-    );
+    return capabilityRequest<{ reply_id: string; post_id: string; content: string }>('testagram.replies.create', {
+      post_id: postId, content, ...(parentReplyId ? { parent_reply_id: parentReplyId } : {}),
+    });
   },
   setBookmark(postId: string, active: boolean) {
-    return request<{ bookmarked: boolean }>(
-      `/posts/${encodeURIComponent(postId)}/bookmarks`,
-      active ? 'POST' : 'DELETE',
-    );
+    return capabilityRequest<{ bookmarked: boolean }>('testagram.bookmarks.set', { post_id: postId, bookmarked: active });
   },
   listNotifications(limit = 30, cursor?: string) {
-    const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
-    if (cursor) query.set('cursor', cursor);
-    return request<{ items: unknown[]; next_cursor: string }>(`/notifications?${query.toString()}`, 'GET');
+    return capabilityRequest<{ items: unknown[]; next_cursor: string }>('testagram.notifications.list', { limit: Math.min(100, Math.max(1, Math.floor(limit))), ...(cursor ? { cursor } : {}) });
   },
   markNotificationRead(notificationId: string) {
-    return request<{ read: boolean }>(`/notifications/${encodeURIComponent(notificationId)}/read`, 'POST');
+    return capabilityRequest<{ read: boolean }>('testagram.notifications.mark_read', { notification_id: notificationId });
   },
 };
