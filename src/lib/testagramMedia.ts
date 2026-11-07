@@ -35,9 +35,9 @@ const tvControlApiUrl = () => {
   return (origin === 'https://testagram.site' ? 'https://www.testagram.site' : origin) + '/api/live';
 };
 
-const tvControlFetch = async (init: RequestInit) => {
+const tvControlFetch = async (init: RequestInit, target = tvControlApiUrl()) => {
   try {
-    return await fetch(tvControlApiUrl(), {
+    return await fetch(target, {
       ...init,
       cache: 'no-store',
       redirect: 'error',
