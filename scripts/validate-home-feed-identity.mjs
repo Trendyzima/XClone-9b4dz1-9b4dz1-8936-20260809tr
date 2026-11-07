@@ -29,16 +29,14 @@ requireText(cache, /const key=homeFeedItemIdentity\(item\)/,
   'Offline-cache merging must use the canonical feed identity helper.');
 requireText(home, /homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT/,
   'HomeHub must use the same identity helper as the offline cache.');
-requireText(home, /const next=await fetchTab\('all',0,null,true\)/,
-  'The first For You request must include public Fediverse content instead of waiting for the background refresh.');
-requireText(home, /signal: AbortSignal\.timeout\(15000\)/,
-  'A stalled home-feed aggregator must time out into the existing direct fallback rather than leaving first load pending indefinitely.');
-requireText(home, /const parsedFallbackOffset = cursorOverride\?\.startsWith\('fallback:'\)[\s\S]*range\(fallbackOffset, fallbackOffset \+ fallbackLimit - 1\)/,
-  'The direct Home fallback must paginate local posts and threads instead of repeatedly fetching page one.');
-requireText(home, /const fallbackCursor = hasMoreFallbackRows \? 'fallback:' \+ \(fallbackOffset \+ fallbackLimit\) : null[\s\S]*nextCursorRef\.current = fallbackCursor/,
-  'The Home fallback must publish a continuation cursor only while another local fallback page exists.');
-requireText(home, /cursorOverride\?\.startsWith\('fallback:'\) && federatedCursorRef\.current[\s\S]*fedParams\.set\('before', federatedCursorRef\.current\)/,
-  'Federated pagination must continue from its own cursor while the local Home fallback is active.');
+requireText(home, /socialApi\.getHomeFeed\(24, cursorOverride \?\? undefined\)/,
+  'Home timeline must use the authenticated Testagram Backend feed API.');
+if (/supabase\\.|SUPABASE_URL|FEDERATED_FUNCTION_BASE/.test(home)) failures.push('Home timeline must not contain legacy Supabase reads or Supabase Edge Function calls.');
+requireText(cache, /testagram-feed-cache-v3/,
+  'Home feed cache version must invalidate rows previously fetched from Supabase.');
+requireText(aggregator, /LEGACY_FEED_RETIRED[\\s\\S]*status: 410|status: 410[\\s\\S]*LEGACY_FEED_RETIRED/,
+  'Legacy /api/home-feed must be permanently retired with HTTP 410.');
+if (/createClient|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|\\.from\\('posts'\\)/.test(aggregator)) failures.push('Retired home-feed API must not retain Supabase credentials or database queries.');
 
 requireText(home, /new Set\(existing\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)\)/,
   'HomeHub page append must seed its deduplication set from canonical identities.');
