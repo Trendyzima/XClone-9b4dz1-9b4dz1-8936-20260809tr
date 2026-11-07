@@ -1,17 +1,18 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 // This is a release gate, not a compatibility shim. Fresh Testagram must have
 // no Supabase runtime, SDK, deployment, environment, or Edge Function surface.
 const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
-const targets = tracked.filter((file) =>
-  file === 'package.json' || file === 'package-lock.json' ||
-  file.startsWith('src/') || file.startsWith('api/') ||
-  file.startsWith('supabase/') || file.startsWith('functions/') ||
-  file.startsWith('.github/workflows/') ||
-  /^\.env(?:\.|$)/.test(file) ||
-  /^(?:vite|vitest|wrangler|netlify|vercel)\./.test(file)
-);
+const textExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.yml', '.yaml', '.toml', '.sql', '.sh', '.env', '.properties', '.gradle', '.xml']);
+const targets = tracked.filter((file) => {
+  if (/^(?:docs|documentation)\//i.test(file) || /(?:^|\/)(?:README|CHANGELOG|LICENSE)(?:\.|$)/i.test(file)) return false;
+  const base = path.basename(file);
+  return textExtensions.has(path.extname(file).toLowerCase()) ||
+    base === 'Dockerfile' || base.startsWith('.env') ||
+    file === 'package.json' || file === 'package-lock.json';
+});
 const violations = [];
 for (const file of targets) {
   if (file === 'scripts/validate-supabase-exit.mjs') continue;
