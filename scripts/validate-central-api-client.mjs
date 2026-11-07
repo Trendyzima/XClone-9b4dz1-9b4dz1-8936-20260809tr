@@ -13,9 +13,9 @@ requireText(client, /cache: 'no-store'/, 'Private API requests must bypass brows
 requireText(client, /method === 'GET'.*maxReadRetries/s, 'Only safe GET requests may be retried.');
 requireText(client, /Idempotency-Key/, 'Mutation idempotency keys must be supported.');
 requireText(client, /\/v1\//, 'Client must reject unversioned API routes.');
-requireText(client, /payload\.ok === 'boolean'.*payload\.data/s, 'Client must accept the transition envelope format.');
-requireText(social, /freshApi\.request.*\/v1\/feed\/home/s, 'Home feed must use the shared versioned API transport.');
-requireText(social, /freshApi\.request.*\/v1\/posts/s, 'Post creation must use the shared versioned API transport.');
+requireText(client, /typeof payload\.ok === 'boolean'.*payload\.data/s, 'Client must accept the transition envelope format.');
+requireText(social, /testagramApi\.request.*\/v1\/feed\/home/s, 'Home feed must use the shared versioned API transport.');
+requireText(social, /testagramApi\.request.*\/v1\/posts/s, 'Post creation must use the shared versioned API transport.');
 requireText(social, /createBackendJWT/, 'Fresh API calls must use Appwrite-issued Backend JWTs.');
 requireText(social, !/supabase/i.test(social) ? /createBackendJWT/ : /$^/, 'Social API client must not contain Supabase dependencies or authentication.');
 
