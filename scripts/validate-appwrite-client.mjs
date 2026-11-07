@@ -7,6 +7,7 @@ const auth = await readFile('src/services/appwriteAuth.ts', 'utf8');
 const env = await readFile('.env.fresh.example', 'utf8');
 const supabase = await readFile('src/lib/supabase.ts', 'utf8');
 const socialApi = await readFile('src/services/socialApiClient.ts', 'utf8');
+const sharedApi = await readFile('src/services/testagramApi.ts', 'utf8');
 const capabilities = await readFile('src/services/testagramCapabilityClient.ts', 'utf8');
 const feed = await readFile('src/services/feed.ts', 'utf8');
 const buildScript = await readFile('_build.cjs', 'utf8');
