@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
-import { AUTH_CHANGED_EVENT, appwriteSignOut, getAppwriteAuthUser } from '@/lib/appwriteAuth';
+import { APPWRITE_AUTH_CHANGED_EVENT, appwriteAuth } from '@/services/appwriteAuth';
 import { useAuthStore } from '@/stores/authStore';
-import { finalizeAuthenticatedSession } from '@/lib/auth';
+import { finalizeAuthenticatedSession, mapAppwriteAuthUser } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
 import { clearPasswordRecoverySession, getPasswordRecoverySessionUserId, hasPasswordRecoveryMarker } from '@/lib/passwordRecovery';
@@ -86,7 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const hydrateAppwriteSession = async () => {
         setLoading(true);
         try {
-          const user = await getAppwriteAuthUser();
+          const appwriteUser = await appwriteAuth.getCurrentUser();
+          const user = mapAppwriteAuthUser(appwriteUser);
           if (!mounted) return;
           if (!user) {
             clearTestagramSessionLifetime();
@@ -96,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           const valid = await withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation");
           if (!valid) {
-            await appwriteSignOut();
+            await appwriteAuth.signOut();
             clearTestagramSessionLifetime();
             logout();
             setLoading(false);
@@ -118,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       const handleAppwriteAuthChange = () => { void hydrateAppwriteSession(); };
       void hydrateAppwriteSession();
-      window.addEventListener(AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
+      window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
       const lifetimeTimer = window.setInterval(() => {
         void withBootstrapTimeout(enforceTestagramSessionLifetime(), "Appwrite session validation").then(async (valid) => {
           if (!valid && mounted) {
@@ -131,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return () => {
         mounted = false;
         window.clearInterval(lifetimeTimer);
-        window.removeEventListener(AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
+        window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, handleAppwriteAuthChange);
       };
     }
 
