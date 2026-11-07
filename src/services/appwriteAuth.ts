@@ -54,29 +54,19 @@ function clearBackendJWT(): void {
   backendJWTExpiresAt = 0;
 }
 
+function notifyAuthChanged(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+}
+
 export const appwriteAuth = {
-  async signUpWithPassword(input: {
+  async signUpWithPassword(_input: {
     email: string;
     password: string;
     name: string;
   }): Promise<Models.User<Models.Preferences>> {
-    assertAppwriteAuthConfigured();
-    const email = normalizeEmail(input.email);
-    validatePassword(input.password);
-    const name = input.name.trim();
-    if (!name || name.length > 128) {
-      throw new Error('Enter a name up to 128 characters.');
-    }
-
-    await appwriteAccount.create({
-      userId: ID.unique(),
-      email,
-      password: input.password,
-      name,
-    });
-    await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
-    clearBackendJWT();
-    return appwriteAccount.get();
+    // New accounts must be created by the Backend only after it validates the
+    // short-lived identity-approval token and provisions the approved profile.
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   },
 
   async signInWithPassword(input: {
@@ -89,7 +79,9 @@ export const appwriteAuth = {
       password: input.password,
     });
     clearBackendJWT();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    notifyAuthChanged();
+    return user;
   },
 
   async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
@@ -158,7 +150,9 @@ export const appwriteAuth = {
     await appwriteAccount.createEmailPasswordSession({ email: normalizeEmail(input.email), password: input.password });
     clearBackendJWT();
     clearRecoveryContext();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    notifyAuthChanged();
+    return user;
   },
 
   async completePasswordRecovery(input: {
@@ -185,7 +179,7 @@ export const appwriteAuth = {
       await appwriteAccount.deleteSession({ sessionId: 'current' });
     } finally {
       clearBackendJWT();
-      if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+      notifyAuthChanged();
     }
   },
 };

@@ -1,12 +1,5 @@
-import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
-import { appwriteAuth } from '@/services/appwriteAuth';
-
-type SocialEnvelope<T> = {
-  ok: boolean;
-  data: T | null;
-  error: { code?: string; message?: string } | null;
-  request_id?: string;
-};
+import { testagramApi } from '@/services/testagramApi';
+import { TestagramApiError } from '@/services/testagramApiClient';
 
 export class SocialApiError extends Error {
   readonly status: number;
@@ -22,90 +15,18 @@ export class SocialApiError extends Error {
   }
 }
 
-const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '')
-  .trim()
-  .replace(/\/+$/, '');
-const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
-const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
-const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
-
-function assertSocialAPIAvailable(allowFreshRoute = false): void {
-  if (isFreshAppwriteMode && !allowFreshRoute) {
-    throw new SocialApiError(
-      'This social feature has not yet been connected to the fresh Appwrite API.',
-      503,
-      'FRESH_API_FEATURE_NOT_PORTED',
-    );
-  }
-}
-
-async function getSessionToken(): Promise<string> {
-  const configuredProvider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase();
-  const provider = configuredProvider || (isFreshAppwriteMode ? 'appwrite' : 'supabase');
-  if (provider === 'appwrite') {
-    // Explicit provider selection: never fall back to a Supabase token. The
-    // fresh Go API verifies this Appwrite JWT directly; it does not link legacy
-    // Supabase identities or read legacy identity mappings.
-    try {
-      return await appwriteAuth.createBackendJWT();
-    } catch {
-      throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED');
-    }
-  }
-  if (provider !== 'supabase') {
-    throw new SocialApiError('Unsupported Testagram authentication provider.', 503, 'AUTH_PROVIDER_UNSUPPORTED');
-  }
-  let token = (await supabase.auth.getSession()).data.session?.access_token;
-  if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
-  if (!token) throw new SocialApiError('Please sign in again to continue.', 401, 'AUTH_REQUIRED');
-  return token;
-}
-
-async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
-  return requestAt<T>(`${apiBase}${path}`, method, body);
-}
-
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
-  assertSocialAPIAvailable(allowFreshRoute);
-  const token = await getSessionToken();
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
-    ...extraHeaders,
-  };
-  if (body) headers['Content-Type'] = 'application/json';
-
-  let response: Response;
-  const controller = new AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), 12000);
+async function capabilityRequest<T>(capability: string, input: Record<string, unknown>): Promise<T> {
   try {
-    response = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: 'omit',
-      cache: 'no-store',
-      signal: controller.signal,
+    return await testagramApi.request<T>('/v1/capabilities', {
+      method: 'POST',
+      body: { capability, input },
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new SocialApiError('Social service timed out. Please retry.', 0, 'TIMEOUT');
+    if (error instanceof TestagramApiError) {
+      throw new SocialApiError(error.message, error.status, error.code, error.requestId);
     }
-    throw new SocialApiError('Testagram API is unreachable. Check your connection and API URL.', 0, 'NETWORK_ERROR');
-  } finally {
-    globalThis.clearTimeout(timer);
+    throw new SocialApiError(error instanceof Error ? error.message : 'Social request failed.', 0, 'SOCIAL_API_ERROR');
   }
-
-  const payload = await response.json().catch(() => null) as SocialEnvelope<T> | null;
-  if (!response.ok || !payload?.ok || payload.data == null) {
-    throw new SocialApiError(
-      payload?.error?.message || `Social request failed (${response.status}).`,
-      response.status,
-      payload?.error?.code || 'SOCIAL_API_ERROR',
-      payload?.request_id || null,
-    );
-  }
-  return payload.data;
 }
 
 export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
@@ -113,90 +34,86 @@ export type SocialRepostState = { reposted: boolean; reposts_count: number; remo
 
 export const socialApi = {
   getHomeFeed(limit = 20, before?: string) {
-    const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
-    if (before) query.set('before', before);
-    return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
-      `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
+    return testagramApi.request<{ posts: any[]; next_cursor: string | null; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
+      '/v1/feed/home',
+      { method: 'GET', query: { limit: Math.min(50, Math.max(1, Math.floor(limit))), before } },
     );
   },
-  createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
-    const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `post-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    return requestAt<{ $id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
-      `${freshApiOrigin}/v1/posts`, 'POST', { content, visibility, sensitive }, true, { 'Idempotency-Key': key },
+  async createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
+    const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.();
+    if (!key) throw new SocialApiError('A stable idempotency key is required to publish.', 400, 'IDEMPOTENCY_KEY_REQUIRED');
+    const post = await testagramApi.request<{ id?: string; $id?: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
+      '/v1/posts', { method: 'POST', body: { content, visibility, sensitive }, idempotencyKey: key },
     );
+    const id = post.$id ?? post.id;
+    if (!id) throw new SocialApiError('Backend returned a post without an identifier.', 502, 'INVALID_POST_RESPONSE');
+    return { ...post, id, $id: id };
   },
   moderateContent(content: string) {
-    return requestAt<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
-      `${freshApiOrigin}/v1/moderation/check`, 'POST', { content }, true,
+    return testagramApi.request<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
+      '/v1/moderation/check', { method: 'POST', body: { content } },
     );
   },
   getFederationPreference() {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'GET', undefined, true);
+    return testagramApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'GET' });
   },
   setFederationPreference(enabled: boolean) {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
+    return testagramApi.request<{ enabled: boolean }>('/v1/me/federation', { method: 'PUT', body: { enabled } });
   },
   getFollowState(userId: string) {
-    return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
+    return capabilityRequest<{ following: boolean; requested: boolean; status: string }>('testagram.follows.state', { target_user_id: userId });
   },
   setFollow(userId: string, active: boolean) {
     return active
-      ? request<{ status: string; already_following: boolean }>('/follows', 'POST', { target_user_id: userId })
-      : request<{ unfollowed: boolean }>(`/follows/${encodeURIComponent(userId)}`, 'DELETE');
+      ? capabilityRequest<{ status: string; already_following: boolean }>('testagram.follows.create', { target_user_id: userId })
+      : capabilityRequest<{ unfollowed: boolean }>('testagram.follows.delete', { target_user_id: userId });
   },
   setBlock(userId: string, active: boolean) {
     return active
-      ? request<{ blocked: boolean }>('/blocks', 'POST', { target_user_id: userId })
-      : request<{ unblocked: boolean }>(`/blocks/${encodeURIComponent(userId)}`, 'DELETE');
+      ? capabilityRequest<{ blocked: boolean }>('testagram.blocks.create', { target_user_id: userId })
+      : capabilityRequest<{ unblocked: boolean }>('testagram.blocks.delete', { target_user_id: userId });
   },
   listFollowRequests(limit = 30) {
-    const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
-    return request<{ items: unknown[] }>(`/follow-requests?${query.toString()}`, 'GET');
+    return capabilityRequest<{ items: unknown[] }>('testagram.follow_requests.list', { limit: Math.min(100, Math.max(1, Math.floor(limit))) });
   },
   respondFollowRequest(followerId: string, action: 'accept' | 'reject') {
-    return request<{ status: string; accepted: boolean }>(
-      `/follow-requests/${encodeURIComponent(followerId)}/${action}`,
-      'POST',
-    );
+    return capabilityRequest<{ status: string; accepted: boolean }>('testagram.follow_requests.respond', { follower_id: followerId, action });
   },
   getInteractionSummary(postId: string) {
-    return request<{
+    return capabilityRequest<{
       likes: number; reposts: number; replies: number; quotes: number; views: number; shares: number;
       bookmarks: number; reaction_total: number; reactions: Record<string, number>;
       is_liked: boolean; is_reposted: boolean; is_bookmarked: boolean; user_reactions: string[];
-    }>('/posts/' + encodeURIComponent(postId) + '/interaction-summary', 'GET');
+    }>('testagram.posts.interaction_summary', { post_id: postId });
   },
   getLikeState(postId: string) {
-    return request<SocialLikeState & { emoji: string }>('/posts/' + encodeURIComponent(postId) + '/reaction', 'GET');
+    return capabilityRequest<SocialLikeState & { emoji: string }>('testagram.posts.like.state', { post_id: postId });
   },
   getRepostState(postId: string) {
-    return request<SocialRepostState>('/posts/' + encodeURIComponent(postId) + '/reposts', 'GET');
+    return capabilityRequest<SocialRepostState>('testagram.posts.repost.state', { post_id: postId });
   },
   setLike(postId: string, active: boolean, emoji = '❤️') {
-    return request<SocialLikeState>('/posts/' + encodeURIComponent(postId) + '/reaction', active ? 'POST' : 'DELETE', active ? { emoji } : undefined);
+    return active
+      ? capabilityRequest<SocialLikeState>('testagram.posts.like', { post_id: postId, emoji })
+      : capabilityRequest<SocialLikeState>('testagram.posts.unlike', { post_id: postId });
   },
   setRepost(postId: string, active: boolean, quote = '') {
-    return request<SocialRepostState>(`/posts/${encodeURIComponent(postId)}/reposts`, active ? 'POST' : 'DELETE', active ? { quote } : undefined);
+    return active
+      ? capabilityRequest<SocialRepostState>('testagram.posts.repost', { post_id: postId, quote })
+      : capabilityRequest<SocialRepostState>('testagram.posts.unrepost', { post_id: postId });
   },
   createReply(postId: string, content: string, parentReplyId?: string) {
-    return request<{ reply_id: string; post_id: string; content: string }>(
-      `/posts/${encodeURIComponent(postId)}/replies`,
-      'POST',
-      { content, ...(parentReplyId ? { parent_reply_id: parentReplyId } : {}) },
-    );
+    return capabilityRequest<{ reply_id: string; post_id: string; content: string }>('testagram.replies.create', {
+      post_id: postId, content, ...(parentReplyId ? { parent_reply_id: parentReplyId } : {}),
+    });
   },
   setBookmark(postId: string, active: boolean) {
-    return request<{ bookmarked: boolean }>(
-      `/posts/${encodeURIComponent(postId)}/bookmarks`,
-      active ? 'POST' : 'DELETE',
-    );
+    return capabilityRequest<{ bookmarked: boolean }>('testagram.bookmarks.set', { post_id: postId, bookmarked: active });
   },
   listNotifications(limit = 30, cursor?: string) {
-    const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
-    if (cursor) query.set('cursor', cursor);
-    return request<{ items: unknown[]; next_cursor: string }>(`/notifications?${query.toString()}`, 'GET');
+    return capabilityRequest<{ items: unknown[]; next_cursor: string }>('testagram.notifications.list', { limit: Math.min(100, Math.max(1, Math.floor(limit))), ...(cursor ? { cursor } : {}) });
   },
   markNotificationRead(notificationId: string) {
-    return request<{ read: boolean }>(`/notifications/${encodeURIComponent(notificationId)}/read`, 'POST');
+    return capabilityRequest<{ read: boolean }>('testagram.notifications.mark_read', { notification_id: notificationId });
   },
 };

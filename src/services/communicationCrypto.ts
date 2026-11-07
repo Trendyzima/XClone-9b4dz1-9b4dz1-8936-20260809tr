@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 const DB_NAME = 'testagram-communication-crypto';
@@ -38,9 +37,14 @@ const deriveWrappingKey = async (privateKey: CryptoKey, publicKey: CryptoKey, sa
 
 export const communicationCrypto = {
   async registerDevice(): Promise<{ id: string; deviceId: string; publicKey: string }> {
-    const device = await ensureDevice(); const publicKey = await exportPublicKey(device.publicKey); const { data: session } = await supabase.auth.getSession(); const userId = session.session?.user.id; if (!userId) throw new Error('Authentication required');
-    const { error } = await supabase.from('communication_devices').upsert({ user_id: userId, device_id: device.deviceId, identity_public_key: publicKey, last_seen_at: new Date().toISOString(), revoked_at: null }, { onConflict: 'user_id,device_id' }); if (error) throw error;
-    const { data, error: readError } = await supabase.from('communication_devices').select('id').eq('user_id', userId).eq('device_id', device.deviceId).is('revoked_at', null).single(); if (readError || !data?.id) throw readError ?? new Error('Canonical communication device id unavailable'); return { id: String(data.id), deviceId: device.deviceId, publicKey };
+    const device = await ensureDevice();
+    const publicKey = await exportPublicKey(device.publicKey);
+    const result = await backendCapabilities.call<{ id: string }>('testagram.communication.devices.register', {
+      device_id: device.deviceId,
+      identity_public_key: publicKey,
+    });
+    if (!result.id) throw new Error('Backend did not return a canonical communication device ID.');
+    return { id: String(result.id), deviceId: device.deviceId, publicKey };
   },
   async listConversationDevices(conversationId: string) { return backendCapabilities.call<{ devices: CommunicationDevice[] }>('testagram.communication.devices.list', { conversation_id: conversationId }); },
   async listMyKeyEnvelopes(conversationId: string) { return backendCapabilities.call<{ envelopes: Envelope[] }>('testagram.communication.keys.list', { conversation_id: conversationId }); },

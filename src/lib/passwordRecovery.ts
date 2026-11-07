@@ -4,8 +4,8 @@ const RECOVERY_MARKER_MAX_AGE_MS = 30 * 60 * 1000;
 type RecoveryMarker = { userId: string; issuedAt: number };
 
 /**
- * A persisted Supabase session alone is not proof that the current visit came
- * from a password-reset link. Only call this after Supabase emits
+ * A persisted Appwrite session alone is not proof that the current visit came
+ * from a password-reset link. Only call this after Appwrite emits
  * PASSWORD_RECOVERY or verifyOtp({ type: 'recovery' }) succeeds.
  */
 export function markPasswordRecoverySession(userId: string) {

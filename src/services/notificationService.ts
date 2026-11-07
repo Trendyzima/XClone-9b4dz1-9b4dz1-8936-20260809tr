@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import type { NotificationEventInput, NotificationEventRecord } from '../types/notification';
 
 /**
@@ -7,26 +7,18 @@ import type { NotificationEventInput, NotificationEventRecord } from '../types/n
  * enqueue Novu delivery without exposing provider credentials to the browser.
  */
 export async function emitNotification(input: NotificationEventInput): Promise<NotificationEventRecord> {
-  const { data, error } = await supabase.rpc('create_domain_notification', {
-    p_recipient_id: input.recipientId,
-    p_kind: input.eventType,
-    p_actor_id: input.actorId ?? null,
-    p_post_id: input.entityType === 'post' ? input.entityId ?? null : null,
-    p_type: input.eventType,
-    p_data: {
-      ...(input.payload ?? {}),
-      ...(input.entityType ? { entity_type: input.entityType } : {}),
-      ...(input.entityId ? { entity_id: input.entityId } : {}),
-    },
-    p_unique_key: input.uniqueKey ?? null,
+  return backendCapabilities.call<NotificationEventRecord>('testagram.notifications.emit', {
+    recipient_id: input.recipientId,
+    event_type: input.eventType,
+    actor_id: input.actorId ?? null,
+    entity_type: input.entityType ?? null,
+    entity_id: input.entityId ?? null,
+    payload: input.payload ?? {},
+    unique_key: input.uniqueKey ?? null,
   });
-  if (error) throw new Error(`Notification enqueue failed: ${error.message}`);
-  return data as NotificationEventRecord;
 }
-
 /** Reads use the canonical capability gateway; mutation remains a backend RPC boundary. */
 export async function getMyNotifications(limit = 50) {
-  const { backendCapabilities } = await import('@/services/backendClient');
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const result = await backendCapabilities.listNotifications(safeLimit);
   return result.items;

@@ -1,4 +1,5 @@
-import { supabase } from '../lib/supabase';
+import { APPWRITE_AUTH_CHANGED_EVENT, appwriteAuth } from '@/services/appwriteAuth';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 declare global {
   interface Window {
@@ -18,20 +19,14 @@ async function registerToken(token: string): Promise<void> {
 
   pendingToken = normalized;
 
-  const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData.session) return;
+  const user = await appwriteAuth.getCurrentUser();
+  if (!user) return;
   if (normalized === registeredToken) return;
 
-  const { error } = await supabase.functions.invoke('register-push-token', {
-    body: {
-      token: normalized,
-      platform: 'android',
-      provider: 'fcm',
-    },
-  });
-
-  if (error) {
-    console.warn('[Testagram] native push registration failed:', error.message);
+  try {
+    await backendCapabilities.call('testagram.notifications.fcm.register', { token: normalized, platform: 'android', provider: 'fcm' });
+  } catch (error) {
+    console.warn('[Testagram] native push registration failed:', error instanceof Error ? error.message : error);
     scheduleRetry();
     return;
   }
@@ -69,10 +64,9 @@ export function startNativePushRegistration(): () => void {
   const existingToken = window.__TESTAGRAM_FCM_TOKEN__;
   if (existingToken) void registerToken(existingToken);
 
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT') {
+  const onAuthChanged = () => {
+    void appwriteAuth.getCurrentUser().then(user => {
+      if (!user) {
       registeredToken = null;
       pendingToken = null;
       retryAttempt = 0;
@@ -80,13 +74,14 @@ export function startNativePushRegistration(): () => void {
         window.clearTimeout(retryTimer);
         retryTimer = null;
       }
-      return;
-    }
-
-    if (session?.user && window.__TESTAGRAM_FCM_TOKEN__) {
-      void registerToken(window.__TESTAGRAM_FCM_TOKEN__);
-    }
-  });
+        registeredToken = null; pendingToken = null; retryAttempt = 0;
+        if (retryTimer) { window.clearTimeout(retryTimer); retryTimer = null; }
+        return;
+      }
+      if (window.__TESTAGRAM_FCM_TOKEN__) void registerToken(window.__TESTAGRAM_FCM_TOKEN__);
+    }).catch(() => undefined);
+  };
+  window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChanged);
 
   const onVisible = () => {
     if (document.visibilityState === 'visible' && pendingToken) {
@@ -98,7 +93,7 @@ export function startNativePushRegistration(): () => void {
   return () => {
     window.removeEventListener('testagram:fcm-token', onToken);
     document.removeEventListener('visibilitychange', onVisible);
-    subscription.unsubscribe();
+    window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChanged);
     if (retryTimer) {
       window.clearTimeout(retryTimer);
       retryTimer = null;

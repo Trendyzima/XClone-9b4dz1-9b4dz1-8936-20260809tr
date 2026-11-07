@@ -1,4 +1,4 @@
-import { supabase, supabaseSecondary } from '@/lib/supabase';
+
 
 export type DataPlane = 'primary' | 'secondary';
 
@@ -56,69 +56,55 @@ export const PUBLIC_READ_FALLBACK_TABLES = new Set([
   'content_recommendations', 'tv_channel_reactions', 'media_assets',
 ]);
 
-export function clientFor(plane: DataPlane) {
-  return plane === 'secondary' ? supabaseSecondary : supabase;
+/**
+ * Browser database clients are retired. Data access must go through the
+ * authenticated Backend API; compatibility functions fail closed so old
+ * callers cannot silently reconnect to retired database projects.
+ */
+export type RetiredDataPlaneClient = {
+  from: (table: string) => any;
+  rpc: (name: string, args?: Record<string, unknown>) => any;
+};
+
+function retiredClient(): RetiredDataPlaneClient {
+  const reject = (operation: string): never => {
+    throw new Error('DIRECT_DATABASE_ACCESS_REMOVED: ' + operation + ' must be implemented by the central Testagram Backend API.');
+  };
+  return {
+    from: (table: string) => reject('table ' + table),
+    rpc: (name: string) => reject('RPC ' + name),
+  };
 }
 
-/** Browser/client writes are always canonical on the primary project. */
+export function clientFor(_plane: DataPlane): RetiredDataPlaneClient {
+  return retiredClient();
+}
+
 export function assertWritePlane(table: string, plane: DataPlane = 'primary') {
-  if (plane !== 'primary') {
-    throw new Error('Client writes to "' + table + '" are restricted to the primary Testagram data plane.');
-  }
+  if (plane !== 'primary') throw new Error('Client writes to "' + table + '" are restricted to the central Backend API.');
+  throw new Error('DIRECT_DATABASE_ACCESS_REMOVED: write "' + table + '" through the central Backend API.');
 }
 
-/** Server-side replication/ingestion must opt into an explicitly approved table. */
 export function assertSecondaryServerWrite(table: string) {
-  if (!SECONDARY_SERVER_WRITE_TABLES.has(table)) {
-    throw new Error('Secondary server writes are not approved for "' + table + '".');
-  }
+  if (!SECONDARY_SERVER_WRITE_TABLES.has(table)) throw new Error('Secondary server writes are not approved for "' + table + '".');
 }
 
 export function isPrimaryOnlyTable(table: string) {
   return PRIMARY_ONLY_TABLES.has(table);
 }
 
-/** Public/read-heavy data can fail over without moving the primary JWT. */
 export async function readPublicWithFallback<T>(
   table: string,
-  primaryQuery: (client: typeof supabase) => PromiseLike<{ data: T | null; error: any }>,
-  secondaryQuery?: (client: typeof supabaseSecondary) => PromiseLike<{ data: T | null; error: any }>,
+  _primaryQuery: (client: RetiredDataPlaneClient) => PromiseLike<{ data: T | null; error: any }>,
+  _secondaryQuery?: (client: RetiredDataPlaneClient) => PromiseLike<{ data: T | null; error: any }>,
 ): Promise<{ data: T | null; source: DataPlane; primaryError?: any; secondaryError?: any }> {
-  const primary = await primaryQuery(supabase);
-  if (!primary.error && primary.data != null) return { data: primary.data, source: 'primary' };
-
-  if (!PUBLIC_READ_FALLBACK_TABLES.has(table) || !secondaryQuery) {
-    return { data: primary.data, source: 'primary', primaryError: primary.error };
-  }
-
-  const secondary = await secondaryQuery(supabaseSecondary);
-  if (!secondary.error && secondary.data != null) {
-    return { data: secondary.data, source: 'secondary', primaryError: primary.error };
-  }
-
-  return {
-    data: primary.data,
-    source: 'primary',
-    primaryError: primary.error,
-    secondaryError: secondary.error,
-  };
+  throw new Error('DIRECT_DATABASE_ACCESS_REMOVED: public read "' + table + '" must use a Backend API endpoint.');
 }
 
-/** Queries both public planes so catalog/discovery callers can merge and dedupe. */
 export async function readPublicExpansion<T>(
   table: string,
-  primaryQuery: (client: typeof supabase) => PromiseLike<{ data: T | null; error: any }>,
-  secondaryQuery?: (client: typeof supabaseSecondary) => PromiseLike<{ data: T | null; error: any }>,
+  _primaryQuery: (client: RetiredDataPlaneClient) => PromiseLike<{ data: T | null; error: any }>,
+  _secondaryQuery?: (client: RetiredDataPlaneClient) => PromiseLike<{ data: T | null; error: any }>,
 ): Promise<{ primary: T | null; secondary: T | null; primaryError?: any; secondaryError?: any }> {
-  const primary = await primaryQuery(supabase);
-  if (!PUBLIC_READ_FALLBACK_TABLES.has(table) || !secondaryQuery) {
-    return { primary: primary.data, secondary: null, primaryError: primary.error };
-  }
-  const secondary = await secondaryQuery(supabaseSecondary);
-  return {
-    primary: primary.data,
-    secondary: secondary.data,
-    primaryError: primary.error,
-    secondaryError: secondary.error,
-  };
+  throw new Error('DIRECT_DATABASE_ACCESS_REMOVED: public expansion "' + table + '" must use a Backend API endpoint.');
 }

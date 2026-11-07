@@ -1,46 +1,30 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import type { ComponentProps, ComponentType } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { authService, finalizeAuthenticatedSession, mapAppwriteAuthUser } from '@/lib/auth';
-import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
+import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { appwriteAuth } from '@/services/appwriteAuth';
-import { clearPasswordRecoverySession, getPasswordRecoveryUserId, hasPasswordRecoveryMarker, markPasswordRecoverySession } from '@/lib/passwordRecovery';
+import type { Models } from 'appwrite';
+import type { AuthUser } from '@/types/app-types';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
-import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
-import { identitySignup } from '@/lib/identitySignup';
 
-type AuthMode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
+type AuthMode = 'signin' | 'signup' | 'verify' | 'recover' | 'reset';
 
 function friendlyAuthError(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : '';
   const safeMessages: Record<string, string> = {
     AGE_RESTRICTION: 'You must be at least 18 years old to create a Testagram account.',
-    APPWRITE_EMAIL_OTP_NOT_YET_ENABLED: 'Email code sign-in is being migrated to Appwrite. Use your email and password for now.',
-    APPWRITE_MAGIC_LINK_NOT_YET_ENABLED: 'Magic-link sign-in is not enabled in the fresh Appwrite release yet.',
-    APPWRITE_SIGNUP_MIGRATION_PENDING: 'New account registration is temporarily unavailable while identity verification is migrated to Appwrite.',
-    APPWRITE_RECOVERY_CONTEXT_REQUIRED: 'Open the password recovery link from your email before choosing a new password.',
-    PHONE_OTP_REQUIRED: 'Phone sign-in is being migrated. Sign in with your email and password for now.',
+    EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
+    IDENTITY_VERIFICATION_REQUIRED: 'Identity verification is required before this account can be activated. New registration is temporarily paused while that flow is migrated to Appwrite and Backend.',
+    APPWRITE_RECOVERY_CONTEXT_REQUIRED: 'Open the newest password recovery link from your email before choosing a new password.',
     LEGAL_ACCEPTANCE_REQUIRED: 'Please review and accept the required policies before continuing.',
-    INVALID_EMAIL: 'Enter a valid email address.',
-    EMAIL_ALREADY_REGISTERED: 'An account may already exist for this email. Try signing in or recovering your password.',
-    REGISTRATION_EXPIRED: 'This registration has expired. Start again to receive a new verification code.',
-    REGISTRATION_TOKEN_REQUIRED: 'Your registration session has expired. Start again to continue.',
-    REGISTRATION_COMPLETED: 'This registration has already been completed. Please sign in.',
-    PASSWORD_TOO_SHORT: 'Use a password with at least 8 characters.',
-    EMAIL_NOT_VERIFIED: 'Verify your email before continuing.',
-    IDENTITY_NOT_APPROVED: 'Your identity must be approved before creating the account.',
-    IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
-    IDENTITY_NETWORK_ERROR: 'Could not reach the authentication service. Check your connection and try again.',
     RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
-    TESTAGRAM_MAIL_QUEUE_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
-    TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
   };
-  return safeMessages[message] || (message.includes('timed out') ? 'The request took too long. Check your connection and try again.' : fallback);
+  return safeMessages[message] || (message.toLowerCase().includes('timed out') ? 'The request took too long. Check your connection and try again.' : fallback);
 }
 
 function getSafeReturnTo() {
@@ -67,264 +51,142 @@ export default function AuthPage() {
   const [mode, setMode] = useState<AuthMode>(() => {
     if (typeof window === 'undefined') return 'signin';
     const params = new URLSearchParams(window.location.search);
-    return params.get('reset') === '1' || params.get('type') === 'recovery' ? 'reset' : 'signin';
+    if (params.get('reset') === '1') return 'reset';
+    if (params.get('verify') === '1') return 'verify';
+    if (params.get('identity') === 'required') return 'signup';
+    return 'signin';
   });
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('email') || '');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpPurpose, setOtpPurpose] = useState<'signin' | 'signup'>('signin');
-  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryChecking, setRecoveryChecking] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const authUser = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
-  const [legalAccepted, setLegalAccepted] = useState(() => !!readLegalConsent());
-  const [recoveryReady, setRecoveryReady] = useState(false);
-  const [recoveryChecking, setRecoveryChecking] = useState(false);
+
+  const finishLogin = useCallback(async (user: Models.User<Models.Preferences>, requireFreshLegalConsent = false) => {
+    if (!user.emailVerification) {
+      setEmail(user.email || '');
+      setMode('verify');
+      setLoading(false);
+      return;
+    }
+    let finalized: AuthUser;
+    try {
+      finalized = await finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'IDENTITY_VERIFICATION_REQUIRED') {
+        try { await appwriteAuth.signOut(); } catch { /* best-effort cleanup */ }
+      }
+      throw error;
+    }
+    login(finalized);
+    setLoading(false);
+    navigate(getSafeReturnTo(), { replace: true });
+  }, [login, navigate]);
 
   useEffect(() => {
-    if (isFreshAppwriteMode) {
-      const params = new URLSearchParams(window.location.search);
-      const userId = params.get("userId")?.trim() ?? "";
-      const secret = params.get("secret")?.trim() ?? "";
-      const isResetRoute = params.get("reset") === "1";
-      if (isResetRoute && userId && secret) {
-        const recoveryEmail = params.get("email")?.trim() ?? "";
-        appwriteAuth.saveRecoveryContext({ userId, secret, email: recoveryEmail });
-        if (recoveryEmail) setEmail(recoveryEmail);
-        setMode("reset");
+    let cancelled = false;
+    const params = new URLSearchParams(window.location.search);
+    const userId = params.get('userId')?.trim() || '';
+    const secret = params.get('secret')?.trim() || '';
+
+    if (params.get('reset') === '1') {
+      setMode('reset');
+      setRecoveryChecking(Boolean(userId && secret));
+      if (userId && secret) {
+        appwriteAuth.saveRecoveryContext({ userId, secret, email: '' });
         setRecoveryReady(true);
         setRecoveryChecking(false);
-        window.history.replaceState({}, document.title, "/auth?reset=1");
-      } else if (isResetRoute) {
-        setMode("reset");
+        window.history.replaceState({}, document.title, '/auth?reset=1');
+      } else {
         setRecoveryReady(Boolean(appwriteAuth.getRecoveryContext()));
         setRecoveryChecking(false);
       }
-      return () => {};
-    }
-    const params = new URLSearchParams(window.location.search);
-    const isResetRoute = params.get('reset') === '1';
-    const isRecoveryCallback = isResetRoute || params.get('type') === 'recovery';
-    if (isRecoveryCallback) {
-      setMode('reset');
-      setRecoveryChecking(true);
-    }
-    const ref = params.get('ref')?.trim();
-    if (ref) window.localStorage.setItem('testagram-referral-code', ref);
-
-    let cancelled = false;
-    // PKCE recovery links are exchanged by Supabase's URL detector. Only the
-    // recovery event is allowed to unlock the password-reset form.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // A normal SIGNED_IN / INITIAL_SESSION can be an already-persisted
-      // session. Neither proves the reset code was redeemed, even when the URL
-      // merely contains a "code" query parameter.
-      const recoveryCallbackEvent = event === 'PASSWORD_RECOVERY';
-      if (recoveryCallbackEvent && session?.user) {
-        markPasswordRecoverySession(session.user.id);
-        setMode('reset');
-        setRecoveryReady(true);
-        setRecoveryChecking(false);
-        setLoading(false);
-        window.history.replaceState({}, document.title, '/auth?reset=1');
-      }
-    });
-
-    // PKCE exchange may have completed before this component mounted. A session
-    // is accepted here only when the early Auth listener recorded the actual
-    // PASSWORD_RECOVERY event for this exact user; the mere presence of "code"
-    // in the URL is never treated as proof of recovery.
-    if (isRecoveryCallback) {
-      void supabase.auth.getSession().then(({ data, error }) => {
-        if (cancelled) return;
-        const userId = data.session?.user?.id;
-        const recoveryUserId = getPasswordRecoveryUserId();
-        if (!error && userId && recoveryUserId === userId) {
-          setRecoveryReady(true);
-          window.history.replaceState({}, document.title, '/auth?reset=1');
-        }
-        setRecoveryChecking(false);
-      });
     }
 
-    const tokenHash = params.get('token_hash')?.trim();
-    const requestedTokenType = params.get('type')?.trim();
-    const allowedTokenTypes = new Set(['email', 'signup', 'magiclink', 'recovery', 'invite', 'email_change']);
-    if (!tokenHash || !requestedTokenType || !allowedTokenTypes.has(requestedTokenType)) {
-      return () => { cancelled = true; subscription.unsubscribe(); };
-    }
-    const tokenType = requestedTokenType as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | 'email_change';
-
-    (async () => {
+    if (params.get('verify') === '1' && userId && secret) {
       setLoading(true);
-      try {
-        const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: tokenType });
-        if (error) throw error;
-        if (!data.user) throw new Error('Verification succeeded but no user session was returned');
-        if (cancelled) return;
-        if (tokenType === 'recovery') {
-          // Recovery is not a sign-in. Do not finalize/login/navigate until the
-          // user explicitly submits a new password.
-          setMode('reset');
-          setRecoveryReady(true);
-          setRecoveryChecking(false);
-          setLoading(false);
-          markPasswordRecoverySession(data.user.id);
-          window.history.replaceState({}, document.title, '/auth?reset=1');
-          return;
+      void (async () => {
+        try {
+          await appwriteAuth.completeEmailVerification(userId, secret);
+          const user = await appwriteAuth.getCurrentUser();
+          if (cancelled) return;
+          window.history.replaceState({}, document.title, '/auth');
+          if (user) await finishLogin(user);
+          else {
+            setMode('signin');
+            setLoading(false);
+            toast({ title: 'Email verified', description: 'Your email is verified. Sign in to continue.' });
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setLoading(false);
+            setMode('verify');
+            toast({ title: 'Email verification failed', description: friendlyAuthError(error, 'The verification link is invalid or expired. Request a new one.'), variant: 'destructive' });
+          }
         }
-        window.history.replaceState({}, document.title, '/auth');
-        await finishLogin(data.user);
-      } catch (error: any) {
-        if (!cancelled) {
-          setLoading(false);
-          setRecoveryChecking(false);
-          setRecoveryReady(false);
-          toast({ title: 'Verification link failed', description: friendlyAuthError(error, 'Request a new verification email.'), variant: 'destructive' });
-        }
-      }
-    })();
-    return () => { cancelled = true; subscription.unsubscribe(); };
-  }, []);
+      })();
+    }
+
+    return () => { cancelled = true; };
+  }, [finishLogin, login, navigate, toast]);
 
   useEffect(() => {
-    if (authUser && !['otp', 'reset'].includes(mode)) navigate(getSafeReturnTo(), { replace: true });
+    if (authUser && !['verify', 'reset'].includes(mode)) navigate(getSafeReturnTo(), { replace: true });
   }, [authUser, mode, navigate]);
 
-  const applyPendingReferral = async () => {
-    if (isFreshAppwriteMode) return;
-    const code = window.localStorage.getItem('testagram-referral-code');
-    if (!code) return;
-    try {
-      const { error } = await supabase.rpc('apply_referral_code', { p_code: code });
-      if (error && !error.message.includes('REFERRAL_ALREADY_APPLIED')) throw error;
-      await supabase.rpc('complete_referral');
-      window.localStorage.removeItem('testagram-referral-code');
-    } catch { /* Referral rewards never block authentication. */ }
-  };
-
-  const finishLogin = async (user: any) => {
-    const finalized = await finalizeAuthenticatedSession(user);
-    login(finalized);
-    setLoading(false);
-    await applyPendingReferral();
-    // Existing-account login never launches KYC. Identity verification is only
-    // entered from the explicit account-creation flow.
-    navigate(getSafeReturnTo(), { replace: true });
-  };
-
   const handlePasswordSignIn = async (event: FormEvent) => {
-    event.preventDefault(); setLoading(true);
-    try { await finishLogin(await authService.signInWithPassword(email, password)); }
-    catch (error: any) { setLoading(false); toast({ title: 'Sign-in failed', description: friendlyAuthError(error, 'Check your details and try again.'), variant: 'destructive' }); }
-  };
-
-  const handleMagicLink = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
     try {
-      await authService.sendMagicLink(email);
-      toast({
-        title: 'Check your email',
-        description: 'If your account can sign in by email, we sent a secure Testagram sign-in link. Open it on this device to continue.',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Could not send sign-in link',
-        description: friendlyAuthError(error, 'Please try again in a moment.'),
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startIdentitySignup = async () => {
-    if (isFreshAppwriteMode) throw new Error('APPWRITE_SIGNUP_MIGRATION_PENDING');
-    const consent = readLegalConsent();
-    if (!consent?.birthDate) {
-      setLegalAccepted(false);
-      throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
-    }
-    await identitySignup.start({
-      email,
-      birthDate: consent.birthDate,
-      username,
-      legalPolicyVersion: consent.version,
-    });
-    setOtpPurpose('signup');
-    setOtp('');
-    setMode('otp');
-    toast({ title: 'Email verification required', description: 'We sent a 6-digit code. Your Testagram account is not created yet.' });
-  };
-
-  const handlePasswordSignUp = async (event: FormEvent) => {
-    event.preventDefault();
-    // Password creation happens only after email and identity verification have
-    // succeeded. Do not collect a password here that cannot yet be used.
-    setLoading(true);
-    try {
-      await startIdentitySignup();
-    } catch (error: any) {
-      toast({ title: 'Could not start identity verification', description: friendlyAuthError(error, 'Please try again.'), variant: 'destructive' });
-    } finally { setLoading(false); }
-  };
-
-  const verifyEmailOtp = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!/^\d{6}$/.test(otp.trim())) {
-      toast({ title: 'Invalid code', description: 'Enter the 6-digit verification code from your email.', variant: 'destructive' });
-      return;
-    }
-    setLoading(true);
-    try {
-      if (otpPurpose === 'signup') {
-        await identitySignup.verifyEmail(otp);
+      const user = await appwriteAuth.signInWithPassword({ email, password });
+      if (!user.emailVerification) {
+        await appwriteAuth.sendEmailVerification();
+        setMode('verify');
+        toast({ title: 'Verify your email', description: 'We sent a fresh verification link to your email address.' });
         setLoading(false);
-        navigate('/verify-identity', { replace: true });
         return;
       }
-      await finishLogin(await authService.verifyEmailOtp(email, otp, 'email'));
-    } catch (error: any) {
+      await finishLogin(user);
+    } catch (error) {
       setLoading(false);
-      toast({ title: 'Verification failed', description: friendlyAuthError(error, 'The code is invalid or expired.'), variant: 'destructive' });
+      toast({ title: 'Sign-in failed', description: friendlyAuthError(error, 'Check your email and password, then try again.'), variant: 'destructive' });
     }
   };
 
-  const resendEmailOtp = async () => {
+
+  const resendVerification = async () => {
     setLoading(true);
     try {
-      if (otpPurpose === 'signup') {
-        await identitySignup.resendEmail();
-      } else {
-        await authService.sendEmailOtp(email, false);
-      }
-      setOtp('');
-      toast({ title: 'New code sent', description: 'Check your email for the latest 6-digit verification code.' });
-    } catch (error: any) {
-      toast({ title: 'Could not resend code', description: friendlyAuthError(error, 'Please try again.'), variant: 'destructive' });
+      await appwriteAuth.sendEmailVerification();
+      toast({ title: 'Verification link sent', description: 'Check your inbox and spam folder for the latest Testagram verification email.' });
+    } catch (error) {
+      toast({ title: 'Could not send verification link', description: friendlyAuthError(error, 'Please sign in again and request a new verification link.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
   const requestReset = async (event: FormEvent) => {
-    event.preventDefault(); setLoading(true);
+    event.preventDefault();
+    setLoading(true);
     try {
-      await authService.resetPassword(email);
-      toast({ title: 'Check your email', description: 'If the account exists, we sent a secure password reset link.' });
-    } catch (error: any) {
+      await appwriteAuth.requestPasswordRecovery(email);
+      toast({ title: 'Check your email', description: 'If the account exists, Appwrite has sent a secure password recovery link.' });
+    } catch (error) {
       toast({ title: 'Reset request failed', description: friendlyAuthError(error, 'Please check the email and try again.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
   const updatePassword = async (event: FormEvent) => {
     event.preventDefault();
-    if (!recoveryReady) {
-      toast({ title: 'Recovery link required', description: 'Open the latest password-reset link from your email before choosing a new password.', variant: 'destructive' });
+    const recovery = appwriteAuth.getRecoveryContext();
+    if (!recovery) {
+      toast({ title: 'Recovery link required', description: 'Open the newest password recovery link from your email before choosing a new password.', variant: 'destructive' });
       return;
     }
     if (password.length < 8 || password !== confirmation) {
@@ -333,87 +195,42 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      if (isFreshAppwriteMode) {
-        const recovery = appwriteAuth.getRecoveryContext();
-        if (!recovery?.email) throw new Error('APPWRITE_RECOVERY_CONTEXT_REQUIRED');
-        const appwriteUser = await appwriteAuth.completePasswordRecoveryAndSignIn({
-          userId: recovery.userId,
-          secret: recovery.secret,
-          email: recovery.email,
-          password,
-        });
-        const finalized = await finalizeAuthenticatedSession(mapAppwriteAuthUser(appwriteUser));
-        setRecoveryReady(false);
-        login(finalized);
-      } else {
-        const user = await authService.updatePassword(password);
-        const finalized = await finalizeAuthenticatedSession(user);
-        clearPasswordRecoverySession();
-        setRecoveryReady(false);
-        login(finalized);
-      }
+      await appwriteAuth.completePasswordRecovery({ userId: recovery.userId, secret: recovery.secret, password });
+      appwriteAuth.clearRecoveryContext();
+      setRecoveryReady(false);
+      setPassword('');
+      setConfirmation('');
+      setMode('signin');
       window.history.replaceState({}, document.title, '/auth');
-      navigate(getSafeReturnTo(), { replace: true });
-    } catch (error: any) {
+      toast({ title: 'Password updated', description: 'Your password has been changed. Sign in with your new password.' });
+    } catch (error) {
       toast({ title: 'Password update failed', description: friendlyAuthError(error, 'Your reset link may have expired. Request a new one.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
-
-  // Age/legal confirmation is an account-creation gate, not a login gate. Existing
-  // accounts must be able to sign in without seeing the page again. The durable
-  // server-side consent fields are written during account creation; localStorage is
-  // only a pre-account convenience and never the authorization source.
-  if (mode === 'signup' && !legalAccepted) return <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 p-4 flex items-center justify-center"><LegalAcceptanceGate onAccepted={() => setLegalAccepted(true)} /></div>;
 
   const go = (next: AuthMode) => {
     setLoading(false);
     setPassword('');
     setConfirmation('');
     if (mode === 'reset' && next !== 'reset') {
-      if (isFreshAppwriteMode) {
-        const hadRecovery = recoveryReady || Boolean(appwriteAuth.getRecoveryContext());
-        appwriteAuth.clearRecoveryContext();
-        if (hadRecovery) {
-          void authService.signOut();
-        } else {
-          void appwriteAuth.getCurrentUser().then((user) => {
-            if (!user) return;
-            void finalizeAuthenticatedSession(mapAppwriteAuthUser(user)).then(login).catch((error) => console.error('[Auth] Could not restore Appwrite session after leaving reset URL:', error));
-          });
-        }
-        setRecoveryReady(false);
-        setRecoveryChecking(false);
-        window.history.replaceState({}, document.title, '/auth');
-        setMode(next);
-        return;
-      }
-      // Leaving the reset screen cancels its temporary session and removes the
-      // reset marker from the URL so refresh cannot reopen a stale reset flow.
-      const hasRecoveryMarker = hasPasswordRecoveryMarker();
-      clearPasswordRecoverySession();
-      if (recoveryReady || hasRecoveryMarker) {
-        // A redeemed recovery link creates a temporary session. Leaving the
-        // reset flow without changing the password must not turn that into a
-        // normal signed-in app session.
-        void supabase.auth.signOut();
-      } else {
-        // A malformed /auth?reset=1 URL must not strand a previously signed-in
-        // user in an unhydrated app state after they leave the reset screen.
-        void supabase.auth.getSession().then(({ data, error }) => {
-          if (error || !data.session?.user) return;
-          void finalizeAuthenticatedSession(data.session.user)
-            .then(login)
-            .catch((error) => console.error('[Auth] Could not restore existing session after leaving invalid reset URL:', error));
-        });
-      }
+      appwriteAuth.clearRecoveryContext();
       setRecoveryReady(false);
       setRecoveryChecking(false);
       window.history.replaceState({}, document.title, '/auth');
     }
     setMode(next);
   };
-  const title = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : mode === 'otp' ? 'Enter your verification code' : mode === 'recover' ? 'Reset your password' : 'Choose a new password';
-  const subtitle = mode === 'signin' ? 'Sign in to continue your Testagram journey.' : mode === 'signup' ? 'Verify your email and identity first. You will create your password after approval.' : mode === 'otp' ? `We sent a 6-digit code to ${email}. Enter it below to continue.` : mode === 'recover' ? 'We’ll send a secure reset link to your email.' : 'Your new password should be at least 8 characters.';
+
+  const title = mode === 'signin' ? 'Welcome back'
+    : mode === 'signup' ? 'Registration is moving to Appwrite'
+    : mode === 'verify' ? 'Verify your Appwrite email'
+    : mode === 'recover' ? 'Reset your password'
+    : 'Choose a new password';
+  const subtitle = mode === 'signin' ? 'Sign in securely with your Testagram account.'
+     : mode === 'signup' ? 'Verify your email and identity before your Appwrite account is created.'
+    : mode === 'verify' ? 'Open the secure Appwrite verification link sent to ' + (email || 'your email address') + '.'
+    : mode === 'recover' ? 'We’ll send a secure, time-limited recovery link to your email.'
+    : 'Choose a new password for your Testagram account.';
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/.13),_transparent_38%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/.35))] px-4 py-6 sm:py-10">
@@ -428,11 +245,14 @@ export default function AuthPage() {
               <h1 className="text-5xl font-black leading-[1.03] tracking-[-.04em]">Your people.<br />Your stories.<br />Your space.</h1>
               <p className="mt-6 max-w-sm text-sm leading-6 text-primary-foreground/75">A modern home for conversations, live media, creators and the moments you want to keep moving.</p>
             </div>
-            <div className="relative flex items-center gap-2 text-xs text-primary-foreground/70"><ShieldCheck className="h-4 w-4" /> Secure authentication · Adults 18+</div>
+            <div className="relative flex items-center gap-2 text-xs text-primary-foreground/70"><ShieldCheck className="h-4 w-4" /> Appwrite identity · Private Backend API · Adults 18+</div>
           </section>
 
           <section className="flex min-h-[680px] flex-col p-5 sm:p-8 lg:p-12">
-            <div className="flex items-center justify-between lg:justify-end"><div className="lg:hidden"><BrandMark /></div>{!['signin'].includes(mode) && <button onClick={() => go('signin')} className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back</button>}</div>
+            <div className="flex items-center justify-between lg:justify-end">
+              <div className="lg:hidden"><BrandMark /></div>
+              {mode !== 'signin' && <button onClick={() => go('signin')} className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to login</button>}
+            </div>
 
             <div className="mx-auto my-auto w-full max-w-md">
               <div className="mb-8 mt-8 lg:mt-0"><p className="mb-2 text-xs font-black uppercase tracking-[.18em] text-primary">Testagram account</p><h2 className="text-3xl font-black tracking-tight sm:text-4xl">{title}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{subtitle}</p></div>
@@ -440,46 +260,67 @@ export default function AuthPage() {
               {(mode === 'signin' || mode === 'signup') && (
                 <>
                   <div className="mb-6 grid grid-cols-2 rounded-2xl bg-muted p-1">
-                    <button onClick={() => go('signin')} className={'rounded-xl py-2.5 text-sm font-bold transition ' + (mode === 'signin' ? 'bg-background shadow-sm' : 'text-muted-foreground')}>Log in</button>
-                    <button onClick={() => go('signup')} className={'rounded-xl py-2.5 text-sm font-bold transition ' + (mode === 'signup' ? 'bg-background shadow-sm' : 'text-muted-foreground')}>Create account</button>
+                    <button type="button" onClick={() => go('signin')} className={'rounded-xl py-2.5 text-sm font-bold transition ' + (mode === 'signin' ? 'bg-background shadow-sm' : 'text-muted-foreground')}>Log in</button>
+                    <button type="button" onClick={() => go('signup')} className={'rounded-xl py-2.5 text-sm font-bold transition ' + (mode === 'signup' ? 'bg-background shadow-sm' : 'text-muted-foreground')}>Create account</button>
                   </div>
-
-                  <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-3.5">
-                    {mode === 'signup' && <Field icon={Sparkles} type="text" autoComplete="username" placeholder="Username (optional)" value={username} onChange={e => setUsername(e.target.value)} />}
-                    <Field icon={Mail} type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
-                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
-                    <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in with password' : 'Continue to email verification'}</Button>
-                  </form>
-
-                  {mode === 'signin' && <button onClick={() => go('recover')} className="mt-4 w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary">Forgot your password?</button>}
-
-                  <div className="my-6 flex items-center gap-3"><div className="h-px flex-1 bg-border" /><span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">or use email link</span><div className="h-px flex-1 bg-border" /></div>
-                  <form onSubmit={handleMagicLink} className="space-y-3.5">
-                    <Button disabled={loading || !email.trim()} type="submit" variant="outline" className="h-13 w-full rounded-2xl font-black">
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Mail className="mr-2 h-4 w-4" /> Email me a sign-in link</>}
-                    </Button>
-                    <p className="text-center text-xs leading-5 text-muted-foreground">We’ll send a secure, one-click link to the email above. No code to copy.</p>
-                  </form>
+                  {mode === 'signin' ? (
+                    <>
+                      <form onSubmit={handlePasswordSignIn} className="space-y-3.5">
+                        <Field icon={Mail} type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
+                        <div className="relative">
+                          <Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+                          <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
+                        </div>
+                        <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Log in securely'}</Button>
+                      </form>
+                      <button type="button" onClick={() => go('recover')} className="mt-4 w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary">Forgot your password?</button>
+                    </>
+                  ) : (
+                    <div className="space-y-4 rounded-3xl border border-amber-500/20 bg-amber-500/5 p-5">
+                      <div className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-amber-600" /> Registration temporarily paused</div>
+                      <p className="text-sm leading-6 text-muted-foreground">Identity approval and evidence upload must be completed by the Backend before an account can be provisioned. New accounts remain paused until that secure flow is complete. Existing approved Appwrite accounts can still sign in.</p>
+                      <Button type="button" variant="outline" onClick={() => go('signin')} className="w-full rounded-2xl">Back to sign in</Button>
+                    </div>
+                  )}
                 </>
               )}
 
-              {mode === 'otp' && <form onSubmit={verifyEmailOtp} className="space-y-4">
-                <div className="rounded-3xl border border-primary/15 bg-primary/5 p-6 text-center">
-                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10"><Mail className="h-7 w-7 text-primary" /></div>
-                  <p className="text-sm text-muted-foreground">Verification code sent to</p>
-                  <p className="mt-1 font-bold break-all">{email}</p>
+              {mode === 'verify' && (
+                <div className="space-y-4">
+                  <div className="rounded-3xl border border-primary/15 bg-primary/5 p-6 text-center">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10"><Mail className="h-7 w-7 text-primary" /></div>
+                    <p className="text-sm text-muted-foreground">Verification email sent to</p>
+                    <p className="mt-1 break-all font-bold">{email || 'your email address'}</p>
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">Open the link in the latest Testagram email to verify your account. This page will complete verification and continue setup.</p>
+                  </div>
+                  <Button disabled={loading} onClick={resendVerification} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Resend verification link'}</Button>
+                  <button type="button" onClick={() => go('signin')} className="w-full text-center text-sm font-semibold text-muted-foreground hover:text-foreground">Return to login</button>
                 </div>
-                <Field icon={KeyRound} type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit verification code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} required maxLength={6} />
-                <Button disabled={loading || otp.length !== 6} type="submit" className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify code & continue'}</Button>
-                <button type="button" onClick={resendEmailOtp} disabled={loading} className="w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary disabled:opacity-50">Resend verification code</button>
-                <button type="button" onClick={() => go('signin')} disabled={loading} className="w-full text-center text-sm font-semibold text-muted-foreground hover:text-foreground">Use another email</button>
-              </form>}
+              )}
 
-              {mode === 'recover' && <form onSubmit={requestReset} className="space-y-4"><div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground"><KeyRound className="mb-2 h-5 w-5 text-primary" />Enter the email linked to your Testagram account. We’ll send a secure, time-limited reset link.</div><Field icon={Mail} type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required /><Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Send reset link'}</Button></form>}
+              {mode === 'recover' && (
+                <form onSubmit={requestReset} className="space-y-4">
+                  <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground"><KeyRound className="mb-2 h-5 w-5 text-primary" />Enter the email linked to your Testagram account. Appwrite will send a secure recovery link.</div>
+                  <Field icon={Mail} type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                  <Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Send recovery link'}</Button>
+                </form>
+              )}
 
-              {mode === 'reset' && (recoveryReady ? <form onSubmit={updatePassword} className="space-y-3.5"><div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-muted-foreground"><CheckCircle2 className="mb-2 h-5 w-5 text-emerald-600" />Recovery link verified. Choose a new password to complete the reset.</div><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} /><Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Update password'}</Button></form> : <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-5 text-sm text-muted-foreground">{recoveryChecking ? <><Loader2 className="mb-2 h-5 w-5 animate-spin" />Verifying your password-reset link…</> : <>This reset link is invalid, expired, or already used. Request a new password-reset email and open its newest link.</>}<Button type="button" variant="outline" className="w-full rounded-2xl" onClick={() => go('recover')}>Request a new reset link</Button></div>)}
+              {mode === 'reset' && (recoveryReady ? (
+                <form onSubmit={updatePassword} className="space-y-3.5">
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-muted-foreground"><CheckCircle2 className="mb-2 h-5 w-5 text-emerald-600" />Recovery link received. Choose a new password to complete the reset.</div>
+                  <Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+                  <Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} />
+                  <Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Update password'}</Button>
+                </form>
+              ) : (
+                <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-5 text-sm text-muted-foreground">
+                  {recoveryChecking ? <><Loader2 className="mb-2 h-5 w-5 animate-spin" />Verifying your password recovery link…</> : <>This recovery link is invalid, expired, or already used. Request a new link and open the latest email.</>}
+                  <Button type="button" variant="outline" className="w-full rounded-2xl" onClick={() => go('recover')}>Request a new recovery link</Button>
+                </div>
+              ))}
 
-              <div className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] leading-5 text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Your account is protected by Supabase authentication.</div>
+              <div className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] leading-5 text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Identity secured by Appwrite. Permissions and product data are enforced by Testagram Backend.</div>
               <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">By continuing, you agree to the Terms, Privacy Policy and Community Guidelines. Testagram is for adults 18+.</p>
             </div>
           </section>

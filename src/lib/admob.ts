@@ -45,9 +45,4 @@ export async function showRewarded(_adId?: string): Promise<null> {
   return null;
 }
 
-export async function trackCreatorAdRevenue(_params: {
-  supabase: any;
-  creatorUserId: string;
-  adType: 'banner' | 'interstitial' | 'rewarded';
-  grossRevenue: number;
-}) {}
+export async function trackCreatorAdRevenue(_params: Record<string, unknown>) {}

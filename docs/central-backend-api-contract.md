@@ -9,3 +9,10 @@ Current supported fresh endpoints: `GET /v1/me`, `PUT /v1/me/profile`, `GET /v1/
 The fresh-mode `backendClient` obtains user JWTs from Appwrite and refuses legacy Supabase Edge Function invocation. The social API uses Appwrite JWT for the two ported operations only: home-feed reads and idempotent text-post creation. Every other social route remains fail-closed. Capability dispatch is explicitly blocked in fresh mode until its centralized Backend endpoint is implemented. Legacy mode is retained separately for existing compatibility; it is not the fresh runtime.
 
 Contract rules: `/v1` prefix, JSON, request IDs, `Idempotency-Key` on mutations, bounded pagination/body sizes, no-store for private responses, structured error codes and no credential/body leakage in logs. Keep API clients and tests in this repository; do not add a separate API-client repository.
+
+
+## Shared API transport
+
+Web features use one shared `testagramApi` instance backed by `testagramApiClient`. It obtains short-lived Appwrite JWTs, sends API version and request ID headers, disables cookie credentials and browser caching, bounds request timeouts, and retries only transient safe GET requests. Mutations are never automatically replayed; callers supply/persist idempotency keys for supported writes. API errors retain status, machine code, request ID and Retry-After metadata.
+
+Use `requestBackendAPI<T>()` for new public Backend operations. It rejects unversioned paths and must not be used for private service routes. Do not add direct Appwrite Database, Neon, B2/R2, Federation, Algorithm or Data Centre calls to the browser.
