@@ -27,7 +27,7 @@
     "validate:tv-health": "node scripts/validate-tv-health-postgres.mjs",
     "validate:appwrite-client": "node scripts/validate-appwrite-client.mjs",
     "validate:appwrite-auth": "node scripts/validate-appwrite-auth.mjs",
-    "validate:supabase-exit": "node scripts/validate-supabase-exit.mjs"
+    "validate:identity-runtime-exit": "node scripts/validate-supabase-exit.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",
