@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { appwriteAuth } from '@/services/appwriteAuth';
+import { identitySignup } from '@/lib/identitySignup';
 import type { Models } from 'appwrite';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
 
-type AuthMode = 'signin' | 'signup' | 'verify' | 'recover' | 'reset';
+type AuthMode = 'signin' | 'signup' | 'otp' | 'verify' | 'recover' | 'reset';
 
 function friendlyAuthError(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : '';
@@ -57,6 +58,7 @@ export default function AuthPage() {
   const [email, setEmail] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('email') || '');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [otp, setOtp] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -154,28 +156,52 @@ export default function AuthPage() {
 
   const handlePasswordSignUp = async (event: FormEvent) => {
     event.preventDefault();
-    if (!legalAccepted || !readLegalConsent()) {
+    const consent = readLegalConsent();
+    if (!legalAccepted || !consent) {
       toast({ title: 'Age and policy confirmation required', description: 'Accept the policies and confirm that you are at least 18 years old.', variant: 'destructive' });
       return;
     }
-    if (password.length < 8 || password.length > 256 || password !== confirmation) {
-      toast({ title: 'Check your password', description: password !== confirmation ? 'Passwords do not match.' : 'Use a password between 8 and 256 characters.', variant: 'destructive' });
+    if (username.trim().length < 3 || username.trim().length > 24 || !/^[a-zA-Z0-9_]+$/.test(username.trim())) {
+      toast({ title: 'Choose a valid username', description: 'Use 3–24 letters, numbers or underscores.', variant: 'destructive' });
       return;
     }
     setLoading(true);
     try {
-      await appwriteAuth.signUpWithPassword({ email, password, name: username.trim(), username: username.trim() });
-      await appwriteAuth.sendEmailVerification();
-      setMode('verify');
-      setPassword('');
-      setConfirmation('');
-      toast({ title: 'Verify your email', description: 'Your account has been created. Open the verification link we sent to your email.' });
+      await identitySignup.start({
+        email,
+        birthDate: consent.birthDate,
+        username: username.trim().toLowerCase(),
+        displayName: username.trim(),
+        legalPolicyVersion: consent.version,
+      });
+      setOtp('');
+      setMode('otp');
+      toast({ title: 'Check your email', description: 'Enter the six-digit code we sent before continuing to identity verification.' });
     } catch (error) {
-      setLoading(false);
-      toast({ title: 'Could not create account', description: friendlyAuthError(error, 'Please check your details and try again.'), variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
+      toast({ title: 'Could not start registration', description: friendlyAuthError(error, 'Please check your details and try again.'), variant: 'destructive' });
+    } finally { setLoading(false); }
+  };
+
+  const verifyRegistrationEmail = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      await identitySignup.verifyEmail(otp);
+      toast({ title: 'Email confirmed', description: 'Continue with the secure identity-verification steps.' });
+      navigate('/verify-identity', { replace: true });
+    } catch (error) {
+      toast({ title: 'Email verification failed', description: friendlyAuthError(error, 'Enter the latest six-digit code or request a new one.'), variant: 'destructive' });
+    } finally { setLoading(false); }
+  };
+
+  const resendRegistrationCode = async () => {
+    setLoading(true);
+    try {
+      await identitySignup.resendEmail();
+      toast({ title: 'New code sent', description: 'Check your inbox for the latest Testagram verification code.' });
+    } catch (error) {
+      toast({ title: 'Could not resend code', description: friendlyAuthError(error, 'Please try again shortly.'), variant: 'destructive' });
+    } finally { setLoading(false); }
   };
 
   const resendVerification = async () => {
@@ -240,12 +266,14 @@ export default function AuthPage() {
 
   const title = mode === 'signin' ? 'Welcome back'
     : mode === 'signup' ? 'Create your account'
-    : mode === 'verify' ? 'Verify your email'
+    : mode === 'otp' ? 'Confirm your email'
+    : mode === 'verify' ? 'Verify your Appwrite email'
     : mode === 'recover' ? 'Reset your password'
     : 'Choose a new password';
   const subtitle = mode === 'signin' ? 'Sign in securely with your Testagram account.'
     : mode === 'signup' ? 'Create your account using Appwrite authentication.'
-    : mode === 'verify' ? 'Open the secure verification link sent to ' + (email || 'your email address') + '.'
+    : mode === 'otp' ? 'Enter the six-digit registration code sent to ' + (email || 'your email address') + '.'
+    : mode === 'verify' ? 'Open the secure Appwrite verification link sent to ' + (email || 'your email address') + '.'
     : mode === 'recover' ? 'We’ll send a secure, time-limited recovery link to your email.'
     : 'Choose a new password for your Testagram account.';
 
@@ -287,15 +315,30 @@ export default function AuthPage() {
                   <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-3.5">
                     {mode === 'signup' && <Field icon={Sparkles} type="text" autoComplete="username" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={24} />}
                     <Field icon={Mail} type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
-                    <div className="relative">
-                      <Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+                    {mode === 'signin' && <div className="relative">
+                      <Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
                       <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
-                    </div>
-                    {mode === 'signup' && <div className="relative"><Field icon={KeyRound} type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" placeholder="Confirm password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle confirmation visibility" onClick={() => setShowConfirmation(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showConfirmation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
+                    </div>}
                     <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in securely' : 'Create Appwrite account'}</Button>
                   </form>
                   {mode === 'signin' && <button type="button" onClick={() => go('recover')} className="mt-4 w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary">Forgot your password?</button>}
                 </>
+              )}
+
+              {mode === 'otp' && (
+                <div className="space-y-4">
+                  <div className="rounded-3xl border border-primary/15 bg-primary/5 p-6 text-center">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10"><Mail className="h-7 w-7 text-primary" /></div>
+                    <p className="text-sm text-muted-foreground">Registration code sent to</p>
+                    <p className="mt-1 break-all font-bold">{email}</p>
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">Your Appwrite account will only be created after email and identity verification are complete.</p>
+                  </div>
+                  <form onSubmit={verifyRegistrationEmail} className="space-y-3">
+                    <Field icon={KeyRound} inputMode="numeric" autoComplete="one-time-code" placeholder="Six-digit code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} required minLength={6} maxLength={6} />
+                    <Button disabled={loading || otp.length !== 6} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify email'}</Button>
+                  </form>
+                  <Button type="button" variant="outline" disabled={loading} onClick={resendRegistrationCode} className="w-full rounded-2xl">Resend code</Button>
+                </div>
               )}
 
               {mode === 'verify' && (
