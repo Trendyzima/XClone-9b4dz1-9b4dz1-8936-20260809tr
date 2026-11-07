@@ -6,6 +6,7 @@ import {
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 256;
+export const APPWRITE_AUTH_CHANGED_EVENT = 'testagram:appwrite-auth-changed';
 const BACKEND_JWT_CACHE_MS = 10 * 60 * 1000;
 
 
@@ -111,8 +112,27 @@ export const appwriteAuth = {
     assertAppwriteAuthConfigured();
     await appwriteAccount.createRecovery({
       email: normalizeEmail(emailInput),
-      url: `${window.location.origin}/auth/recovery`,
+      url: `${window.location.origin}/auth?reset=1`,
     });
+  },
+
+  async completePasswordRecoveryAndSignIn(input: {
+    userId: string;
+    secret: string;
+    email: string;
+    password: string;
+  }): Promise<Models.User<Models.Preferences>> {
+    await this.completePasswordRecovery({
+      userId: input.userId,
+      secret: input.secret,
+      password: input.password,
+    });
+    await appwriteAccount.createEmailPasswordSession({
+      email: normalizeEmail(input.email),
+      password: input.password,
+    });
+    clearBackendJWT();
+    return appwriteAccount.get();
   },
 
   async completePasswordRecovery(input: {
@@ -139,6 +159,7 @@ export const appwriteAuth = {
       await appwriteAccount.deleteSession({ sessionId: 'current' });
     } finally {
       clearBackendJWT();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
     }
   },
 };
