@@ -55,7 +55,6 @@ export async function appwriteSignInWithPassword(email: string, password: string
   await appwriteAccount.createEmailPasswordSession({ email, password });
   const user = await getAppwriteAuthUser();
   if (!user) throw new Error("Appwrite session was created but the account could not be loaded.");
-  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
   return user;
 }
 
