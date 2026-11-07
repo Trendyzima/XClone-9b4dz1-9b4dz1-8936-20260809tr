@@ -1,9 +1,8 @@
-import { FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js';
-import { isFreshAppwriteMode, supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { TestagramCapabilityClient } from '@/services/testagramCapabilityClient';
 import { testagramApi } from '@/services/testagramApi';
 import type { TestagramApiRequestOptions } from '@/services/testagramApiClient';
+import { TestagramApiError } from '@/services/testagramApiClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export type BackendFunctionError = {
@@ -27,80 +26,72 @@ export class BackendClientError extends Error {
   }
 }
 
-
-/** Call a versioned public Backend endpoint using the current Appwrite session. */
+/** Public browser requests may use only versioned Backend API routes. */
 export function requestBackendAPI<T>(path: string, options: TestagramApiRequestOptions = {}): Promise<T> {
-  if (!path.startsWith('/v1/')) {
-    throw new BackendClientError('Public Backend paths must be versioned under /v1.', { code: 'API_PATH_NOT_VERSIONED', status: 400 });
+  if (!path.startsWith('/v1/') || path.startsWith('/v1/internal/')) {
+    throw new BackendClientError('Browser requests must use public, versioned Backend API routes.', {
+      code: 'API_PATH_NOT_ALLOWED',
+      status: 400,
+    });
   }
   return testagramApi.request<T>(path, options).catch((error: unknown) => {
     if (error instanceof BackendClientError) throw error;
-    if (error instanceof Error) throw new BackendClientError(error.message, {
-      status: 'status' in error && typeof (error as any).status === 'number' ? (error as any).status : null,
-      code: 'code' in error && typeof (error as any).code === 'string' ? (error as any).code : 'BACKEND_API_ERROR',
-      details: 'requestId' in error ? (error as any).requestId : null,
-    });
+    if (error instanceof TestagramApiError) {
+      throw new BackendClientError(error.message, {
+        status: error.status,
+        code: error.code,
+        details: error.requestId,
+      });
+    }
+    if (error instanceof Error) throw new BackendClientError(error.message, { code: 'BACKEND_API_ERROR' });
     throw new BackendClientError('Backend request failed.');
   });
 }
 
-export async function requireAccessToken(client: SupabaseClient = supabase): Promise<string> {
-  if (isFreshAppwriteMode) {
-    try { return await appwriteAuth.createBackendJWT(); }
-    catch { throw new BackendClientError('Your Appwrite session is unavailable. Please sign in again.', { code: 'AUTH_REQUIRED', status: 401 }); }
+/** Appwrite is the only browser identity provider. */
+export async function requireAccessToken(_legacyClient?: unknown): Promise<string> {
+  try {
+    return await appwriteAuth.createBackendJWT();
+  } catch {
+    throw new BackendClientError('Your Appwrite session is unavailable. Please sign in again.', {
+      code: 'AUTH_REQUIRED',
+      status: 401,
+    });
   }
-  // The composer can render immediately from the auth hook while Supabase Auth is
-  // still hydrating its persisted session. Do not turn that short race into a
-  // false "Authentication required" failure. Read the session, briefly retry
-  // hydration, then explicitly refresh the session before failing closed.
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const { data, error } = await client.auth.getSession();
-    if (error) lastError = error;
-    const token = data.session?.access_token;
-    if (token) return token;
-    if (attempt < 2) {
-      await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
-    }
-  }
+}
 
-  const { data: refreshed, error: refreshError } = await client.auth.refreshSession();
-  if (refreshError) lastError = refreshError;
-  const refreshedToken = refreshed.session?.access_token;
-  if (refreshedToken) return refreshedToken;
-
+/**
+ * Compatibility entry point for old feature call sites. Function-name based
+ * Edge Function dispatch is intentionally disabled: each operation must be
+ * migrated to an explicit public Backend API route before it can be enabled.
+ */
+export async function invokeBackendFunction<
+  TResponse = unknown,
+  TBody extends Record<string, unknown> = Record<string, unknown>,
+>(
+  functionName: string,
+  _body: TBody,
+  _legacyClient?: unknown,
+): Promise<TResponse> {
   throw new BackendClientError(
-    lastError instanceof Error ? lastError.message : 'Please sign in again',
-    { code: 'AUTH_REQUIRED', status: 401 },
+    `Backend operation "${functionName}" has not yet been ported to a public versioned API route.`,
+    { code: 'FRESH_API_FUNCTION_NOT_PORTED', status: 503 },
   );
 }
 
-function extractFunctionError(error: unknown): BackendClientError {
-  if (error instanceof FunctionsHttpError) return new BackendClientError(error.message || 'Edge Function request failed', { status: error.context?.status ?? null, code: 'EDGE_FUNCTION_ERROR', details: error.context });
-  if (error instanceof Error) return new BackendClientError(error.message);
-  return new BackendClientError('Backend request failed');
-}
-
-export async function invokeBackendFunction<TResponse = unknown, TBody extends Record<string, unknown> = Record<string, unknown>>(
-  functionName: string,
-  body: TBody,
-  client: SupabaseClient = supabase,
-): Promise<TResponse> {
-  if (isFreshAppwriteMode) throw new BackendClientError(`Legacy function ${functionName} is not yet migrated to the centralized Testagram Backend API.`, { code: 'FRESH_API_FUNCTION_NOT_PORTED', status: 503 });
-  const accessToken = await requireAccessToken(client);
-  const { data, error } = await client.functions.invoke(functionName, {
-    body,
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (error) throw extractFunctionError(error);
-  return data as TResponse;
-}
-
 export function createBackendCapabilityClient(
-  endpoint: string = "/api/capability",
-  client: SupabaseClient = supabase,
+  endpoint = '/v1/capabilities',
+  _legacyClient?: unknown,
 ): TestagramCapabilityClient {
-  return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4', apiKey: supabasePublishableKey });
+  return new TestagramCapabilityClient({
+    endpoint,
+    getAccessToken: async () => {
+      try { return await appwriteAuth.createBackendJWT(); }
+      catch { return null; }
+    },
+    clientName: 'testagram-web',
+    clientVersion: '5',
+  });
 }
 
 export const backendCapabilities = createBackendCapabilityClient();
@@ -124,22 +115,21 @@ export type MpesaStkPushResponse = {
 
 export async function requestMpesaStkPush(
   request: MpesaStkPushRequest,
-  client: SupabaseClient = supabase,
+  _legacyClient?: unknown,
 ): Promise<MpesaStkPushResponse> {
-  if (!Number.isFinite(request.amount_kes) || request.amount_kes < 10) throw new BackendClientError('M-Pesa amount must be at least KES 10', { code: 'INVALID_AMOUNT' });
-  if (!request.metadata?.wallet_id) throw new BackendClientError('Wallet identity is required', { code: 'WALLET_ID_REQUIRED' });
+  if (!Number.isFinite(request.amount_kes) || request.amount_kes < 10) {
+    throw new BackendClientError('M-Pesa amount must be at least KES 10', { code: 'INVALID_AMOUNT' });
+  }
+  if (!request.metadata?.wallet_id) {
+    throw new BackendClientError('Wallet identity is required', { code: 'WALLET_ID_REQUIRED' });
+  }
 
   trackTestagramEvent(TestagramEvent.WALLET_DEPOSIT_STARTED, {
     provider: 'mpesa',
     amount_kes: request.amount_kes,
   });
 
-  const result = await invokeBackendFunction<MpesaStkPushResponse, MpesaStkPushRequest>('mpesa-stk-push', request, client);
-  if (result.status === 'success') {
-    trackTestagramEvent(TestagramEvent.WALLET_DEPOSIT_COMPLETED, {
-      provider: 'mpesa',
-      amount_kes: result.amount_kes ?? request.amount_kes,
-    });
-  }
-  return result;
+  // The payment route must be implemented and secured by Backend before the
+  // browser can initiate a charge. Do not revive a legacy Edge Function path.
+  return invokeBackendFunction<MpesaStkPushResponse, MpesaStkPushRequest>('mpesa-stk-push', request);
 }
