@@ -1,4 +1,3 @@
-import { appwriteAuth } from '@/services/appwriteAuth';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 const DB_NAME = 'testagram-communication-crypto';
@@ -40,8 +39,6 @@ export const communicationCrypto = {
   async registerDevice(): Promise<{ id: string; deviceId: string; publicKey: string }> {
     const device = await ensureDevice();
     const publicKey = await exportPublicKey(device.publicKey);
-    // Appwrite JWT identifies the caller; the Backend owns canonical device IDs.
-    await appwriteAuth.createBackendJWT();
     const result = await backendCapabilities.call<{ id: string }>('testagram.communication.devices.register', {
       device_id: device.deviceId,
       identity_public_key: publicKey,
