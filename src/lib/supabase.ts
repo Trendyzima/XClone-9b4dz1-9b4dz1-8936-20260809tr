@@ -1,12 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { clearPasswordRecoverySession, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 
-const PRIMARY_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
-const PRIMARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
-
-const SECONDARY_SUPABASE_URL = 'https://aepbqfrmheihfsauzcby.supabase.co';
-const SECONDARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_f331BL1gsNy-otXRmQPtrw_SG8tCWLn';
-
 const SELF_HOSTED_MODE = import.meta.env.VITE_TESTAGRAM_SELF_HOSTED === 'true';
 const FRESH_APPWRITE_MODE = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' ||
   (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
@@ -24,6 +18,17 @@ const configuredSecondaryUrl = import.meta.env.VITE_SUPABASE_SECONDARY_URL?.trim
 const configuredSecondaryKey =
   import.meta.env.VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY?.trim() ||
   import.meta.env.VITE_SUPABASE_SECONDARY_ANON_KEY?.trim();
+
+if (!FRESH_APPWRITE_MODE && (!configuredPrimaryUrl || !configuredPrimaryKey)) {
+  throw new Error(
+    'Legacy Supabase mode requires explicit VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY configuration.',
+  );
+}
+if (!FRESH_APPWRITE_MODE && Boolean(configuredSecondaryUrl) !== Boolean(configuredSecondaryKey)) {
+  throw new Error(
+    'Secondary Supabase configuration requires both VITE_SUPABASE_SECONDARY_URL and VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY.',
+  );
+}
 
 function validateSelfHostedSupabaseOrigin(value: string, variableName: string): string {
   let parsed: URL;
@@ -83,12 +88,12 @@ export const supabaseUrl = FRESH_APPWRITE_MODE
   ? DISABLED_SUPABASE_URL
   : SELF_HOSTED_MODE
     ? configuredPrimaryUrl!
-    : configuredPrimaryUrl || PRIMARY_SUPABASE_URL;
+    : configuredPrimaryUrl!;
 export const supabasePublishableKey = FRESH_APPWRITE_MODE
   ? DISABLED_SUPABASE_KEY
   : SELF_HOSTED_MODE
     ? configuredPrimaryKey!
-    : configuredPrimaryKey || PRIMARY_SUPABASE_PUBLISHABLE_KEY;
+    : configuredPrimaryKey!;
 export const supabaseAnonKey = supabasePublishableKey;
 export const isTestagramSelfHosted = SELF_HOSTED_MODE;
 export const isFreshAppwriteMode = FRESH_APPWRITE_MODE;
@@ -141,12 +146,12 @@ export const supabaseSecondaryUrl = FRESH_APPWRITE_MODE
   ? DISABLED_SUPABASE_URL
   : SELF_HOSTED_MODE
     ? configuredSecondaryUrl || configuredPrimaryUrl!
-    : configuredSecondaryUrl || SECONDARY_SUPABASE_URL;
+    : configuredSecondaryUrl || configuredPrimaryUrl!;
 export const supabaseSecondaryPublishableKey = FRESH_APPWRITE_MODE
   ? DISABLED_SUPABASE_KEY
   : SELF_HOSTED_MODE
     ? configuredSecondaryKey || configuredPrimaryKey!
-    : configuredSecondaryKey || SECONDARY_SUPABASE_PUBLISHABLE_KEY;
+    : configuredSecondaryKey || configuredPrimaryKey!;
 export const supabaseSecondary = createClient(
   supabaseSecondaryUrl,
   supabaseSecondaryPublishableKey,
