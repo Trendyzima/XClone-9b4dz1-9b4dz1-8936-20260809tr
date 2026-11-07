@@ -19,7 +19,6 @@ export async function emitNotification(input: NotificationEventInput): Promise<N
 }
 /** Reads use the canonical capability gateway; mutation remains a backend RPC boundary. */
 export async function getMyNotifications(limit = 50) {
-  
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const result = await backendCapabilities.listNotifications(safeLimit);
   return result.items;
