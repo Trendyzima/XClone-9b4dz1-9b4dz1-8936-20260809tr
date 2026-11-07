@@ -4,6 +4,8 @@ import type { AuthUser } from '@/types/app-types';
 import { testagramApi } from '@/services/testagramApi';
 import { LEGAL_CONSENT_STORAGE_KEY, LEGAL_POLICY_VERSION, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
 
+const REQUEST_TIMEOUT_MS = 11_000;
+
 export function normalizeKenyaPhone(input: string): string {
   const raw = input.trim().replace(/\s+/g, '');
   const digits = raw.replace(/\D/g, '');
@@ -114,8 +116,11 @@ export class AuthService {
   async signInWithPassword(email: string, password: string) {
     return appwriteAuth.signInWithPassword({ email, password });
   }
-  async signUpWithPassword(email: string, password: string, username?: string) {
-    return appwriteAuth.signUpWithPassword({ email, password, name: username || email.split('@')[0], username });
+  async signUpWithPassword(_email: string, _password: string, _username?: string): Promise<never> {
+    // Appwrite identities are provisioned by Backend only after the signed
+    // identity-approval token has been verified. Never create an unapproved
+    // browser-side account that cannot pass Backend authorization.
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   }
   async sendEmailVerification() { await appwriteAuth.sendEmailVerification(); }
   async sendEmailOtp(_email: string, _shouldCreateUser = false): Promise<never> {
