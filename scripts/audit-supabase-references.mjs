@@ -4,7 +4,7 @@ import path from 'node:path';
 const roots = ['src', 'api'];
 const explicitFiles = ['package.json', '.env.example', '.env.fresh.example'];
 const extensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
-const pattern = /@supabase|supabase\.auth|supabase\.from|supabase\.channel|supabase\.functions|supabase\.realtime|SUPABASE_[A-Z0-9_]+|VITE_SUPABASE_[A-Z0-9_]+|supabase\.co|functions\/v1\//i;
+const pattern = /\\bsupabase\\b|@supabase|SUPABASE_[A-Z0-9_]+|VITE_SUPABASE_[A-Z0-9_]+|supabase\\.co|functions\\/v1\\//i;
 const findings = [];
 
 function scanFile(file) {
