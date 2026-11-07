@@ -89,7 +89,7 @@ async function freshBackendRequest<T>(
   return testagramApi.request<T>(path, { method, body });
 }
 
-async function mapAppwriteUserWithCanonicalProfile(
+async function hydrateAppwriteProfile(
   user: AuthIdentity,
   options: { requireFreshLegalConsent?: boolean } = {},
 ): Promise<AuthUser> {
@@ -175,7 +175,7 @@ export async function ensureCanonicalProfile(user: AuthIdentity): Promise<void> 
 }
 
 export async function mapAppwriteUserWithCanonicalProfile(user: AuthIdentity): Promise<AuthUser> {
-  return mapAppwriteUserWithCanonicalProfile(user);
+  return hydrateAppwriteProfile(user);
 }
 
 export async function finalizeAuthenticatedSession(
@@ -183,7 +183,7 @@ export async function finalizeAuthenticatedSession(
   options: { requireFreshLegalConsent?: boolean } = {},
 ): Promise<AuthUser> {
   return withAuthTimeout(
-    mapAppwriteUserWithCanonicalProfile(user, options),
+    hydrateAppwriteProfile(user, options),
     'Account setup',
   );
 }
