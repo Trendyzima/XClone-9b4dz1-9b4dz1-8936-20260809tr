@@ -112,6 +112,8 @@ async function finalizeAuthenticatedSessionInternal(user: Models.User<Models.Pre
     });
     try { window.localStorage.removeItem(LEGAL_CONSENT_STORAGE_KEY); } catch { /* browser storage is optional */ }
   }
+  const identityStatus = String(profile?.identity_verification_status ?? '');
+  if (identityStatus && identityStatus !== 'approved') throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   const prefs = (user.prefs ?? {}) as Record<string, unknown>;
   const username = String(profile?.handle ?? profile?.username ?? prefs.username ?? '');
   if (!username) throw new Error('Backend profile response did not include a canonical handle.');
