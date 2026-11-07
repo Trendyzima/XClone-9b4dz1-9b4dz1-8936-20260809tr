@@ -146,7 +146,7 @@ export class AuthService {
     return appwriteAuth.signInWithPassword({ email, password });
   }
   async signUpWithPassword(email: string, password: string, username?: string) {
-    return appwriteAuth.signUpWithPassword({ email, password, name: username || email.split('@')[0], username });
+    return appwriteAuth.signUpWithPassword({ email, password, name: username || email.split('@')[0] });
   }
   async sendEmailVerification() { await appwriteAuth.sendEmailVerification(); }
   async sendEmailOtp(_email: string, _shouldCreateUser = false): Promise<never> {
