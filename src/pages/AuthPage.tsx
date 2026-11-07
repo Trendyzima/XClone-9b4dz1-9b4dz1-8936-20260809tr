@@ -109,7 +109,7 @@ export default function AuthPage() {
           const user = await appwriteAuth.getCurrentUser();
           if (cancelled) return;
           window.history.replaceState({}, document.title, '/auth');
-          if (user) await finishLogin(user, true);
+          if (user) await finishLogin(user);
           else {
             setMode('signin');
             setLoading(false);
