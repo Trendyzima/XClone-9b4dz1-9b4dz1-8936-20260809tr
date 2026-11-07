@@ -65,12 +65,13 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', body?
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false): Promise<T> {
+async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
   assertSocialAPIAvailable(allowFreshRoute);
   const token = await getSessionToken();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/json',
+    ...extraHeaders,
   };
   if (body) headers['Content-Type'] = 'application/json';
 
@@ -116,6 +117,12 @@ export const socialApi = {
     if (before) query.set('before', before);
     return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
       `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
+    );
+  },
+  createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
+    const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `post-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return requestAt<{ $id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
+      `${freshApiOrigin}/v1/posts`, 'POST', { content, visibility, sensitive }, true, { 'Idempotency-Key': key },
     );
   },
   getFollowState(userId: string) {
