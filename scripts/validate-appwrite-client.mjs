@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 const client = await readFile('src/lib/appwrite.ts', 'utf8');
 const auth = await readFile('src/services/appwriteAuth.ts', 'utf8');
 const env = await readFile('.env.fresh.example', 'utf8');
-const supabase = await readFile('src/lib/supabase.ts', 'utf8');
 const socialApi = await readFile('src/services/socialApiClient.ts', 'utf8');
 const capabilities = await readFile('src/services/testagramCapabilityClient.ts', 'utf8');
 const feed = await readFile('src/services/feed.ts', 'utf8');
@@ -35,7 +35,9 @@ assert.match(capabilities, /text-only posts[\s\S]*FRESH_API_POST_FEATURE_NOT_POR
 assert.match(socialApi, /VITE_TESTAGRAM_FRESH_API_URL[\s\S]*\/v1\/feed\/home/, 'fresh home feed must call the centralized Backend v1 route');
 assert.match(feed, /freshAppwriteMode[\s\S]*Promise\.resolve/, 'fresh Appwrite home feed must not call the legacy Federation path while Federation is disabled');
 assert.match(env, /VITE_TESTAGRAM_API_URL=https:\/\/api\.testagram\.site/, 'all legacy API clients must be redirected to the fresh API host');
-assert.doesNotMatch(auth + supabase + socialApi, /SUPABASE_SERVICE_ROLE_KEY|supabaseServiceKey|linkLegacyAccount/, 'fresh browser source must not carry privileged Supabase credentials or identity migration code');
+assert.ok(!pkg.dependencies?.['@supabase/supabase-js'], 'Supabase SDK must be removed from runtime dependencies');
+assert.ok(!existsSync('src/lib/supabase.ts'), 'legacy Supabase client module must be deleted after all callers are migrated');
+assert.doesNotMatch(auth + socialApi, /SUPABASE_SERVICE_ROLE_KEY|supabaseServiceKey|linkLegacyAccount/i, 'fresh browser source must not carry privileged Supabase credentials or identity migration code');
 assert.match(buildScript, /freshAppwriteMode[\s\S]*http:\/\/127\.0\.0\.1:9/, 'TikVTV build overlay must use an inert local endpoint in fresh Appwrite mode');
 assert.doesNotMatch(buildScript, /PRIMARY_SUPABASE_URL|PRIMARY_SUPABASE_PUBLISHABLE_KEY/, 'build overlay must not extract old hardcoded Supabase projects');
 assert.doesNotMatch(auth, /(?:localStorage|sessionStorage)\s*(?:\.|\[)/, 'Appwrite JWT must not be persisted in browser storage');
