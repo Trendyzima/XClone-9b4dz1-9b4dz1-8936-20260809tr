@@ -7,6 +7,7 @@ const auth = await readFile('src/services/appwriteAuth.ts', 'utf8');
 const env = await readFile('.env.fresh.example', 'utf8');
 const supabase = await readFile('src/lib/supabase.ts', 'utf8');
 const socialApi = await readFile('src/services/socialApiClient.ts', 'utf8');
+const capabilities = await readFile('src/services/testagramCapabilityClient.ts', 'utf8');
 const feed = await readFile('src/services/feed.ts', 'utf8');
 const buildScript = await readFile('_build.cjs', 'utf8');
 
@@ -29,6 +30,8 @@ assert.match(env, /VITE_TESTAGRAM_AUTH_PROVIDER=appwrite/, 'fresh frontend build
 assert.match(env, /VITE_TESTAGRAM_FRESH_API_URL=/, 'fresh frontend build must configure the independent API');
 assert.match(socialApi, /assertSocialAPIAvailable/, 'unported social endpoints must fail closed in fresh Appwrite mode');
 assert.match(socialApi, /allowFreshRoute/, 'only explicitly ported social routes may bypass the fresh-mode fail-closed guard');
+assert.match(socialApi, /createPost[\s\S]*\/v1\/posts[\s\S]*Idempotency-Key/, 'fresh text-post creation must use the centralized idempotent Backend route');
+assert.match(capabilities, /text-only posts[\s\S]*FRESH_API_POST_FEATURE_NOT_PORTED/, 'unported post attachments must fail explicitly');
 assert.match(socialApi, /VITE_TESTAGRAM_FRESH_API_URL[\s\S]*\/v1\/feed\/home/, 'fresh home feed must call the centralized Backend v1 route');
 assert.match(feed, /freshAppwriteMode[\s\S]*Promise\.resolve/, 'fresh Appwrite home feed must not call the legacy Federation path while Federation is disabled');
 assert.match(env, /VITE_TESTAGRAM_API_URL=https:\/\/api\.testagram\.site/, 'all legacy API clients must be redirected to the fresh API host');
