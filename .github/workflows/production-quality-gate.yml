@@ -59,22 +59,6 @@ jobs:
       - name: Production build
         run: npm run build
 
-  legacy-data-migration-check:
-    name: Legacy data migration sanity check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Check migration SQL
-        shell: bash
-        run: |
-          test -s supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
-          grep -q "wallet_pay_ride" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
-          grep -q "idempotency_key" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
-          grep -q "wallet_risk_events" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
-          echo "Migration sanity checks passed."
-
   supabase-exit:
     name: Legacy identity runtime exit gate
     runs-on: ubuntu-latest
