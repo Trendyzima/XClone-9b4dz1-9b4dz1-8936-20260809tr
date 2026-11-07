@@ -27,7 +27,7 @@ function json(request: Request, status: number, body: unknown, requestId = ''): 
 function isPrivateIPv4(hostname: string): boolean {
   const parts = hostname.split('.');
   if (parts.length !== 4) return false;
-  const octets = parts.map((part) => /^\\d{1,3}$/.test(part) ? Number(part) : -1);
+  const octets = parts.map((part) => /^\d{1,3}$/.test(part) ? Number(part) : -1);
   if (octets.some((part) => part < 0 || part > 255)) return false;
   const [a, b] = octets;
   return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) ||
@@ -35,7 +35,7 @@ function isPrivateIPv4(hostname: string): boolean {
 }
 
 function isTrustedPrivateBackendHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\\[|\\]$/g, '');
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   return host === 'localhost' || host === 'backend' || host === 'api' ||
     host.endsWith('.internal') || host.endsWith('.local') || host === '::1' ||
     isPrivateIPv4(host);
