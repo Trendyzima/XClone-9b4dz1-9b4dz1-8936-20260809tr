@@ -15,6 +15,7 @@ const forbidden = [
   { name: 'Supabase Auth or data API call', pattern: /\bsupabase\.(?:auth|from|storage|functions|rpc)\s*\(/ },
   { name: 'Supabase frontend environment variable', pattern: /\bVITE_SUPABASE_[A-Z0-9_]+\b/ },
   { name: 'legacy identity signup client', pattern: /\bidentitySignup\b/ },
+  { name: 'legacy provider branding in authentication UI', pattern: /supabase/i },
 ];
 
 let failed = false;
