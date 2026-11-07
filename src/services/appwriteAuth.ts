@@ -143,7 +143,6 @@ export const appwriteAuth = {
   async requestPasswordRecovery(emailInput: string): Promise<void> {
     assertAppwriteAuthConfigured();
     const email = normalizeEmail(emailInput);
-    window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, email);
     await appwriteAccount.createRecovery({
       email,
       url: window.location.origin + '/auth?reset=1',
