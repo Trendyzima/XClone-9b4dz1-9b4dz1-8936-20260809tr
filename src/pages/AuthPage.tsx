@@ -5,8 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { authService, finalizeAuthenticatedSession, mapAppwriteAuthUser } from '@/lib/auth';
+import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 import { clearPasswordRecoverySession, getPasswordRecoveryUserId, hasPasswordRecoveryMarker, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
@@ -19,6 +20,11 @@ function friendlyAuthError(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : '';
   const safeMessages: Record<string, string> = {
     AGE_RESTRICTION: 'You must be at least 18 years old to create a Testagram account.',
+    APPWRITE_EMAIL_OTP_NOT_YET_ENABLED: 'Email code sign-in is being migrated to Appwrite. Use your email and password for now.',
+    APPWRITE_MAGIC_LINK_NOT_YET_ENABLED: 'Magic-link sign-in is not enabled in the fresh Appwrite release yet.',
+    APPWRITE_SIGNUP_MIGRATION_PENDING: 'New account registration is temporarily unavailable while identity verification is migrated to Appwrite.',
+    APPWRITE_RECOVERY_CONTEXT_REQUIRED: 'Open the password recovery link from your email before choosing a new password.',
+    PHONE_OTP_REQUIRED: 'Phone sign-in is being migrated. Sign in with your email and password for now.',
     LEGAL_ACCEPTANCE_REQUIRED: 'Please review and accept the required policies before continuing.',
     INVALID_EMAIL: 'Enter a valid email address.',
     EMAIL_ALREADY_REGISTERED: 'An account may already exist for this email. Try signing in or recovering your password.',
@@ -81,6 +87,26 @@ export default function AuthPage() {
   const [recoveryChecking, setRecoveryChecking] = useState(false);
 
   useEffect(() => {
+    if (isFreshAppwriteMode) {
+      const params = new URLSearchParams(window.location.search);
+      const userId = params.get("userId")?.trim() ?? "";
+      const secret = params.get("secret")?.trim() ?? "";
+      const isResetRoute = params.get("reset") === "1";
+      if (isResetRoute && userId && secret) {
+        const recoveryEmail = params.get("email")?.trim() ?? "";
+        appwriteAuth.saveRecoveryContext({ userId, secret, email: recoveryEmail });
+        if (recoveryEmail) setEmail(recoveryEmail);
+        setMode("reset");
+        setRecoveryReady(true);
+        setRecoveryChecking(false);
+        window.history.replaceState({}, document.title, "/auth?reset=1");
+      } else if (isResetRoute) {
+        setMode("reset");
+        setRecoveryReady(Boolean(appwriteAuth.getRecoveryContext()));
+        setRecoveryChecking(false);
+      }
+      return () => {};
+    }
     const params = new URLSearchParams(window.location.search);
     const isResetRoute = params.get('reset') === '1';
     const isRecoveryCallback = isResetRoute || params.get('type') === 'recovery';
@@ -171,6 +197,7 @@ export default function AuthPage() {
   }, [authUser, mode, navigate]);
 
   const applyPendingReferral = async () => {
+    if (isFreshAppwriteMode) return;
     const code = window.localStorage.getItem('testagram-referral-code');
     if (!code) return;
     try {
@@ -218,6 +245,7 @@ export default function AuthPage() {
   };
 
   const startIdentitySignup = async () => {
+    if (isFreshAppwriteMode) throw new Error('APPWRITE_SIGNUP_MIGRATION_PENDING');
     const consent = readLegalConsent();
     if (!consent?.birthDate) {
       setLegalAccepted(false);
@@ -305,11 +333,25 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      const user = await authService.updatePassword(password);
-      const finalized = await finalizeAuthenticatedSession(user);
-      clearPasswordRecoverySession();
-      setRecoveryReady(false);
-      login(finalized);
+      if (isFreshAppwriteMode) {
+        const recovery = appwriteAuth.getRecoveryContext();
+        if (!recovery?.email) throw new Error('APPWRITE_RECOVERY_CONTEXT_REQUIRED');
+        const appwriteUser = await appwriteAuth.completePasswordRecoveryAndSignIn({
+          userId: recovery.userId,
+          secret: recovery.secret,
+          email: recovery.email,
+          password,
+        });
+        const finalized = await finalizeAuthenticatedSession(mapAppwriteAuthUser(appwriteUser));
+        setRecoveryReady(false);
+        login(finalized);
+      } else {
+        const user = await authService.updatePassword(password);
+        const finalized = await finalizeAuthenticatedSession(user);
+        clearPasswordRecoverySession();
+        setRecoveryReady(false);
+        login(finalized);
+      }
       window.history.replaceState({}, document.title, '/auth');
       navigate(getSafeReturnTo(), { replace: true });
     } catch (error: any) {
@@ -328,6 +370,23 @@ export default function AuthPage() {
     setPassword('');
     setConfirmation('');
     if (mode === 'reset' && next !== 'reset') {
+      if (isFreshAppwriteMode) {
+        const hadRecovery = recoveryReady || Boolean(appwriteAuth.getRecoveryContext());
+        appwriteAuth.clearRecoveryContext();
+        if (hadRecovery) {
+          void authService.signOut();
+        } else {
+          void appwriteAuth.getCurrentUser().then((user) => {
+            if (!user) return;
+            void finalizeAuthenticatedSession(mapAppwriteAuthUser(user)).then(login).catch((error) => console.error('[Auth] Could not restore Appwrite session after leaving reset URL:', error));
+          });
+        }
+        setRecoveryReady(false);
+        setRecoveryChecking(false);
+        window.history.replaceState({}, document.title, '/auth');
+        setMode(next);
+        return;
+      }
       // Leaving the reset screen cancels its temporary session and removes the
       // reset marker from the URL so refresh cannot reopen a stale reset flow.
       const hasRecoveryMarker = hasPasswordRecoveryMarker();

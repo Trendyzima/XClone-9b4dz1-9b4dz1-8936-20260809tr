@@ -6,7 +6,32 @@ import {
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 256;
+export const APPWRITE_AUTH_CHANGED_EVENT = 'testagram:appwrite-auth-changed';
 const BACKEND_JWT_CACHE_MS = 10 * 60 * 1000;
+const RECOVERY_USER_ID_KEY = "testagram-appwrite-recovery-user";
+const RECOVERY_SECRET_KEY = "testagram-appwrite-recovery-secret";
+const RECOVERY_EMAIL_KEY = "testagram-appwrite-recovery-email";
+
+export type AppwriteRecoveryContext = { userId: string; secret: string; email: string };
+
+function saveRecoveryContext(input: AppwriteRecoveryContext): void {
+  window.sessionStorage.setItem(RECOVERY_USER_ID_KEY, input.userId);
+  window.sessionStorage.setItem(RECOVERY_SECRET_KEY, input.secret);
+  if (input.email) window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, input.email);
+}
+
+function getRecoveryContext(): AppwriteRecoveryContext | null {
+  const userId = window.sessionStorage.getItem(RECOVERY_USER_ID_KEY) ?? "";
+  const secret = window.sessionStorage.getItem(RECOVERY_SECRET_KEY) ?? "";
+  const email = window.sessionStorage.getItem(RECOVERY_EMAIL_KEY) ?? "";
+  return userId && secret ? { userId, secret, email } : null;
+}
+
+function clearRecoveryContext(): void {
+  window.sessionStorage.removeItem(RECOVERY_USER_ID_KEY);
+  window.sessionStorage.removeItem(RECOVERY_SECRET_KEY);
+  window.sessionStorage.removeItem(RECOVERY_EMAIL_KEY);
+}
 
 
 let cachedBackendJWT: string | null = null;
@@ -69,9 +94,15 @@ export const appwriteAuth = {
     return appwriteAccount.get();
   },
 
-  async getCurrentUser(): Promise<Models.User<Models.Preferences>> {
+  async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
     assertAppwriteAuthConfigured();
-    return appwriteAccount.get();
+    try {
+      return await appwriteAccount.get();
+    } catch (error) {
+      const code = Number((error as { code?: unknown } | null)?.code ?? 0);
+      if (code === 401 || code === 404) return null;
+      throw error;
+    }
   },
 
   async createBackendJWT(forceRefresh = false): Promise<string> {
@@ -111,8 +142,25 @@ export const appwriteAuth = {
     assertAppwriteAuthConfigured();
     await appwriteAccount.createRecovery({
       email: normalizeEmail(emailInput),
-      url: `${window.location.origin}/auth/recovery`,
+      url: `${window.location.origin}/auth?reset=1`,
     });
+  },
+
+  saveRecoveryContext,
+  getRecoveryContext,
+  clearRecoveryContext,
+
+  async completePasswordRecoveryAndSignIn(input: {
+    userId: string;
+    secret: string;
+    email: string;
+    password: string;
+  }): Promise<Models.User<Models.Preferences>> {
+    await this.completePasswordRecovery({ userId: input.userId, secret: input.secret, password: input.password });
+    await appwriteAccount.createEmailPasswordSession({ email: normalizeEmail(input.email), password: input.password });
+    clearBackendJWT();
+    clearRecoveryContext();
+    return appwriteAccount.get();
   },
 
   async completePasswordRecovery(input: {
@@ -139,6 +187,7 @@ export const appwriteAuth = {
       await appwriteAccount.deleteSession({ sessionId: 'current' });
     } finally {
       clearBackendJWT();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
     }
   },
 };
