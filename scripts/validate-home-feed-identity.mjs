@@ -10,6 +10,7 @@ const requireText = (source, pattern, message) => {
 const cache = read('src/lib/homeFeedCache.ts');
 const home = read('src/pages/HomeHubPage.tsx');
 const aggregator = read('api/home-feed.ts');
+const socialApi = read('src/services/socialApiClient.ts');
 const search = read('src/pages/SearchPageV3.tsx');
 const richText = read('src/components/features/FediverseRichText.tsx');
 const federationWorker = read('supabase/functions/federation-inbound-worker/index.ts');
@@ -29,16 +30,18 @@ requireText(cache, /const key=homeFeedItemIdentity\(item\)/,
   'Offline-cache merging must use the canonical feed identity helper.');
 requireText(home, /homeFeedItemIdentity, HOME_FEED_CACHE_LIMIT/,
   'HomeHub must use the same identity helper as the offline cache.');
-requireText(home, /const next=await fetchTab\('all',0,null,true\)/,
-  'The first For You request must include public Fediverse content instead of waiting for the background refresh.');
-requireText(home, /signal: AbortSignal\.timeout\(15000\)/,
-  'A stalled home-feed aggregator must time out into the existing direct fallback rather than leaving first load pending indefinitely.');
-requireText(home, /const parsedFallbackOffset = cursorOverride\?\.startsWith\('fallback:'\)[\s\S]*range\(fallbackOffset, fallbackOffset \+ fallbackLimit - 1\)/,
-  'The direct Home fallback must paginate local posts and threads instead of repeatedly fetching page one.');
-requireText(home, /const fallbackCursor = hasMoreFallbackRows \? 'fallback:' \+ \(fallbackOffset \+ fallbackLimit\) : null[\s\S]*nextCursorRef\.current = fallbackCursor/,
-  'The Home fallback must publish a continuation cursor only while another local fallback page exists.');
-requireText(home, /cursorOverride\?\.startsWith\('fallback:'\) && federatedCursorRef\.current[\s\S]*fedParams\.set\('before', federatedCursorRef\.current\)/,
-  'Federated pagination must continue from its own cursor while the local Home fallback is active.');
+requireText(home, /socialApi\.getHomeFeed\(24, cursorOverride \?\? undefined\)/,
+  'Home timeline must use the authenticated Testagram Backend feed API.');
+requireText(home, /socialApi\.getPublicHomeFeed\(24, cursorOverride \?\? undefined\)/,
+  'Signed-out visitors must receive only the anonymous public Backend feed.');
+requireText(socialApi, /\/api\/feed\/home[\s\S]*\/api\/feed\/public/,
+  'Both authenticated and anonymous home feeds must use the canonical Go Backend routes.');
+if (/supabase\.|SUPABASE_URL|FEDERATED_FUNCTION_BASE/i.test(home)) failures.push('Home timeline must not contain legacy Supabase reads or Supabase Edge Function calls.');
+requireText(cache, /testagram-feed-cache-v3/,
+  'Home feed cache version must invalidate rows previously fetched from Supabase.');
+requireText(aggregator, /LEGACY_FEED_RETIRED[\s\S]*status: 410|status: 410[\s\S]*LEGACY_FEED_RETIRED/,
+  'Legacy /api/home-feed must be permanently retired with HTTP 410.');
+if (/createClient|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|\.from\('posts'\)/.test(aggregator)) failures.push('Retired home-feed API must not retain Supabase credentials or database queries.');
 
 requireText(home, /new Set\(existing\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)\)/,
   'HomeHub page append must seed its deduplication set from canonical identities.');
@@ -46,13 +49,6 @@ requireText(home, /previous\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)/,
   'Background refresh must compare incoming content against canonical identities.');
 requireText(home, /setItems\(prev=>appendUniqueFeedItems\(fresh,prev\)\)/,
   'Background refresh must preserve existing items while deduplicating newly discovered content.');
-requireText(aggregator, /function sourceKey\(item: any\)[\s\S]*data\.remote_status_uri[\s\S]*data\.uri[\s\S]*url\.hostname = url\.hostname\.toLowerCase\(\)/,
-  'Server-side aggregation must canonicalize object URIs before blending source lanes.');
-requireText(aggregator, /item\?\.type === 'post' \|\| item\?\.type === 'fedpost' \? 'content'/,
-  'Server-side aggregation must collapse local/Fediverse wrappers with the same fallback ID.');
-requireText(aggregator, /postsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)[\s\S]*threadsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)/,
-  'Home feed source queries must be independently time-bounded so one slow lane cannot block the entire page.');
-
 requireText(search, /function normalizeSearchHashtag[\s\S]*encodeURIComponent\(tag\)[\s\S]*function GlobalSearchResults/,
   'Search hashtag links must normalize optional # prefixes and URL-encode the canonical tag.');
 requireText(search, /api\.searchUnified\(clean[\s\S]*searchFederatedDiscovery/,
