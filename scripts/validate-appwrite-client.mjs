@@ -34,7 +34,7 @@ assert.match(socialApi, /allowFreshRoute/, 'only explicitly ported social routes
 assert.match(socialApi, /createPost[\s\S]*\/v1\/posts[\s\S]*Idempotency-Key/, 'fresh text-post creation must use the centralized idempotent Backend route');
 assert.match(capabilities, /text-only posts[\s\S]*FRESH_API_POST_FEATURE_NOT_PORTED/, 'unported post attachments must fail explicitly');
 assert.match(sharedApi, /VITE_TESTAGRAM_FRESH_API_URL/, 'shared Backend API client must honor the configured fresh API origin');
-assert.match(socialApi, /testagramApi\\.request[\\s\\S]*\\/v1\\/feed\\/home/, 'fresh home feed must call the centralized Backend v1 route');
+assert.match(socialApi, /testagramApi\.request[\s\S]*\/v1\/feed\/home/, 'fresh home feed must call the centralized Backend v1 route');
 assert.match(feed, /freshAppwriteMode[\s\S]*Promise\.resolve/, 'fresh Appwrite home feed must not call the legacy Federation path while Federation is disabled');
 assert.match(env, /VITE_TESTAGRAM_API_URL=https:\/\/api\.testagram\.site/, 'all legacy API clients must be redirected to the fresh API host');
 assert.doesNotMatch(auth + supabase + socialApi, /SUPABASE_SERVICE_ROLE_KEY|supabaseServiceKey|linkLegacyAccount/, 'fresh browser source must not carry privileged Supabase credentials or identity migration code');
