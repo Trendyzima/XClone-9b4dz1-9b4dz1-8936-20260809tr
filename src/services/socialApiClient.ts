@@ -27,7 +27,8 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
-const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
+const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/home` : '/api/feed/home';
+const publicApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/public` : '/api/feed/public';
 
 function assertSocialAPIAvailable(allowFreshRoute = false): void {
   if (isFreshAppwriteMode && !allowFreshRoute) {
@@ -108,6 +109,38 @@ async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELET
   return payload.data;
 }
 
+async function requestPublicAt<T>(url: string): Promise<T> {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), 10000);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new SocialApiError('Public feed timed out. Please retry.', 0, 'TIMEOUT');
+    }
+    throw new SocialApiError('Testagram public feed is unreachable.', 0, 'NETWORK_ERROR');
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
+  const payload = await response.json().catch(() => null) as SocialEnvelope<T> | null;
+  if (!response.ok || !payload?.ok || payload.data == null) {
+    throw new SocialApiError(
+      payload?.error?.message || `Public feed request failed (${response.status}).`,
+      response.status,
+      payload?.error?.code || 'SOCIAL_API_ERROR',
+      payload?.request_id || null,
+    );
+  }
+  return payload.data;
+}
+
 export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
 export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
 
@@ -117,6 +150,13 @@ export const socialApi = {
     if (before) query.set('before', before);
     return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
       `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
+    );
+  },
+  getPublicHomeFeed(limit = 20, before?: string) {
+    const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
+    if (before) query.set('before', before);
+    return requestPublicAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
+      `${publicApiFeedPath}?${query.toString()}`,
     );
   },
   createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
