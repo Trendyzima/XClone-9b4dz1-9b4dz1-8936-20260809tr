@@ -93,32 +93,37 @@ export function createTestagramApiClient(options: TestagramApiClientOptions) {
 
   return {
     async request<T>(path: string, requestOptions: TestagramApiRequestOptions = {}): Promise<T> {
-      if (!path.startsWith('/v1/') && !path.startsWith('/internal/v1/')) {
-        throw new TestagramApiError('API path must be versioned.', 0, 'API_PATH_NOT_VERSIONED');
+      if (!path.startsWith('/v1/') || path.startsWith('/v1/internal/') || path.includes('\\\\') || path.includes('..') || path.includes('?') || path.includes('#')) {
+        throw new TestagramApiError('Only safe public, versioned Backend API paths are allowed.', 0, 'API_PATH_NOT_ALLOWED');
       }
       const method = requestOptions.method ?? 'GET';
       const url = appendQuery(`${baseURL}${path}`, requestOptions.query);
       const token = await options.getAccessToken();
       if (!token || /[\\r\\n]/.test(token)) throw new TestagramApiError('A valid Testagram session is required.', 401, 'AUTH_REQUIRED');
       const id = requestId();
-      const headers: Record<string, string> = {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        'X-Request-ID': id,
-        'X-Testagram-API-Version': '1',
-        ...requestOptions.headers,
-      };
-      if (requestOptions.body !== undefined) headers['Content-Type'] = 'application/json';
-      if (requestOptions.idempotencyKey) headers['Idempotency-Key'] = requestOptions.idempotencyKey;
+      const headers = new Headers(requestOptions.headers);
+      // Caller-supplied headers cannot replace authentication, tracing or API version.
+      headers.set('Accept', 'application/json');
+      headers.set('Authorization', `Bearer ${token}`);
+      headers.set('X-Request-ID', id);
+      headers.set('X-Testagram-API-Version', '1');
+      if (requestOptions.body !== undefined) headers.set('Content-Type', 'application/json');
+      if (requestOptions.idempotencyKey) headers.set('Idempotency-Key', requestOptions.idempotencyKey);
       const attempts = method === 'GET' ? maxReadRetries + 1 : 1;
 
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const controller = new AbortController();
         const timeoutMs = Math.max(500, Math.min(30000, requestOptions.timeoutMs ?? options.defaultTimeoutMs ?? 10000));
-        const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+        let timedOut = false;
+        const timer = globalThis.setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
         const abort = () => controller.abort();
-        requestOptions.signal?.addEventListener('abort', abort, { once: true });
+        if (requestOptions.signal?.aborted) controller.abort();
+        else requestOptions.signal?.addEventListener('abort', abort, { once: true });
         let response: Response;
+        let payload: any;
         try {
           response = await fetcher(url, {
             method,
@@ -129,17 +134,22 @@ export function createTestagramApiClient(options: TestagramApiClientOptions) {
             redirect: 'error',
             signal: controller.signal,
           });
+          payload = await response.json().catch(() => null) as any;
         } catch (error) {
-          if (error instanceof DOMException && error.name === 'AbortError') {
+          if (timedOut) {
             throw new TestagramApiError('Testagram API request timed out.', 0, 'API_TIMEOUT', id);
+          }
+          if (requestOptions.signal?.aborted) {
+            throw new TestagramApiError('Testagram API request was cancelled.', 0, 'API_ABORTED', id);
+          }
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            throw new TestagramApiError('Testagram API request was aborted.', 0, 'API_ABORTED', id);
           }
           throw new TestagramApiError('Testagram API is unreachable.', 0, 'API_NETWORK_ERROR', id);
         } finally {
           globalThis.clearTimeout(timer);
           requestOptions.signal?.removeEventListener('abort', abort);
         }
-
-        const payload = await response.json().catch(() => null) as any;
         if (!response.ok) {
           if (method === 'GET' && attempt + 1 < attempts && [429, 502, 503, 504].includes(response.status)) {
             await new Promise(resolve => globalThis.setTimeout(resolve, retryDelay(response, attempt)));
