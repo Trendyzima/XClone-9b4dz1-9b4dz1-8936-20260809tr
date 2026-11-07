@@ -17,7 +17,8 @@ export type AppwriteRecoveryContext = { userId: string; secret: string; email: s
 function saveRecoveryContext(input: AppwriteRecoveryContext): void {
   window.sessionStorage.setItem(RECOVERY_USER_ID_KEY, input.userId);
   window.sessionStorage.setItem(RECOVERY_SECRET_KEY, input.secret);
-  if (input.email) window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, input.email);
+  const email = input.email.trim().toLowerCase() || window.sessionStorage.getItem(RECOVERY_EMAIL_KEY) || '';
+  if (email) window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, email);
 }
 
 function getRecoveryContext(): AppwriteRecoveryContext | null {
@@ -61,6 +62,7 @@ export const appwriteAuth = {
     email: string;
     password: string;
     name: string;
+    username?: string;
   }): Promise<Models.User<Models.Preferences>> {
     assertAppwriteAuthConfigured();
     const email = normalizeEmail(input.email);
@@ -77,8 +79,13 @@ export const appwriteAuth = {
       name,
     });
     await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
+    if (input.username?.trim()) {
+      await appwriteAccount.updatePrefs({ prefs: { username: input.username.trim().toLowerCase() } });
+    }
     clearBackendJWT();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+    return user;
   },
 
   async signInWithPassword(input: {
@@ -126,7 +133,7 @@ export const appwriteAuth = {
   async sendEmailVerification(): Promise<void> {
     assertAppwriteAuthConfigured();
     await appwriteAccount.createVerification({
-      url: `${window.location.origin}/auth/verify`,
+      url: window.location.origin + '/auth?verify=1',
     });
   },
 
@@ -140,9 +147,11 @@ export const appwriteAuth = {
 
   async requestPasswordRecovery(emailInput: string): Promise<void> {
     assertAppwriteAuthConfigured();
+    const email = normalizeEmail(emailInput);
+    window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, email);
     await appwriteAccount.createRecovery({
-      email: normalizeEmail(emailInput),
-      url: `${window.location.origin}/auth?reset=1`,
+      email,
+      url: window.location.origin + '/auth?reset=1',
     });
   },
 
@@ -160,7 +169,9 @@ export const appwriteAuth = {
     await appwriteAccount.createEmailPasswordSession({ email: normalizeEmail(input.email), password: input.password });
     clearBackendJWT();
     clearRecoveryContext();
-    return appwriteAccount.get();
+    const user = await appwriteAccount.get();
+    window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+    return user;
   },
 
   async completePasswordRecovery(input: {
