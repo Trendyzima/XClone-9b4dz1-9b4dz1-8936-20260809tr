@@ -21,6 +21,7 @@ export function BookmarksPage() {
   const [loadingMoreBookmarks, setLoadingMoreBookmarks] = useState(false);
   const [hasMoreBookmarks, setHasMoreBookmarks] = useState(true);
   const bookmarksPageRef = useRef(0);
+  const bookmarksCursorRef = useRef<string | null>(null);
   const loadingMoreBookmarksRef = useRef(false);
   const bookmarksSentinelRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState('all' as 'all' | 'videos' | 'collections');
@@ -29,6 +30,7 @@ export function BookmarksPage() {
   const [loadingMoreBookmarkedVideos, setLoadingMoreBookmarkedVideos] = useState(false);
   const [hasMoreBookmarkedVideos, setHasMoreBookmarkedVideos] = useState(true);
   const bookmarkedVideosPageRef = useRef(0);
+  const bookmarkedVideosCursorRef = useRef<string | null>(null);
   const bookmarkedVideosLoadedForUserRef = useRef<string | null>(null);
   const loadingMoreBookmarkedVideosRef = useRef(false);
   const bookmarkedVideosSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -60,7 +62,8 @@ export function BookmarksPage() {
     if (reset) setLoadingVideos(true);
     else { loadingMoreBookmarkedVideosRef.current = true; setLoadingMoreBookmarkedVideos(true); }
     try {
-      const result = await backendCapabilities.listBookmarks(20, reset ? undefined : undefined);
+      if (reset) bookmarkedVideosCursorRef.current = null;
+      const result = await backendCapabilities.listBookmarks(20, bookmarkedVideosCursorRef.current ?? undefined);
       const rows = result.items ?? [];
       const vids = rows.map((item: any) => item.post ?? item).filter((post: any) => post && (post.is_video || post.media_type === 'video'));
       setVideos(previous => {
@@ -68,6 +71,7 @@ export function BookmarksPage() {
         const seen = new Set(previous.map((video: any) => String(video.id)));
         return [...previous, ...vids.filter((video: any) => !seen.has(String(video.id)))];
       });
+      bookmarkedVideosCursorRef.current = result.next_cursor ?? null;
       setHasMoreBookmarkedVideos(Boolean(result.next_cursor));
       bookmarkedVideosPageRef.current += 1;
     } catch (error) { console.error('Error fetching bookmarked videos:', error); }
@@ -82,13 +86,15 @@ export function BookmarksPage() {
     if (reset) setLoading(true);
     else { loadingMoreBookmarksRef.current = true; setLoadingMoreBookmarks(true); }
     try {
-      const result = await backendCapabilities.listBookmarks(20, reset ? undefined : undefined);
+      if (reset) bookmarksCursorRef.current = null;
+      const result = await backendCapabilities.listBookmarks(20, bookmarksCursorRef.current ?? undefined);
       const page = (result.items ?? []).map((item: any) => item.post ?? item).filter(Boolean);
       setPosts(previous => {
         if (reset) return page;
         const seen = new Set(previous.map((post: any) => String(post.id)));
         return [...previous, ...page.filter((post: any) => !seen.has(String(post.id)))];
       });
+      bookmarksCursorRef.current = result.next_cursor ?? null;
       setHasMoreBookmarks(Boolean(result.next_cursor));
       bookmarksPageRef.current += 1;
     } catch (error) { console.error('Error fetching bookmarks:', error); }
