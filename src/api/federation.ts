@@ -1,11 +1,6 @@
 import { testagramApiRequest, TestagramApiError } from '@/services/apiClient';
 
 const BACKEND_API_ORIGIN = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
-function remoteInstanceFromHandle(acct: string): string | null {
-  const normalized = acct.trim().replace(/^@/, ''); const parts = normalized.split('@');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-  return `https://${parts[1].replace(/\/$/, '')}`;
-}
 async function api<T = any>(path: string, method: 'GET' | 'POST' | 'DELETE' = 'GET', body?: unknown, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
   if (!BACKEND_API_ORIGIN) throw new GatewayError(503, 'The canonical Backend API endpoint is not configured.', path);
   const query = new URLSearchParams();
@@ -104,8 +99,8 @@ export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: s
   return api<FederatedDiscoveryResult>('/discovery', 'POST', { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode, kind });
 }
 export async function getFollowing(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/following`, 'GET', undefined, params as any); }
-export async function getInstance(): Promise<any> { const remote = await megalodonGatewayService.getInstance('https://mastodon.social'); return remote.instance; }
-export async function getHealth(): Promise<any> { return megalodonGatewayService.detect('https://mastodon.social'); }
+export async function getInstance(): Promise<any> { return api('/instance', 'GET', undefined, { domain: 'mastodon.social' }); }
+export async function getHealth(): Promise<any> { return api('/health', 'GET', undefined, { domain: 'mastodon.social' }); }
 export async function pollFediverseInbox(_userId: string): Promise<any[]> { const result = await api<{items?:any[]}>('/inbox', 'GET', undefined, { limit: 50 }); return Array.isArray(result?.items) ? result.items : []; }
 /** @deprecated Use the named exports above. */
 export async function gwRelay<T = any>(path: string, method = 'GET', body?: any, params?: Record<string, any>): Promise<T> { return api<T>(path, method, body, params); }
