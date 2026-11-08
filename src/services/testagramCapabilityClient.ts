@@ -1,6 +1,9 @@
 import { socialApi } from '@/services/socialApiClient';
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
+
+// XClone is Appwrite-authenticated; no Supabase mode or fallback exists.
+const isFreshAppwriteMode = true;
 export type CapabilityError={code:string;message:string};
 export type CapabilityResponse<T>={ok:boolean;data:T|null;error:CapabilityError|null;request_id:string};
 export type CapabilityPage<T>={items:T[];next_cursor:string|null};

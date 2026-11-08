@@ -7,7 +7,9 @@ import { TopBar } from '@/components/layout/TopBar';
 
 type WalletSnapshot = { wallet?: { id?: string; balance?: number; currency?: string }; transactions?: Array<{ id?: string; type?: string; amount?: number; currency?: string; status?: string; created_at?: string; reference?: string }> };
 
-export default function WalletPage() {
+type WalletPageProps = { initialTab?: string; standaloneTitle?: string };
+
+export default function WalletPage({ initialTab = 'overview', standaloneTitle = 'Wallet' }: WalletPageProps) {
   useSEO({ title: 'Wallet | Testagram', description: 'Manage your Testagram wallet and transaction history.' });
   const [snapshot, setSnapshot] = useState<WalletSnapshot>({});
   const [loading, setLoading] = useState(true);
@@ -53,10 +55,10 @@ export default function WalletPage() {
   const balance = Number(snapshot.wallet?.balance ?? 0);
   const transactions = snapshot.transactions ?? [];
   return <div className="min-h-screen bg-background">
-    <TopBar />
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 space-y-6">
+    <TopBar title={standaloneTitle} />
+    <main data-wallet-tab={initialTab} className="mx-auto w-full max-w-4xl px-4 py-8 space-y-6">
       <header className="flex items-center justify-between gap-3">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><Wallet className="h-6 w-6" /> Wallet</h1><p className="text-sm text-muted-foreground">Your balance and transactions are managed by Testagram Backend.</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><Wallet className="h-6 w-6" /> {standaloneTitle}</h1><p className="text-sm text-muted-foreground">Your balance and transactions are managed by Testagram Backend.</p></div>
         <button onClick={() => void refresh()} disabled={loading} className="rounded-xl border px-3 py-2 text-sm flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
       </header>
       {error && <div role="alert" className="rounded-xl border border-destructive/40 p-4 text-sm flex gap-2"><AlertCircle className="h-5 w-5 shrink-0" />{error}</div>}
