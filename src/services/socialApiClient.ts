@@ -1,13 +1,4 @@
 import { testagramApiRequest, TestagramApiError } from '@/services/apiClient';
-const isFreshAppwriteMode = true;
-
-type SocialEnvelope<T> = {
-  ok: boolean;
-  data: T | null;
-  error: { code?: string; message?: string } | null;
-  request_id?: string;
-};
-
 export class SocialApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -25,12 +16,9 @@ export class SocialApiError extends Error {
 const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '')
   .trim()
   .replace(/\/+$/, '');
-const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
-const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+const freshApiOrigin = configuredOrigin;
 const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/home` : '/api/feed/home';
 const freshApiPublicFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/public` : '/api/feed/public';
-
-function assertSocialAPIAvailable(_allowFreshRoute = false): void { /* All requests use the canonical Backend API. */ }
 
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
   return requestAt<T>(`/api/social${path}`, method, body);
