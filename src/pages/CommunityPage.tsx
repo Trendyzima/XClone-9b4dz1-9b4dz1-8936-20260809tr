@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { ComposePost } from '@/components/features/ComposePost';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
