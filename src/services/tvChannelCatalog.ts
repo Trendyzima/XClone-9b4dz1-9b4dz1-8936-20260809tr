@@ -1,4 +1,4 @@
-import {supabaseUrl, supabaseSecondary} from '@/lib/supabase';
+import { testagramApiRequest } from '@/services/apiClient';
 
 export type TvChannel = { id:string; tvg_id?:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number; live?:boolean; live_checked_at?:string };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number; enabled?:boolean; policy?:'public-free'|'community-unverified' };
@@ -67,72 +67,40 @@ function unwrapTvProxyUrl(value:string):string{
  }
  return current;
 }
-export async function loadTvSource(source:TvSource,signal?:AbortSignal){
- // Secondary is the long-term canonical read plane for the large TV catalog.
- // During rollout it may be empty, so the primary catalog function remains a
- // safe ingestion fallback. No primary auth/session is sent to the secondary.
- try{
-  const {data,error}=await supabaseSecondary
-    .from('tv_catalog_channels')
-    .select('channel_id,tvg_id,name,stream_url,logo_url,country,language,group_name,source,source_id,priority,is_active')
-    .eq('source_id',source.id)
-    .eq('is_active',true)
-    .order('priority',{ascending:false})
-    .limit(25000);
-  if(!error && Array.isArray(data) && data.length){
-   return data.map((c:any)=>({
-    id:String(c.channel_id),
-    tvg_id:c.tvg_id||undefined,
-    name:String(c.name||'Live TV'),
-    url:unwrapTvProxyUrl(String(c.stream_url)),
-    logo:c.logo_url||undefined,
-    country:c.country||source.country,
-    language:c.language||undefined,
-    group:c.group_name||undefined,
-    source:String(c.source||source.label),
-    priority:Number(c.priority||source.priority),
-    live:true,
-   } as TvChannel));
-  }
- }catch{}
- const endpoint=supabaseUrl+'/functions/v1/tv-catalog?source='+encodeURIComponent(source.id);
- const response=await fetch(endpoint,{signal,headers:{Accept:'application/json'}});
- if(!response.ok) throw new Error(source.label+': HTTP '+response.status);
- const payload=await response.json();
- return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).map(c=>({...c,url:unwrapTvProxyUrl(String(c.url))})):[];
+export async function loadTvSource(source: TvSource, signal?: AbortSignal) {
+  const payload = await testagramApiRequest<{ channels?: TvChannel[] }>(
+    `/api/tv/catalog?source=${encodeURIComponent(source.id)}`,
+    { anonymous: true, signal, timeoutMs: 20000 },
+  );
+  return Array.isArray(payload?.channels)
+    ? payload.channels.map(channel => ({ ...channel, url: unwrapTvProxyUrl(String(channel.url)) }))
+    : [];
 }
 export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
-export async function loadTvHealth(channelIds:string[]){
- const wanted=new Set(channelIds.map(String));
- if(!wanted.size || typeof window==='undefined') return new Map<string,any>();
- const configured=String(import.meta.env.VITE_TESTAGRAM_API_URL||'').trim();
- let base=window.location.origin;
- if(configured){
-  try{
-   const parsed=new URL(configured);
-   const localHTTP=parsed.protocol==='http:' && ['localhost','127.0.0.1','[::1]','::1'].includes(parsed.hostname);
-   if((parsed.protocol!=='https:'&&!localHTTP)||parsed.username||parsed.password||parsed.pathname!=='/'||parsed.search||parsed.hash){
-    throw new Error('VITE_TESTAGRAM_API_URL must be an HTTPS origin (HTTP only for localhost).');
-   }
-   base=parsed.origin;
-  }catch(error){
-   console.warn('[TV health] Invalid Testagram API origin:',error);
-   return new Map<string,any>();
+export async function loadTvHealth(channelIds: string[]) {
+  const wanted = new Set(channelIds.map(String));
+  if (!wanted.size) return new Map<string, any>();
+  try {
+    const payload = await testagramApiRequest<{ channels?: any[] }>(
+      '/api/tv/health?online=true&limit=20000',
+      { anonymous: true },
+    );
+    const rows = Array.isArray(payload?.channels) ? payload.channels : [];
+    return new Map(rows.filter((row: any) => wanted.has(String(row.channel_id))).map((row: any) => [
+      String(row.channel_id),
+      {
+        channel_id: String(row.channel_id),
+        is_online: Boolean(row.is_online),
+        last_checked_at: row.last_checked_at,
+        latency_ms: Number(row.latency_ms || 0),
+        consecutive_successes: Number(row.consecutive_successes || 0),
+        priority: Number(row.priority || 0),
+      },
+    ]));
+  } catch (error) {
+    console.warn('[TV health] Backend API is unavailable:', error);
+    return new Map<string, any>();
   }
- }
- try{
-  const response=await fetch(base+'/api/tv/health?online=true&limit=20000',{headers:{Accept:'application/json'}});
-  if(!response.ok) return new Map<string,any>();
-  const payload=await response.json();
-  const rows=Array.isArray(payload?.channels)?payload.channels:[];
-  return new Map(rows.filter((row:any)=>wanted.has(String(row.channel_id))).map((row:any)=>[String(row.channel_id),{
-   channel_id:String(row.channel_id),is_online:Boolean(row.is_online),last_checked_at:row.last_checked_at,
-   latency_ms:Number(row.latency_ms||0),consecutive_successes:Number(row.consecutive_successes||0),priority:Number(row.priority||0)
-  }]));
- }catch(error){
-  console.warn('[TV health] Independent PostgreSQL health API is unavailable:',error);
-  return new Map<string,any>();
- }
 }
 export function rankRecommendedTvChannels(channels:TvChannel[],health:Map<string,any>){
  return [...channels].sort((a,b)=>{
