@@ -1,4 +1,5 @@
-name: Cloudflare Worker Build Gate
+# Client-only Cloudflare static-site build gate
+name: Cloudflare Client Build Gate
 # Production worker syntax gate
 
 on:
@@ -6,9 +7,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
-      - "api/**"
       - "public/**"
-      - "cloudflare/**"
       - "wrangler.jsonc"
       - "_build.cjs"
       - "package.json"
@@ -66,12 +65,6 @@ jobs:
           VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
         run: npm run build
 
-      - name: Generate immutable deployment metadata for dry-run
-        run: |
-          set -euo pipefail
-          echo "export const DEPLOYED_COMMIT_SHA = '${{ github.sha }}';" > cloudflare/deployment-meta.ts
-          grep -F "${{ github.sha }}" cloudflare/deployment-meta.ts >/dev/null
-
       - name: Validate Worker bundle without deploying
         run: npx wrangler deploy --dry-run
 
@@ -79,6 +72,8 @@ jobs:
         run: |
           set -euo pipefail
           test -f wrangler.jsonc
+          ! grep -q '"main"' wrangler.jsonc
+          ! grep -q '"run_worker_first"' wrangler.jsonc
           grep -q '"name": "testagram-web"' wrangler.jsonc
           grep -q '"pattern": "testagram.site"' wrangler.jsonc
           grep -q '"pattern": "www.testagram.site"' wrangler.jsonc
