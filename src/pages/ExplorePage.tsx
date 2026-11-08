@@ -10,7 +10,7 @@ import { TrendingVideosSection } from '@/components/features/TrendingVideosSecti
 import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
-import { supabase, supabaseSecondary } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { socialApi } from '@/services/socialApiClient';
 import { readPublicExpansion } from '@/lib/dataPlane';
 import { formatNumber } from '@/lib/utils';
@@ -330,80 +330,43 @@ function CategoryTabContent({
       // trending feed: a sparse category should stay sparse rather than
       // displaying unrelated posts that belong to another surface.
       const since7d = new Date(Date.now() - 7 * 86400000).toISOString();
-      const orFilter = keywords.map(k => `content.ilike.%${k}%`).join(',');
-      let query = supabase
-        .from('posts')
-        .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-        .or(orFilter)
-        .is('community_id', null)
-        .is('deleted_at', null)
-        .gte('created_at', since7d);
-
-      // Distinct editorial intent per surface:
-      // News = recency, Sports = conversation velocity, Entertainment = engagement/media.
-      if (activeTab === 'News') {
-        query = query.order('created_at', { ascending: false });
-      } else if (activeTab === 'Sports') {
-        query = query.order('likes_count', { ascending: false });
-      } else {
-        query = query.order('views_count', { ascending: false });
-      }
-
-      const { data } = await query.limit(30);
-
-      // Secondary Supabase is a public/legacy read plane. It has an older
-      // posts shape and intentionally has no primary auth session, so only
-      // public, non-interactive discovery data is read from it. Never send
-      // the primary user's JWT to the secondary project.
-      let secondaryPosts: any[] = [];
-      try {
-        const secondaryResult = await supabaseSecondary
-          .from('posts')
-          .select('id, content, body, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, author_id')
-          .or(orFilter)
-          .is('community_id', null)
-          .is('deleted_at', null)
-          .gte('created_at', since7d)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        secondaryPosts = (secondaryResult.data ?? []).map((p: any) => ({
-          ...p,
-          content: p.content ?? p.body ?? '',
-          // Secondary legacy identities are not authoritative Testagram
-          // profiles. Keep them explicitly labelled rather than inventing a
-          // primary profile relationship.
-          user_profiles: {
-            id: p.author_id,
-            username: 'legacy_testagram',
-            display_name: 'Testagram',
-            avatar_url: null,
-            verified_tier: 'none',
-          },
-          _data_plane: 'secondary',
-        }));
-      } catch {
-        // Secondary is an enhancement/fallback. Primary discovery must remain
-        // fully functional if the second project is unavailable.
-      }
-
+      const sortMode = activeTab === 'News' ? 'recent' : activeTab === 'Sports' ? 'likes' : 'views';
+      const discoveryResult = await backendCapabilities.listDiscoveryCategoryPosts(keywords, sortMode, since7d, 30);
+      const finalPosts = discoveryResult.items ?? [];
       if (!cancelled) {
-        const primaryPosts = data ?? [];
-        const merged = [...primaryPosts, ...secondaryPosts];
-        const seen = new Set<string>();
-        const finalPosts = merged
-          .filter((p: any) => {
-            const key = String(p.id);
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })
-          .sort((a: any, b: any) => {
-            if (activeTab === 'News') return +new Date(b.created_at) - +new Date(a.created_at);
-            return Number(b.likes_count ?? b.views_count ?? 0) - Number(a.likes_count ?? a.views_count ?? 0);
-          })
-          .slice(0, 30);
         setPosts(finalPosts);
+        if (finalPosts.length > 0 && user) {
+          const summaries = await Promise.allSettled(finalPosts.map(async (post: any) => ({
+            post_id: post.id,
+            user_reactions: (await socialApi.getInteractionSummary(post.id)).user_reactions ?? [],
+            reactions: (await socialApi.getInteractionSummary(post.id)).reactions ?? {},
+          })));
+          if (!cancelled) {
+            const cPostIds: any[] = [];
+            const cEmojis: any[] = [];
+            const cCounts: any[] = [];
+            const ownPostIds: any[] = [];
+            const ownEmojis: any[] = [];
+            for (const result of summaries) {
+              if (result.status !== 'fulfilled') continue;
+              const summary = result.value;
+              for (const [emoji, count] of Object.entries(summary.reactions)) {
+                cPostIds.push(summary.post_id);
+                cEmojis.push(emoji);
+                cCounts.push(Number(count) || 0);
+              }
+              for (const emoji of summary.user_reactions) {
+                ownPostIds.push(summary.post_id);
+                ownEmojis.push(emoji);
+              }
+            }
+            setRxCountPostIds(cPostIds as any);
+            setRxCountEmojis(cEmojis as any);
+            setRxCounts(cCounts as any);
+            setRxPostIds(ownPostIds as any);
+            setRxEmojis(ownEmojis as any);
+          }
+        }
         setLoading(false);
         // Fetch reactions for these posts
         if (finalPosts.length > 0) {
