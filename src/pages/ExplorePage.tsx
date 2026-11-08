@@ -976,14 +976,13 @@ export default function ExplorePage() {
   };
 
   const fetchActiveChallenges = async () => {
-    const { data } = await supabase
-      .from('hashtag_challenges')
-      .select('*, hashtags(tag)')
-      .eq('is_active', true)
-      .gte('end_date', new Date().toISOString())
-      .order('entry_count', { ascending: false })
-      .limit(5);
-    setActiveChallenges(data ?? []);
+    try {
+      const result = await backendCapabilities.listHashtagChallenges(5);
+      setActiveChallenges(result.items ?? []);
+    } catch (error) {
+      console.error('[explore-challenges] Backend request failed', error);
+      setActiveChallenges([]);
+    }
   };
 
   const handleCreateChallenge = async () => {
@@ -994,24 +993,12 @@ export default function ExplorePage() {
     }
     setCreatingChallenge(true);
     try {
-      const cleanTag = challengeForm.hashtag.replace(/^#/, '');
-      let hashtagId: string | null = null;
-      const { data: existingTag } = await supabase.from('hashtags').select('id').eq('tag', cleanTag).maybeSingle();
-      if (existingTag) { hashtagId = existingTag.id; }
-      else {
-        const { data: newTag } = await supabase.from('hashtags').insert({ tag: cleanTag, usage_count: 0 }).select('id').single();
-        hashtagId = newTag?.id ?? null;
-      }
-      if (!hashtagId) throw new Error('Could not create hashtag');
-      await supabase.from('hashtag_challenges').insert({
-        title: challengeForm.title,
-        description: challengeForm.description || null,
-        prize: challengeForm.prize || null,
+      await backendCapabilities.createHashtagChallenge({
+        title: challengeForm.title.trim(),
+        description: challengeForm.description || '',
+        prize: challengeForm.prize || '',
         end_date: new Date(challengeForm.end_date).toISOString(),
-        hashtag_id: hashtagId,
-        created_by: user.id,
-        entry_count: 0,
-        is_active: true,
+        hashtag: challengeForm.hashtag,
       });
       toast.success('Challenge created!');
       setShowCreateChallenge(false);
