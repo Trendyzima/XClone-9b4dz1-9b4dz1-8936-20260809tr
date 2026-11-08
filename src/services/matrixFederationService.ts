@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { BackendClientError } from '@/services/backendClient';
 
 export interface MatrixIdentity {
   user_id: string;
@@ -15,25 +15,32 @@ export interface MatrixRoom {
   status: 'pending' | 'active' | 'disabled';
 }
 
-async function invoke<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke('matrix-bridge', { body });
-  if (error) throw new Error(`Matrix bridge request failed: ${error.message}`);
-  if (!data?.ok) throw new Error(data?.error ?? 'Matrix bridge request failed');
-  return data as T;
+/**
+ * Matrix federation is not an XClone-owned implementation. The frontend must
+ * call a versioned Backend/Federation contract once that contract is deployed.
+ * Never fall back to Supabase Edge Functions or perform federation work here.
+ */
+function unavailable(operation: string): never {
+  throw new BackendClientError(
+    `Matrix federation operation "${operation}" is unavailable until its Backend/Federation API contract is deployed.`,
+    { code: 'FEDERATION_API_NOT_DEPLOYED', status: 501 },
+  );
 }
 
-export async function linkMatrixIdentity(matrixUserId: string, homeserver: string): Promise<MatrixIdentity> {
-  const result = await invoke<{ identity: MatrixIdentity }>({ operation: 'link_identity', matrix_user_id: matrixUserId, homeserver });
-  return result.identity;
+export async function linkMatrixIdentity(_matrixUserId: string, _homeserver: string): Promise<MatrixIdentity> {
+  return unavailable('link_identity');
 }
 
-export async function createMatrixRoom(conversationId: string): Promise<MatrixRoom> {
-  const result = await invoke<{ room: MatrixRoom }>({ operation: 'create_room', conversation_id: conversationId });
-  return result.room;
+export async function createMatrixRoom(_conversationId: string): Promise<MatrixRoom> {
+  return unavailable('create_room');
 }
 
-export async function sendMatrixEvent(conversationId: string, eventType: string, content: Record<string, unknown>) {
-  return invoke<{ room_id: string; event: { event_id?: string } }>({ operation: 'send_event', conversation_id: conversationId, event_type: eventType, content });
+export async function sendMatrixEvent(
+  _conversationId: string,
+  _eventType: string,
+  _content: Record<string, unknown>,
+): Promise<{ room_id: string; event: { event_id?: string } }> {
+  return unavailable('send_event');
 }
 
 export const matrixFederationService = { linkMatrixIdentity, createMatrixRoom, sendMatrixEvent };
