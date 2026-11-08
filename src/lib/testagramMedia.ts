@@ -1,4 +1,5 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 export type MediaRoomType = 'tv' | 'space' | 'call';
 export type MediaRole = 'host' | 'viewer' | 'guest' | 'listener' | 'speaker' | 'participant';
@@ -57,6 +58,9 @@ const waitForIce = async (pc: RTCPeerConnection) => {
 };
 
 const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole, inviteToken?: string): Promise<MediaToken> => {
+  if (roomType === 'call') {
+    return backendCapabilities.call<MediaToken>('testagram.media.token', { room_id: roomId, room_type: 'call', role });
+  }
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   if (roomType === 'tv' && (role === 'host' || role === 'viewer')) {
@@ -130,7 +134,6 @@ export class TestagramMediaSession {
   private lastDiagnostics: Record<string, unknown> = {};
   private callConversationId: string | null = null;
   private callInitiator = false;
-  private callSignalChannel: ReturnType<typeof supabase.channel> | null = null;
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
@@ -429,67 +432,74 @@ export class TestagramMediaSession {
 
   private async connectPeerCall() {
     if (!this.callConversationId) throw new Error('Call signaling conversation is unavailable.');
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (!userId) throw new Error('Authentication required for secure calling.');
-
+    this.info ??= await getToken(this.roomId, 'call', 'participant');
     const turnUrl = import.meta.env.VITE_TESTAGRAM_TURN_URL?.trim();
     const turnUser = import.meta.env.VITE_TESTAGRAM_TURN_USERNAME?.trim();
     const turnCredential = import.meta.env.VITE_TESTAGRAM_TURN_CREDENTIAL?.trim();
-    const iceServers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+    const iceServers: RTCIceServer[] = [...(this.info.ice_servers || [{ urls: 'stun:stun.l.google.com:19302' }])];
     if (turnUrl && turnUser && turnCredential) iceServers.push({ urls: turnUrl, username: turnUser, credential: turnCredential });
-
     this.createPeerConnection(iceServers);
     for (const track of this.localStream?.getTracks() || []) this.pc.addTrack(track, this.localStream!);
-    this.lastDiagnostics = { transport: 'p2p', encryption: 'dtls-srtp', signaling: 'supabase-realtime', callId: this.roomId };
-
-    const channel = supabase.channel('call:' + this.roomId, { config: { private: true, broadcast: { self: false, ack: true } } });
-    this.callSignalChannel = channel;
-    const sendSignal = async (type: 'offer' | 'answer', sdp: string) => {
-      const result = await channel.send({ type: 'broadcast', event: 'call-signal', payload: { call_id: this.roomId, sender_id: userId, signal_type: type, sdp } });
-      if (result !== 'ok') throw new Error('Secure call signaling failed.');
-    };
-
-    channel.on('broadcast', { event: 'call-signal' }, async ({ payload }) => {
-      if (!payload || payload.call_id !== this.roomId || payload.sender_id === userId || typeof payload.sdp !== 'string') return;
-      try {
-        if (payload.signal_type === 'offer') {
-          await this.pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
-          const answer = await this.pc.createAnswer();
-          await this.pc.setLocalDescription(answer);
-          await waitForIce(this.pc);
-          if (this.pc.localDescription?.sdp) await sendSignal('answer', this.pc.localDescription.sdp);
-        } else if (payload.signal_type === 'answer') {
-          await this.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
-          this.answerReceived = true;
-        }
-      } catch (error) {
-        console.warn('[Testagram secure call] signaling error', error);
-      }
-    });
-
+    this.lastDiagnostics = { transport: 'p2p', encryption: 'dtls-srtp', signaling: 'testagram-realtime', callId: this.roomId };
+    const ws = new WebSocket(this.info.ws_url!, ['testagram.realtime.v1', 'ticket.' + this.info.token]);
+    this.ws = ws;
+    let answerSent = false;
     await new Promise<void>((resolve, reject) => {
       const timeout = window.setTimeout(() => reject(new Error('Secure call signaling timed out.')), 20000);
-      channel.subscribe(async status => {
-        if (status !== 'SUBSCRIBED') return;
-        window.clearTimeout(timeout);
+      const finish = () => { window.clearTimeout(timeout); resolve(); };
+      ws.onopen = async () => {
         try {
           if (this.callInitiator) {
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
             await waitForIce(this.pc);
             if (!this.pc.localDescription?.sdp) throw new Error('Secure call offer was not created.');
-            // Retry the offer briefly so a slower callee subscription does not lose the first signal.
+            // The callee may be connecting at the same time; retransmit the offer
+            // briefly until an answer arrives, without relying on a Supabase channel.
             for (let attempt = 0; attempt < 3 && !this.answerReceived; attempt += 1) {
-              await sendSignal('offer', this.pc.localDescription.sdp);
+              if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'offer', sdp: this.pc.localDescription.sdp }));
               if (attempt < 2) await new Promise(r => window.setTimeout(r, 700));
             }
+            if (this.answerReceived) finish();
           }
-          resolve();
-        } catch (error) { reject(error); }
-      });
+        } catch (error) { window.clearTimeout(timeout); reject(error); }
+      };
+      ws.onerror = () => { window.clearTimeout(timeout); reject(new Error('Could not connect to the authenticated Testagram signaling service.')); };
+      ws.onclose = () => { if (!this.closed) this.scheduleReconnect(); };
+      ws.onmessage = async event => {
+        try {
+          const message = JSON.parse(event.data) as Signal & { sender_id?: string };
+          if (message.type === 'presence') { this.onParticipantCount?.(Number(message.participant_count || 0)); return; }
+          if (message.type === 'candidate' && message.candidate) {
+            if (this.pc.remoteDescription) await this.pc.addIceCandidate(message.candidate);
+            else this.pendingCandidates.push(message.candidate);
+            return;
+          }
+          if (message.type === 'offer' && message.sdp && !this.callInitiator) {
+            await this.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
+            await this.flushCandidates();
+            const answer = await this.pc.createAnswer();
+            await this.pc.setLocalDescription(answer);
+            await waitForIce(this.pc);
+            if (ws.readyState === WebSocket.OPEN && this.pc.localDescription?.sdp) {
+              ws.send(JSON.stringify({ type: 'answer', sdp: this.pc.localDescription.sdp }));
+              answerSent = true;
+              finish();
+            }
+            return;
+          }
+          if (message.type === 'answer' && message.sdp && this.callInitiator) {
+            await this.pc.setRemoteDescription({ type: 'answer', sdp: message.sdp });
+            await this.flushCandidates();
+            this.answerReceived = true;
+            finish();
+          }
+        } catch (error) { console.warn('[Testagram secure call] signaling error', error); }
+      };
+      if (!this.callInitiator) {
+        // Callee resolves only after it has answered an authenticated offer.
+      }
     });
-
     const started = Date.now();
     while (this.pc.connectionState !== 'connected' && Date.now() - started < 20000) {
       if (this.pc.connectionState === 'failed' || this.pc.iceConnectionState === 'failed') throw new Error('Secure peer connection failed.');
@@ -529,7 +539,6 @@ export class TestagramMediaSession {
 
   async close() {
     this.closed = true;
-    if (this.callSignalChannel) { void supabase.removeChannel(this.callSignalChannel); this.callSignalChannel = null; }
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null; this.ws?.close(); this.ws = null;
     if (this.mediaSessionUrl) {
