@@ -103,32 +103,23 @@ export default function CommunityPage({ section, standalone = false }: { section
     if (shopFetched) return;
     setLoadingShop(true);
     const keyword = community?.display_name?.split(' ')[0] ?? '';
-    const { data } = await supabase.from('products')
-      .select('id, name, description, price, image_url, avg_rating, review_count, external_link, user_id, user_profiles:user_id(username, avatar_url)')
-      .eq('is_active', true).ilike('name', `%${keyword}%`).order('sales_count', { ascending: false }).limit(20);
-    const { data: featured } = await supabase.from('products')
-      .select('id, name, description, price, image_url, avg_rating, review_count, external_link, user_id, user_profiles:user_id(username, avatar_url)')
-      .eq('is_active', true).eq('is_featured', true).order('sales_count', { ascending: false }).limit(10);
-    const combined = [...(featured ?? []), ...(data ?? [])];
-    setShopProducts(combined.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i));
+    const result = await backendCapabilities.listCommunityShop(_communityId);
+    setShopProducts(result.items ?? []);
     setLoadingShop(false);
     setShopFetched(true);
   }, [shopFetched, community?.display_name]);
 
   const fetchNftBadges = useCallback(async (communityId: string) => {
-    const { data } = await supabase.from('community_nft_badges')
-      .select('*, user_profiles:owner_id(username, avatar_url, verified)')
-      .eq('community_id', communityId).order('minted_at', { ascending: false });
-    setNftBadges(data ?? []);
+    const result = await backendCapabilities.listCommunityBadges(communityId);
+    setNftBadges(result.items ?? []);
   }, []);
 
   const handleMintNft = useCallback(async () => {
     if (!user || !community || !isMember) return;
     setMintingNft(true);
     try {
-      const { error } = await supabase.rpc('mint_community_badge', { p_community_id: community.id });
-      if (error) throw error;
-      sonnerToast.success('🏅 Community badge minted!');
+      await backendCapabilities.claimCommunityBadge(community.id);
+      sonnerToast.success('🏅 Community badge earned!');
       await fetchNftBadges(community.id);
     } catch (error: any) {
       sonnerToast.error(error?.message || 'Could not mint badge');
@@ -1376,8 +1367,8 @@ export default function CommunityPage({ section, standalone = false }: { section
           {nftUnlocked ? (
             <div className="border border-cyan-500/20 bg-cyan-500/5 rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-500/15">
-                <div className="flex items-center gap-2"><Award className="w-4 h-4 text-cyan-500" /><span className="text-sm font-bold">Community NFT Badges</span><span className="text-[10px] text-muted-foreground">{nftBadges.length} minted</span></div>
-                {isMember && <button onClick={handleMintNft} disabled={mintingNft} className="flex items-center gap-1 px-2.5 py-1.5 bg-cyan-500 text-white rounded-xl text-xs font-bold disabled:opacity-50 hover:opacity-90">{mintingNft ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}{mintingNft ? 'Minting…' : 'Mint Badge'}</button>}
+                <div className="flex items-center gap-2"><Award className="w-4 h-4 text-cyan-500" /><span className="text-sm font-bold">Community Achievement Badges</span><span className="text-[10px] text-muted-foreground">{nftBadges.length} minted</span></div>
+                {isMember && <button onClick={handleMintNft} disabled={mintingNft} className="flex items-center gap-1 px-2.5 py-1.5 bg-cyan-500 text-white rounded-xl text-xs font-bold disabled:opacity-50 hover:opacity-90">{mintingNft ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}{mintingNft ? 'Claiming…' : 'Claim Badge'}</button>}
               </div>
               {nftBadges.length === 0 ? <p className="text-xs text-muted-foreground text-center py-4">No badges minted yet — be the first!</p> : (
                 <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
@@ -1397,7 +1388,7 @@ export default function CommunityPage({ section, standalone = false }: { section
           ) : (
             <div className="flex items-center gap-3 px-4 py-3 bg-muted/40 border border-border rounded-xl">
               <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div><p className="text-xs font-semibold">NFT Badges locked</p><p className="text-[10px] text-muted-foreground">Contact @Shee to unlock</p></div>
+              <div><p className="text-xs font-semibold">Achievement badges locked</p><p className="text-[10px] text-muted-foreground">Contact @Shee to unlock</p></div>
             </div>
           )}
           {loadingShop ? <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> :
