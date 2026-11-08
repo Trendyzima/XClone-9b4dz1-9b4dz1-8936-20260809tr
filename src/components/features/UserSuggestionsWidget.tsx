@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import { BadgeCheck, Check, Users, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -77,10 +78,9 @@ export function UserSuggestionsWidget() {
     const previous = following;
     setFollowing(new Set([...previous, userId]));
     try {
-      const { error } = await supabase.from('follows').insert({ follower_id: user.id, following_id: userId });
-      if (error) throw error;
+      // Backend persists the relationship and publishes its notification event atomically.
+      await socialApi.setFollow(userId, true);
       toast.success('Following!');
-      await supabase.from('notifications').insert({ recipient_id: userId, kind: 'follow', actor_id: user.id });
       setSuggestions(current => current.filter(item => item.id !== userId));
     } catch (error: any) {
       setFollowing(previous);
