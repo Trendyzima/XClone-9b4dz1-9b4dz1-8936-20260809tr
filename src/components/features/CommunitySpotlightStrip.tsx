@@ -29,16 +29,15 @@ export function CommunitySpotlightStrip({ initialCommunities }: { initialCommuni
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let rows: Community[] = initialCommunities ?? [];
       try {
         if (initialCommunities === undefined) {
           const result = await backendCapabilities.listCommunities(8, { public_only: true, sort: 'popular' });
-          const rows = Array.isArray(result.items) ? result.items as Community[] : [];
-          if (!cancelled) setCommunities(rows);
-        } else if (!cancelled) {
-          setCommunities(initialCommunities);
+          rows = Array.isArray(result.items) ? result.items as Community[] : [];
         }
         if (!cancelled) {
-          setJoinedIds(new Set((initialCommunities ?? communities).filter(c => (c as any).is_member).map(c => c.id)));
+          setCommunities(rows);
+          setJoinedIds(new Set(rows.filter(c => (c as any).is_member).map(c => c.id)));
         }
       } catch (error) {
         console.error('[community-spotlight] backend request failed', error);
