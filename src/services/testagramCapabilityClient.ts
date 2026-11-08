@@ -49,7 +49,10 @@ export class TestagramCapabilityClient{
   const headers: Record<string,string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     'Content-Type': 'application/json', Accept: 'application/json',
-    'X-Client-Info': `testagram-web/${this.version}`,
+    'X-Client-Info': `testagram-web/${this.version}`, 
+    'X-Testagram-API-Version': '1',
+    'X-Request-ID': id,
+    ...(DIRECT_MUTATION_CAPABILITIES.has(capability) ? { 'Idempotency-Key': id } : {}),
   };
   try {
     if (!this.endpoint) throw new CapabilityClientError("VITE_TESTAGRAM_API_URL is required; XClone does not provide a same-origin API proxy.", { code: "BACKEND_API_URL_REQUIRED" });
@@ -79,7 +82,7 @@ export class TestagramCapabilityClient{
           ok: false,
           data: null,
           error: { code: auth ? 'AUTH_REQUIRED' : 'CAPABILITY_DISPATCH_FAILED', message },
-          request_id: id,
+          request_id: response.headers.get('X-Request-ID') ?? id,
         },
       };
     }
