@@ -322,16 +322,10 @@ export default function CommunityPage({ section, standalone = false }: { section
     if (!user || !community) return;
     setShowCommunityPollDialog(false);
     try {
-      // Use the canonical atomic post capability so the community post,
-      // poll and options are created together against the current schema.
-      await backendCapabilities.createPost({
-        content: pollData.question,
-        communityId: community.id,
-        poll: {
-          question: pollData.question,
-          options: pollData.options,
-          durationMinutes: pollData.duration,
-        },
+      await backendCapabilities.createCommunityPoll(community.id, {
+        question: pollData.question,
+        options: pollData.options,
+        duration_minutes: pollData.duration,
       });
       sonnerToast.success('Community poll created! 📊');
       setPostsCursor(null);
