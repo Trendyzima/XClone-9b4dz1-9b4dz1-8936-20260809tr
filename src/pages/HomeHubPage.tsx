@@ -162,12 +162,12 @@ export default function HomeHubPage(){
   const cacheKey = `home:${user?.id ?? 'signed-out'}`;
 
   // The home timeline is sourced exclusively from the authenticated Testagram
-  // Backend. The legacy Supabase aggregator and direct-table fallback are
+  // Backend. The retired aggregator and direct-table fallback are
   // intentionally not reachable from this component.
   const fetchTab=useCallback(async(target:Tab,_pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
     if (target !== 'all') {
       // These secondary discovery tabs are being moved to Backend endpoints.
-      // Returning no legacy rows is safer than silently reintroducing Supabase.
+      // Returning no legacy rows is safer than silently restoring direct data access.
       return [];
     }
     const page = user?.id
