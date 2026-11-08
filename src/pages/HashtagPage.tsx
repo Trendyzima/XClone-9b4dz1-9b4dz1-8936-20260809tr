@@ -82,45 +82,26 @@ export default function HashtagPage() {
 
   const fetchRelatedSuggestions = useCallback(async (tagName: string) => {
     // Related live spaces: search title for the hashtag keyword
-    const { data: spaces } = await supabase
-      .from('spaces')
-      .select('id, title, listener_count, category, host:user_profiles!spaces_host_id_fkey(username, avatar_url, verified)')
-      .eq('is_live', true)
-      .ilike('title', `%${tagName}%`)
-      .limit(3);
+    const [spaceResult, communityResult] = await Promise.allSettled([
+      backendCapabilities.listLiveAudioSpaces(),
+      backendCapabilities.listCommunities(50),
+    ]);
+    const liveSpaces = spaceResult.status === 'fulfilled' ? (spaceResult.value.items ?? []) : [];
+    const matchingSpaces = liveSpaces.filter((space: any) =>
+      String(space.title ?? '').toLowerCase().includes(tagName.toLowerCase())
+    );
+    setRelatedSpaces((matchingSpaces.length ? matchingSpaces : liveSpaces)
+      .sort((a: any, b: any) => Number(b.listener_count ?? 0) - Number(a.listener_count ?? 0))
+      .slice(0, 3));
 
-    if (spaces && spaces.length > 0) {
-      setRelatedSpaces(spaces);
-    } else {
-      // Fallback: popular live spaces
-      const { data: popular } = await supabase
-        .from('spaces')
-        .select('id, title, listener_count, category, host:user_profiles!spaces_host_id_fkey(username, avatar_url, verified)')
-        .eq('is_live', true)
-        .order('listener_count', { ascending: false })
-        .limit(3);
-      setRelatedSpaces(popular ?? []);
-    }
-
-    // Related communities: search name for the hashtag keyword
-    const { data: comms } = await supabase
-      .from('communities')
-      .select('id, name, display_name, description, icon_url, member_count')
-      .or(`name.ilike.%${tagName}%,display_name.ilike.%${tagName}%,description.ilike.%${tagName}%`)
-      .order('member_count', { ascending: false })
-      .limit(3);
-
-    if (comms && comms.length > 0) {
-      setRelatedCommunities(comms);
-    } else {
-      // Fallback: top communities
-      const { data: popular } = await supabase
-        .from('communities')
-        .select('id, name, display_name, description, icon_url, member_count')
-        .order('member_count', { ascending: false })
-        .limit(3);
-      setRelatedCommunities(popular ?? []);
-    }
+    const communities = communityResult.status === 'fulfilled' ? (communityResult.value.items ?? []) : [];
+    const matchingCommunities = communities.filter((community: any) =>
+      [community.name, community.display_name, community.description]
+        .some((value: any) => String(value ?? '').toLowerCase().includes(tagName.toLowerCase()))
+    );
+    setRelatedCommunities((matchingCommunities.length ? matchingCommunities : communities)
+      .sort((a: any, b: any) => Number(b.member_count ?? 0) - Number(a.member_count ?? 0))
+      .slice(0, 3));
   }, []);
 
   const fetchTopPosts = async (hashtagId: string) => {
@@ -147,31 +128,11 @@ export default function HashtagPage() {
       const normalizedTag = String(tag ?? '').replace(/^#/, '').trim().toLowerCase();
       if (!normalizedTag) throw new Error('HASHTAG_NOT_FOUND');
 
-      const { data: directHashtag, error: hashtagError } = await supabase
-        .from('hashtags')
-        .select('id, tag, usage_count, post_count, follower_count, last_used_at, created_at, federated_post_count')
-        .ilike('tag', normalizedTag)
-        .maybeSingle();
-      if (hashtagError) throw hashtagError;
-
-      // Fall back to the authenticated capability search only if the direct
-      // canonical lookup misses. This preserves the existing gateway path for
-      // unusual/migrating hashtag records without making it a hard dependency.
-      let hashtagData = directHashtag as any;
-      if (!hashtagData) {
-        const hashtagResult = await backendCapabilities.searchHashtags(normalizedTag, 20);
-        hashtagData = hashtagResult.items?.find((item: any) =>
-          String(item?.tag ?? '').replace(/^#/, '').trim().toLowerCase() === normalizedTag
-        );
-      }
-      if (!hashtagData) throw new Error('HASHTAG_NOT_FOUND');
+      const hashtagData = await backendCapabilities.resolveHashtag(normalizedTag);
+      if (!hashtagData?.id) throw new Error('HASHTAG_NOT_FOUND');
       setHashtag(hashtagData);
 
-      const { count: fCount } = await supabase
-        .from('hashtag_follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('hashtag_id', hashtagData.id);
-      setFollowerCount(fCount ?? 0);
+      setFollowerCount(Number(hashtagData.follower_count ?? 0));
 
       // post_hashtags has no created_at column in production. Order by the
       // joined post timestamp after hydration instead of issuing an invalid
@@ -295,10 +256,8 @@ export default function HashtagPage() {
 
   const checkFollowStatus = async () => {
     if (!user || !hashtag) return;
-    const { data } = await supabase
-      .from('hashtag_follows').select('id')
-      .eq('user_id', user.id).eq('hashtag_id', hashtag.id).maybeSingle();
-    setIsFollowing(!!data);
+    const result = await backendCapabilities.getHashtagFollowState(hashtag.id);
+    setIsFollowing(Boolean(result.following));
   };
 
   useEffect(() => {
@@ -309,18 +268,18 @@ export default function HashtagPage() {
     if (!user) { navigate('/auth'); return; }
     if (!hashtag) return;
     setFollowLoading(true);
-    if (isFollowing) {
-      await supabase.from('hashtag_follows').delete().eq('user_id', user.id).eq('hashtag_id', hashtag.id);
-      setIsFollowing(false);
-      setFollowerCount(c => Math.max(0, c - 1));
-      toast.success(`Unfollowed #${tag}`);
-    } else {
-      await supabase.from('hashtag_follows').insert({ user_id: user.id, hashtag_id: hashtag.id });
-      setIsFollowing(true);
-      setFollowerCount(c => c + 1);
-      toast.success(`Following #${tag} — posts will appear in your feed`);
+    try {
+      const result = await backendCapabilities.setHashtagFollow(hashtag.id, !isFollowing);
+      setIsFollowing(Boolean(result.following));
+      setFollowerCount(count => Math.max(0, count + (result.following ? 1 : -1)));
+      toast.success(result.following
+        ? `Following #${tag} — posts will appear in your feed`
+        : `Unfollowed #${tag}`);
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Could not update hashtag follow');
+    } finally {
+      setFollowLoading(false);
     }
-    setFollowLoading(false);
   };
 
   if (loading) {
