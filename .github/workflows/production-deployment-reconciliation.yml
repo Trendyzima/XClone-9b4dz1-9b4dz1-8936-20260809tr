@@ -946,12 +946,16 @@ jobs:
           for attempt in $(seq 1 "$max_attempts"); do
             status="$(curl -sS --location --connect-timeout 10 --max-time 30               -o ready.txt -w '%{http_code}' "https://testagram.site/api/ready" || true)"
             if [[ "$status" == "200" ]]; then
-              if node - <<'NODE'
-          const fs=require("node:fs");
+              if node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          import { isReadinessDocument } from "./scripts/production-contracts.mjs";
           const body=fs.readFileSync("ready.txt","utf8").trim();
           let p;
           try { p=JSON.parse(body); } catch { process.exit(1); }
-          if (p?.ok !== true || p?.database !== "reachable") process.exit(1);
+          if (!isReadinessDocument(p)) {
+            console.error("Production readiness did not prove its database dependency:", JSON.stringify(p));
+            process.exit(1);
+          }
           console.log("Production database readiness passed:", JSON.stringify(p));
           NODE
               then
@@ -959,12 +963,12 @@ jobs:
                 break
               fi
             fi
-            echo "Readiness endpoint is not ready yet (HTTP $status); waiting for production database readiness."
+            echo "Readiness endpoint did not return a verified database dependency contract (HTTP $status); waiting for production readiness."
             if (( attempt < max_attempts )); then sleep 10; fi
           done
 
           [[ "$ready_ok" == true ]] || {
-            echo "::error::testagram.site/api/ready did not become database-ready within the activation window."
+            echo "::error::testagram.site/api/ready did not prove a successful PostgREST or self-hosted PostgreSQL dependency check within the activation window."
             head -c 2000 ready.txt 2>/dev/null || true
             exit 1
           }
@@ -1008,6 +1012,18 @@ jobs:
               cat /tmp/testagram-api-response.json || true
               exit 1
             }
+            if [[ "$endpoint" == "/api/ready" ]]; then
+              node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          import { isReadinessDocument } from "./scripts/production-contracts.mjs";
+          const body = JSON.parse(fs.readFileSync("/tmp/testagram-api-response.json", "utf8"));
+          if (!isReadinessDocument(body)) {
+            console.error("Production readiness did not prove its database dependency:", JSON.stringify(body));
+            process.exit(1);
+          }
+          console.log("Production readiness dependency contract passed:", JSON.stringify(body));
+          NODE
+            fi
           done
 
           # Federation production contract: fail the reconciliation if the public
