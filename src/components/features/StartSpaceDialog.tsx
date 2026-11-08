@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { pingGoogleSitemap } from '@/lib/pingGoogle';
@@ -34,22 +34,12 @@ export function StartSpaceDialog({ open, onOpenChange, onSuccess }: StartSpaceDi
 
     setLoading(true);
     try {
-      const { data: space, error: createError } = await supabase.rpc('create_audio_space', {
-        p_title: formData.title.trim(),
-        p_description: formData.description.trim(),
-        p_topic: '',
-        p_visibility: 'public',
-        p_category: 'general',
-        p_language: 'und',
-        p_scheduled_for: null,
-        p_max_audience: 1000,
-        p_recording_enabled: false,
-        p_listener_requests_enabled: true,
+      const space = await backendCapabilities.call<{ space_id: string; status: string }>('testagram.audio_spaces.create', {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        max_audience: 1000,
       });
-      if (createError || !space?.id) throw createError ?? new Error('Failed to create Audio Space');
-
-      const { error: startError } = await supabase.rpc('start_audio_space', { p_space_id: space.id });
-      if (startError) throw startError;
+      if (!space?.space_id || space.status !== 'live') throw new Error('Backend did not confirm that the Space is live.');
 
       toast({ title: 'Space started!', description: 'Your audio space is now live.' });
       pingGoogleSitemap();
