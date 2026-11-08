@@ -21,6 +21,7 @@ export default function WalletPage() {
   const [recipient, setRecipient] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
   const [checkoutId, setCheckoutId] = useState('');
+  const [topUpIdempotencyKey, setTopUpIdempotencyKey] = useState('');
   const [topUpStatus, setTopUpStatus] = useState('');
   const [pollCount, setPollCount] = useState(0);
 
@@ -51,6 +52,7 @@ export default function WalletPage() {
         const result = await backendCapabilities.call<TopUpResult>('testagram.wallet.mpesa.status', { checkout_request_id: checkoutId });
         if (result.status === 'settled' || result.status === 'failed') {
           setTopUpStatus(result.status);
+          setTopUpIdempotencyKey('');
           window.clearInterval(timer);
           await refresh();
           toast[result.status === 'settled' ? 'success' : 'error'](result.status === 'settled' ? 'M-Pesa payment verified and wallet credited.' : 'M-Pesa payment failed. No wallet credit was made.');
@@ -68,8 +70,10 @@ export default function WalletPage() {
     if (!phone.trim()) { toast.error('Enter your Kenyan M-Pesa phone number.'); return; }
     setBusy(true);
     try {
+      const requestKey = topUpIdempotencyKey || crypto.randomUUID();
+      setTopUpIdempotencyKey(requestKey);
       const result = await backendCapabilities.call<TopUpResult>('testagram.wallet.mpesa.stk_push', {
-        phone, amount_kes: kes, currency: 'KES', idempotency_key: crypto.randomUUID(),
+        phone, amount_kes: kes, currency: 'KES', idempotency_key: requestKey,
       });
       if (!result.checkout_request_id) throw new Error('Backend did not return a payment reference. Check wallet status before retrying.');
       setCheckoutId(result.checkout_request_id);
