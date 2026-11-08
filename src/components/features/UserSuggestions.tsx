@@ -3,6 +3,7 @@ import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { profileApi } from '@/services/profileApi';
 import { socialApi } from '@/services/socialApiClient';
 import { UserSuggestion as UserSuggestionType } from '@/types/app-types';
 import { Button } from '@/components/ui/button';
@@ -58,16 +59,12 @@ export function UserSuggestions() {
 
       // Send push notification
       const { sendActivityNotification } = await import('@/components/layout/AuthProvider');
-      const myProfile = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', user.id)
-        .single();
+      const { profile } = await profileApi.getById(user.id);
       sendActivityNotification({
         recipientUserId: userId,
         title: 'New Follower',
-        body: `${myProfile.data?.username || 'Someone'} followed you`,
-        data: { route: `/profile/${myProfile.data?.username}`, type: 'follow' }
+        body: `${profile?.username || 'Someone'} followed you`,
+        data: { route: `/profile/${profile?.username || ''}`, type: 'follow' }
       });
 
       // Update state
