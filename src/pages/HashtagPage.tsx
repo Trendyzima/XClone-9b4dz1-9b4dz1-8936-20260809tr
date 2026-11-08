@@ -4,7 +4,6 @@ import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
 import { Post } from '@/types/app-types';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -65,13 +64,8 @@ export default function HashtagPage() {
     let cancelled = false;
     void fetchHashtagAndPosts();
     void fetchRelatedSuggestions(tag);
-    const normalized = String(tag).replace(/^#/,'').trim().toLowerCase();
-    const channel = supabase.channel(`hashtag-live:${normalized}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'post_hashtags'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'federated_hashtag_mentions'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'federated_objects'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
-      .subscribe();
-    return () => { cancelled=true; void supabase.removeChannel(channel); };
+    const refresh = window.setInterval(() => { if (!cancelled) void fetchHashtagAndPosts(); }, 20000);
+    return () => { cancelled=true; window.clearInterval(refresh); };
   }, [tag]);
 
   // Follow state is the only part of this page that depends on auth.
@@ -134,67 +128,18 @@ export default function HashtagPage() {
 
       setFollowerCount(Number(hashtagData.follower_count ?? 0));
 
-      // post_hashtags has no created_at column in production. Order by the
-      // joined post timestamp after hydration instead of issuing an invalid
-      // PostgREST order against the junction table.
       postsOffsetRef.current = 0;
       setHasMoreLocalPosts(false);
-      const { data: postsData, error: postsError } = await supabase
-        .from('post_hashtags')
-        .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-        .eq('hashtag_id', hashtagData.id)
-        .order('created_at', { referencedTable: 'posts', ascending: false })
-        .range(0, 19);
-      if (postsError) throw postsError;
-      const formattedPosts = (postsData || [])
-        .map((item: any) => item.posts)
-        .filter(Boolean)
-        .sort((a: any, b: any) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
+      const postsResult = await backendCapabilities.listHashtagPosts(hashtagData.id, 20, 0, 'recent');
+      const formattedPosts = postsResult.items ?? [];
       setPosts(formattedPosts);
-      postsOffsetRef.current = postsData?.length ?? formattedPosts.length;
-      setHasMoreLocalPosts((postsData?.length ?? 0) === 20);
-      // Query the indexed relationship through a database function rather than
-      // relying on PostgREST's nested FK embedding. This makes the hashtag page
-      // deterministic even when relationship metadata/cache differs between
-      // environments, while preserving the same public-read visibility rules.
-      let remoteRows: any[] = [];
-      const { data: remoteJson, error: remotePostsError } = await supabase
-        .rpc('get_federated_posts_for_hashtag_json', { p_hashtag_id: hashtagData.id, p_limit: 30 });
-      if (remotePostsError) {
-        console.warn('Federated hashtag RPC unavailable; trying direct indexed fallback:', remotePostsError);
-        const { data: mentions, error: mentionError } = await supabase
-          .from('federated_hashtag_mentions')
-          .select('object_id')
-          .eq('hashtag_id', hashtagData.id)
-          .limit(30);
-        if (!mentionError && mentions?.length) {
-          const ids = mentions.map((m: any) => m.object_id).filter(Boolean);
-          const { data: objects, error: objectError } = await supabase
-            .from('federated_objects')
-            .select('*')
-            .in('id', ids)
-            .is('deleted_at', null)
-            .eq('tombstone', false);
-          if (!objectError) remoteRows = objects ?? [];
-        }
-      } else {
-        try {
-          remoteRows = Array.isArray(remoteJson) ? remoteJson : [];
-        } catch {
-          remoteRows = [];
-        }
-      }
+      postsOffsetRef.current = formattedPosts.length;
+      setHasMoreLocalPosts(formattedPosts.length === 20);
 
-      // A non-zero indexed count with an empty response is a retrieval failure,
-      // not an empty hashtag. Keep the page truthful and surface a diagnostic.
-      if (remoteRows.length === 0 && Number(hashtagData.federated_post_count ?? 0) > 0) {
-        console.warn('Federated hashtag count/rows mismatch', {
-          tag: normalizedTag,
-          hashtagId: hashtagData.id,
-          expected: hashtagData.federated_post_count,
-        });
-      }
-
+      // Remote hashtag timelines are owned by the Federation service. Until
+      // its private read contract is exposed through Backend, do not fall back
+      // to browser-side Supabase federation tables or RPCs.
+      const remoteRows: any[] = [];
       setFederatedPosts(remoteRows.map((p: any) => ({
         ...p,
         id: p.id ?? p.uri,
@@ -222,20 +167,14 @@ export default function HashtagPage() {
     setLoadingMoreLocalPosts(true);
     try {
       const start = postsOffsetRef.current;
-      const { data, error } = await supabase.from('post_hashtags')
-        .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-        .eq('hashtag_id', hashtag.id)
-        .order('created_at', { referencedTable: 'posts', ascending: false })
-        .range(start, start + 19);
-      if (error) throw error;
-      const rows = data ?? [];
-      const page = rows.map((item: any) => item.posts).filter(Boolean);
+      const result = await backendCapabilities.listHashtagPosts(hashtag.id, 20, start, 'recent');
+      const page = result.items ?? [];
       setPosts((previous) => {
         const seen = new Set(previous.map((post: any) => String(post.id)));
         return [...previous, ...page.filter((post: any) => !seen.has(String(post.id)))];
       });
       postsOffsetRef.current = start + rows.length;
-      setHasMoreLocalPosts(rows.length === 20);
+      setHasMoreLocalPosts(page.length === 20);
     } catch (error) {
       console.error('Could not load more hashtag posts', error);
     } finally {
