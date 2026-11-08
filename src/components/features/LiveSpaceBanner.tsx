@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { Radio, Users, X, ChevronRight } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
 
@@ -37,26 +37,8 @@ export function LiveSpaceBanner() {
 
   const fetchLiveSpace = async () => {
     try {
-      const { data } = await supabase
-        .from('spaces')
-        .select('id, title, host_id, listener_count, started_at, profiles(id, username, avatar_url)')
-        .eq('is_live', true)
-        .eq('is_archived', false)
-        .order('listener_count', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (data) {
-        const dismissedIds = getDismissedIds();
-        if (dismissedIds.has(data.id)) {
-          setLiveSpace(null);
-        } else {
-          setLiveSpace(data);
-          setDismissed(false);
-        }
-      } else {
-        setLiveSpace(null);
-      }
+      const result = await backendCapabilities.listLiveAudioSpaces();
+      setSpaces((result.items ?? []).filter((space: any) => !dismissed.has(space.id)));
     } catch {
       // silently fail — banner is non-critical
     }
