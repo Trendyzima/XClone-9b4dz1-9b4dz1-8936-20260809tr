@@ -1,4 +1,4 @@
-import type { User } from '@supabase/supabase-js';
+import type { Models } from 'appwrite';
 
 const apiKey = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
 const apiHost = ((import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com').replace(/\/$/, '');
@@ -100,16 +100,16 @@ export function initAnalytics(): void {
   scheduleAnalyticsLoad();
 }
 
-export function identifyAnalyticsUser(user: User | null): void {
+export function identifyAnalyticsUser(user: Models.User<Models.Preferences> | null): void {
   runOrQueue((client) => {
     if (!user) {
       client.reset();
       return;
     }
 
-    const metadata = user.user_metadata ?? {};
+    const metadata = user.prefs ?? {};
     client.identify(user.id, safeProperties({
-      username: metadata.username ?? metadata.preferred_username,
+      username: metadata.username ?? user.name,
       email_domain: user.email?.split('@')[1],
       auth_method: user.phone ? 'phone' : 'email',
     }));
