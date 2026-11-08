@@ -41,26 +41,6 @@ function normalizeLocal(row: any): Post {
   };
 }
 
-function normalizeFederated(item: any): Post {
-  const mediaUrls = normalizeMediaUrls(item);
-  const remoteAccount = item.user_profiles ?? item.remote_account ?? item.account ?? item.author;
-  return {
-    ...item,
-    id: `fed:${item.id ?? item.federation_id}`,
-    content: item.content ?? item.html ?? '',
-    created_at: item.created_at ?? item.published ?? new Date().toISOString(),
-    author: item.author ?? remoteAccount,
-    user_profiles: remoteAccount,
-    image_url: item.image_url ?? (!item.is_video ? mediaUrls[0] : undefined),
-    video_url: item.video_url ?? (item.is_video ? mediaUrls[0] : undefined),
-    media_urls: mediaUrls,
-    media_count: Number(item.media_count ?? mediaUrls.length),
-    is_video: Boolean(item.is_video || item.video_url),
-    origin: 'federated',
-    federation_id: item.id ?? item.federation_id,
-  };
-}
-
 export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: number; before?: string } = {}) {
   const size = Math.min(Math.max(Math.floor(limit), 1), 50);
   // XClone talks only to the canonical Backend API. Federation is composed by
