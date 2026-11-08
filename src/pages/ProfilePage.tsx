@@ -104,7 +104,7 @@ function fmtPodTotalDur(secs: number): string {
   return `${m}m`;
 }
 function getPodcastRssUrl(username: string) {
-  const origin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\\/+$/, '');
+  const origin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
   return origin ? `${origin}/api/podcasts/rss?username=${encodeURIComponent(username)}` : '';
 }
 
