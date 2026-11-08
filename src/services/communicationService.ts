@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import { backendCapabilities, type CapabilityPage } from '@/services/testagramCapabilityClient';
 import { communicationCrypto } from '@/services/communicationCrypto';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
