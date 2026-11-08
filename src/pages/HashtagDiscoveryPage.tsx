@@ -9,6 +9,7 @@ import {
 import { toast } from 'sonner';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -111,7 +112,7 @@ export default function HashtagDiscoveryPage() {
       setFollowedHashtags(followed);
       setFollowedIds(followed.map((h: any) => h.id));
       const stopTags = new Set(['the','and','for','with','from','this','that','you','are','was','has','have','not','but','of','to','in','on','a','an','it','is','as','or','porn','nudes','onlyfans','sexwork','nsfw']);
-      const rankedTrends = ((trendRes.data ?? []) as any[])
+      const rankedTrends = ((trendRes.items ?? []) as any[])
         .filter((h: any) => h?.id && /^[a-z0-9][a-z0-9_-]{2,63}$/i.test(String(h.tag ?? '')))
         .filter((h: any) => !stopTags.has(String(h.tag).toLowerCase()))
         .map((h: any) => {
