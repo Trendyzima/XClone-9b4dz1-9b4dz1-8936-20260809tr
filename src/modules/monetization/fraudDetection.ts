@@ -3,9 +3,9 @@
  * Protects wallet + monetization system from abuse patterns.
  *
  * esbuild-safe: no Set<T> generics, no useState<T>, no useRef<T>.
- * Uses project-standard @/lib/supabase — NOT a phantom "./db" module.
+ * Payment risk is evaluated by Backend; browser heuristics are never authoritative.
  */
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 // ── Result type ──────────────────────────────────────────────────────────
 export type FraudCheckResult = {
@@ -28,44 +28,12 @@ export class FraudDetectionEngine {
     amount: number;
     phone: string;
   }): Promise<FraudCheckResult> {
-    let riskScore = 0;
-
-    // Rule 1: High-value transaction anomaly (KES 50,000+)
-    if (input.amount > 50000) riskScore += RULE_HIGH_AMOUNT;
-
-    // Rule 2: Rapid-fire transactions — 5+ in recent history
-    const { data: recent } = await supabase
-      .from('wallet_transactions')
-      .select('id, created_at')
-      .eq('user_id', input.userId)
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (recent && recent.length >= 5) riskScore += RULE_RAPID_FIRE;
-
-    // Rule 3: New user with no transaction history
-    if (!recent || recent.length === 0) riskScore += RULE_NEW_USER;
-
-    // Rule 4: Phone number not in Kenyan format (254XXXXXXXXX)
-    if (!input.phone.startsWith('254')) riskScore += RULE_FOREIGN_PHONE;
-
-    if (riskScore >= RISK_BLOCK_THRESHOLD) {
-      console.warn('[FraudDetection] Payment blocked:', {
-        userId: input.userId,
-        amount: input.amount,
-        riskScore,
-      });
-      return {
-        allowed: false,
-        riskScore,
-        reason: 'High fraud risk detected',
-      };
-    }
-
-    return {
-      allowed: true,
-      riskScore,
-    };
+    if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error('Invalid payment amount');
+    const result = await backendCapabilities.call<FraudCheckResult>('testagram.wallet.fraud.evaluate', {
+      amount: input.amount,
+      phone: input.phone,
+    });
+    return result;
   }
 
   // Lightweight synchronous check for amount-only heuristics
