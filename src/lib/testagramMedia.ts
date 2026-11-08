@@ -27,26 +27,6 @@ type Signal = {
   participant_count?: number;
 };
 
-const tvControlApiUrl = () => {
-  const origin = window.location.origin;
-  // The apex domain redirects to www. A relative POST to /api/live would
-  // cross origins during the 308 redirect and browsers surface that as
-  // the opaque TypeError: Failed to fetch.
-  return (origin === 'https://testagram.site' ? 'https://www.testagram.site' : origin) + '/api/live';
-};
-
-const tvControlFetch = async (init: RequestInit) => {
-  try {
-    return await fetch(tvControlApiUrl(), {
-      ...init,
-      cache: 'no-store',
-      redirect: 'error',
-    });
-  } catch {
-    throw new Error(`Testagram TV control API is unreachable at ${tvControlApiUrl()} [TV_CONTROL_UNREACHABLE]. Check the production API domain and HTTPS transport.`);
-  }
-};
-
 const waitForIce = async (pc: RTCPeerConnection) => {
   if (pc.iceGatheringState === 'complete') return;
   await new Promise<void>(resolve => {
@@ -57,54 +37,17 @@ const waitForIce = async (pc: RTCPeerConnection) => {
 };
 
 const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole, inviteToken?: string): Promise<MediaToken> => {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
-  if (roomType === 'tv' && (role === 'host' || role === 'viewer')) {
-    const response = await tvControlFetch({
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ action: role === 'host' ? 'start' : 'viewer', stream_id: roomId }),
+  if (roomType === 'call') {
+    const result = await backendCapabilities.getCallMediaToken(roomId);
+    if (!result?.token || !result?.ws_url) throw new Error('Backend returned an incomplete secure call signaling ticket.');
+    return result as MediaToken;
+  }
+  if (roomType === 'tv') {
+    return testagramApiRequest<MediaToken>('/api/tv/media-token', {
+      method: 'POST', body: { room_id: roomId, room_type: roomType, role, invite_token: inviteToken },
     });
-    let payload: any = null;
-    try { payload = await response.json(); } catch {}
-    if (!response.ok) {
-      const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
-      const message = payload?.error?.message || `TV media authorization failed (HTTP ${response.status}).`;
-      throw new Error(`${message}${code}`);
-    }
-    const provider = payload?.data?.provider;
-    const hasHostTransport = Boolean(payload?.data?.whip_url);
-    const hasViewerPlayback = Boolean(payload?.data?.playback_url);
-    if (provider !== 'srs-youtube') throw new Error('Vercel TV media authorization returned an unsupported TV provider [TV_PROVIDER_INVALID].');
-    if (role === 'host' && !hasHostTransport) throw new Error('TV broadcast authorization returned no SRS WHIP ingest endpoint [INGEST_ENDPOINT_MISSING].');
-    if (role === 'viewer' && !hasViewerPlayback) throw new Error('TV playback authorization returned no YouTube playback URL [STREAM_PLAYBACK_NOT_READY].');
-    return payload.data as MediaToken;
   }
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    apikey: supabasePublishableKey,
-  };
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  const response = await fetch(`${supabaseUrl}/functions/v1/testagram-media-token`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ room_id: roomId, room_type: roomType, role, invite_token: inviteToken || undefined }),
-  });
-  let payload: any = null;
-  try { payload = await response.json(); } catch {}
-  if (!response.ok) {
-    const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
-    const message = payload?.error?.message || `Media authorization failed (HTTP ${response.status}).`;
-    throw new Error(`${message}${code}`);
-  }
-  if (!payload?.data?.token || !payload?.data?.ws_url) {
-    throw new Error('Testagram media authorization returned an incomplete transport response.');
-  }
-  return payload.data as MediaToken;
+  throw new Error('Audio Space WebRTC transport is not yet exposed through the canonical Backend/Data Centre API.');
 };
 
 export class TestagramMediaSession {
@@ -130,7 +73,7 @@ export class TestagramMediaSession {
   private lastDiagnostics: Record<string, unknown> = {};
   private callConversationId: string | null = null;
   private callInitiator = false;
-  private callSignalChannel: ReturnType<typeof supabase.channel> | null = null;
+  private callSignalSocket: WebSocket | null = null;
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
@@ -139,36 +82,12 @@ export class TestagramMediaSession {
   getViewerCount() { return Number(this.info?.viewer_count || 0); }
   async verifyOnAir() {
     if (this.roomType !== 'tv' || this.role !== 'host') throw new Error('ON AIR verification is only available for the TV broadcaster.');
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-    if (!accessToken) throw new Error('Sign in to verify the broadcast.');
-    const response = await tvControlFetch({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ action: 'verify', stream_id: this.roomId, diagnostics: this.getDiagnostics() }),
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
-      throw new Error(`${payload?.error?.message || 'SRS ON AIR verification failed.'}${code}`);
-    }
-    return payload?.data;
+    return testagramApiRequest('/api/tv/control', { method: 'POST', body: { action: 'verify', stream_id: this.roomId, diagnostics: this.getDiagnostics() } });
   }
 
   async stopBroadcastControlPlane() {
     if (this.roomType !== 'tv' || this.role !== 'host') return;
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-    if (!accessToken) return;
-    const response = await tvControlFetch({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ action: 'stop', stream_id: this.roomId }),
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(`${payload?.error?.message || 'SRS broadcast shutdown failed.'}${payload?.error?.code ? ` [${payload.error.code}]` : ''}`);
-    }
+    await testagramApiRequest('/api/tv/control', { method: 'POST', body: { action: 'stop', stream_id: this.roomId } });
   }
 
 
@@ -428,72 +347,64 @@ export class TestagramMediaSession {
   }
 
   private async connectPeerCall() {
-    if (!this.callConversationId) throw new Error('Call signaling conversation is unavailable.');
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (!userId) throw new Error('Authentication required for secure calling.');
-
+    if (!this.info) this.info = await getToken(this.roomId, 'call', this.role);
+    if (!this.info?.ws_url || !this.info?.token) throw new Error('Backend did not issue a secure call signaling ticket.');
     const turnUrl = import.meta.env.VITE_TESTAGRAM_TURN_URL?.trim();
     const turnUser = import.meta.env.VITE_TESTAGRAM_TURN_USERNAME?.trim();
     const turnCredential = import.meta.env.VITE_TESTAGRAM_TURN_CREDENTIAL?.trim();
-    const iceServers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+    const iceServers: RTCIceServer[] = this.info.ice_servers?.length ? [...this.info.ice_servers] : [{ urls: 'stun:stun.l.google.com:19302' }];
     if (turnUrl && turnUser && turnCredential) iceServers.push({ urls: turnUrl, username: turnUser, credential: turnCredential });
-
     this.createPeerConnection(iceServers);
     for (const track of this.localStream?.getTracks() || []) this.pc.addTrack(track, this.localStream!);
-    this.lastDiagnostics = { transport: 'p2p', encryption: 'dtls-srtp', signaling: 'supabase-realtime', callId: this.roomId };
-
-    const channel = supabase.channel('call:' + this.roomId, { config: { private: true, broadcast: { self: false, ack: true } } });
-    this.callSignalChannel = channel;
-    const sendSignal = async (type: 'offer' | 'answer', sdp: string) => {
-      const result = await channel.send({ type: 'broadcast', event: 'call-signal', payload: { call_id: this.roomId, sender_id: userId, signal_type: type, sdp } });
-      if (result !== 'ok') throw new Error('Secure call signaling failed.');
-    };
-
-    channel.on('broadcast', { event: 'call-signal' }, async ({ payload }) => {
-      if (!payload || payload.call_id !== this.roomId || payload.sender_id === userId || typeof payload.sdp !== 'string') return;
-      try {
-        if (payload.signal_type === 'offer') {
-          await this.pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
-          const answer = await this.pc.createAnswer();
-          await this.pc.setLocalDescription(answer);
-          await waitForIce(this.pc);
-          if (this.pc.localDescription?.sdp) await sendSignal('answer', this.pc.localDescription.sdp);
-        } else if (payload.signal_type === 'answer') {
-          await this.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
-          this.answerReceived = true;
-        }
-      } catch (error) {
-        console.warn('[Testagram secure call] signaling error', error);
-      }
-    });
-
+    this.lastDiagnostics = { transport: 'p2p', encryption: 'dtls-srtp', signaling: 'backend-ticketed-cloudflare-realtime', callId: this.roomId };
     await new Promise<void>((resolve, reject) => {
       const timeout = window.setTimeout(() => reject(new Error('Secure call signaling timed out.')), 20000);
-      channel.subscribe(async status => {
-        if (status !== 'SUBSCRIBED') return;
-        window.clearTimeout(timeout);
+      const socket = new WebSocket(this.info!.ws_url!, ['testagram.realtime.v1', `ticket.${this.info!.token}`]);
+      this.callSignalSocket = socket;
+      const send = (message: Record<string, unknown>) => {
+        if (socket.readyState !== WebSocket.OPEN) throw new Error('Secure call signaling socket is not open.');
+        socket.send(JSON.stringify(message));
+      };
+      socket.onopen = async () => {
         try {
+          this.reconnectAttempt = 0;
           if (this.callInitiator) {
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
             await waitForIce(this.pc);
             if (!this.pc.localDescription?.sdp) throw new Error('Secure call offer was not created.');
-            // Retry the offer briefly so a slower callee subscription does not lose the first signal.
-            for (let attempt = 0; attempt < 3 && !this.answerReceived; attempt += 1) {
-              await sendSignal('offer', this.pc.localDescription.sdp);
-              if (attempt < 2) await new Promise(r => window.setTimeout(r, 700));
-            }
+            send({ type: 'offer', sdp: this.pc.localDescription.sdp });
           }
           resolve();
-        } catch (error) { reject(error); }
-      });
+        } catch (error) { window.clearTimeout(timeout); reject(error); }
+      };
+      socket.onerror = () => { window.clearTimeout(timeout); reject(new Error('Could not connect to Backend-authorized call signaling.')); };
+      socket.onclose = () => { if (!this.closed) this.scheduleReconnect(); };
+      socket.onmessage = async event => {
+        try {
+          const message = JSON.parse(String(event.data)) as { type?: string; sdp?: string; candidate?: RTCIceCandidateInit };
+          if (message.type === 'offer' && message.sdp) {
+            await this.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
+            await this.flushCandidates();
+            const answer = await this.pc.createAnswer();
+            await this.pc.setLocalDescription(answer);
+            await waitForIce(this.pc);
+            if (this.pc.localDescription?.sdp) send({ type: 'answer', sdp: this.pc.localDescription.sdp });
+          } else if (message.type === 'answer' && message.sdp) {
+            await this.pc.setRemoteDescription({ type: 'answer', sdp: message.sdp });
+            await this.flushCandidates();
+            this.answerReceived = true;
+          } else if (message.type === 'candidate' && message.candidate) {
+            if (this.pc.remoteDescription) await this.pc.addIceCandidate(message.candidate);
+            else this.pendingCandidates.push(message.candidate);
+          }
+        } catch (error) { console.warn('[Testagram secure call] signaling error', error); }
+      };
     });
-
     const started = Date.now();
     while (this.pc.connectionState !== 'connected' && Date.now() - started < 20000) {
       if (this.pc.connectionState === 'failed' || this.pc.iceConnectionState === 'failed') throw new Error('Secure peer connection failed.');
-      await new Promise(r => window.setTimeout(r, 100));
+      await new Promise(resolve => window.setTimeout(resolve, 100));
     }
     if (this.pc.connectionState !== 'connected') throw new Error('Secure peer connection timed out.');
     this.lastDiagnostics = { ...this.lastDiagnostics, connectionState: this.pc.connectionState, iceConnectionState: this.pc.iceConnectionState, connectedAt: new Date().toISOString() };
@@ -529,7 +440,7 @@ export class TestagramMediaSession {
 
   async close() {
     this.closed = true;
-    if (this.callSignalChannel) { void supabase.removeChannel(this.callSignalChannel); this.callSignalChannel = null; }
+    this.callSignalSocket?.close(); this.callSignalSocket = null;
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null; this.ws?.close(); this.ws = null;
     if (this.mediaSessionUrl) {
