@@ -86,8 +86,8 @@ export default function HashtagDiscoveryPage() {
           .limit(30);
         setRecommendedCreators((data ?? []).filter((u: any) => u.id !== user?.id));
         if (user) {
-          const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
-          setFollowingCreatorIds((follows ?? []).map((f: any) => f.following_id));
+          const followStates = await Promise.allSettled((data ?? []).filter((creator: any) => creator.id !== user.id).map(async (creator: any) => ({ id: creator.id, state: await backendCapabilities.getFollowState(creator.id) })));
+          setFollowingCreatorIds(followStates.flatMap((result: any) => result.status === 'fulfilled' && result.value.state?.following ? [result.value.id] : []));
         }
       } else if (tab === 'Threads') {
         const { data } = await supabase
@@ -97,10 +97,7 @@ export default function HashtagDiscoveryPage() {
           .order('likes_count', { ascending: false })
           .limit(20);
         const rows = data ?? [];
-         const ownerIds = [...new Set(rows.map((r: any) => r.owner_id).filter(Boolean))];
-         const { data: profiles } = ownerIds.length ? await supabase.from('profiles').select('id, username, avatar_url, verified_tier').in('id', ownerIds) : { data: [] as any[] };
-         const byOwner = new Map((profiles ?? []).map((p: any) => [p.id, p]));
-         setRecommendedThreads(rows.map((r: any) => ({ ...r, user_profiles: byOwner.get(r.owner_id) ?? null })));
+         setRecommendedThreads(rows.map((r: any) => ({ ...r, user_profiles: r.user_profiles ?? r.profiles ?? null })));
       }
     } catch (err) {
       console.error('[fetchTabContent]', err);
@@ -116,10 +113,10 @@ export default function HashtagDiscoveryPage() {
     setFollowCreatorLoading(profileId);
     const isFollowing = followingCreatorIds.includes(profileId);
     if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', profileId);
+      await backendCapabilities.followUser(profileId, false);
       setFollowingCreatorIds(prev => prev.filter(id => id !== profileId));
     } else {
-      await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
+      await backendCapabilities.followUser(profileId, true);
       setFollowingCreatorIds(prev => [...prev, profileId]);
       toast.success(`Following @${username}!`);
     }
