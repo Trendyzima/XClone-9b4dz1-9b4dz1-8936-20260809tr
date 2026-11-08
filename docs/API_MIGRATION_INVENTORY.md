@@ -504,7 +504,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/FediverseProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/FraudDetection.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [x] `src/pages/HashtagChallengePage.tsx` — baseline violation resolved; no direct Supabase access remains.
-- [ ] `src/pages/HashtagDiscoveryPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/HashtagDiscoveryPage.tsx` — baseline direct Supabase access resolved; no browser Supabase client remains.
 - [x] `src/pages/HashtagPage.tsx` — baseline direct Supabase access removed; current page uses Backend APIs and no browser Supabase client.
 - [ ] `src/pages/HelpPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/HistoryPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -585,3 +585,5 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - Backend discovery endpoints were added for public creators and posts; they are committed on feat/central-api-contract-v1 but not yet deployment-verified.
 
 - Hashtag challenge creation, listing, detail, and idempotent entry are now Backend-owned on the central API branch, with a Neon migration and direct XClone client methods. CI/runtime verification remains pending.
+
+- HashtagDiscoveryPage.tsx now uses the Backend discovery endpoints for creators, posts, videos and threads, plus native hashtag/follow APIs. Discovery endpoint runtime validation and population checks remain outstanding.
