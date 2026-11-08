@@ -1,22 +1,4 @@
-import { processMpesaPayment } from "./paymentOrchestrator";
-
-// HTTP handler for M-Pesa callback
-// This is the ENTRY POINT from Safaricom
-
-export async function mpesaCallbackHandler(req: any, res: any) {
-  try {
-    const body = req.body;
-
-    const result = await processMpesaPayment(body);
-
-    return res.json({
-      success: true,
-      result,
-    });
-  } catch (err: any) {
-    return res.json({
-      success: false,
-      error: err.message,
-    });
-  }
+/** Provider callbacks are HTTP server routes, not frontend modules. */
+export async function mpesaCallbackHandler(_req: unknown, _res: unknown): Promise<never> {
+  throw new Error("M-Pesa callback handler was removed from the client. Configure the Backend provider callback route.");
 }
