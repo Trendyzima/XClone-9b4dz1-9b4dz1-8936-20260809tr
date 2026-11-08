@@ -52,7 +52,7 @@ export class TestagramCapabilityClient{
     'X-Client-Info': `testagram-web/${this.version}`, 
     'X-Testagram-API-Version': '1',
     'X-Request-ID': id,
-    ...(DIRECT_MUTATION_CAPABILITIES.has(capability) ? { 'Idempotency-Key': id } : {}),
+    ...(!isReadOnlyCapability(capability) ? { 'Idempotency-Key': id } : {}),
   };
   try {
     if (!this.endpoint) throw new CapabilityClientError("VITE_TESTAGRAM_API_URL is required; XClone does not provide a same-origin API proxy.", { code: "BACKEND_API_URL_REQUIRED" });
@@ -64,7 +64,7 @@ export class TestagramCapabilityClient{
       headers,
       body: JSON.stringify({ capability, input }),
       signal: ctl.signal,
-      credentials: 'same-origin',
+      credentials: 'omit',
     });
     const raw = await response.text();
     let data: unknown = null;
@@ -88,7 +88,7 @@ export class TestagramCapabilityClient{
     }
     return {
       r: response,
-      p: { ok: true, data: data as T, error: null, request_id: id },
+      p: { ok: true, data: data as T, error: null, request_id: response.headers.get('X-Request-ID') ?? id },
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
