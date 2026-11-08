@@ -14,6 +14,7 @@ export type WalletTransaction = {
   status?: 'initiating' | 'pending' | 'settled' | 'completed' | 'failed';
   provider?: string;
   receipt_number?: string;
+  checkout_request_id?: string;
   phone?: string;
   amount_kes?: string | number;
   wallet_amount?: string | number;
