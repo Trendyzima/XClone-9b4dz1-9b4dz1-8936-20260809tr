@@ -5,7 +5,7 @@ import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 
-type WalletSnapshot = { wallet?: { id?: string; balance?: number; currency?: string }; transactions?: Array<{ id?: string; type?: string; amount?: number; currency?: string; status?: string; created_at?: string; reference?: string }> };
+type WalletSnapshot = { wallet?: { id?: string; balance?: string | number; currency?: string }; transactions?: Array<{ id?: string; type?: string; amount?: number; currency?: string; status?: string; created_at?: string; reference?: string }> };
 
 type WalletPageProps = { initialTab?: string; standaloneTitle?: string };
 
@@ -53,7 +53,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
   };
 
   const balance = Number(snapshot.wallet?.balance ?? 0);
-  const transactions = snapshot.transactions ?? [];
+  const transactions = (snapshot.transactions ?? []) as Array<{ id?: string; type?: string; amount?: number | string; currency?: string; status?: string; created_at?: string; reference?: string }>;
   return <div className="min-h-screen bg-background">
     <TopBar title={standaloneTitle} />
     <main data-wallet-tab={initialTab} className="mx-auto w-full max-w-4xl px-4 py-8 space-y-6">

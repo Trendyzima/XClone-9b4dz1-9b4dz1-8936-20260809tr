@@ -1,4 +1,4 @@
-import { appwriteAuth } from '@/services/appwriteAuth';
+import { testagramApiRequest, TestagramApiError } from '@/services/apiClient';
 const isFreshAppwriteMode = true;
 
 type SocialEnvelope<T> = {
@@ -22,7 +22,7 @@ export class SocialApiError extends Error {
   }
 }
 
-const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '')
+const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '')
   .trim()
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
@@ -32,67 +32,40 @@ const freshApiPublicFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/publ
 
 function assertSocialAPIAvailable(_allowFreshRoute = false): void { /* All requests use the canonical Backend API. */ }
 
-async function getSessionToken(): Promise<string> {
-  const configuredProvider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase();
-  const provider = configuredProvider || (isFreshAppwriteMode ? 'appwrite' : 'supabase');
-  if (provider === 'appwrite') {
-    // Explicit provider selection: never fall back to a Supabase token. The
-    // fresh Go API verifies this Appwrite JWT directly; it does not link legacy
-    // Supabase identities or read legacy identity mappings.
-    try {
-      return await appwriteAuth.createBackendJWT();
-    } catch {
-      throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED');
-    }
-  }
-  throw new SocialApiError('Unsupported Testagram authentication provider.', 503, 'AUTH_PROVIDER_UNSUPPORTED');
-}
-
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
-  return requestAt<T>(`${apiBase}${path}`, method, body);
+  return requestAt<T>(`/api/social${path}`, method, body);
 }
 
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}, allowAnonymous = false): Promise<T> {
-  assertSocialAPIAvailable(allowFreshRoute);
-  const token = allowAnonymous ? null : await getSessionToken();
-  const headers: Record<string, string> = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    Accept: 'application/json',
-    ...extraHeaders,
-  };
-  if (body) headers['Content-Type'] = 'application/json';
-
-  let response: Response;
-  const controller = new AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), 12000);
+async function requestAt<T>(
+  url: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  body?: Record<string, unknown>,
+  _allowFreshRoute = false,
+  extraHeaders: Record<string, string> = {},
+  allowAnonymous = false,
+): Promise<T> {
+  let path: string;
   try {
-    response = await fetch(url, {
+    const base = configuredOrigin || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+    const parsed = new URL(url, base);
+    if (parsed.origin !== new URL(base).origin) throw new Error('Cross-origin API URL rejected');
+    path = parsed.pathname + parsed.search;
+  } catch {
+    throw new SocialApiError('Invalid Testagram API URL.', 400, 'API_URL_INVALID');
+  }
+  try {
+    return await testagramApiRequest<T>(path, {
       method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: 'omit',
-      cache: 'no-store',
-      signal: controller.signal,
+      body,
+      headers: extraHeaders,
+      anonymous: allowAnonymous,
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new SocialApiError('Social service timed out. Please retry.', 0, 'TIMEOUT');
+    if (error instanceof TestagramApiError) {
+      throw new SocialApiError(error.message, error.status, error.code, error.requestId);
     }
-    throw new SocialApiError('Testagram API is unreachable. Check your connection and API URL.', 0, 'NETWORK_ERROR');
-  } finally {
-    globalThis.clearTimeout(timer);
+    throw error;
   }
-
-  const payload = await response.json().catch(() => null) as SocialEnvelope<T> | null;
-  if (!response.ok || !payload?.ok || payload.data == null) {
-    throw new SocialApiError(
-      payload?.error?.message || `Social request failed (${response.status}).`,
-      response.status,
-      payload?.error?.code || 'SOCIAL_API_ERROR',
-      payload?.request_id || null,
-    );
-  }
-  return payload.data;
 }
 
 export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
@@ -125,10 +98,10 @@ export const socialApi = {
     );
   },
   getFederationPreference() {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'GET', undefined, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/api/me/federation`, 'GET', undefined, true);
   },
   setFederationPreference(enabled: boolean) {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/api/me/federation`, 'PUT', { enabled }, true);
   },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');

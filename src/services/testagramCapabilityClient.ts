@@ -1,4 +1,5 @@
 import { socialApi } from '@/services/socialApiClient';
+import { testagramApiRequest, TestagramApiError } from '@/services/apiClient';
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
@@ -23,12 +24,8 @@ const PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.heal
 // This prevents profile/search paths from falling back to a stale VITE_* key.
 const configuredBackendOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??"").trim().replace(/\/+$/,"");
 const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"";
-const DIRECT_MUTATION_CAPABILITIES=new Set([
- "testagram.posts.create",
- "testagram.posts.like",
- "testagram.posts.repost",
- "testagram.replies.create",
-]);
+const READ_ONLY_CAPABILITY_PREFIXES=['testagram.capabilities.list','testagram.health.read','testagram.news.trending','testagram.posts.list','testagram.search.','testagram.notifications.list','testagram.notifications.unread_count','testagram.notifications.preferences','testagram.lists.list','testagram.lists.timeline','testagram.bookmarks.list','testagram.bookmarks.folders.list','testagram.trends.list','testagram.profile.timeline','testagram.follow_requests.list','testagram.posts.like.state','testagram.posts.repost.state','testagram.replies.list','testagram.media.list','testagram.communities.list','testagram.federation.status','testagram.wallet.read','testagram.messages.list','testagram.conversations.list','testagram.calls.list','testagram.calls.get','testagram.audio_spaces.list_live','testagram.audio_spaces.get','testagram.audio_spaces.my_status','testagram.audio_spaces.pending_speaker_requests'];
+const isReadOnlyCapability=(name:string)=>READ_ONLY_CAPABILITY_PREFIXES.some(prefix=>prefix.endsWith('.')?name.startsWith(prefix):name===prefix);
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
 const rid=()=>typeof crypto?.randomUUID==="function"?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -46,52 +43,36 @@ export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;
  constructor(o:TestagramCapabilityClientOptions){this.endpoint=o.endpoint.trim().replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));}
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
-  const headers: Record<string,string> = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    'Content-Type': 'application/json', Accept: 'application/json',
-    'X-Client-Info': `testagram-web/${this.version}`, 
-    'X-Testagram-API-Version': '1',
-    'X-Request-ID': id,
-    ...(DIRECT_MUTATION_CAPABILITIES.has(capability) ? { 'Idempotency-Key': id } : {}),
-  };
   try {
     if (!this.endpoint) throw new CapabilityClientError("VITE_TESTAGRAM_API_URL is required; XClone does not provide a same-origin API proxy.", { code: "BACKEND_API_URL_REQUIRED" });
-    // Send capability requests directly to the separately deployed Testagram Backend API.
-    // This keeps capability dispatch on the same server-side auth boundary as media
-    // uploads and avoids browser/PostgREST auth-header races after large uploads.
-    const response = await fetch(this.endpoint, {
+    const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+    const endpoint = new URL(this.endpoint);
+    if (!configuredOrigin || endpoint.origin !== new URL(configuredOrigin).origin || endpoint.pathname !== '/api/capability') {
+      throw new CapabilityClientError("Capability gateway must use the canonical Backend API origin and /api/capability route.", { code: "API_ORIGIN_MISMATCH" });
+    }
+    const data = await testagramApiRequest<T>('/api/capability', {
       method: 'POST',
-      headers,
-      body: JSON.stringify({ capability, input }),
+      body: { capability, input },
+      accessToken: token ?? undefined,
+      anonymous: !token,
       signal: ctl.signal,
-      credentials: 'same-origin',
+      headers: {
+        'X-Client-Info': `testagram-web/${this.version}`,
+        'X-Testagram-API-Version': '1',
+        'X-Request-ID': id,
+        ...( !isReadOnlyCapability(capability) ? { 'Idempotency-Key': id } : {}),
+      },
+      timeoutMs: this.timeout,
     });
-    const raw = await response.text();
-    let data: unknown = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
-    if (!response.ok) {
-      const message = typeof data === 'object' && data && 'message' in data
-        ? String((data as { message?: unknown }).message)
-        : response.status === 401 || response.status === 403
-          ? 'Authentication required'
-          : 'Capability database request failed';
-      const auth = response.status === 401 || response.status === 403 || /authentication required|jwt|token/i.test(message);
+    return { r: { ok: true, status: 200 }, p: { ok: true, data, error: null, request_id: id } };
+  } catch (error) {
+    if (error instanceof CapabilityClientError) throw error;
+    if (error instanceof TestagramApiError) {
       return {
-        r: response,
-        p: {
-          ok: false,
-          data: null,
-          error: { code: auth ? 'AUTH_REQUIRED' : 'CAPABILITY_DISPATCH_FAILED', message },
-          request_id: response.headers.get('X-Request-ID') ?? id,
-        },
+        r: { ok: false, status: error.status },
+        p: { ok: false, data: null, error: { code: error.code, message: error.message }, request_id: error.requestId ?? id },
       };
     }
-    return {
-      r: response,
-      p: { ok: true, data: data as T, error: null, request_id: id },
-    };
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error;
     throw error;
   }
  }
@@ -209,7 +190,37 @@ schedulePost(body:string,scheduledFor:string){return this.call<{scheduled_post_i
  getTrends(n=20){return this.call<{items:unknown[]}>("testagram.trends.list",{limit:limit(n)})} listNewsifyTrending(n=20,geo="US",language="english"){return this.call<{items:NewsifyTrendItem[];geo:string;language:string}>("testagram.news.trending",{limit:limit(n),geo,language})} getProfileTimeline(userId:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.profile.timeline",{user_id:userId,limit:limit(n),...cursor(c)})} async followUser(userId:string,follow=true){const result=await socialApi.setFollow(userId,follow);const status=follow&&'status' in result?result.status:'none';return {state:{following:status==='accepted',requested:status==='pending',status}}} getFollowState(userId:string){return socialApi.getFollowState(userId).then(state=>({state}))} listFollowRequests(n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.follow_requests.list",{limit:limit(n),...cursor(c)})} respondFollowRequest(requesterId:string,action:"accept"|"reject"){return socialApi.respondFollowRequest(requesterId,action).then(result=>({requester_id:requesterId,target_id:"",action,status:result.status}))} likePost(postId:string){return socialApi.setLike(postId,true).then(result=>({state:{is_liked:result.liked,likes_count:result.likes_count}}))} quotePost(quotedPostId:string,content:string){return this.createPost({content,quotedPostId})} getLikeState(postId:string){return this.call<{state:LikeState}>("testagram.posts.like.state",{post_id:postId})} repostPost(postId:string){return socialApi.setRepost(postId,true).then(result=>({state:{is_reposted:result.reposted,reposts_count:result.reposts_count}}))} getRepostState(postId:string){return this.call<{state:RepostState}>("testagram.posts.repost.state",{post_id:postId})} listReplies(postId:string,n=50){return this.call<CapabilityPage<any>>("testagram.replies.list",{post_id:postId,limit:limit(n)})} createReply(postId:string,content:string,parentReplyId?:string){return socialApi.createReply(postId,content,parentReplyId).then(result=>({...result,created:true}))}
  listMedia(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.media.list",{limit:limit(n),...cursor(c)})} attachMedia(postId:string,mediaAssetId:string,sortOrder=0){return this.call<{media:unknown}>("testagram.media.attach",{post_id:postId,media_asset_id:mediaAssetId,sort_order:sortOrder})}
  listCommunities(n=20){return this.call<{items:unknown[]}>("testagram.communities.list",{limit:limit(n)})} createCommunity(name:string,options:Record<string,unknown>={}){return this.call<{community:unknown}>("testagram.communities.create",{name,...options})} joinCommunity(communityId:string){return this.call<{membership:unknown}>("testagram.communities.join",{community_id:communityId})} leaveCommunity(communityId:string){return this.call<{membership:unknown}>("testagram.communities.leave",{community_id:communityId})}
- getFederationStatus(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.federation.status",{limit:limit(n),...cursor(c)})} getWallet(n=20,c?:string){return this.call<{wallet:unknown;transactions:unknown[];next_cursor:string|null}>("testagram.wallet.read",{limit:limit(n),...cursor(c)})} getWalletTransactions(n=20,c?:string){return this.getWallet(n,c).then(x=>({items:x.transactions,next_cursor:x.next_cursor}))}
+ getFederationStatus(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.federation.status",{limit:limit(n),...cursor(c)})} getWallet(n=20,c?:string,currency='KES'){return Promise.all([this.call<{id:string;user_id:string;balance:string;currency:string;status:string}>("testagram.wallet.balance",{currency}),this.call<{items:unknown[]}>("testagram.wallet.transactions.list",{limit:limit(n),...cursor(c)})]).then(([wallet,history])=>({wallet,transactions:history.items??[],next_cursor:null as string|null}))}
+ getWalletTransactions(n=20,c?:string){return this.call<{items:unknown[]}>("testagram.wallet.transactions.list",{limit:limit(n),...cursor(c)}).then(x=>({items:x.items,next_cursor:null as string|null}))}
+ transferWallet(recipientId:string,amount:number,note='',idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean;amount:string;currency:string}>("testagram.wallet.transfer",{recipient_id:recipientId,amount,note,idempotency_key:idempotencyKey})}
+ tipWallet(recipientId:string,amount:number,note='',idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean;amount:string;currency:string}>("testagram.wallet.tip",{recipient_id:recipientId,amount,note,idempotency_key:idempotencyKey})}
+ listConversations(limitValue=50){return this.call<{items:any[];next_cursor:string|null}>("testagram.conversations.list",{limit:Math.min(100,Math.max(1,Math.floor(limitValue)))})}
+ createConversation(memberIds:string[],title=''){return this.call<{conversation_id:string}>("testagram.conversations.create",{member_ids:memberIds,title})}
+ listMessages(conversationId:string,limitValue=50,c?:string){return this.call<CapabilityPage<any>>("testagram.messages.list",{conversation_id:conversationId,limit:limit(limitValue),...cursor(c)})}
+ sendEncryptedMessage(input:{conversationId:string;ciphertext:string;nonce:string;clientMessageId:string;replyToMessageId?:string;sharedPostId?:string;aad?:string}){return this.call<{message:any}>("testagram.messages.send_encrypted",{conversation_id:input.conversationId,ciphertext:input.ciphertext,nonce:input.nonce,client_message_id:input.clientMessageId,...input.replyToMessageId?{reply_to_message_id:input.replyToMessageId}:{},...input.sharedPostId?{shared_post_id:input.sharedPostId}:{},...input.aad?{aad:input.aad}:{}})}
+ editEncryptedMessage(messageId:string,ciphertext:string,nonce:string,aad?:string){return this.call<{message:any}>("testagram.messages.edit_encrypted",{message_id:messageId,ciphertext,nonce,...aad?{aad}:{}})}
+ deleteMessage(messageId:string){return this.call<{deleted:boolean}>("testagram.messages.delete",{message_id:messageId})}
+ markConversationRead(conversationId:string){return this.call<{read:boolean}>("testagram.messages.mark_read",{conversation_id:conversationId})}
+ reactToMessage(messageId:string,reaction:string,remove=false){return this.call<{reacted:boolean}>("testagram.messages.react",{message_id:messageId,reaction,remove})}
+ attachMessageMetadata(messageId:string,attachmentMetadata:Record<string,unknown>){return this.call<{attached:boolean}>("testagram.messages.attach",{message_id:messageId,attachment_metadata:attachmentMetadata})}
+ getConversationRealtimeTicket(conversationId:string){return this.call<{ticket:string;websocket_url:string;expires_in:number}>("testagram.realtime.ticket",{conversation_id:conversationId})}
+ createCall(conversationId:string,kind='audio'){return this.call<{call_id:string;status:string}>("testagram.calls.create",{conversation_id:conversationId,kind})}
+ joinCall(callId:string){return this.call<{call_id:string;joined:boolean}>("testagram.calls.join",{call_id:callId})}
+ endCall(callId:string){return this.call<{call_id:string;ended:boolean}>("testagram.calls.end",{call_id:callId})}
+ listCalls(limitValue=30){return this.call<CapabilityPage<any>>("testagram.calls.list",{limit:Math.min(100,Math.max(1,Math.floor(limitValue)))})}
+ getCall(callId:string){return this.call<{call:any}>("testagram.calls.get",{call_id:callId})}
+ getCallMediaToken(roomId:string){return this.call<{token:string;ws_url:string;room_id:string;room_type:string;role:string;ice_servers:any[]}>("testagram.media.token",{room_id:roomId,room_type:'call'})}
+ listLiveAudioSpaces(){return this.call<CapabilityPage<any>>("testagram.audio_spaces.list_live",{})}
+ getAudioSpace(spaceId:string){return this.call<{space:any}>("testagram.audio_spaces.get",{space_id:spaceId})}
+ getMyAudioSpaceStatus(){return this.call<{items:any[]}>("testagram.audio_spaces.my_status",{})}
+ getPendingAudioSpaceSpeakerRequests(spaceId:string){return this.call<{items:any[]}>("testagram.audio_spaces.pending_speaker_requests",{space_id:spaceId})}
+ createAudioSpace(title:string,description='',maxAudience=1000){return this.call<{space_id:string;status:string;host_id:string}>("testagram.audio_spaces.create",{title,description,max_audience:maxAudience})}
+ joinAudioSpace(spaceId:string){return this.call<{space_id:string;joined:boolean}>("testagram.audio_spaces.join",{space_id:spaceId})}
+ leaveAudioSpace(spaceId:string){return this.call<{space_id:string;left:boolean}>("testagram.audio_spaces.leave",{space_id:spaceId})}
+ requestAudioSpaceSpeaker(spaceId:string){return this.call<{space_id:string;status:string}>("testagram.audio_spaces.request_speaker",{space_id:spaceId})}
+ decideAudioSpaceSpeaker(spaceId:string,userId:string,decision:'approved'|'denied'){return this.call<{space_id:string;user_id:string;status:string}>("testagram.audio_spaces.decide_speaker",{space_id:spaceId,user_id:userId,decision})}
+ endAudioSpace(spaceId:string){return this.call<{space_id:string;ended:boolean}>("testagram.audio_spaces.end",{space_id:spaceId})}
+ sendAudioSpaceSuperchat(spaceId:string,message:string,amount:number,idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean}>("testagram.audio_spaces.superchat",{space_id:spaceId,message,amount,idempotency_key:idempotencyKey})}
 }
 
 export const backendCapabilities = new TestagramCapabilityClient({
