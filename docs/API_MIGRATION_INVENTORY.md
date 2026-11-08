@@ -5,10 +5,10 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 
 ## Current verified migration
 
-- [x] `src/pages/CommunitiesPage.tsx` — removed browser Supabase access; listing/create/join/leave now use the canonical capability client; community images use the canonical media client. Backend contract support and runtime verification remain release gates.
-- [x] `src/services/testagramCapabilityClient.ts` — community list filters now pass through the capability gateway.
+- [x] `src/pages/CommunitiesPage.tsx` — removed browser Supabase access; discovery/create/join/leave use the canonical Backend community API; community images use the canonical media client. Backend deployment and live DB migration remain release gates.
+- [x] `src/services/testagramCapabilityClient.ts` — community listing/create/join/leave now call typed `/api/communities` endpoints directly; these operations no longer pass through the generic capability gateway.
 
-## Worklist
+## Backend contract progress (separate repository)\n\n- Added `migrations/20261108_community_core.sql` for canonical community and membership records in Neon.\n- Added `cmd/api/community.go` and `/api/communities` routes for public discovery, joined-community listing, creation, joining, and leaving.\n- Added `cmd/api/community_test.go` and extended PostgreSQL CI migration coverage.\n- These handlers are committed on `Trendyzima/Testagram-backend-` branch `feat/central-api-contract-v1`; migration application and deployed API verification are still outstanding.\n\n## Worklist
 
 ### src/api/
 
@@ -22,7 +22,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/components/features/BookmarkButton.tsx` — pending audit/migration
 - [ ] `src/components/features/BoostPostDialog.tsx` — pending audit/migration
 - [ ] `src/components/features/CommunityAdminOverlay.tsx` — pending audit/migration
-- [x] `src/components/features/CommunitySpotlightStrip.tsx` — list and membership actions moved to canonical community capabilities; backend support still needs verification
+- [x] `src/components/features/CommunitySpotlightStrip.tsx` — list and membership actions use the typed Backend community API; deployment and runtime verification remain pending
 - [ ] `src/components/features/ContentSuggestionsWidget.tsx` — pending audit/migration
 - [ ] `src/components/features/CreatePollDialog.tsx` — pending audit/migration
 - [ ] `src/components/features/CreatorMediaStudio.tsx` — pending audit/migration
