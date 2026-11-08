@@ -46,7 +46,7 @@ export type TestagramApiRequest = {
   body?: unknown;
   headers?: Record<string, string>;
   signal?: AbortSignal;
-  anonymous?: boolean;
+  anonymous?: boolean;\n  accessToken?: string;
   idempotencyKey?: string;
   timeoutMs?: number;
 };
