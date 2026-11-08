@@ -58,6 +58,8 @@ export class TestagramCapabilityClient{
       signal: ctl.signal,
       headers: {
         'X-Client-Info': `testagram-web/${this.version}`,
+        'X-Testagram-API-Version': '1',
+        'X-Request-ID': id,
         ...( !isReadOnlyCapability(capability) ? { 'Idempotency-Key': id } : {}),
       },
       timeoutMs: this.timeout,
