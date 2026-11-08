@@ -46,9 +46,9 @@ requireText(home, /previous\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)/,
   'Background refresh must compare incoming content against canonical identities.');
 requireText(home, /setItems\(prev=>appendUniqueFeedItems\(fresh,prev\)\)/,
   'Background refresh must preserve existing items while deduplicating newly discovered content.');
-requireText(aggregator, /authorization[\s\S]*Bearer\\s\\+\\S\{16,8192\}[\s\S]*BACKEND_NOT_CONFIGURED/,
-  'Home feed edge handler must require an Appwrite bearer session and fail closed when Backend is not configured.');
-requireText(aggregator, /new URL\('\\/v1\\/feed\\/home', backend\)[\s\S]*target\.searchParams\.set\('limit'[\s\S]*target\.searchParams\.set\('before'/,
+requireText(aggregator, /request\.headers\.get\('authorization'\)[\s\S]*BACKEND_NOT_CONFIGURED/,
+  'Home feed edge handler must require a bearer session and fail closed when Backend is not configured.');
+requireText(aggregator, /new URL\('\/v1\/feed\/home', backend\)[\s\S]*target\.searchParams\.set\('limit'[\s\S]*target\.searchParams\.set\('before'/,
   'Home feed edge handler must proxy bounded cursor pagination to the canonical Backend feed endpoint.');
 requireText(aggregator, /redirect: 'manual'[\s\S]*AbortController[\s\S]*BACKEND_TIMEOUT/,
   'Home feed proxy must not follow redirects and must bound upstream Backend requests with explicit timeout handling.');
