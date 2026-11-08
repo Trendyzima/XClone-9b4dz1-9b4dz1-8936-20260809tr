@@ -81,7 +81,12 @@ export default function WalletPage() {
       setPollCount(0);
       toast.success('STK Push requested. Complete the prompt on your phone.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to start M-Pesa top-up');
+      const message = error instanceof Error ? error.message : 'Unable to start M-Pesa top-up';
+      const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code ?? '') : '';
+      const definitiveFailure = ['INVALID_PHONE','INVALID_CURRENCY','INVALID_AMOUNT','INVALID_IDEMPOTENCY_KEY','MPESA_NOT_CONFIGURED','FX_RATE_UNAVAILABLE','MPESA_REQUEST_REJECTED'].includes(code) ||
+        (code === 'MPESA_PROVIDER_UNAVAILABLE' && /authentication failed/i.test(message));
+      if (definitiveFailure) setTopUpIdempotencyKey('');
+      toast.error(message);
     } finally {
       setBusy(false);
     }
