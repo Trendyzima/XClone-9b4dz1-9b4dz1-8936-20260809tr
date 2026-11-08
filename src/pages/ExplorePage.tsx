@@ -11,6 +11,7 @@ import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotligh
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase, supabaseSecondary } from '@/lib/supabase';
+import { readPublicExpansion } from '@/lib/dataPlane';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
