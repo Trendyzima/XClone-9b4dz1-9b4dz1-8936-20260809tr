@@ -336,11 +336,10 @@ function CategoryTabContent({
       if (!cancelled) {
         setPosts(finalPosts);
         if (finalPosts.length > 0 && user) {
-          const summaries = await Promise.allSettled(finalPosts.map(async (post: any) => ({
-            post_id: post.id,
-            user_reactions: (await socialApi.getInteractionSummary(post.id)).user_reactions ?? [],
-            reactions: (await socialApi.getInteractionSummary(post.id)).reactions ?? {},
-          })));
+          const summaries = await Promise.allSettled(finalPosts.map(async (post: any) => {
+            const interaction = await socialApi.getInteractionSummary(post.id);
+            return { post_id: post.id, user_reactions: interaction.user_reactions ?? [], reactions: interaction.reactions ?? {} };
+          }));
           if (!cancelled) {
             const cPostIds: any[] = [];
             const cEmojis: any[] = [];
@@ -368,42 +367,7 @@ function CategoryTabContent({
           }
         }
         setLoading(false);
-        // Fetch reactions for these posts
-        if (finalPosts.length > 0) {
-          const pids = finalPosts.map((p: any) => p.id);
-          const { data: rxData } = await supabase
-            .from('post_reactions')
-            .select('post_id, user_id, emoji')
-            .in('post_id', pids);
-          if (!cancelled && rxData) {
-            // Build count map using parallel arrays (esbuild guard: no Record)
-            // esbuild guard: no typed array declarations in async closure — use plain untyped
-            const cPostIds = [];
-            const cEmojis = [];
-            const cCounts = [];
-            for (const r of rxData) {
-              // find existing entry
-              let found = false;
-              for (let i = 0; i < cPostIds.length; i++) {
-                if (cPostIds[i] === r.post_id && cEmojis[i] === r.emoji) {
-                  cCounts[i] += 1;
-                  found = true;
-                  break;
-                }
-              }
-              if (!found) { cPostIds.push(r.post_id); cEmojis.push(r.emoji); cCounts.push(1); }
-            }
-            setRxCountPostIds(cPostIds as any);
-            setRxCountEmojis(cEmojis as any);
-            setRxCounts(cCounts as any);
-            // User's own reactions
-            if (user) {
-              const myRx = rxData.filter((r: any) => r.user_id === user.id);
-              setRxPostIds(myRx.map((r: any) => r.post_id) as any);
-              setRxEmojis(myRx.map((r: any) => r.emoji) as any);
-            }
-          }
-        }
+
       }
     })();
     return () => { cancelled = true; };
