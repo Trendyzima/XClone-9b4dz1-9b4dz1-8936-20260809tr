@@ -5,7 +5,7 @@ import { walletApi } from '@/services/walletApi';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 
-type WalletSnapshot = { wallet?: { id?: string; balance?: number; currency?: string }; transactions?: Array<{ id?: string; type?: string; kind?: string; amount?: number; currency?: string; status?: string; created_at?: string; reference?: string }> };
+type WalletSnapshot = { wallet?: { id?: string; balance?: number | string; currency?: string }; transactions?: any[] };
 
 type WalletPageProps = { initialTab?: string; standaloneTitle?: string };
 
@@ -64,7 +64,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
       </header>
       {error && <div role="alert" className="rounded-xl border border-destructive/40 p-4 text-sm flex gap-2"><AlertCircle className="h-5 w-5 shrink-0" />{error}</div>}
       <section className="rounded-2xl border bg-card p-6">
-        <p className="text-sm text-muted-foreground">Available balance</p>
+        <p className="text-sm text-muted-foreground">Available balance ({snapshot.wallet?.currency ?? 'KES'})</p>
         <p className="text-3xl font-bold mt-2">{loading ? 'Loading…' : `KES ${balance.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`}</p>
         <p className="text-xs text-muted-foreground mt-2">New wallet balances start at zero. Only verified Backend ledger entries change this amount.</p>
       </section>
@@ -78,7 +78,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
         <div className="rounded-2xl border bg-card p-5 space-y-3">
           <h2 className="font-semibold flex items-center gap-2"><ArrowLeftRight className="h-4 w-4" /> Send wallet funds</h2>
           <label className="block text-sm">Recipient username or ID<input className="mt-1 w-full rounded-lg border bg-background p-2" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="@username" /></label>
-          <label className="block text-sm">Amount (KES)<input className="mt-1 w-full rounded-lg border bg-background p-2" type="number" min="1" value={amount} onChange={e=>setAmount(e.target.value)} /></label>
+          <label className="block text-sm">Amount ({snapshot.wallet?.currency ?? 'KES'})<input className="mt-1 w-full rounded-lg border bg-background p-2" type="number" min="1" value={amount} onChange={e=>setAmount(e.target.value)} /></label>
           <button onClick={()=>void sendTransfer()} disabled={busy||loading} className="w-full rounded-xl border px-4 py-2 disabled:opacity-50">{busy?'Please wait…':'Send transfer'}</button>
         </div>
       </section>
