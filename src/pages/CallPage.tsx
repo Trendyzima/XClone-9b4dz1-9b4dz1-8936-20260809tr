@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { communicationService } from '@/services/communicationService';
 import { TestagramMediaSession } from '@/lib/testagramMedia';
-import { supabase } from '@/lib/supabase';
 
 export default function CallPage() {
   const { callId } = useParams<{ callId: string }>();
@@ -37,7 +36,7 @@ export default function CallPage() {
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
-    void (async () => { try { if (callId) { const { data } = await supabase.from('calls').select('metadata').eq('id', callId).maybeSingle(); const metadata = data?.metadata && typeof data.metadata === 'object' ? data.metadata as Record<string, unknown> : {}; if (metadata.caller_phone_verified && typeof metadata.caller_phone === 'string') { setCallerPhone(metadata.caller_phone); setCallerPhoneVerified(true); } } } catch { /* caller metadata is optional */ } })();
+    void (async () => { try { if (callId) { const call = await communicationService.getCall(callId); const metadata = call.metadata && typeof call.metadata === 'object' ? call.metadata : {}; if (metadata.caller_phone_verified && typeof metadata.caller_phone === 'string') { setCallerPhone(metadata.caller_phone); setCallerPhoneVerified(true); } } } catch { /* caller metadata is optional */ } })();
     setLoading(false);
     return () => {
       void sessionRef.current?.close();
