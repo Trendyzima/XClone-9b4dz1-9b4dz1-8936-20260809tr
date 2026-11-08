@@ -204,7 +204,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/CreditsPage.tsx` — pending audit/migration
 - [ ] `src/pages/DailyRewardsPage.tsx` — pending audit/migration
 - [ ] `src/pages/DiscoverPage.tsx` — pending audit/migration
-- [ ] `src/pages/ExplorePage.tsx` — partial: creator/post/hashtag discovery reads, post reactions and creator follow actions moved to native Backend APIs; story-view tracking, challenge CRUD, and story-to-message actions still require Backend-owned endpoints.
+- [x] `src/pages/ExplorePage.tsx` — all direct browser Supabase access removed; marketplace, creator/post/hashtag discovery, category counts, story reads/views, challenge CRUD, reactions, follows, and story-reaction messaging now use Backend APIs. The generic trends capability and end-to-end data/runtime validation remain open.
 - [ ] `src/pages/FastPixShortsPage.tsx` — pending audit/migration
 - [ ] `src/pages/FederatedOrganicDiscoveryPage.tsx` — pending audit/migration
 - [ ] `src/pages/FediverseAnalyticsPage.tsx` — pending audit/migration
@@ -496,7 +496,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/CreatorStudio.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/CreditsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/DailyRewardsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/ExplorePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/ExplorePage.tsx` — baseline direct Supabase access resolved; no browser Supabase client remains.
 - [ ] `src/pages/FastPixShortsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/FediverseDiscoverPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/FediversePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -587,3 +587,5 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - Hashtag challenge creation, listing, detail, and idempotent entry are now Backend-owned on the central API branch, with a Neon migration and direct XClone client methods. CI/runtime verification remains pending.
 
 - HashtagDiscoveryPage.tsx now uses the Backend discovery endpoints for creators, posts, videos and threads, plus native hashtag/follow APIs. Discovery endpoint runtime validation and population checks remain outstanding.
+
+- ExplorePage.tsx is now free of direct Supabase imports/operations. Its marketplace, discovery, stories, hashtag challenges, social reactions/follows, and story-reaction DMs use Backend API client methods. Remaining work is to replace/verify the generic trend-ranking capability and validate the new catalog/story/messaging contracts against a live Neon deployment.
