@@ -40,8 +40,7 @@ async function uploadAttempt(file: File, accessTokenOverride?: string): Promise<
     '/upload-intent',
     token,
     'POST',
-    JSON.stringify({ name: file.name, content_type: contentType, visibility: 'public', size_bytes: file.size }),
-    'application/json',
+    { name: file.name, content_type: contentType, visibility: 'public', size_bytes: file.size },
   );
   if (!intent.key || !intent.url) throw new Error('Backend returned an incomplete media upload intent.');
 
@@ -58,8 +57,7 @@ async function uploadAttempt(file: File, accessTokenOverride?: string): Promise<
     '/complete',
     token,
     'POST',
-    JSON.stringify({ key: intent.key, visibility: 'public', content_type: contentType, checksum_sha256: await sha256Hex(file) }),
-    'application/json',
+    { key: intent.key, visibility: 'public', content_type: contentType, checksum_sha256: await sha256Hex(file) },
   );
   return {
     ...completed,
