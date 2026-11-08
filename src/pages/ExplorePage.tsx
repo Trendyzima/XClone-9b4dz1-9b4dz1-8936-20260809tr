@@ -57,7 +57,7 @@ function ExploreMarketplace({ searchQuery, navigate }: { searchQuery: string; na
     setLoading(true);
     (async () => {
       try {
-        const result = await backendCapabilities.listMarketplaceProducts(20, catFilter);
+        const result = await backendCapabilities.listMarketplaceProducts(20, catFilter, searchQuery);
         if (!cancelled) setProducts(result.items ?? []);
       } catch (error) {
         console.error('[explore-marketplace] Backend request failed', error);
@@ -713,14 +713,11 @@ export default function ExplorePage() {
     const since7d = new Date(Date.now() - 7 * 86400000).toISOString();
     const results = await Promise.all(
       CAT_KEYWORDS_MAP.map(async kws => {
-        const orFilter = kws.map(k => `content.ilike.%${k}%`).join(',');
-        const { count } = await supabase
-          .from('posts')
-          .select('id', { count: 'exact', head: true })
-          .or(orFilter)
-          .is('community_id', null)
-          .gte('created_at', since7d);
-        return count ?? 0;
+        const pages = await Promise.all(kws.map(keyword =>
+          backendCapabilities.listDiscoveryPosts(100, keyword, 'recent', since7d)
+        ));
+        const unique = new Set(pages.flatMap(page => (page.items ?? []).map((post: any) => String(post.id))));
+        return unique.size;
       })
     );
     setCatPostCounts(results);
