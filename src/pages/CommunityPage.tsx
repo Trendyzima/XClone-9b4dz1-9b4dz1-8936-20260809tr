@@ -48,7 +48,8 @@ type CommPageTab = typeof COMM_TAB_LIST[number];
 const GIF_URL_RE = /^https:\/\/(media\.tenor|c\.tenor|media1\.tenor|media\.giphy|i\.giphy)\.com\//;
 
 function getCommunityRssUrl(communityName: string) {
-  return `${import.meta.env.VITE_SUPABASE_URL?.replace('/v1', '')}/functions/v1/podcast-rss?community=${encodeURIComponent(communityName)}`;
+  const apiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL || '').replace(/\/+$/, '');
+  return apiOrigin ? `${apiOrigin}/api/communities/rss?community=${encodeURIComponent(communityName)}` : '';
 }
 function CommunityAdBanner() { return <PageAdBanner />; }
 
@@ -300,35 +301,25 @@ export default function CommunityPage({ section, standalone = false }: { section
   const [showChatGifPicker, setShowChatGifPicker] = useState(false);
 
   const fetchChat = useCallback(async () => {
-    if (!community) return;
-    const { data } = await supabase.from('community_chat')
-      .select('*, profiles(id, username, avatar_url, verified_tier)')
-      .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
-    if (data) {
-      setChatMessages(data);
-      const ids = data.map((m: any) => m.id);
-      if (ids.length) {
-        const [{ data: rr }, { data: pp }] = await Promise.all([
-          supabase.from('community_chat_reactions').select('message_id,emoji').in('message_id', ids),
-          supabase.from('community_chat_pins').select('message_id').eq('community_id', community.id),
-        ]);
-        const grouped: Record<string, Record<string, number>> = {};
-        for (const row of rr ?? []) grouped[row.message_id] = { ...(grouped[row.message_id] ?? {}), [row.emoji]: (grouped[row.message_id]?.[row.emoji] ?? 0) + 1 };
-        const reactionIds = Object.keys(grouped);
-        setReactionMsgIds(reactionIds); setReactionData(reactionIds.map(id => grouped[id]));
-        setPinnedChatIds((pp ?? []).map((row: any) => row.message_id));
-      } else {
-        setReactionMsgIds([]); setReactionData([]); setPinnedChatIds([]);
-      }
+    if (!community || !isMember) return;
+    try {
+      const result = await backendCapabilities.listCommunityChat(community.id);
+      const rows = result.items ?? [];
+      setChatMessages(rows);
+      const reactionIds = rows.filter((message: any) => message.reactions && Object.keys(message.reactions).length > 0).map((message: any) => message.id);
+      setReactionMsgIds(reactionIds);
+      setReactionData(rows.filter((message: any) => reactionIds.includes(message.id)).map((message: any) => message.reactions ?? {}));
+      setPinnedChatIds(rows.filter((message: any) => message.is_pinned).map((message: any) => message.id));
+    } catch (error: any) {
+      sonnerToast.error(error?.message || 'Could not load community chat');
     }
-  }, [community]);
+  }, [community, isMember]);
 
   const handleSendGif = useCallback(async (gifUrl: string) => {
     if (!user || !community || chatSending || !isMember || !GIF_URL_RE.test(gifUrl)) return;
     setShowChatGifPicker(false); setChatSending(true);
     try {
-      const { error } = await supabase.rpc('send_community_chat', { p_community_id: community.id, p_message: gifUrl });
-      if (error) throw error;
+      await backendCapabilities.sendCommunityChat(community.id, gifUrl);
       await fetchChat();
     } catch (error: any) {
       sonnerToast.error(error?.message || 'Could not send GIF');
@@ -379,8 +370,7 @@ export default function CommunityPage({ section, standalone = false }: { section
   const handleAddReaction = useCallback(async (msgId: string, emoji: string) => {
     if (!community || !isMember) return;
     try {
-      const { error } = await supabase.rpc('toggle_community_chat_reaction', { p_message_id: msgId, p_emoji: emoji });
-      if (error) throw error;
+      await backendCapabilities.toggleCommunityChatReaction(community.id, msgId, emoji);
       triggerFloat(emoji); setShowEmojiPickerFor(null); await fetchChat();
     } catch (error: any) { sonnerToast.error(error?.message || 'Could not update reaction'); }
   }, [community, isMember, triggerFloat, fetchChat]);
@@ -388,8 +378,7 @@ export default function CommunityPage({ section, standalone = false }: { section
   const handlePinChatMessage = useCallback(async (msgId: string) => {
     if (!community || !['owner', 'moderator'].includes(userRole)) return;
     try {
-      const { error } = await supabase.rpc('toggle_community_chat_pin', { p_message_id: msgId });
-      if (error) throw error;
+      await backendCapabilities.toggleCommunityChatPin(community.id, msgId);
       setShowRoleMenu(null); await fetchChat();
     } catch (error: any) { sonnerToast.error(error?.message || 'Could not update pin'); }
   }, [community, userRole, fetchChat]);
@@ -399,10 +388,8 @@ export default function CommunityPage({ section, standalone = false }: { section
   useEffect(() => {
     if (activeTab !== 'chat' || !community) return;
     void fetchChat();
-    const channel = supabase.channel(`community-chat-${community.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_chat', filter: `community_id=eq.${community.id}` }, () => { void fetchChat(); })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); if (chatPollingRef.current) clearInterval(chatPollingRef.current); };
+    chatPollingRef.current = setInterval(() => { void fetchChat(); }, 8000);
+    return () => { if (chatPollingRef.current) clearInterval(chatPollingRef.current); chatPollingRef.current = null; };
   }, [activeTab, community?.id]);
 
   useEffect(() => { if (activeTab === 'chat') chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
@@ -413,8 +400,7 @@ export default function CommunityPage({ section, standalone = false }: { section
     setChatInput(''); setReplyingTo(null); setChatSending(true);
     const msgContent = replyInfo ? `[↩ @${replyInfo.username}: "${replyInfo.text.slice(0, 40)}…"] ${text}` : text;
     try {
-      const { error } = await supabase.rpc('send_community_chat', { p_community_id: community.id, p_message: msgContent });
-      if (error) throw error;
+      await backendCapabilities.sendCommunityChat(community.id, msgContent);
       await fetchChat();
     } catch (error: any) {
       sonnerToast.error(error?.message || 'Could not send message');
@@ -424,30 +410,8 @@ export default function CommunityPage({ section, standalone = false }: { section
       return;
     }
     setChatSending(false);
-    // Send @mention notifications to mentioned users
-    const mentionMatches = text.match(/@(\w+)/g);
-    if (mentionMatches && mentionMatches.length > 0) {
-      const mentionedUsernames = mentionMatches.map(m => m.slice(1)).filter((u, i, a) => a.indexOf(u) === i).filter(u => u !== user.username);
-      if (mentionedUsernames.length > 0) {
-        const { data: mentionedProfiles } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('username', mentionedUsernames.slice(0, 5));
-        if (mentionedProfiles && mentionedProfiles.length > 0) {
-          await Promise.allSettled(mentionedProfiles.map((p: any) =>
-            supabase.from('platform_inbox').insert({
-              user_id: p.id,
-              subject: `@${user.username} mentioned you in c/${community.name}`,
-              body: `"${text.slice(0, 120)}${text.length > 120 ? '…' : ''}"`,
-              type: 'update',
-              icon_emoji: '💬',
-              cta_label: `Go to c/${community.name}`,
-              cta_url: `/c/${community.name}`,
-            })
-          ));
-        }
-      }
-    }
+    // Mention notifications are emitted by the Backend notification pipeline.
+
   };
 
   // Events state
@@ -584,9 +548,9 @@ export default function CommunityPage({ section, standalone = false }: { section
   }, [community?.id, isMember]);
   useEffect(() => {
     if (!community) return;
-    const sub = supabase.channel(`community-posts-${community.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts', filter: `community_id=eq.${community.id}` }, () => { fetchPosts(true); }).subscribe();
-    return () => { supabase.removeChannel(sub); };
+    const refresh = () => { void fetchPosts(true); };
+    const interval = window.setInterval(refresh, 15000);
+    return () => window.clearInterval(interval);
   }, [community?.id]);
   useEffect(() => { if (community?.id) { fetchWeeklyDigest(community.id); fetchRelatedSpaces(community.name, community.display_name); } }, [community?.id]);
 
