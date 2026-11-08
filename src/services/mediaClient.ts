@@ -16,6 +16,14 @@ export type MediaCompleted = {
 
 export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
 
+// Media is served only by the configured canonical Backend API. Never use a
+// same-origin proxy or an implicit legacy storage endpoint.
+const mediaApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\\/+$/, '');
+export function requireMediaApi(): string {
+  if (!mediaApiOrigin) throw new Error('VITE_TESTAGRAM_API_URL is required for media operations.');
+  return `${mediaApiOrigin}/api/media`;
+}
+
 function friendlyMediaError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? '');
   if (/Failed to fetch|NetworkError|Load failed|network|connection/i.test(message)) return 'Connection interrupted while uploading. Please try again.';
@@ -25,6 +33,7 @@ function friendlyMediaError(error: unknown) {
 }
 
 async function apiRequest<T>(path: string, token: string, method: 'POST', body: Record<string, unknown>): Promise<T> {
+  requireMediaApi();
   return testagramApiRequest<T>(`/api/media${path}`, { method, body, accessToken: token });
 }
 
