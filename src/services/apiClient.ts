@@ -3,7 +3,7 @@ import { appwriteAuth } from '@/services/appwriteAuth';
 export type TestagramApiErrorBody = {
   code?: string;
   message?: string;
-  error?: { code?: string; message?: string };
+  error?: { code?: string; message?: string } | string;
   request_id?: string;
 };
 
@@ -99,7 +99,7 @@ export async function testagramApiRequest<T>(path: string, options: TestagramApi
       const data = (payload && typeof payload === 'object' ? payload : {}) as TestagramApiErrorBody;
       const nested = data.error && typeof data.error === 'object' ? data.error : {};
       throw new TestagramApiError(
-        nested.message ?? data.message ?? (typeof data.error === 'string' ? data.error : '') ?? `Testagram API returned HTTP ${response.status}.`,
+        nested.message ?? data.message ?? (typeof data.error === 'string' ? data.error : undefined) ?? `Testagram API returned HTTP ${response.status}.`,
         response.status,
         nested.code ?? data.code ?? 'API_REQUEST_FAILED',
         requestID,
