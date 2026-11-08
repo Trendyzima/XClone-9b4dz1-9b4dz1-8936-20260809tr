@@ -233,7 +233,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/FraudDetection.tsx` — pending audit/migration
 - [ ] `src/pages/HashtagChallengePage.tsx` — pending audit/migration
 - [ ] `src/pages/HashtagDiscoveryPage.tsx` — pending audit/migration
-- [ ] `src/pages/HashtagPage.tsx` — pending audit/migration
+- [x] `src/pages/HashtagPage.tsx` — hashtag resolution, local recent/top posts and follow state now use native Backend hashtag APIs; federation reads remain delegated to the Federation-owned discovery surface.
 - [ ] `src/pages/HelpPage.tsx` — pending audit/migration
 - [ ] `src/pages/HistoryPage.tsx` — pending audit/migration
 - [ ] `src/pages/HomeHubPage.tsx` — pending audit/migration
@@ -505,7 +505,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/FraudDetection.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/HashtagChallengePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/HashtagDiscoveryPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/HashtagPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/HashtagPage.tsx` — baseline direct Supabase access removed; current page uses Backend APIs and no browser Supabase client.
 - [ ] `src/pages/HelpPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/HistoryPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/InterestOnboardingPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
