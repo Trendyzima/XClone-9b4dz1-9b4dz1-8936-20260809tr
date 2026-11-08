@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { profileApi } from '@/services/profileApi';
+import { socialApi } from '@/services/socialApiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
 import { TopBar } from '@/components/layout/TopBar';
@@ -11,7 +12,7 @@ import { RevenueAnalyticsWidget } from '@/components/features/RevenueAnalyticsWi
 import { StoryHighlights } from '@/components/features/StoryHighlights';
 import CreatorMonetizationHub, { SubscriptionTiersDisplay, TipGoalWidget, SubscriberBadge } from '@/components/features/CreatorMonetizationHub';
 import { Calendar, MapPin, Link as LinkIcon, Loader2, Twitter, Instagram, Linkedin, MessageCircle, Globe, ShieldCheck, X, Trophy, Flame, DollarSign, Gift, Check, Share2, Copy, Plus, Star, Eye, Crown, Sparkles, MoreHorizontal, Ban, VolumeX, Volume2, Flag, Send, Rss, Play, Heart, BookOpen, ChevronRight, Headphones, Clock, Users, Pencil, ExternalLink } from 'lucide-react';
-import { sendActivityNotification } from '@/components/layout/AuthProvider';
+
 import { toast } from 'sonner';
 import { useSEO, buildProfileLD, buildOgImageUrl } from '@/hooks/useSEO';
 import { usePremium } from '@/hooks/usePremium';
@@ -103,7 +104,8 @@ function fmtPodTotalDur(secs: number): string {
   return `${m}m`;
 }
 function getPodcastRssUrl(username: string) {
-  return `${import.meta.env.VITE_SUPABASE_URL?.replace('/v1', '')}/functions/v1/podcast-rss?username=${username}`;
+  const origin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\\/+$/, '');
+  return origin ? `${origin}/api/podcasts/rss?username=${encodeURIComponent(username)}` : '';
 }
 
 // Pure helpers replacing Record<string,T> index-sig objects in render (esbuild guard)
@@ -160,9 +162,9 @@ function SocialLinksEditor({
     const cleanTw = tw.trim().replace(/^@/, '') || null;
     const cleanIg = ig.trim().replace(/^@/, '') || null;
     const cleanLi = li.trim() || null;
-    const { error } = await supabase.from('profiles').update({ social_links: { twitter: cleanTw, instagram: cleanIg, linkedin: cleanLi } }).eq('id', userId);
+    try { await profileApi.sendSocialLinks({ twitter: cleanTw, instagram: cleanIg, linkedin: cleanLi }); }
+    catch { setSaving(false); toast.error('Failed to save social links'); return; }
     setSaving(false);
-    if (error) { toast.error('Failed to save social links'); return; }
     toast.success('Social links updated!');
     setOpen(false);
     onSaved();
