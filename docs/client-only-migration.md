@@ -119,3 +119,19 @@ The current XClone tree contains **98** function entrypoints under `supabase/fun
 The shared `supabase/functions/_shared/**` utilities must also be audited. Security, ActivityPub signing/validation, delivery, observability, CORS, replication contracts, mail and Redis helpers must be reimplemented or relocated to the owning server repository; do not copy browser-inappropriate privileged code into XClone.
 
 **Deletion gate:** do not delete any of the 98 entrypoints merely because the frontend no longer imports the Supabase SDK. Confirm scheduled triggers, webhooks, provider callbacks, deployment workflows and external callers have been redirected to their replacement service.
+
+
+## Code-level removals applied on the migration branch
+
+The following browser-side backend implementations have been disabled and replaced with explicit server-only errors. They must not be re-enabled as local fallbacks:
+
+- src/modules/payments/walletService.ts: removed in-memory wallet creation, credit, debit and balance authority.
+- src/modules/payments/transactionService.ts: removed the process-local payment transaction store.
+- src/modules/payments/walletRepository.ts: removed direct Supabase wallet RPC access.
+- src/modules/monetization/ledger.ts: removed mutable in-memory ledger and client-computed balances.
+- src/modules/monetization/fraudDetection.ts: removed client-side payment risk decisions and direct wallet-transaction queries.
+- src/modules/payments/mpesa.ts: removed browser-side Safaricom credential use and STK initiation.
+- src/modules/payments/paymentOrchestrator.ts and callbackHandler.ts / mpesaCallbackHandler.ts: removed browser-side provider callback processing and wallet settlement.
+- src/services/communicationService.ts: removed direct Supabase CRUD for message stars, conversation settings, statuses and status views, plus Supabase Realtime subscriptions and typing/presence writes.
+
+These removals intentionally fail closed. They are not proof that equivalent Backend endpoints have been delivered. The UI must not present these features as operational until the Backend implements and tests their contracts. The remaining walletService.db.ts is a compatibility facade only; its repository now rejects all direct persistence operations.
