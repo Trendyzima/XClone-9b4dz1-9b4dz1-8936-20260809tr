@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Trophy, Hash, Flame, Loader2, Clock, Users, Plus,
@@ -98,14 +99,9 @@ export default function HashtagChallengePage() {
   const fetchChallengePosts = async (tag: string, sort: 'engagement' | 'newest' = 'engagement', page = 0) => {
     if (!tag) return;
     if (page === 0) setLoadingPosts(true); else setLoadingMore(true);
-    const orderCol = sort === 'engagement' ? 'likes_count' : 'created_at';
-    const { data } = await supabase
-      .from('posts')
-      .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
-      .ilike('content', `%#${tag}%`)
-      .order(orderCol, { ascending: false })
-      .range(page * FEED_PAGE_SIZE, (page + 1) * FEED_PAGE_SIZE - 1);
-    if (data) {
+    const result = await backendCapabilities.listHashtagPosts(tag, FEED_PAGE_SIZE, page * FEED_PAGE_SIZE, sort === 'engagement' ? 'top' : 'recent');
+    const data = result.items ?? [];
+    {
       if (page === 0) {
         setPosts(data);
         // Build mini leaderboard from top 3 by likes
@@ -115,11 +111,11 @@ export default function HashtagChallengePage() {
         if (user) setHasEntered(data.some((p: any) => p.user_id === user.id));
         // Fetch liked IDs
         if (user) {
-          const ids = data.map((p: any) => p.id);
-          const { data: liked } = await supabase
-            .from('likes').select('post_id')
-            .eq('user_id', user.id).in('post_id', ids);
-          setLikedIds(new Set((liked ?? []).map((l: any) => l.post_id)));
+          const likeStates = await Promise.allSettled(data.map((post: any) => socialApi.getLikeState(post.id)));
+          setLikedIds(new Set(data.filter((post: any, index: number) => {
+            const state = likeStates[index];
+            return state.status === 'fulfilled' && state.value.is_liked;
+          }).map((post: any) => post.id)));
         }
       } else {
         setPosts(prev => [...prev, ...data]);
@@ -131,15 +127,15 @@ export default function HashtagChallengePage() {
 
   const fetchChallenge = useCallback(async () => {
     if (!id) return;
-    const { data, error } = await supabase
-      .from('hashtag_challenges')
-      .select('*, hashtags(id, tag, usage_count), user_profiles!created_by(username, avatar_url, verified)')
-      .eq('id', id)
-      .single();
-    if (error) { toast.error('Challenge not found'); navigate('/explore'); return; }
-    setChallenge(data);
-    setLoading(false);
-    fetchChallengePosts(data.hashtags?.tag);
+    try {
+      const data = await backendCapabilities.getHashtagChallenge(id);
+      setChallenge(data);
+      setLoading(false);
+      void fetchChallengePosts(data.hashtags?.id);
+    } catch {
+      toast.error('Challenge not found');
+      navigate('/explore');
+    }
   }, [id, navigate]); // Added navigate to dependency array
 
   const handleLike = async (postId: string, e: React.MouseEvent) => {
@@ -148,14 +144,16 @@ export default function HashtagChallengePage() {
     if (likingId === postId) return;
     setLikingId(postId);
     const isLiked = likedIds.has(postId);
-    if (isLiked) {
-      await supabase.from('likes').delete().eq('user_id', user.id).eq('post_id', postId);
-      setLikedIds(prev => { const s = new Set(prev); s.delete(postId); return s; });
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: Math.max(0, (p.likes_count ?? 0) - 1) } : p));
-    } else {
-      await supabase.from('likes').insert({ user_id: user.id, post_id: postId });
-      setLikedIds(prev => new Set([...prev, postId]));
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: (p.likes_count ?? 0) + 1 } : p));
+    try {
+      const result = await socialApi.setLike(postId, !isLiked);
+      setLikedIds(prev => {
+        const next = new Set(prev);
+        if (result.is_liked) next.add(postId); else next.delete(postId);
+        return next;
+      });
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: result.likes_count } : p));
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Could not update like');
     }
     setLikingId(null);
   };
