@@ -78,7 +78,7 @@ This is a routing plan, not proof that the functions have already been ported. C
 
 ## Backend API facade required
 
-Existing fresh API contracts documented in Backend include GET /v1/me, PUT /v1/me/profile, GET/PUT /v1/me/legal, POST /v1/posts, GET /v1/feed/home, POST /v1/media/uploads/reservations, POST /v1/media/uploads/{reservationID}/complete and GET /v1/media/{objectID}/download.
+The fresh API server in Backend currently registers GET /healthz, GET /readyz, GET /readyz/platform, GET /v1/me, PUT /v1/me/profile, conditional POST /v1/identity/register, GET/PUT /v1/me/legal, GET/PUT /v1/me/federation, GET /v1/feed/home, GET /v1/feed/public, POST /v1/posts, POST /v1/moderation/check, private Federation readiness/outbox/actor routes, and media reservation/completion/download/restore routes. These are a starting subset, not complete coverage of the XClone UI.
 
 Backend must add/finish typed routes for every UI capability before XClone removes legacy implementations: post/reply/reaction/repost/bookmark, follows/blocks/follow requests, profile sections, search/trends/discovery, communities, notifications, messaging, wallet/ledger/payments, creator analytics/monetization, ads, marketplace, video/live/TV metadata and administration. Return explicit 401/403/404/409/422/429/5xx semantics, request IDs, bounded pagination and stable response envelopes.
 
