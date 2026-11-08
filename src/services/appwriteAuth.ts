@@ -92,6 +92,21 @@ export const appwriteAuth = {
     return appwriteAccount.get();
   },
 
+  async listSessions() {
+    assertAppwriteAuthConfigured();
+    return appwriteAccount.listSessions();
+  },
+
+  async signOutAllSessions(): Promise<void> {
+    assertAppwriteAuthConfigured();
+    try {
+      await appwriteAccount.deleteSessions();
+    } finally {
+      clearBackendJWT();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+    }
+  },
+
   async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
     assertAppwriteAuthConfigured();
     try {
