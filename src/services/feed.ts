@@ -1,6 +1,4 @@
-import { backendCapabilities } from '@/services/backendClient';
 import { socialApi } from '@/services/socialApiClient';
-import * as federation from '@/api/federation';
 
 export type Post = {
   id: string;
