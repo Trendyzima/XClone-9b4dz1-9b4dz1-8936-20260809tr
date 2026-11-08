@@ -10,7 +10,6 @@ import { TrendingVideosSection } from '@/components/features/TrendingVideosSecti
 import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
-import { supabase } from '@/lib/supabase';
 import { socialApi } from '@/services/socialApiClient';
 import { readPublicExpansion } from '@/lib/dataPlane';
 import { formatNumber } from '@/lib/utils';
@@ -756,27 +755,25 @@ export default function ExplorePage() {
 
   const fetchTrendingPosts = async () => {
     setTrendingPostsLoading(true);
-    const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
-    const { data } = await supabase
-      .from('posts')
-      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-      .is('community_id', null)
-      .gte('created_at', since48h)
-      .order('views_count', { ascending: false })
-      .limit(10);
-    setTrendingPosts(data ?? []);
-    setTrendingPostsLoading(false);
+    try {
+      const result = await backendCapabilities.listDiscoveryPosts(10, '', 'top');
+      setTrendingPosts(result.items ?? []);
+    } catch (error) {
+      console.error('[explore-trending-posts] Backend request failed', error);
+      setTrendingPosts([]);
+    } finally {
+      setTrendingPostsLoading(false);
+    }
   };
 
   const fetchFreshExplorePosts = async () => {
-    const { data } = await supabase
-      .from('posts')
-      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-      .is('community_id', null)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(12);
-    setFreshExplorePosts(data ?? []);
+    try {
+      const result = await backendCapabilities.listDiscoveryPosts(12, '', 'recent');
+      setFreshExplorePosts(result.items ?? []);
+    } catch (error) {
+      console.error('[explore-fresh-posts] Backend request failed', error);
+      setFreshExplorePosts([]);
+    }
   };
 
   // Story progress timer
