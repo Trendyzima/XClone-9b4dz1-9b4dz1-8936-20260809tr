@@ -76,6 +76,7 @@ export const appwriteAuth = {
     });
     await appwriteAccount.createEmailPasswordSession({ email, password: input.password });
     clearBackendJWT();
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
     return appwriteAccount.get();
   },
 
@@ -89,6 +90,7 @@ export const appwriteAuth = {
       password: input.password,
     });
     clearBackendJWT();
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
     return appwriteAccount.get();
   },
 
@@ -157,6 +159,7 @@ export const appwriteAuth = {
     await this.completePasswordRecovery({ userId: input.userId, secret: input.secret, password: input.password });
     await appwriteAccount.createEmailPasswordSession({ email: normalizeEmail(input.email), password: input.password });
     clearBackendJWT();
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
     clearRecoveryContext();
     return appwriteAccount.get();
   },
