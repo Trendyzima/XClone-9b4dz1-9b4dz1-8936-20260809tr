@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
-import { profileApi } from '@/services/profileApi';
 import { walletApi } from '@/services/walletApi';
 import { walletApi } from '@/services/walletApi';
 import { toast } from 'sonner';
@@ -555,9 +554,7 @@ export function PeerWalletTransferPanel({ walletBalance, currency, onComplete }:
     try {
       const key = crypto.randomUUID();
       const handle = username.trim().replace(/^@/, '').toLowerCase();
-      const recipientId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(handle)
-        ? handle
-        : (await profileApi.getByUsername(handle)).profile.id;
+      const recipientId = (await walletApi.resolveRecipient(handle)).user_id;
       const debitAmount = currency === 'KES' ? Math.floor(amountKes) : Number(debit.toFixed(2));
       const data = await walletApi.transfer(recipientId, debitAmount, note.trim(), key);
       if (data.status !== 'completed' || !data.transfer_id) throw new Error('Transfer was not confirmed by Backend');
