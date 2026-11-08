@@ -1,4 +1,4 @@
-import { isNodeInfoDiscoveryDocument, isWebFingerDocument } from "./production-contracts.mjs";
+import { isNodeInfoDiscoveryDocument, isReadinessDocument, isWebFingerDocument } from "./production-contracts.mjs";
 
 const base = (process.env.OBSERVABILITY_ORIGIN || "https://testagram.site").replace(/\/$/, "");
 const cdn = (process.env.CDN_ORIGIN || "https://media.testagram.site").replace(/\/$/, "");
@@ -7,7 +7,13 @@ const includeFederation = process.env.OBSERVABILITY_INCLUDE_FEDERATION === "true
 
 const checks = [
   { name: "production-liveness", url: base + "/api/health", expected: 200 },
-  { name: "production-readiness", url: base + "/api/ready", expected: 200 },
+  {
+    name: "production-readiness",
+    url: base + "/api/ready",
+    expected: 200,
+    validateBody: isReadinessDocument,
+    contractError: "Readiness must identify a successful PostgREST or self-hosted PostgreSQL check with upstream_status 200.",
+  },
   { name: "cdn-edge-health", url: cdn + "/healthz", expected: 200, firstPartyCdn: true },
 ];
 
