@@ -1438,19 +1438,9 @@ export default function ExplorePage() {
                       key={emoji}
                       onClick={async () => {
                         if (!user || !activeStory || activeStory.user_id === user.id) return;
-                        const { data: existing } = await supabase.from('conversations').select('id')
-                          .or(`and(participant_1.eq.${user.id},participant_2.eq.${activeStory.user_id}),and(participant_1.eq.${activeStory.user_id},participant_2.eq.${user.id})`)
-                          .maybeSingle();
-                        let convId = existing?.id;
-                        if (!convId) {
-                          const { data: nc } = await supabase.from('conversations')
-                            .insert({ participant_1: user.id, participant_2: activeStory.user_id }).select('id').single();
-                          convId = nc?.id;
-                        }
-                        if (convId) {
-                          await supabase.from('direct_messages').insert({ conversation_id: convId, sender_id: user.id, content: `${emoji} Reacted to your story` });
-                          toast.success(`${emoji} Sent!`, { duration: 1500 });
-                        }
+                        const conversation = await backendCapabilities.openConversation(activeStory.user_id);
+                        await backendCapabilities.sendDirectMessage(conversation.conversation_id, `${emoji} Reacted to your story`);
+                        toast.success(`${emoji} Sent!`, { duration: 1500 });
                       }}
                       className="w-11 h-11 text-2xl rounded-full bg-black/40 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-black/60 active:scale-125 transition-all duration-150"
                     >{emoji}</button>
