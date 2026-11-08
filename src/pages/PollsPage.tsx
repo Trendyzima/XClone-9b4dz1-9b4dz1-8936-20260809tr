@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { useAuth } from '@/hooks/useAuth';
 import { TopBar } from '@/components/layout/TopBar';
 import { BarChart3, Plus, Loader2, CheckCircle2, Clock3, Users, Home, X, ImagePlus, RefreshCw } from 'lucide-react';
@@ -13,8 +13,8 @@ type Poll={id:string;question:string;description?:string;status:string;ends_at?:
 function PollCard({poll,onVoted}:{poll:Poll;onVoted:()=>void}){
  const {user}=useAuth(); const [selected,setSelected]=useState<string[]>([]); const [busy,setBusy]=useState(false);
  const vote=async()=>{if(!user){toast.error('Sign in to vote');return} if(!selected.length)return;
-  setBusy(true); const {error}=await supabase.rpc('cast_poll_vote',{p_poll_id:poll.id,p_option_ids:selected});
-  if(error)toast.error(error.message); else {toast.success('Vote recorded');onVoted()} setBusy(false);
+  setBusy(true); try { await backendCapabilities.votePoll(poll.id,selected[0]); toast.success('Vote recorded'); onVoted(); } catch (error) { toast.error(error instanceof Error ? error.message : 'Vote failed'); } finally { setBusy(false); }
+  
  };
  const total=Math.max(1,poll.total_votes);
  return <article className="rounded-2xl border border-border bg-card p-4 space-y-4">
