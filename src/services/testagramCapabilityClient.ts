@@ -1,5 +1,5 @@
 import { socialApi } from '@/services/socialApiClient';
-import { isFreshAppwriteMode, supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 export type CapabilityError={code:string;message:string};
 export type CapabilityResponse<T>={ok:boolean;data:T|null;error:CapabilityError|null;request_id:string};
@@ -18,17 +18,9 @@ export class CapabilityClientError extends Error{readonly code:string;readonly r
 // same-origin edge path. Search, timelines, trends and all account-bound reads
 // remain authenticated and therefore bypass CDN caching.
 const PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read","testagram.news.trending"]);
-const EDGE_CAPABILITY_PATH="/api/capability";
-// Keep every capability call on the same browser Supabase configuration used by Auth.
-// This prevents profile/search paths from falling back to a stale VITE_* key.
+// Every capability call targets the canonical Backend API and uses an Appwrite JWT.
 const configuredBackendOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??"").trim().replace(/\/+$/,"");
-const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"/api/capability";
-const DIRECT_MUTATION_CAPABILITIES=new Set([
- "testagram.posts.create",
- "testagram.posts.like",
- "testagram.posts.repost",
- "testagram.replies.create",
-]);
+export const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"";
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
 const rid=()=>typeof crypto?.randomUUID==="function"?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -43,28 +35,12 @@ const capabilityEvent=(capability:string)=>{
  return null;
 };
 export class TestagramCapabilityClient{
- private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;private apiKey:string;
- constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));this.apiKey=o.apiKey??"";}
- private async directSupabaseMutation<T>(capability:string,input:Record<string,unknown>,token:string):Promise<{ok:true;data:T}|{ok:false;status:number;message:string}>{
-  const response=await fetch(supabaseUrl.replace(/\/$/,"")+"/rest/v1/rpc/capability_dispatch_v2",{
-    method:"POST",
-    headers:{apikey:supabasePublishableKey,Authorization:"Bearer "+token,"Content-Type":"application/json",Accept:"application/json"},
-    body:JSON.stringify({p_capability:capability,p_input:input}),
-  });
-  const raw=await response.text();
-  let data:unknown=null; try{data=raw?JSON.parse(raw):null}catch{}
-  if(response.ok)return {ok:true,data:data as T};
-  const message=typeof data==="object"&&data&&"message" in data?String((data as {message?:unknown}).message):"Capability request failed ("+response.status+")";
-  return {ok:false,status:response.status,message};
- }
+ private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;
+ constructor(o:TestagramCapabilityClientOptions){this.endpoint=(o.endpoint??"").trim().replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));}
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
-  // Send the session JWT explicitly to PostgREST. The previous implementation
-  // called supabase.rpc(), which relies on the client's mutable auth header. A
-  // valid useAuth() user can therefore race Auth hydration and reach the RPC as
-  // anon. Explicit Authorization makes the browser identity deterministic.
+  // Appwrite JWT is sent explicitly; no provider SDK state is consulted.
   const headers: Record<string,string> = {
-    apikey: supabasePublishableKey,
-    Authorization: token ? `Bearer ${token}` : `Bearer ${supabasePublishableKey}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     'Content-Type': 'application/json',
     Accept: 'application/json',
     'X-Client-Info': `testagram-web/${this.version}`,
@@ -110,7 +86,7 @@ export class TestagramCapabilityClient{
   }
  }
  async call<T>(capability:string,input:Record<string,unknown>={},tokenOverride?:string|null):Promise<T>{
-  if (isFreshAppwriteMode) throw new CapabilityClientError('This capability is not yet exposed by the centralized Testagram Backend API.', { code: 'FRESH_API_CAPABILITY_NOT_PORTED', status: 503 });
+  if(!this.endpoint)throw new CapabilityClientError("Set VITE_TESTAGRAM_API_URL to the canonical Testagram Backend origin; refusing the legacy same-origin Supabase capability proxy.",{code:"BACKEND_API_URL_REQUIRED",status:503});
   if(!capability.trim())throw new CapabilityClientError("Capability name is required",{code:"CAPABILITY_REQUIRED"});
   const isPublic=PUBLIC_CAPABILITIES.has(capability);
   let token=tokenOverride ?? await this.token();
@@ -119,25 +95,6 @@ export class TestagramCapabilityClient{
   try{
     let attempt=0;
     while(true){
-      // Community engagement writes use the canonical Supabase RPC directly.
-      // This removes a stale external gateway from the critical mutation path while
-      // preserving the same authenticated capability boundary in Postgres.
-      if(DIRECT_MUTATION_CAPABILITIES.has(capability)&&token){
-        const direct=await this.directSupabaseMutation<T>(capability,input,token);
-        if(direct.ok === true){
-          trackTestagramEvent(TestagramEvent.CAPABILITY_SUCCEEDED,{capability,duration_ms:Date.now()-startedAt});
-          return direct.data;
-        }
-        if(direct.ok === false && (direct.status===401||direct.status===403)&&attempt===0){
-          attempt++;
-          const refreshed=await supabase.auth.refreshSession();
-          token=refreshed.data.session?.access_token??null;
-          if(token)continue;
-        }
-        if(direct.ok === false && direct.status>=400&&direct.status<500){
-          throw new CapabilityClientError(direct.message,{code:direct.status===401||direct.status===403?"AUTH_REQUIRED":"CAPABILITY_REQUEST_FAILED",requestId:id,status:direct.status});
-        }
-      }
       const {r,p}=await this.request<T>(capability,input,token,id,ctl);
       if(r.ok&&p.ok){
         const event=capabilityEvent(capability);
@@ -148,31 +105,8 @@ export class TestagramCapabilityClient{
       const authFailure=!isPublic&&(r.status===401||r.status===403)&&p.error?.code==="AUTH_REQUIRED";
       if(authFailure&&attempt===0){
         attempt++;
-        const refreshed=await supabase.auth.refreshSession();
-        token=refreshed.data.session?.access_token??null;
+        try { token = await appwriteAuth.createBackendJWT(true); } catch { token = null; }
         if(token)continue;
-      }
-      // Authenticated content writes get a direct Supabase RPC fallback. Threads
-      // already use the canonical Supabase REST boundary successfully; keeping
-      // post creation on the same project/auth plane avoids a same-origin gateway
-      // header race turning a valid user session into auth.uid() = null.
-      if(!isPublic && capability==="testagram.posts.create" && token){
-        try{
-          const directResponse=await fetch(`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/capability_dispatch_v2`,{
-            method:"POST",
-            headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},
-            body:JSON.stringify({p_capability:capability,p_input:input}),
-          });
-          const directRaw=await directResponse.text();
-          let directData:unknown=null; try{directData=directRaw?JSON.parse(directRaw):null;}catch{}
-          if(directResponse.ok){
-            return directData as T;
-          }
-          const directMessage=typeof directData==="object"&&directData&&"message" in directData?String((directData as {message?:unknown}).message):`Post creation failed (${directResponse.status})`;
-          throw new CapabilityClientError(directMessage,{code:directResponse.status===401||directResponse.status===403?"AUTH_REQUIRED":"CAPABILITY_DISPATCH_FAILED",requestId:id,status:directResponse.status});
-        }catch(directError){
-          if(directError instanceof CapabilityClientError)throw directError;
-        }
       }
       throw new CapabilityClientError(p.error?.message??`Capability request failed (${r.status})`,{code:p.error?.code??"CAPABILITY_REQUEST_FAILED",requestId:p.request_id??id,status:r.status});
     }
@@ -191,14 +125,7 @@ export class TestagramCapabilityClient{
  async searchUnified(q:string,kind:"all"|"people"|"posts"|"hashtags"|"threads"|"communities"|"fediverse"|"media"|"latest"|"top"|"instances"="all",n=40,offset=0,sort="relevance"){
    const input={q,kind,limit:limit(n),offset:Number.isFinite(offset)?Math.max(0,Math.trunc(offset)):0,sort:["relevance","latest","most_liked","most_viewed"].includes(sort)?sort:"relevance"};
    let token=await this.token();
-   if(!token){
-    try{
-     const restored=await supabase.auth.refreshSession();
-     token=restored.data.session?.access_token??null;
-    }catch{
-     token=null;
-    }
-   }
+   if(!token){ try { token=await appwriteAuth.createBackendJWT(true); } catch { token=null; } }
    if(!token) throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
    const searchPayload=(payload:any)=>({users:(Array.isArray(payload?.users)?payload.users:[]).map((u:any)=>({...u,followers_count:u.followers_count??u.follower_count??u.raw_actor?.followers_count??u.raw_actor?.followersCount,follower_count:u.follower_count??u.followers_count??u.raw_actor?.followers_count??u.raw_actor?.followersCount})),hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],instances:Array.isArray(payload?.instances)?payload.instances:[],next_cursor:payload?.next_cursor??null});
    // Prefer the backend gateway so unified-search traffic is observable in the
@@ -218,39 +145,7 @@ export class TestagramCapabilityClient{
     if(gatewayTimedOut)return this.searchFallbackForKind(kind,q,n,gatewayError,gatewayError);
     if(gatewayError instanceof CapabilityClientError&&(gatewayStatus===400||gatewayStatus===422))throw gatewayError;
 
-    // Only bypass the gateway when it is unavailable or misconfigured. This is a
-    // compatibility escape hatch, not the normal search route.
-    let directFailure:unknown=null;
-    for(let attempt=0;attempt<2;attempt++){
-     try{
-      const directController=new AbortController();
-      const directTimer=setTimeout(()=>directController.abort(),this.timeout);
-      let response:Response;
-      let raw:string;
-      try{
-       response=await fetch(`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/testagram_search_unified`,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset,p_sort:input.sort}),signal:directController.signal});
-       raw=await response.text();
-      }finally{clearTimeout(directTimer)}
-      let payload:any=null;try{payload=raw?JSON.parse(raw):null}catch{}
-      if(response.ok)return searchPayload(payload);
-      const message=payload&&typeof payload==="object"&&"message" in payload?String(payload.message):`Search request failed (${response.status})`;
-      directFailure=new CapabilityClientError(message,{code:response.status===401||response.status===403?"AUTH_REQUIRED":"SEARCH_RPC_FAILED",status:response.status});
-      if((response.status===401||response.status===403)&&attempt===0){
-       const refreshed=await supabase.auth.refreshSession();
-       const refreshedToken=refreshed.data.session?.access_token;
-       if(refreshed.error||!refreshedToken)throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
-       token=refreshedToken;
-       continue;
-      }
-      break;
-     }catch(error){
-      if(error instanceof CapabilityClientError&&error.code==="AUTH_REQUIRED")throw error;
-      directFailure=error;
-      break;
-     }
-    }
-    if(directFailure instanceof CapabilityClientError&&directFailure.code==="AUTH_REQUIRED")throw directFailure;
-    return this.searchFallbackForKind(kind,q,n,directFailure??gatewayError,gatewayError);
+    return this.searchFallbackForKind(kind,q,n,gatewayError,gatewayError);
    }
   }
  private async searchFallbackForKind(kind:string,q:string,n:number,directFailure:unknown,gatewayError:unknown){
@@ -299,15 +194,12 @@ export class TestagramCapabilityClient{
 
  searchCommunities(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.communities",{q,limit:limit(n),...cursor(c)})}
  async searchDiscovery(_endpoint:string,q:string,mode:"search"|"suggest"="search",n=20,c?:string):Promise<SearchDiscoveryPage>{const size=limit(mode==="suggest"?Math.min(n,8):n);const normalized=q.trim().replace(/^[@#]/,'');const [users,hashtags,posts,communities]=await Promise.all([this.searchUsers(normalized,size,c),this.searchHashtags(normalized,size,c),this.searchPosts(q.trim(),size,c),this.searchCommunities(normalized,size,c)]);return{users:users.items,hashtags:hashtags.items,posts:posts.items,communities:communities.items,next_cursor:posts.next_cursor};}
- createPost(input:{body?:string;content?:string;communityId?:string;mediaUrl?:string;mediaType?:string;mediaUrls?:string[];imageUrl?:string;videoUrl?:string;isVideo?:boolean;mediaCount?:number;visibility?:string;replyToPostId?:string;quotedPostId?:string;quotePostId?:string;quoteOfPostId?:string;poll?:{question:string;options:string[];durationMinutes?:number;multipleChoice?:boolean};productIds?:string[];idempotencyKey?:string},accessToken?:string){
-  if(isFreshAppwriteMode){
-   const hasUnsupportedFeature=Boolean(input.communityId||input.mediaUrl||input.mediaType||input.mediaUrls?.length||input.imageUrl||input.videoUrl||input.isVideo||input.mediaCount||input.replyToPostId||input.quotedPostId||input.quotePostId||input.quoteOfPostId||input.poll||input.productIds?.length);
-   if(hasUnsupportedFeature)throw new CapabilityClientError('Fresh Appwrite publishing currently supports text-only posts. Media attachments, communities, polls, quotes and product tags are not enabled yet.',{code:'FRESH_API_POST_FEATURE_NOT_PORTED',status:503});
-   const visibility=(input.visibility??'public').toLowerCase();
-   if(visibility!=='public'&&visibility!=='followers'&&visibility!=='private')throw new CapabilityClientError('Unsupported post visibility.',{code:'INVALID_VISIBILITY',status:400});
-   return socialApi.createPost(input.content??input.body??'',visibility,false,input.idempotencyKey).then(post=>({post_id:post.$id,created:true}));
-  }
-  return this.call<{post_id:string;poll_id?:string|null;created:boolean}>("testagram.posts.create",{body:input.body??input.content??"",content:input.content??input.body??"",...input.communityId?{community_id:input.communityId}:{},...input.mediaUrl?{media_url:input.mediaUrl}:{},...input.mediaType?{media_type:input.mediaType}:{},...input.mediaUrls?{media_urls:input.mediaUrls}:{},...input.imageUrl?{image_url:input.imageUrl}:{},...input.videoUrl?{video_url:input.videoUrl}:{},...(input.isVideo!==undefined?{is_video:input.isVideo}:{}),...(input.mediaCount!==undefined?{media_count:input.mediaCount}:{}),...input.visibility?{visibility:input.visibility}:{},...input.replyToPostId?{reply_to_post_id:input.replyToPostId}:{},...input.quotedPostId?{quoted_post_id:input.quotedPostId}:{},...input.quotePostId?{quote_post_id:input.quotePostId}:{},...input.quoteOfPostId?{quote_of_post_id:input.quoteOfPostId}:{},...input.poll?{poll:{question:input.poll.question,options:input.poll.options,...input.poll.durationMinutes!==undefined?{duration_minutes:input.poll.durationMinutes}:{},...(input.poll.multipleChoice!==undefined?{multiple_choice:input.poll.multipleChoice}:{})}}:{},...input.productIds?{product_ids:input.productIds}:{}},accessToken)
+ createPost(input:{body?:string;content?:string;communityId?:string;mediaUrl?:string;mediaType?:string;mediaUrls?:string[];imageUrl?:string;videoUrl?:string;isVideo?:boolean;mediaCount?:number;visibility?:string;replyToPostId?:string;quotedPostId?:string;quotePostId?:string;quoteOfPostId?:string;poll?:{question:string;options:string[];durationMinutes?:number;multipleChoice?:boolean};productIds?:string[];idempotencyKey?:string},_accessToken?:string){
+  const hasUnsupportedFeature=Boolean(input.communityId||input.mediaUrl||input.mediaType||input.mediaUrls?.length||input.imageUrl||input.videoUrl||input.isVideo||input.mediaCount||input.replyToPostId||input.quotedPostId||input.quotePostId||input.quoteOfPostId||input.poll||input.productIds?.length);
+  if(hasUnsupportedFeature)throw new CapabilityClientError('Unported post attachments must fail explicitly. This Backend publishing route currently supports text-only posts. Media attachments, communities, polls, quotes and product tags must be migrated before they can be enabled.',{code:'BACKEND_POST_FEATURE_NOT_PORTED',status:503});
+  const visibility=(input.visibility??'public').toLowerCase();
+  if(visibility!=='public'&&visibility!=='followers'&&visibility!=='private')throw new CapabilityClientError('Unsupported post visibility.',{code:'INVALID_VISIBILITY',status:400});
+  return socialApi.createPost(input.content??input.body??'',visibility,false,input.idempotencyKey).then(post=>({post_id:post.$id,created:true}));
  }
 schedulePost(body:string,scheduledFor:string){return this.call<{scheduled_post_id:string;scheduled:boolean}>("testagram.posts.schedule",{body,scheduled_for:scheduledFor})} generateRecommendations(){return this.call<{recommendations:unknown[]}>("testagram.recommendations.generate")} rankNotifications(n=20){return this.call<CapabilityPage<unknown>>("testagram.notifications.rank",{limit:limit(n)})}
  listNotifications(n=20,c?:string,options:{kind?:string;category?:string;unreadOnly?:boolean}={}){return this.call<CapabilityPage<NotificationItem>>("testagram.notifications.list",{limit:limit(n),...options.kind?{kind:options.kind}:{},...options.category?{category:options.category}:{},...options.unreadOnly?{unread_only:true}:{},...cursor(c)})}
@@ -332,7 +224,6 @@ schedulePost(body:string,scheduledFor:string){return this.call<{scheduled_post_i
 
 export const backendCapabilities = new TestagramCapabilityClient({
  endpoint: CAPABILITY_GATEWAY_ENDPOINT,
- getAccessToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
- apiKey: supabasePublishableKey,
+ getAccessToken: async () => { try { return await appwriteAuth.createBackendJWT(); } catch { return null; } },
 });
 // Canonical capability client boundary: authenticated browser gateway only.
