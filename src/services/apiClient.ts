@@ -46,7 +46,8 @@ export type TestagramApiRequest = {
   body?: unknown;
   headers?: Record<string, string>;
   signal?: AbortSignal;
-  anonymous?: boolean;\n  accessToken?: string;
+  anonymous?: boolean;
+  accessToken?: string;
   idempotencyKey?: string;
   timeoutMs?: number;
 };
@@ -54,8 +55,8 @@ export type TestagramApiRequest = {
 export async function testagramApiRequest<T>(path: string, options: TestagramApiRequest = {}): Promise<T> {
   const method = options.method ?? 'GET';
   const id = requestId();
-  let token: string | null = null;
-  if (!options.anonymous) {
+  let token: string | null = options.accessToken ?? null;
+  if (!options.anonymous && !token) {
     try {
       token = await appwriteAuth.createBackendJWT();
     } catch {
@@ -108,7 +109,10 @@ export async function testagramApiRequest<T>(path: string, options: TestagramApi
     if (payload && typeof payload === 'object' && 'ok' in payload) {
       const envelope = payload as { ok?: boolean; data?: T | null; error?: TestagramApiErrorBody['error']; request_id?: string };
       if (envelope.ok === false || envelope.data === null) {
-        const envelopeError = envelope.error;\n        const envelopeMessage = typeof envelopeError === 'string' ? envelopeError : envelopeError?.message;\n        const envelopeCode = typeof envelopeError === 'object' && envelopeError ? envelopeError.code : undefined;\n        throw new TestagramApiError(envelopeMessage ?? 'The API returned no data.', response.status, envelopeCode ?? 'API_EMPTY_RESPONSE', envelope.request_id ?? requestID);
+        const envelopeError = envelope.error;
+        const envelopeMessage = typeof envelopeError === 'string' ? envelopeError : envelopeError?.message;
+        const envelopeCode = typeof envelopeError === 'object' && envelopeError ? envelopeError.code : undefined;
+        throw new TestagramApiError(envelopeMessage ?? 'The API returned no data.', response.status, envelopeCode ?? 'API_EMPTY_RESPONSE', envelope.request_id ?? requestID);
       }
       if ('data' in envelope) return envelope.data as T;
     }
