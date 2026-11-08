@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -46,16 +46,17 @@ function MentionReplyInput({ postId, onPosted }: { postId: string; onPosted: () 
     if (!user) { navigate('/auth'); return; }
     if (!text.trim()) return;
     setPosting(true);
-    const { error } = await supabase.from('replies').insert({ post_id: postId, user_id: user.id, content: text.trim() });
-    if (!error) {
+    try {
+      await socialApi.createReply(postId, text.trim());
       setText('');
       setShow(false);
       toast.success('Reply sent!');
       onPosted();
-    } else {
+    } catch {
       toast.error('Failed to send reply');
+    } finally {
+      setPosting(false);
     }
-    setPosting(false);
   };
 
   if (!show) {
@@ -216,28 +217,14 @@ export default function NotificationsPage() {
     void refreshUnreadCount();
   }, [user, activeTab, navigate]);
 
+  // Notifications use the Backend API polling contract; no database realtime client in XClone.
   useEffect(() => {
-    if (!user) return;
-    if (activeTab === 'fediverse') return;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    let cancelled = false;
-    void backendCapabilities.getNotificationSubscription().then((contract) => {
-      if (cancelled || !contract.authenticated || contract.table !== 'notifications' || contract.filter !== `recipient_id=eq.${user.id}`) return;
-      channel = supabase
-        .channel(`notifications:${user.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: contract.filter }, (payload) => {
-          const incoming = normalizeNotification(payload.new as NotificationItem);
-          setNotifications((prev) => prev.some((n) => n.id === incoming.id) ? prev : [incoming, ...prev]);
-          if (!incoming.read) setUnreadCount((count) => count + 1);
-        })
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR') console.debug('[notifications] realtime channel unavailable; Supabase client will retry');
-        });
-    }).catch((err) => console.debug('[notifications] realtime contract unavailable', err));
-    return () => {
-      cancelled = true;
-      if (channel) void supabase.removeChannel(channel);
-    };
+    if (!user || activeTab === 'fediverse') return;
+    const interval = window.setInterval(() => {
+      void fetchNotifications(null, true);
+      void refreshUnreadCount();
+    }, 30000);
+    return () => window.clearInterval(interval);
   }, [user, activeTab]);
 
   const loadMore = async (): Promise<boolean> => {
