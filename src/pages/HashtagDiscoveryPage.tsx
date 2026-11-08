@@ -131,20 +131,10 @@ export default function HashtagDiscoveryPage() {
     const load = async () => {
       setLoading(true);
       const [followRes, trendRes] = await Promise.all([
-        user
-          ? supabase.from('hashtag_follows')
-              .select('hashtag_id, hashtags(id, tag, usage_count)')
-              .eq('user_id', user.id)
-              .order('created_at', { ascending: false })
-              .limit(100)
-          : Promise.resolve({ data: [] }),
-        supabase.from('hashtags')
-          .select('id, tag, usage_count, post_count, federated_post_count, follower_count, last_used_at')
-          .gte('last_used_at', new Date(Date.now() - 30 * 24 * 3600000).toISOString())
-          .order('last_used_at', { ascending: false })
-          .limit(100),
+        user ? backendCapabilities.listFollowedHashtags() : Promise.resolve({ items: [] }),
+        backendCapabilities.listTrendingHashtags(100),
       ]);
-      const followed = ((followRes as any).data ?? []).map((f: any) => f.hashtags).filter(Boolean);
+      const followed = (followRes.items ?? []).filter(Boolean);
       setFollowedHashtags(followed);
       setFollowedIds(followed.map((h: any) => h.id));
       const stopTags = new Set(['the','and','for','with','from','this','that','you','are','was','has','have','not','but','of','to','in','on','a','an','it','is','as','or','porn','nudes','onlyfans','sexwork','nsfw']);
@@ -172,12 +162,8 @@ export default function HashtagDiscoveryPage() {
     if (!q.trim()) { setSearchResults([]); return; }
     setSearching(true);
     const clean = q.replace(/^#/, '').toLowerCase();
-    const { data } = await supabase.from('hashtags')
-      .select('id, tag, usage_count')
-      .ilike('tag', `${clean}%`)
-      .order('usage_count', { ascending: false })
-      .limit(20);
-    setSearchResults(data ?? []);
+    const result = await backendCapabilities.searchHashtags(clean, 20);
+    setSearchResults(result.items ?? []);
     setSearching(false);
   }, []);
 
@@ -191,12 +177,12 @@ export default function HashtagDiscoveryPage() {
     setActionLoading(hashtagId);
     const isFollowing = followedIds.includes(hashtagId);
     if (isFollowing) {
-      await supabase.from('hashtag_follows').delete().eq('user_id', user.id).eq('hashtag_id', hashtagId);
+      await backendCapabilities.setHashtagFollow(hashtagId, false);
       setFollowedIds(prev => prev.filter(id => id !== hashtagId));
       setFollowedHashtags(prev => prev.filter(h => h.id !== hashtagId));
       toast.success(`Unfollowed #${tag}`);
     } else {
-      await supabase.from('hashtag_follows').insert({ user_id: user.id, hashtag_id: hashtagId });
+      await backendCapabilities.setHashtagFollow(hashtagId, true);
       setFollowedIds(prev => [...prev, hashtagId]);
       const htData = trendingHashtags.find(h => h.id === hashtagId)
         ?? searchResults.find(h => h.id === hashtagId)
@@ -210,7 +196,7 @@ export default function HashtagDiscoveryPage() {
   const unfollowAll = async () => {
     if (!user || followedHashtags.length === 0) return;
     if (!window.confirm(`Unfollow all ${followedHashtags.length} hashtags?`)) return;
-    await supabase.from('hashtag_follows').delete().eq('user_id', user.id);
+    await Promise.allSettled(followedIds.map((hashtagId) => backendCapabilities.setHashtagFollow(hashtagId, false)));
     setFollowedHashtags([]);
     setFollowedIds([]);
     toast.success('Unfollowed all hashtags');
