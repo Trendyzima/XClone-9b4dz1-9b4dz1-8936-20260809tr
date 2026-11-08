@@ -101,7 +101,7 @@ export const socialApi = {
     return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/api/me/federation`, 'GET', undefined, true);
   },
   setFederationPreference(enabled: boolean) {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/api/me/federation`, 'PUT', { enabled }, true);
   },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
