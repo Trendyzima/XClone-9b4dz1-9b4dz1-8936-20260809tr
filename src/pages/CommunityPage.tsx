@@ -164,18 +164,20 @@ export default function CommunityPage({ section, standalone = false }: { section
   const handleSupportCommunity = useCallback(async () => {
     if (!user || !community || !supportAmount) return;
     setSendingSupport(true);
-    const { error: transferErr } = await supabase.rpc('send_wallet_tip', {
-      p_to_user_id: community.created_by,
-      p_amount: supportAmount,
-      p_note: `Support for c/${community.name}`,
-    });
-    if (transferErr) {
-      const message = transferErr.message?.includes('INSUFFICIENT_FUNDS') ? 'Insufficient wallet balance' : transferErr.message || 'Unable to send support';
+    try {
+      await backendCapabilities.tipWallet(
+        community.created_by,
+        supportAmount,
+        `Support for c/${community.name}`,
+      );
+    } catch (transferError: any) {
+      const message = transferError?.code === 'INSUFFICIENT_FUNDS' || transferError?.message?.includes('INSUFFICIENT_FUNDS')
+        ? 'Insufficient wallet balance'
+        : transferError?.message || 'Unable to send support';
       sonnerToast.error(message);
       setSendingSupport(false);
       return;
     }
-    await supabase.from('platform_inbox').insert({ user_id: community.created_by, subject: `💰 Your community received a $${supportAmount} support tip!`, body: `@${user.username ?? 'A member'} sent $${supportAmount} to support c/${community.name}.`, type: 'update', icon_emoji: '💰' }).catch(() => {});
     sonnerToast.success(`$${supportAmount} support sent!`);
     setSupportSent(true); setShowSupportDialog(false); setSupportAmount(null); setSendingSupport(false);
     setTimeout(() => setSupportSent(false), 4000);
