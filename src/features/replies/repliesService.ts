@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 import { federatedReplyToItem, normalizeFederatedText, resolveFederatedReplies } from '@/features/federation/federatedPostAdapter';
@@ -12,249 +11,52 @@ export type ReplyItem = {
   updated_at: string;
   parent_reply_id?: string | null;
   profile: any;
+  posts?: any;
 };
 
+export type ProfileRepliesPage = { items: ReplyItem[]; next_cursor: string | null };
 const boundedLimit = (limit = 50) => Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50));
 
+/** All local reply reads go through the authenticated Backend API. */
 export async function listReplies(postId: string, limit = 50): Promise<{ items: ReplyItem[]; next_cursor: string | null }> {
   if (/^https:\/\//i.test(postId)) {
-    const [remoteResult, ledgerResult] = await Promise.allSettled([
-      federation.getFederatedObject(postId),
-      federation.getFederatedReplies(postId),
-    ]);
-    const remote = remoteResult.status === 'fulfilled' ? remoteResult.value : null;
-    const object = remote?.object ?? remote;
-    const rawReplies = object?.replies
-      ? await resolveFederatedReplies(object.replies, federation.getFederatedObject)
-      : [];
-    const remoteItems = rawReplies
-      .filter((reply: any) => reply?.id)
-      .slice(0, boundedLimit(limit))
-      .map((reply: any) => federatedReplyToItem(reply, postId)) as ReplyItem[];
-    const ledgerRows = ledgerResult.status === 'fulfilled' ? ledgerResult.value : [];
-    const ledgerItems = (await Promise.all(ledgerRows.map(async (row: any) => {
-      const userId = String(row.user_id || '');
-      let profile = row.profile ?? null;
-      // Federation ledger rows can contain only the actor URI. Hydrate the
-      // real ActivityPub actor so interaction pages never fall back to "Profile".
-      if ((!profile || !profile.username || !profile.display_name || !profile.avatar_url) && /^https:\/\//i.test(userId)) {
-        try {
-          const actor = await federation.getFederatedObject(userId);
-          const resolved = actor?.object ?? actor;
-          const username = String(resolved?.preferredUsername ?? resolved?.username ?? resolved?.acct ?? '').replace(/^@/, '');
-          const displayName = String(resolved?.name ?? resolved?.displayName ?? resolved?.preferredUsername ?? username).trim();
-          const avatar = typeof resolved?.icon === 'string' ? resolved.icon : resolved?.icon?.url ?? resolved?.icon?.href ?? null;
-          profile = { ...(profile || {}), id: userId, username, preferredUsername: username, display_name: displayName, name: displayName, avatar_url: avatar, actor_uri: userId };
-        } catch {
-          // Keep the ledger row renderable even if the remote actor is temporarily unavailable.
-        }
-      }
-      return {
-        id: String(row.activity_uri || row.id),
-        user_id: userId,
-        post_id: postId,
-        content: normalizeFederatedText(row.content || ''),
-        created_at: String(row.created_at || new Date().toISOString()),
-        updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
-        parent_reply_id: null,
-        profile,
-        remote: true,
-        delivery_state: row.delivery_state,
-      };
-    }))) as ReplyItem[];
-    const merged = new Map<string, ReplyItem>();
-    for (const item of [...remoteItems, ...ledgerItems]) {
-      if (item.id) merged.set(item.id, item);
-    }
-    const items = [...merged.values()]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, boundedLimit(limit));
-    return { items, next_cursor: null };
+    const remote = await resolveFederatedReplies(postId, boundedLimit(limit));
+    return { items: remote.map((item: any) => federatedReplyToItem(item, postId)), next_cursor: null };
   }
-  // Keep the reply read path compatible with both authenticated capability reads
-  // and public/RLS reads. The capability response is the canonical source for
-  // identity (display name + avatar); the direct query preserves parent_reply_id
-  // and remains the fallback for guests or transient gateway failures.
-  let capabilityItems: any[] = [];
-  try {
-    const capabilityPage = await backendCapabilities.listReplies(postId, boundedLimit(limit));
-    capabilityItems = capabilityPage?.items ?? [];
-  } catch (error) {
-    console.warn('[replies] capability identity enrichment unavailable', error);
-  }
-
-  const { data, error } = await supabase
-    .from('replies')
-    .select('id,user_id,post_id,parent_reply_id,content,created_at,updated_at')
-    .eq('post_id', postId)
-    .order('created_at', { ascending: false })
-    .limit(boundedLimit(limit));
-
-  if (error) throw error;
-
-  const rows = data ?? [];
-  if (!rows.length) return { items: [], next_cursor: null };
-
-  const capabilityById = new Map(
-    capabilityItems.map((item: any) => [String(item.id), item.profile ?? null]),
+  const page = await backendCapabilities.call<{ items: ReplyItem[]; next_cursor?: string | null }>(
+    'testagram.replies.list',
+    { post_id: postId, limit: boundedLimit(limit) },
   );
-
-  const ids = [...new Set(rows.map((row: any) => row.user_id).filter(Boolean))];
-  let profiles: any[] = [];
-  if (ids.length) {
-    const { data: profileRows, error: profileError } = await supabase
-      .from('profiles')
-      .select('id,username,display_name,avatar_url,cover_url,bio,website_url,location,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
-      .in('id', ids);
-    if (profileError) console.warn('[replies] profile enrichment failed', profileError);
-    profiles = profileRows ?? [];
-  }
-
-  const byId = new Map(profiles.map((profile: any) => [profile.id, profile]));
-  return {
-    items: rows.map((row: any) => {
-      const capabilityProfile = capabilityById.get(String(row.id));
-      const profile = capabilityProfile ?? byId.get(row.user_id) ?? null;
-      return {
-        ...row,
-        profile: profile ? {
-          ...profile,
-          username: String(profile.username ?? profile.preferredUsername ?? profile.acct ?? '').replace(/^@/, ''),
-          display_name: profile.display_name ?? profile.full_name ?? profile.name ?? profile.username ?? null,
-        } : null,
-      };
-    }),
-    next_cursor: null,
-  };
+  return { items: Array.isArray(page.items) ? page.items : [], next_cursor: page.next_cursor ?? null };
 }
+
 export async function createReply(postId: string, content: string, parentReplyId?: string) {
-  if (/^https:\/\//i.test(postId)) {
-    return federation.reply({ postId, content, parentReplyId });
-  }
-  return backendCapabilities.createReply(postId, content, parentReplyId);
+  if (/^https:\/\//i.test(postId)) return federation.reply({ postId, content, parentReplyId });
+  return backendCapabilities.createReply(postId, normalizeFederatedText(content), parentReplyId);
 }
 
 export async function getReplyChain(replyId: string, limit = 100): Promise<ReplyItem[]> {
   if (!replyId) return [];
-  const { data, error } = await supabase.rpc('testagram_reply_chain', {
-    p_reply_id: replyId,
-    p_limit: Math.min(500, Math.max(1, Math.floor(limit))),
+  const result = await backendCapabilities.call<{ items: ReplyItem[] }>('testagram.replies.chain', {
+    reply_id: replyId,
+    limit: Math.min(500, Math.max(1, Math.floor(limit))),
   });
-  if (error) throw error;
-  const rows = Array.isArray(data) ? data : [];
-  if (!rows.length) return [];
-
-  const userIds = [...new Set(rows.map((row: any) => row.user_id).filter(Boolean))];
-  let profiles: any[] = [];
-  if (userIds.length) {
-    const { data: profileRows, error: profileError } = await supabase
-      .from('profiles')
-      .select('id,username,display_name,avatar_url,cover_url,bio,website_url,location,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
-      .in('id', userIds);
-    if (profileError) console.warn('[replies] chain profile enrichment failed', profileError);
-    profiles = profileRows ?? [];
-  }
-  const byId = new Map(profiles.map((profile: any) => [profile.id, profile]));
-  return rows.map((row: any) => {
-    const profile = byId.get(row.user_id) ?? null;
-    return {
-      id: String(row.id),
-      user_id: String(row.user_id),
-      post_id: String(row.post_id),
-      parent_reply_id: row.parent_reply_id ?? null,
-      content: normalizeFederatedText(row.content ?? ''),
-      created_at: String(row.created_at),
-      updated_at: String(row.updated_at ?? row.created_at),
-      profile: profile ? {
-        ...profile,
-        username: String(profile.username ?? '').replace(/^@/, ''),
-        display_name: profile.display_name ?? profile.full_name ?? profile.username ?? null,
-      } : null,
-    };
-  });
+  return Array.isArray(result.items) ? result.items : [];
 }
 
 export async function listProfileReplies(userId: string, limit = 50): Promise<ReplyItem[]> {
-  const { data, error } = await supabase
-    .from('replies')
-    .select('id,user_id,post_id,content,created_at,updated_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(boundedLimit(limit));
-
-  if (error) throw error;
-
-  const rows = data ?? [];
-  if (!rows.length) return [];
-
-  // Keep this read independent of PostgREST relationship metadata. The profile
-  // replies page should not fail merely because a generated/aliased FK relation
-  // is unavailable or has been renamed in the database schema.
-  const postIds = [...new Set(rows.map((row: any) => row.post_id).filter(Boolean))];
-  // The reply rows are the canonical collection. Enrichment is deliberately
-  // best-effort: a missing/blocked parent post or profile must not turn a real
-  // reply into the generic "Unable to load this section" error.
-  let posts: any[] = [];
-  if (postIds.length) {
-    const { data, error: postsError } = await supabase
-      .from('posts')
-      .select('id,content,author_id,user_id,created_at')
-      .in('id', postIds);
-    if (postsError) console.warn('[replies] parent-post enrichment failed', postsError);
-    posts = data ?? [];
-  }
-
-  const authorIds = [...new Set(posts.map((post: any) => post.author_id ?? post.user_id).filter(Boolean))];
-  let profiles: any[] = [];
-  if (authorIds.length) {
-    const { data, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id,username,display_name,avatar_url,verified')
-      .in('id', authorIds);
-    if (profilesError) console.warn('[replies] parent-author enrichment failed', profilesError);
-    profiles = data ?? [];
-  }
-
-  const profileById = new Map(profiles.map((profile: any) => [profile.id, profile]));
-  const postById = new Map(posts.map((post: any) => {
-    const authorId = post.author_id ?? post.user_id;
-    return [post.id, { ...post, author_id: authorId, profiles: profileById.get(authorId) ?? null }];
-  }));
-
-  return rows.map((row: any) => ({
-    ...row,
-    posts: postById.get(row.post_id) ?? null,
-    profile: profileById.get(row.user_id) ?? null,
-  })) as ReplyItem[];
+  const result = await backendCapabilities.call<{ items: ReplyItem[] }>('testagram.profile.replies.list', {
+    user_id: userId,
+    limit: boundedLimit(limit),
+  });
+  return Array.isArray(result.items) ? result.items : [];
 }
 
-export type ProfileRepliesPage = { items: ReplyItem[]; next_cursor: string | null };
-
 export async function listProfileRepliesPage(userId: string, limit = 20, cursor?: string | null): Promise<ProfileRepliesPage> {
-  const pageSize = boundedLimit(limit);
-  let query = supabase.from('replies').select('id,user_id,post_id,parent_reply_id,content,created_at,updated_at').eq('user_id', userId).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(pageSize + 1);
-  if (cursor) query = query.lt('created_at', cursor);
-  const { data, error } = await query;
-  if (error) throw error;
-  const rows = data ?? [];
-  const pageRows = rows.slice(0, pageSize);
-  const hasMore = rows.length > pageSize;
-  if (!pageRows.length) return { items: [], next_cursor: null };
-  const postIds = [...new Set(pageRows.map((row: any) => row.post_id).filter(Boolean))];
-  const authorIds = [...new Set(pageRows.map((row: any) => row.user_id).filter(Boolean))];
-  let posts: any[] = [];
-  if (postIds.length) {
-    const { data: postData, error: postError } = await supabase.from('posts').select('id,content,author_id,user_id,created_at').in('id', postIds);
-    if (postError) console.warn('[replies] parent-post enrichment failed', postError); else posts = postData ?? [];
-  }
-  const parentAuthorIds = posts.map((post: any) => post.author_id ?? post.user_id).filter(Boolean);
-  const profileIds = [...new Set([...authorIds, ...parentAuthorIds])];
-  let profiles: any[] = [];
-  if (profileIds.length) {
-    const { data: profileData, error: profileError } = await supabase.from('profiles').select('id,username,display_name,avatar_url,bio,location,created_at').in('id', profileIds);
-    if (profileError) console.warn('[replies] profile enrichment failed', profileError); else profiles = profileData ?? [];
-  }
-  const profileById = new Map(profiles.map((profile: any) => [profile.id, profile]));
-  const postById = new Map(posts.map((post: any) => { const authorId = post.author_id ?? post.user_id; return [post.id, {...post, author_id: authorId, profiles: profileById.get(authorId) ?? null}]; }));
-  return { items: pageRows.map((row: any) => ({...row, profile: profileById.get(row.user_id) ?? null, posts: postById.get(row.post_id) ?? null})), next_cursor: hasMore ? pageRows[pageRows.length - 1].created_at : null } as ProfileRepliesPage;
+  const result = await backendCapabilities.call<ProfileRepliesPage>('testagram.profile.replies.list', {
+    user_id: userId,
+    limit: boundedLimit(limit),
+    ...(cursor ? { cursor } : {}),
+  });
+  return { items: Array.isArray(result.items) ? result.items : [], next_cursor: result.next_cursor ?? null };
 }
