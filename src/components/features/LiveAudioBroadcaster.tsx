@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Loader2, Radio, SlidersHorizontal, Check, X } from 'lucide-react';
@@ -49,14 +50,12 @@ export function LiveAudioBroadcaster({
 
   const loadSpeakerRequests = useCallback(async () => {
     if (!isHost) return;
-    const { data, error } = await supabase
-      .from('audio_space_speaker_requests')
-      .select('space_id,user_id,status,requested_at,profiles:user_id(id,username,avatar_url)')
-      .eq('space_id', spaceId)
-      .eq('status', 'pending')
-      .order('requested_at', { ascending: true });
-    if (!error) setSpeakerRequests(data || []);
-    else console.warn('[Audio Space] speaker request fetch failed', error);
+    try {
+      const result = await backendCapabilities.call<{ items: any[] }>('testagram.audio_spaces.pending_speaker_requests', { space_id: spaceId });
+      setSpeakerRequests(result.items ?? []);
+    } catch (error) {
+      console.warn('[Audio Space] speaker request fetch failed', error);
+    }
   }, [isHost, spaceId]);
 
   useEffect(() => {
@@ -67,13 +66,14 @@ export function LiveAudioBroadcaster({
   }, [isHost, loadSpeakerRequests]);
 
   const decideSpeakerRequest = async (userId: string, decision: 'approved' | 'denied') => {
-    const { error } = await supabase.rpc('decide_audio_space_speaker_request', {
-      p_space_id: spaceId,
-      p_user_id: userId,
-      p_decision: decision,
-    });
-    if (error) {
-      toast({ title: 'Speaker request failed', description: error.message, variant: 'destructive' });
+    try {
+      await backendCapabilities.call('testagram.audio_spaces.decide_speaker', {
+        space_id: spaceId,
+        user_id: userId,
+        decision,
+      });
+    } catch (error) {
+      toast({ title: 'Speaker request failed', description: error instanceof Error ? error.message : 'Could not update speaker request', variant: 'destructive' });
       return;
     }
     setSpeakerRequests(current => current.filter(request => request.user_id !== userId));
