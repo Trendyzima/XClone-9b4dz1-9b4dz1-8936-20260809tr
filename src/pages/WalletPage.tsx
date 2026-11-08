@@ -5,7 +5,7 @@ import { walletApi } from '@/services/walletApi';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 
-type WalletSnapshot = { wallet?: { id?: string; balance?: number; currency?: string }; transactions?: Array<{ id?: string; type?: string; amount?: number; currency?: string; status?: string; created_at?: string; reference?: string }> };
+type WalletSnapshot = { wallet?: { id?: string; balance?: number; currency?: string }; transactions?: Array<{ id?: string; type?: string; kind?: string; amount?: number; currency?: string; status?: string; created_at?: string; reference?: string }> };
 
 type WalletPageProps = { initialTab?: string; standaloneTitle?: string };
 
@@ -84,7 +84,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
       </section>
       <section className="rounded-2xl border bg-card p-5">
         <h2 className="font-semibold flex items-center gap-2 mb-4"><History className="h-4 w-4" /> Transaction history</h2>
-        {transactions.length===0 ? <p className="text-sm text-muted-foreground">No ledger transactions yet.</p> : <div className="divide-y">{transactions.map((tx,i)=><div key={tx.id??i} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-medium">{tx.type??'Transaction'}</p><p className="text-xs text-muted-foreground">{tx.created_at?new Date(tx.created_at).toLocaleString():''} · {tx.status??'recorded'}</p></div><p className="font-semibold tabular-nums">{tx.currency??'KES'} {Number(tx.amount??0).toLocaleString()}</p></div>)}</div>}
+        {transactions.length===0 ? <p className="text-sm text-muted-foreground">No ledger transactions yet.</p> : <div className="divide-y">{transactions.map((tx,i)=><div key={tx.id??i} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-medium">{tx.kind??tx.type??'Transaction'}</p><p className="text-xs text-muted-foreground">{tx.created_at?new Date(tx.created_at).toLocaleString():''} · {tx.status??'recorded'}</p></div><p className="font-semibold tabular-nums">{tx.currency??'KES'} {Number(tx.amount??0).toLocaleString()}</p></div>)}</div>}
       </section>
     </main>
   </div>;
