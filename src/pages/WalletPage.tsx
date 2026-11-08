@@ -52,7 +52,12 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
     finally { setBusy(false); }
   };
 
-  const balance = Number(snapshot.wallet?.balance ?? 0);
+  const balance = snapshot.wallet?.balance;
+  const balanceLabel = loading
+    ? 'Loading…'
+    : typeof balance === 'number' && Number.isFinite(balance)
+      ? `KES ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : 'Unavailable';
   const transactions = snapshot.transactions ?? [];
   return <div className="min-h-screen bg-background">
     <TopBar title={standaloneTitle} />
@@ -64,7 +69,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
       {error && <div role="alert" className="rounded-xl border border-destructive/40 p-4 text-sm flex gap-2"><AlertCircle className="h-5 w-5 shrink-0" />{error}</div>}
       <section className="rounded-2xl border bg-card p-6">
         <p className="text-sm text-muted-foreground">Available balance</p>
-        <p className="text-3xl font-bold mt-2">{loading ? 'Loading…' : `KES ${balance.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`}</p>
+        <p className="text-3xl font-bold mt-2">{balanceLabel}</p>
         <p className="text-xs text-muted-foreground mt-2">New wallet balances start at zero. Only verified Backend ledger entries change this amount.</p>
       </section>
       <section className="grid gap-4 md:grid-cols-2">
