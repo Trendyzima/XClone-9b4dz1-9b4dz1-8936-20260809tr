@@ -108,7 +108,7 @@ export async function testagramApiRequest<T>(path: string, options: TestagramApi
     if (payload && typeof payload === 'object' && 'ok' in payload) {
       const envelope = payload as { ok?: boolean; data?: T | null; error?: TestagramApiErrorBody['error']; request_id?: string };
       if (envelope.ok === false || envelope.data === null) {
-        throw new TestagramApiError(envelope.error?.message ?? 'The API returned no data.', response.status, envelope.error?.code ?? 'API_EMPTY_RESPONSE', envelope.request_id ?? requestID);
+        const envelopeError = envelope.error;\n        const envelopeMessage = typeof envelopeError === 'string' ? envelopeError : envelopeError?.message;\n        const envelopeCode = typeof envelopeError === 'object' && envelopeError ? envelopeError.code : undefined;\n        throw new TestagramApiError(envelopeMessage ?? 'The API returned no data.', response.status, envelopeCode ?? 'API_EMPTY_RESPONSE', envelope.request_id ?? requestID);
       }
       if ('data' in envelope) return envelope.data as T;
     }
