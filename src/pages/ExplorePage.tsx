@@ -648,15 +648,11 @@ export default function ExplorePage() {
     inlineSearchTimer.current = setTimeout(async () => {
       setInlineSearchLoading(true);
       const clean = q.trim();
-      const [usersRes, hashtagsRes, postsRes] = await Promise.all([
-        backendCapabilities.listDiscoveryCreators(5, clean),
-        backendCapabilities.searchHashtags(clean.replace(/^#/, ''), 5),
-        backendCapabilities.listDiscoveryPosts(5, clean, 'top'),
-      ]);
+      const results = await backendCapabilities.searchUnified(clean, 'all', 5);
       setInlineSearchResults({
-        users: usersRes.items ?? [],
-        hashtags: hashtagsRes.items ?? [],
-        posts: postsRes.items ?? [],
+        users: results.users ?? [],
+        hashtags: results.hashtags ?? [],
+        posts: results.posts ?? [],
       });
       setInlineSearchLoading(false);
     }, 350);
