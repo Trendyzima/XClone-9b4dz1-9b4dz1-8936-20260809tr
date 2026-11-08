@@ -3,14 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Loader2, CreditCard, Smartphone, CheckCircle2,
   XCircle, Clock, ArrowRight, Phone
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -82,20 +81,7 @@ export function PaymentDialog({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('mpesa-stk-push', {
-        body: { phone: mpesaPhone, amount: kesAmount, purpose: type, metadata },
-      });
-
-      if (error) {
-        let msg = error.message;
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const txt = await error.context?.text();
-            msg = txt || msg;
-          } catch {}
-        }
-        throw new Error(msg);
-      }
+      const data = await backendCapabilities.call<any>('testagram.wallet.mpesa.stk_push', { phone: mpesaPhone, amount_kes: kesAmount, purpose: type, metadata });
 
       setCheckoutRequestId(data.checkout_request_id);
       setStep('mpesa_waiting');
@@ -133,10 +119,7 @@ export function PaymentDialog({
 
   const checkPaymentStatus = async (cid: string): Promise<string> => {
     try {
-      const { data, error } = await supabase.functions.invoke('mpesa-stk-status', {
-        body: { checkout_request_id: cid },
-      });
-      if (error) return 'pending';
+      const data = await backendCapabilities.call<any>('testagram.wallet.mpesa.status', { checkout_request_id: cid });
       return data?.status ?? 'pending';
     } catch {
       return 'pending';

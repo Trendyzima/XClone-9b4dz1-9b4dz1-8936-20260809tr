@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { toast } from 'sonner';
 import { Shield, Loader2, UserX, User, VolumeX } from 'lucide-react';
 
@@ -38,57 +38,21 @@ export default function BlockedUsersPage() {
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
-    // Load blocked users
-    supabase
-      .from('user_blocks')
-      .select('id, user_profiles!user_blocks_blocked_id_fkey(username, avatar_url)')
-      .eq('blocker_id', user.id)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (!data) { setBlockLoading(false); return; }
-        const ids: string[] = [];
-        const unames: string[] = [];
-        const avatars: string[] = [];
-        for (let i = 0; i < data.length; i++) {
-          const row = data[i] as any;
-          ids.push(row.id);
-          unames.push(row.user_profiles?.username ?? 'unknown');
-          avatars.push(row.user_profiles?.avatar_url ?? '');
-        }
-        setBlockIds(ids as any);
-        setBlockedUsernames(unames as any);
-        setBlockedAvatars(avatars as any);
-        setBlockLoading(false);
-      });
-    // Load muted users
-    supabase
-      .from('user_mutes')
-      .select('id, user_profiles!user_mutes_muted_id_fkey(username, avatar_url)')
-      .eq('muter_id', user.id)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (!data) { setMuteLoading(false); return; }
-        const ids: string[] = [];
-        const unames: string[] = [];
-        const avatars: string[] = [];
-        for (let i = 0; i < data.length; i++) {
-          const row = data[i] as any;
-          ids.push(row.id);
-          unames.push(row.user_profiles?.username ?? 'unknown');
-          avatars.push(row.user_profiles?.avatar_url ?? '');
-        }
-        setMuteIds(ids as any);
-        setMutedUsernames(unames as any);
-        setMutedAvatars(avatars as any);
-        setMuteLoading(false);
-      });
-  }, [user?.id]);
+    backendCapabilities.call<{ items?: Array<{ id: string; username?: string; avatar_url?: string }> }>('testagram.blocks.list')
+      .then(({ items = [] }) => { setBlockIds(items.map(x=>x.id) as any); setBlockedUsernames(items.map(x=>x.username??'unknown') as any); setBlockedAvatars(items.map(x=>x.avatar_url??'') as any); })
+      .catch(e=>toast.error(e instanceof Error?e.message:'Could not load blocked users.'))
+      .finally(()=>setBlockLoading(false));
+    backendCapabilities.call<{ items?: Array<{ id: string; username?: string; avatar_url?: string }> }>('testagram.mutes.list')
+      .then(({ items = [] }) => { setMuteIds(items.map(x=>x.id) as any); setMutedUsernames(items.map(x=>x.username??'unknown') as any); setMutedAvatars(items.map(x=>x.avatar_url??'') as any); })
+      .catch(e=>toast.error(e instanceof Error?e.message:'Could not load muted users.'))
+      .finally(()=>setMuteLoading(false));
+  }, [user?.id, navigate]);
 
   const handleUnblock = async (blockId: string, username: string, idx: number) => {
     setUnblockingId(blockId);
-    const { error } = await supabase.from('user_blocks').delete().eq('id', blockId);
+    try { await backendCapabilities.call('testagram.blocks.remove', { block_id: blockId }); }
+    catch (error) { setUnblockingId(''); toast.error(error instanceof Error?error.message:'Failed to unblock'); return; }
     setUnblockingId('');
-    if (error) { toast.error(error.message || 'Failed to unblock'); return; }
     const ids = [...(blockIds as string[])];
     const unames = [...(blockedUsernames as string[])];
     const avs = [...(blockedAvatars as string[])];
@@ -103,9 +67,9 @@ export default function BlockedUsersPage() {
 
   const handleUnmute = async (muteId: string, username: string, idx: number) => {
     setUnmutingId(muteId);
-    const { error } = await supabase.from('user_mutes').delete().eq('id', muteId);
+    try { await backendCapabilities.call('testagram.mutes.remove', { mute_id: muteId }); }
+    catch (error) { setUnmutingId(''); toast.error(error instanceof Error?error.message:'Failed to unmute'); return; }
     setUnmutingId('');
-    if (error) { toast.error(error.message || 'Failed to unmute'); return; }
     const ids = [...(muteIds as string[])];
     const unames = [...(mutedUsernames as string[])];
     const avs = [...(mutedAvatars as string[])];

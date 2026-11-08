@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { requireAccessToken } from '@/services/backendClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Image as ImageIcon, Loader2, PlaySquare, RefreshCw, Search, Send, Video, Clapperboard } from 'lucide-react';

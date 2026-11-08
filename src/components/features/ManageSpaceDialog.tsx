@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2, Trash2, Archive, Edit } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { toast } from 'sonner';
 
 interface ManageSpaceDialogProps {
@@ -31,15 +31,11 @@ export function ManageSpaceDialog({ open, onOpenChange, space, onSuccess }: Mana
     setAction('edit');
 
     try {
-      const { error } = await supabase
-        .from('spaces')
-        .update({
-          title: title.trim(),
-          description: description.trim(),
-        })
-        .eq('id', space.id);
-
-      if (error) throw error;
+      await backendCapabilities.call('testagram.audio_spaces.update', {
+        space_id: space.id,
+        title: title.trim(),
+        description: description.trim(),
+      });
 
       toast.success('Space updated successfully');
       onSuccess();
@@ -54,7 +50,7 @@ export function ManageSpaceDialog({ open, onOpenChange, space, onSuccess }: Mana
   };
 
   const handleArchive = async () => {
-    if (!window.confirm('Archive this space? It will no longer be live but recordings will be preserved.')) {
+    if (!window.confirm('End this Space? It will no longer be live.')) {
       return;
     }
 
@@ -62,18 +58,9 @@ export function ManageSpaceDialog({ open, onOpenChange, space, onSuccess }: Mana
     setAction('archive');
 
     try {
-      const { error } = await supabase
-        .from('spaces')
-        .update({
-          is_archived: true,
-          is_live: false,
-          archived_at: new Date().toISOString(),
-        })
-        .eq('id', space.id);
+      await backendCapabilities.call('testagram.audio_spaces.end', { space_id: space.id });
 
-      if (error) throw error;
-
-      toast.success('Space archived successfully');
+      toast.success('Space ended successfully');
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
@@ -85,33 +72,7 @@ export function ManageSpaceDialog({ open, onOpenChange, space, onSuccess }: Mana
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this space permanently? This action cannot be undone.')) {
-      return;
-    }
 
-    setLoading(true);
-    setAction('delete');
-
-    try {
-      const { error } = await supabase
-        .from('spaces')
-        .delete()
-        .eq('id', space.id);
-
-      if (error) throw error;
-
-      toast.success('Space deleted successfully');
-      onSuccess();
-      onOpenChange(false);
-    } catch (error: any) {
-      console.error('Error deleting space:', error);
-      toast.error(error.message || 'Failed to delete space');
-    } finally {
-      setLoading(false);
-      setAction(null);
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,26 +139,11 @@ export function ManageSpaceDialog({ open, onOpenChange, space, onSuccess }: Mana
               ) : (
                 <>
                   <Archive className="w-4 h-4 mr-2" />
-                  Archive Space
+                  End Space
                 </>
               )}
             </Button>
 
-            <Button
-              onClick={handleDelete}
-              disabled={loading}
-              variant="destructive"
-              className="w-full"
-            >
-              {loading && action === 'delete' ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Space Permanently
-                </>
-              )}
-            </Button>
           </div>
 
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, PiggyBank, ShieldCheck, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { toast } from 'sonner';
 
 const LIMIT = 20000;
@@ -33,13 +33,11 @@ export function WalletSavingsCard({ userId, walletBalance, savingsBalance, curre
     setSaving(true);
     try {
       const key = 'savings:' + mode + ':' + userId + ':' + crypto.randomUUID();
-      const rpc = mode === 'save' ? 'save_to_wallet_savings' : 'withdraw_from_wallet_savings';
-      const { data, error } = await supabase.rpc(rpc, {
-        p_amount: Number(numericAmount.toFixed(2)),
-        p_idempotency_key: key,
+      const data = await backendCapabilities.call<any>(mode === 'save' ? 'testagram.wallet.savings.deposit' : 'testagram.wallet.savings.withdraw', {
+        amount: Number(numericAmount.toFixed(2)),
+        idempotency_key: key,
       });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.reason || 'Savings operation failed');
+      if (!data?.ok && data?.success !== true) throw new Error(data?.reason || 'Savings operation failed');
       await onRefresh?.();
       toast.success(mode === 'save'
         ? 'KES ' + numericAmount.toLocaleString() + ' moved to Savings'

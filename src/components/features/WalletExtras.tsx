@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { toast } from 'sonner';
 import {
   Shield, X, Loader2, CheckCircle2, Smartphone,
@@ -263,10 +263,7 @@ export function MpesaPaymentHistory({ userId, currency }: { userId: string; curr
 
   useEffect(() => {
     setLoading(true);
-    supabase.from('wallet_transactions').select('*')
-      .eq('user_id', userId).eq('type', 'deposit').eq('payment_method', 'mpesa')
-      .order('created_at', { ascending: false }).limit(100)
-      .then(({ data }) => { setTxns(data ?? []); setLoading(false); });
+    backendCapabilities.getWallet(100).then(result => { setTxns((result.transactions ?? []).filter((tx:any)=>tx.type==='deposit'&&tx.payment_method==='mpesa')); }).catch(()=>setTxns([])).finally(()=>setLoading(false));
   }, [userId]);
 
   const { totalKes, totalUsd } = useMemo(() => ({
@@ -358,11 +355,7 @@ export function WalletBudgetPlanner({ userId, currency }: { userId: string; curr
     const since = new Date();
     since.setDate(1);
     since.setHours(0, 0, 0, 0);
-    supabase.from('wallet_transactions')
-      .select('type,amount,description')
-      .eq('user_id', userId)
-      .gte('created_at', since.toISOString())
-      .then(({ data }) => { setTxns(data ?? []); setLoading(false); });
+    backendCapabilities.getWallet(100).then(result => { setTxns((result.transactions ?? []).filter((tx:any)=>new Date(tx.created_at).getTime()>=since.getTime())); }).catch(()=>setTxns([])).finally(()=>setLoading(false));
   }, [userId]);
 
   const spending = useMemo(() => {
@@ -394,13 +387,7 @@ export function WalletBudgetPlanner({ userId, currency }: { userId: string; curr
     toast.success(`Budget for ${cat}: ${xfmt(v, currency)}/month`);
     const spent = spending[cat] ?? 0;
     if (v > 0 && spent >= v * 0.9) {
-      supabase.from('platform_inbox').insert({
-        user_id:    userId,
-        subject:    `Budget Alert: ${cat} at ${Math.round((spent / v) * 100)}%`,
-        body:       `You've spent ${xfmt(spent, currency)} of your ${xfmt(v, currency)} ${cat} budget this month.`,
-        type:       'warning',
-        icon_emoji: '⚠️',
-      }).then(() => {});
+      void backendCapabilities.call('testagram.notifications.create', { subject: `Budget Alert: ${cat} at ${Math.round((spent / v) * 100)}%`, body: `You've spent ${xfmt(spent, currency)} of your ${xfmt(v, currency)} ${cat} budget this month.`, type: 'warning' }).catch(() => undefined);
     }
   };
 
@@ -564,13 +551,12 @@ export function PeerWalletTransferPanel({ walletBalance, currency, onComplete }:
     setSending(true);
     try {
       const key = crypto.randomUUID();
-      const { data, error } = await supabase.rpc('send_wallet_money', {
-        p_recipient_username: username.trim().replace(/^@/, ''),
-        p_amount_kes: Math.floor(amountKes),
-        p_note: note.trim() || null,
-        p_idempotency_key: key,
+      const data = await backendCapabilities.call<any>('testagram.wallet.transfer', {
+        recipient: username.trim().replace(/^@/, ''),
+        amount_kes: Math.floor(amountKes),
+        note: note.trim() || null,
+        idempotency_key: key,
       });
-      if (error) throw error;
       if (!data?.success) throw new Error('Transfer could not be completed');
       setDone({ username: username.trim().replace(/^@/, ''), amount: Number(data.amount_kes), transferId: data.transfer_id });
       setUsername('');
@@ -689,16 +675,8 @@ export function DirectMpesaSendPanel({ userId, walletBalance, pinHash, currency,
     if (phone.replace(/\D/g, '').length < 9) { toast.error('Enter a valid M-Pesa number'); return; }
     setSending(true);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token      = sessionData.session?.access_token;
-      const backendUrl = import.meta.env.VITE_SUPABASE_URL;
-      const res = await fetch(`${backendUrl}/functions/v1/mpesa-b2c-payout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ phone, amount: Math.floor(kes), purpose: 'direct_send' }),
-      });
-      const payload = await res.json();
-      if (!res.ok || !payload.success) throw new Error(payload.error || 'B2C request failed');
+      const payload = await backendCapabilities.call<any>('testagram.wallet.mpesa.payout', { phone, amount_kes: Math.floor(kes), purpose: 'direct_send', note });
+      if (!payload?.success) throw new Error('Payout could not be completed');
       saveRecent(phone);
       setSending(false);
       const txRef = payload.conversation_id || payload.originator_conversation_id

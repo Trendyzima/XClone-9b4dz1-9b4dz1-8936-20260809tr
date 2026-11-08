@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { Loader2, Users, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
 interface Props {
@@ -14,29 +14,8 @@ export default function FriendActivityFeed({ userId }: Props) {
     const load = async () => {
       setLoading(true);
 
-      // Get users you follow
-      const { data: followData } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', userId)
-        .limit(50);
-
-      const followingIds = (followData ?? []).map(f => f.following_id as string);
-
-      if (followingIds.length === 0) { setFeed([]); setLoading(false); return; }
-
-      // Get recent P2P inbox messages for those users (public platform_inbox type=payment)
-      // Since wallet_transactions are private, we use platform_inbox payment entries
-      // that were sent TO the current user FROM followed users, or use a join on notifications
-      // Instead, show recent platform_inbox messages of type 'payment' from people you follow
-      // that reference you (the current user received them)
-      const { data: inboxData } = await supabase
-        .from('platform_inbox')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('type', 'payment')
-        .order('sent_at', { ascending: false })
-        .limit(20);
+      const result = await backendCapabilities.call<{items:any[]}>('testagram.wallet.friends.activity',{limit:20});
+      const inboxData = result.items ?? [];
 
       // Parse sender usernames from the subject line (format: "You received $X from @username")
       const parsed = (inboxData ?? []).map(m => {

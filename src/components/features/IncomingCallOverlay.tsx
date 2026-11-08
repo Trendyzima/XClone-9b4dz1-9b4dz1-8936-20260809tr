@@ -3,7 +3,6 @@ import type { MutableRefObject } from 'react';
 import { Phone, PhoneCall, PhoneOff, ShieldCheck, Video } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
 import { communicationService } from '@/services/communicationService';
 
 type IncomingCall = {
@@ -57,40 +56,10 @@ export function IncomingCallOverlay() {
       return;
     }
 
-    const channel = supabase
-      .channel('incoming-calls:' + user.id, { config: { private: true, broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls' }, payload => {
-        const row = payload.new as Record<string, unknown>;
-        if (String(row.created_by ?? '') === user.id || String(row.status ?? '') !== 'ringing') return;
-        const metadata = row.metadata && typeof row.metadata === 'object'
-          ? row.metadata as Record<string, unknown>
-          : {};
-        const conversationId = String(row.conversation_id ?? '');
-        const callId = String(row.id ?? row.call_id ?? '');
-        if (!conversationId || !callId) return;
-        const kind = row.kind === 'voice' ? 'voice' : 'video';
-        setIncoming({
-          callId,
-          conversationId,
-          kind,
-          callerId: String(row.created_by ?? ''),
-          name: String(metadata.caller_display_name ?? 'Testagram user'),
-          username: metadata.caller_username ? String(metadata.caller_username) : null,
-          avatarUrl: metadata.caller_avatar_url ? String(metadata.caller_avatar_url) : null,
-          phone: metadata.caller_phone ? String(metadata.caller_phone) : null,
-          phoneVerified: metadata.caller_phone_verified === true && Boolean(metadata.caller_phone),
-        });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls' }, payload => {
-        const row = payload.new as Record<string, unknown>;
-        const callId = String(row.id ?? row.call_id ?? '');
-        if (incoming?.callId === callId && String(row.status ?? '') !== 'ringing') setIncoming(null);
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    const unsubscribe = communicationService.subscribeToCallSessions(conversationId, change => {
+      if (change.operation !== 'DELETE') setIncomingCall(change.session);
+    });
+    return () => unsubscribe();
   }, [user?.id, incoming?.callId]);
 
   useEffect(() => {

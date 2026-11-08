@@ -1,5 +1,5 @@
-import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
+const isFreshAppwriteMode = true;
 
 type SocialEnvelope<T> = {
   ok: boolean;
@@ -29,15 +29,7 @@ const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/soci
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
 const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
 
-function assertSocialAPIAvailable(allowFreshRoute = false): void {
-  if (isFreshAppwriteMode && !allowFreshRoute) {
-    throw new SocialApiError(
-      'This social feature has not yet been connected to the fresh Appwrite API.',
-      503,
-      'FRESH_API_FEATURE_NOT_PORTED',
-    );
-  }
-}
+function assertSocialAPIAvailable(_allowFreshRoute = false): void { /* All requests use the canonical Backend API. */ }
 
 async function getSessionToken(): Promise<string> {
   const configuredProvider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase();
@@ -52,13 +44,7 @@ async function getSessionToken(): Promise<string> {
       throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED');
     }
   }
-  if (provider !== 'supabase') {
-    throw new SocialApiError('Unsupported Testagram authentication provider.', 503, 'AUTH_PROVIDER_UNSUPPORTED');
-  }
-  let token = (await supabase.auth.getSession()).data.session?.access_token;
-  if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
-  if (!token) throw new SocialApiError('Please sign in again to continue.', 401, 'AUTH_REQUIRED');
-  return token;
+  throw new SocialApiError('Unsupported Testagram authentication provider.', 503, 'AUTH_PROVIDER_UNSUPPORTED');
 }
 
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
