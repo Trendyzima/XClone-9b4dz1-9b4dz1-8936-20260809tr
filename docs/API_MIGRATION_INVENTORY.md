@@ -232,7 +232,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/FediverseRelayPage.tsx` — pending audit/migration
 - [ ] `src/pages/FraudDetection.tsx` — pending audit/migration
 - [x] `src/pages/HashtagChallengePage.tsx` — challenge detail/list/create/entry, hashtag feed pagination and likes now use Backend APIs; no direct browser Supabase access.
-- [ ] `src/pages/HashtagDiscoveryPage.tsx` — hashtag search/trending/follow/unfollow now use native Backend API; Posts, Videos, Creators and Threads tabs still need full backend migration
+- [x] `src/pages/HashtagDiscoveryPage.tsx` — hashtag search/trending/follow, creator recommendations/follows, posts, videos and threads use native Backend discovery APIs; source data still requires migration into canonical tables
 - [x] `src/pages/HashtagPage.tsx` — hashtag resolution, local recent/top posts and follow state now use native Backend hashtag APIs; federation reads remain delegated to the Federation-owned discovery surface.
 - [ ] `src/pages/HelpPage.tsx` — pending audit/migration
 - [ ] `src/pages/HistoryPage.tsx` — pending audit/migration
@@ -570,7 +570,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - XClone CommunityPage.tsx now contains no direct Supabase imports or calls. Community page operations route through typed Backend API methods, including community detail, posts, members, chat, events, RSVPs, settings, role changes, moderation, shop, achievement badges, scheduled posts, and self-notifications.
 - `PollCard.tsx` now loads poll data and records votes through `/api/social/polls`; `PostCard.tsx` resolves a poll through `/api/social/posts/{post_id}/poll`. Poll creation is atomic with the community post through `/api/communities/{community_id}/polls`.
 - `HashtagPage.tsx` now resolves hashtags and reads local hashtag timelines through `/api/hashtags`; browser-side Supabase queries and realtime subscriptions are removed. Federated hashtag reads still require a Backend-to-Federation private read contract.
-- `HashtagDiscoveryPage.tsx` hashtag search, trending, follow and unfollow operations use `/api/hashtags`; creator, post, video and thread discovery tabs remain in migration.
+- `HashtagDiscoveryPage.tsx` now uses Backend APIs for hashtag search/trending/follow, creator recommendations/follows, posts, videos and threads. Backend schema adds creator/verification metadata, video discovery metadata and canonical thread records.
 - Backend branch feat/central-api-contract-v1 now includes native community detail/admin/member/event/chat/post/shop/badge/scheduled-post handlers and migrations 20261108_community_core.sql through 20261114_community_admin.sql.
 - Community achievement badges are application-issued database badges, not blockchain NFTs. The page copy was changed to avoid claiming an on-chain mint.
 - Community marketplace listing reads the Backend-owned marketplace catalog. Product catalog population/management APIs remain a separate migration item.
