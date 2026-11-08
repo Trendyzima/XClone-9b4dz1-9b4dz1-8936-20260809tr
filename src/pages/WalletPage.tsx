@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Wallet, RefreshCw, ArrowDownToLine, ArrowLeftRight, History, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { profileApi } from '@/services/profileApi';
+import { walletApi } from '@/services/walletApi';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 
@@ -21,7 +22,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
 
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
-    try { setSnapshot(await backendCapabilities.getWallet(50)); }
+    try { setSnapshot(await walletApi.getSnapshot(50)); }
     catch (e) { setError(e instanceof Error ? e.message : 'Wallet could not be loaded.'); }
     finally { setLoading(false); }
   }, []);
@@ -32,10 +33,9 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
     if (!Number.isFinite(value) || value < 10) { toast.error('Minimum deposit is KES 10.'); return; }
     setBusy(true);
     try {
-      const walletId = snapshot.wallet?.id;
-      if (!walletId) throw new Error('Your wallet is not available yet.');
-      const result = await backendCapabilities.call<{ checkout_request_id?: string; status?: string }>('testagram.wallet.mpesa.stk_push', { amount_kes: value, phone, wallet_id: walletId });
-      toast.success(result.status === 'success' ? 'Deposit confirmed.' : 'M-Pesa request sent. Check your phone to complete payment.');
+      if (!snapshot.wallet?.id) throw new Error('Your wallet is not available yet.');
+      const result = await walletApi.requestMpesaTopUp({ amountKes: value, phone, currency: (snapshot.wallet?.currency ?? 'KES') as 'KES' | 'USD' });
+      toast.success(result.status === 'settled' ? 'Deposit confirmed.' : 'M-Pesa request sent. Check your phone to complete payment.');
       await refresh();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'M-Pesa request failed.'); }
     finally { setBusy(false); }
@@ -46,8 +46,12 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
     if (!recipient.trim() || !Number.isFinite(value) || value <= 0) { toast.error('Enter a recipient and valid amount.'); return; }
     setBusy(true);
     try {
-      await backendCapabilities.call('testagram.wallet.transfer', { recipient: recipient.trim(), amount: value, currency: snapshot.wallet?.currency ?? 'KES' });
-      toast.success('Transfer submitted.'); await refresh();
+      const handle = recipient.trim().replace(/^@/, '').toLowerCase();
+      const recipientId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(handle)
+        ? handle
+        : (await profileApi.getByUsername(handle)).profile.id;
+      const result = await walletApi.transfer(recipientId, value, 'Wallet transfer');
+      toast.success(result.status === 'completed' ? 'Transfer completed.' : 'Transfer submitted.'); await refresh();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Transfer failed.'); }
     finally { setBusy(false); }
   };
