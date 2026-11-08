@@ -15,7 +15,6 @@ import type { SearchDiscoveryPage } from '@/services/testagramCapabilityClient';
 import * as federation from '@/api/federation';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { FediverseRichText } from '@/components/features/FediverseRichText';
-import { megalodonGatewayService } from '@/services/megalodonGateway';
 import { OrganicSportsStories } from '@/components/features/OrganicSportsStories';
 
 const TABS=['Top','Latest','People','Media','Hashtags','Replies','Threads','Communities','Fediverse','Instances'];
