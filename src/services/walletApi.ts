@@ -29,6 +29,9 @@ export const walletApi = {
       next_cursor: result.next_cursor ?? null,
     }));
   },
+  resolveRecipient(username: string) {
+    return backendCapabilities.call<{ user_id: string; username: string }>('testagram.wallet.recipient.resolve', { username: username.trim().replace(/^@/, '') });
+  },
   transfer(recipientId: string, amount: number, note = '', idempotencyKey = crypto.randomUUID()) {
     return backendCapabilities.transferWallet(recipientId, amount, note, idempotencyKey);
   },
