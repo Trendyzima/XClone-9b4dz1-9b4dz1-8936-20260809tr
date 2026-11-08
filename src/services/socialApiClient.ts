@@ -27,8 +27,8 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
-const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
-const freshApiPublicFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/public` : '/v1/feed/public';
+const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/home` : '/api/feed/home';
+const freshApiPublicFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/public` : '/api/feed/public';
 
 function assertSocialAPIAvailable(_allowFreshRoute = false): void { /* All requests use the canonical Backend API. */ }
 
