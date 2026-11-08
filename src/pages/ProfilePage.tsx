@@ -555,31 +555,18 @@ export default function ProfilePage() {
   useEffect(() => { if (username) fetchProfile(); }, [username]);
 
   const fetchHighlights = async (userId: string) => {
-    const { data } = await supabase.from('user_highlights').select('*').eq('user_id', userId).order('sort_order', { ascending: true });
-    const list = data ?? [];
-    setHighlights(list);
-    const allStoryIds = list.flatMap((h: any) => h.story_ids ?? []) as string[];
-    if (allStoryIds.length > 0) {
-      const { data: viewData } = await supabase.from('story_views').select('story_id').in('story_id', allStoryIds);
-      // Use parallel arrays (no index-sig map) — esbuild guard
-      const ids: string[] = [];
-      const counts: number[] = [];
-      for (const h of list) {
-        ids.push(h.id);
-        counts.push((viewData ?? []).filter((v: any) => (h.story_ids ?? []).includes(v.story_id)).length);
-      }
-      setHighlightIds(ids);
-      setHighlightCounts(counts);
-    }
+    const result = await profileApi.listHighlights(userId);
+    const list = result.items ?? []; setHighlights(list);
+    setHighlightIds(list.map((item: any) => item.id));
+    setHighlightCounts(list.map((item: any) => Number(item.view_count ?? 0)));
   };
 
   const updateHighlightOrder = async (newOrder: any[]) => {
-    await Promise.all(newOrder.map((h, idx) => supabase.from('user_highlights').update({ sort_order: idx }).eq('id', h.id)));
+    await profileApi.reorderHighlights(newOrder.map((item, index) => ({ id: item.id, sort_order: index })));
   };
 
   const fetchAvailableStories = async (userId: string) => {
-    const { data } = await supabase.from('stories').select('*').eq('owner_id', userId).order('created_at', { ascending: false }).limit(30);
-    setAvailableStories(data ?? []);
+    const result = await profileApi.listStories(userId, 30); setAvailableStories(result.items ?? []);
   };
 
   const handleCreateHighlight = async () => {
@@ -604,22 +591,7 @@ export default function ProfilePage() {
       }
       const autoCover = selectedStories[0]?.media_url ?? null;
       const nextSortOrder = highlights.length;
-      const { error } = await supabase.from('user_highlights').insert({
-        user_id: currentUser.id,
-        title,
-        cover_url: highlightCoverUrl ?? autoCover,
-        story_ids: selectedStoryIds,
-        sort_order: nextSortOrder,
-      });
-      if (error) {
-        console.error('[profile/highlights] create failed', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
-        throw error;
-      }
+      await profileApi.createHighlight({ title, cover_url: highlightCoverUrl ?? autoCover, story_ids: selectedStoryIds, sort_order: nextSortOrder });
       toast.success('Highlight created!');
       setShowCreateHighlight(false);
       setHighlightTitle('');
@@ -635,7 +607,7 @@ export default function ProfilePage() {
   };
 
   const handleDeleteHighlight = async (id: string) => {
-    await supabase.from('user_highlights').delete().eq('id', id);
+    await profileApi.deleteHighlight(id);
     setHighlights(prev => prev.filter(h => h.id !== id));
     toast.success('Highlight removed');
   };
@@ -645,16 +617,14 @@ export default function ProfilePage() {
     const amount = tipAmount ?? Number(customTipAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid tip amount'); return; }
     setSendingTip(true);
-    const idempotencyKey = `profile-tip:${currentUser.id}:${profile.id}:${crypto.randomUUID()}`;
-    const { data: tipResult, error: tipErr } = await supabase.rpc('send_wallet_tip', { p_to_user_id: profile.id, p_amount: amount, p_note: `Tip to @${profile.username}`, p_idempotency_key: idempotencyKey });
-    if (tipErr) { toast.error(tipErr.message || 'Could not send tip'); setSendingTip(false); return; }
-    if (!tipResult?.success) { toast.error('Tip transaction was not completed'); setSendingTip(false); return; }
-    if (!tipResult?.tip_id) throw new Error('Tip payment completed without a receipt');
-    await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'tip', source_id: tipResult.tip_id, amount, currency: tipResult.currency ?? 'KES', status: 'paid' }).then(() => {}).catch(() => {});
-    await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
-    toast.success(`${tipResult.currency ?? 'KES'} ${amount.toFixed(2)} tip sent to @${profile.username}!`);
-    setTipSent(true); setShowTipDialog(false); setTipAmount(null); setCustomTipAmount(''); setSendingTip(false);
-    setTimeout(() => setTipSent(false), 3000);
+    try {
+      const result = await profileApi.sendTip(profile.id, amount, 'Tip to @' + profile.username, 'profile-tip-' + crypto.randomUUID());
+      if (!result.success || !result.tip_id) throw new Error('Tip transaction was not completed');
+      toast.success((result.currency ?? 'KES') + ' ' + amount.toFixed(2) + ' tip sent to @' + profile.username);
+      setTipSent(true); setShowTipDialog(false); setTipAmount(null); setCustomTipAmount('');
+      setTimeout(() => setTipSent(false), 3000);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not send tip'); }
+    finally { setSendingTip(false); }
   };
 
   useEffect(() => {
