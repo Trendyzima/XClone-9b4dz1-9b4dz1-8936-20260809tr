@@ -53,5 +53,5 @@ jobs:
           fi
           grep -q "provider === 'appwrite'" src/services/socialApiClient.ts
           grep -q "primary_provider" src/services/freshMediaApi.ts
-          grep -q "r2.cloudflarestorage.com" src/services/freshMediaApi.ts || true
+          grep -q "r2.cloudflarestorage.com" src/services/freshMediaApi.ts
           echo "Fresh Appwrite identity, Backend API and selected B2/R2 upload contract: PASS"
