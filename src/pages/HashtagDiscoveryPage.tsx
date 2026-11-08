@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Hash, Search, TrendingUp, Check, Plus, Loader2, X, Flame, Users,
@@ -53,15 +52,8 @@ export default function HashtagDiscoveryPage() {
     setTabLoading(true);
     try {
       if (tab === 'Posts') {
-        const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
-        const { data } = await supabase
-          .from('posts')
-          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .is('community_id', null)
-          .eq('is_video', false)
-          .gte('created_at', since48h)
-          .order('likes_count', { ascending: false })
-          .limit(30);
+        const result = await backendCapabilities.listDiscoveryPosts(30, '', 'top');
+        const data = result.items ?? [];
         // Engagement score: likes×2 + reposts×3 + replies×1.5 + views×0.05
         const scored = (data ?? []).map((p: any) => ({
           ...p,
@@ -69,35 +61,19 @@ export default function HashtagDiscoveryPage() {
         })).sort((a: any, b: any) => b._score - a._score);
         setRecommendedPosts(scored.slice(0, 20));
       } else if (tab === 'Videos') {
-        const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
-        const { data } = await supabase
-          .from('posts')
-          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .eq('is_video', true)
-          .gte('created_at', since48h)
-          .order('views_count', { ascending: false })
-          .limit(20);
-        setRecommendedVideos(data ?? []);
+        const result = await backendCapabilities.listDiscoveryVideos(20);
+        setRecommendedVideos(result.items ?? []);
       } else if (tab === 'Creators') {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url, verified, follower_count, bio, is_creator, creator_tier')
-          .order('follower_count', { ascending: false })
-          .limit(30);
+        const result = await backendCapabilities.listDiscoveryCreators(30);
+        const data = result.items ?? [];
         setRecommendedCreators((data ?? []).filter((u: any) => u.id !== user?.id));
         if (user) {
           const followStates = await Promise.allSettled((data ?? []).filter((creator: any) => creator.id !== user.id).map(async (creator: any) => ({ id: creator.id, state: await backendCapabilities.getFollowState(creator.id) })));
           setFollowingCreatorIds(followStates.flatMap((result: any) => result.status === 'fulfilled' && result.value.state?.following ? [result.value.id] : []));
         }
       } else if (tab === 'Threads') {
-        const { data } = await supabase
-          .from('threads')
-          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .eq('is_published', true)
-          .order('likes_count', { ascending: false })
-          .limit(20);
-        const rows = data ?? [];
-         setRecommendedThreads(rows.map((r: any) => ({ ...r, user_profiles: r.user_profiles ?? r.profiles ?? null })));
+        const result = await backendCapabilities.listDiscoveryThreads(20);
+        setRecommendedThreads(result.items ?? []);
       }
     } catch (err) {
       console.error('[fetchTabContent]', err);
