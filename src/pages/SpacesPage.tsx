@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { TopBar } from '@/components/layout/TopBar';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { Space } from '@/types/app-types';
 import {
   Radio, Users, Mic, Loader2, Headphones, Video, Settings, BadgeCheck,
@@ -165,18 +166,22 @@ export default function SpacesPage() {
   const handleEpTip = useCallback(async () => {
     if (!user || !tipEpHostId || !tipEpAmount || !tipEpId) return;
     setSendingEpTip(true);
-    const { error: transferErr } = await supabase.rpc('send_wallet_tip', {
-      p_to_user_id: tipEpHostId,
-      p_amount: tipEpAmount,
-      p_note: `Tip for Space recording ${tipEpId}`,
-    });
+    let transferErr: Error | null = null;
+    try {
+      await backendCapabilities.call('testagram.wallet.tip', {
+        recipient_id: tipEpHostId,
+        amount: tipEpAmount,
+        note: `Tip for Space recording ${tipEpId}`,
+        idempotency_key: crypto.randomUUID(),
+      });
+    } catch (error) { transferErr = error instanceof Error ? error : new Error('Unable to send tip'); }
     if (transferErr) {
       const message = transferErr.message?.includes('INSUFFICIENT_FUNDS') ? 'Insufficient wallet balance' : transferErr.message || 'Unable to send tip';
       toast.error(message);
       setSendingEpTip(false);
       return;
     }
-    toast.success(`$${tipEpAmount} tip sent to @${tipEpHostName}!`);
+    toast.success(`KSh ${tipEpAmount} tip sent to @${tipEpHostName}!`);
     setTippedEpIds(prev => new Set([...prev, tipEpId!]));
     setTipEpId(null);
     setTipEpHostId(null);
@@ -269,12 +274,8 @@ export default function SpacesPage() {
   useEffect(() => {
     if (spaces.length === 0) return;
     const pollViewers = async () => {
-      const ids = spaces.map(s => s.id);
-      const { data } = await supabase.from('space_participants').select('space_id').in('space_id', ids);
-      if (!data) return;
       const counts: { [id: string]: number } = {};
-      for (const id of ids) counts[id] = 0;
-      for (const row of data) counts[row.space_id] = (counts[row.space_id] ?? 0) + 1;
+      for (const space of spaces) counts[space.id] = Number(space.listener_count ?? 0);
       setLiveViewerCounts(counts);
     };
     pollViewers();
@@ -363,9 +364,14 @@ export default function SpacesPage() {
 
   const fetchSpaces = async () => {
     try {
-      const { data, error } = await supabase.from('spaces').select('*, host:user_profiles!spaces_host_id_fkey(*)').eq('is_live', true).order('listener_count', { ascending: false });
-      if (error) throw error;
-      setSpaces(data || []);
+      const result = await backendCapabilities.call<{ items: any[] }>('testagram.audio_spaces.list_live', {});
+      const items = (result.items ?? []).map(space => ({
+        ...space,
+        is_live: true,
+        ended_at: null,
+        host: space.host ?? { id: space.host_id, username: 'Testagram user', display_name: 'Testagram user' },
+      }));
+      setSpaces(items as Space[]);
     } catch { } finally { setLoading(false); }
   };
 
