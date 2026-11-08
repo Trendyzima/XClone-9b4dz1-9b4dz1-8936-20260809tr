@@ -1,4 +1,5 @@
-import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { testagramApiRequest } from '@/services/apiClient';
 
 export type MediaRoomType = 'tv' | 'space' | 'call';
 export type MediaRole = 'host' | 'viewer' | 'guest' | 'listener' | 'speaker' | 'participant';
@@ -271,7 +272,8 @@ export class TestagramMediaSession {
       this.onRemoteTrack?.(track); this.onRemoteStream?.(this.remoteStream);
     };
     pc.onicecandidate = event => {
-      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate.toJSON() }));
+      const signalSocket = this.callSignalSocket ?? this.ws;
+      if (event.candidate && signalSocket?.readyState === WebSocket.OPEN) signalSocket.send(JSON.stringify({ type: 'candidate', candidate: event.candidate.toJSON() }));
     };
     pc.onconnectionstatechange = () => {
       if (!this.closed && (pc.connectionState === 'failed' || pc.connectionState === 'disconnected')) this.scheduleReconnect();
@@ -442,7 +444,7 @@ export class TestagramMediaSession {
     this.closed = true;
     this.callSignalSocket?.close(); this.callSignalSocket = null;
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = null; this.ws?.close(); this.ws = null;
+    this.reconnectTimer = null; this.ws?.close(); this.ws = null; this.callSignalSocket?.close(); this.callSignalSocket = null;
     if (this.mediaSessionUrl) {
       try { await fetch(this.mediaSessionUrl, { method: 'DELETE' }); } catch {}
       this.mediaSessionUrl = null;
