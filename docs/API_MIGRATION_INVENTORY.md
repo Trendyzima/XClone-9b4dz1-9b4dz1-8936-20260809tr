@@ -204,7 +204,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/CreditsPage.tsx` — pending audit/migration
 - [ ] `src/pages/DailyRewardsPage.tsx` — pending audit/migration
 - [ ] `src/pages/DiscoverPage.tsx` — pending audit/migration
-- [ ] `src/pages/ExplorePage.tsx` — pending audit/migration
+- [ ] `src/pages/ExplorePage.tsx` — partial: creator/post/hashtag discovery reads, post reactions and creator follow actions moved to native Backend APIs; story-view tracking, challenge CRUD, and story-to-message actions still require Backend-owned endpoints.
 - [ ] `src/pages/FastPixShortsPage.tsx` — pending audit/migration
 - [ ] `src/pages/FederatedOrganicDiscoveryPage.tsx` — pending audit/migration
 - [ ] `src/pages/FediverseAnalyticsPage.tsx` — pending audit/migration
@@ -575,3 +575,11 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - Community achievement badges are application-issued database badges, not blockchain NFTs. The page copy was changed to avoid claiming an on-chain mint.
 - Community marketplace listing reads the Backend-owned marketplace catalog. Product catalog population/management APIs remain a separate migration item.
 - These changes are committed but are not yet live-verified. Backend CI is configured to run on main/PR, not this feature branch; frontend production gates on the current branch have exposed many unrelated unresolved Supabase imports in other pages. Do not treat the full repository as migrated.
+
+
+## Hashtag and Explore follow-on — 2026-11-08
+
+- HashtagPage.tsx no longer imports or calls Supabase; hashtag resolution, recent/top post feeds and follow state use native Backend hashtag endpoints. Federation content remains owned by the Federation discovery surface.
+- ExplorePage.tsx now uses Backend endpoints for creator suggestions, mixed search (creators/hashtags/posts), trending hashtags and creator lists. Post reactions and creator follow/unfollow use the canonical social API, including server-side follow notifications.
+- ExplorePage.tsx remains incomplete: story-view tracking, hashtag challenge list/create, and story-to-direct-message actions still contain direct Supabase operations and need dedicated Backend/Federation contracts. Do not mark ExplorePage migrated yet.
+- Backend discovery endpoints were added for public creators and posts; they are committed on feat/central-api-contract-v1 but not yet deployment-verified.
