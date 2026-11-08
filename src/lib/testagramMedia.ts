@@ -474,7 +474,7 @@ export class TestagramMediaSession {
             else this.pendingCandidates.push(message.candidate);
             return;
           }
-          if (message.type === 'offer' && message.sdp && !this.callInitiator) {
+          if (message.type === 'offer' && message.sdp && !this.callInitiator && !this.answerReceived) {
             await this.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
             await this.flushCandidates();
             const answer = await this.pc.createAnswer();
@@ -482,6 +482,7 @@ export class TestagramMediaSession {
             await waitForIce(this.pc);
             if (ws.readyState === WebSocket.OPEN && this.pc.localDescription?.sdp) {
               ws.send(JSON.stringify({ type: 'answer', sdp: this.pc.localDescription.sdp }));
+              this.answerReceived = true;
               finish();
             }
             return;
