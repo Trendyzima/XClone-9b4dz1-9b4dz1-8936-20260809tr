@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Radio, Mic, MicOff, Users, X, Loader2, Headphones } from 'lucide-react';
@@ -44,16 +44,8 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('spaces')
-        .select(`
-          *,
-          host:user_profiles!spaces_host_id_fkey(*)
-        `)
-        .eq('id', spaceId)
-        .single();
-
-      if (error) throw error;
+      const data = await backendCapabilities.call<any>('testagram.audio_spaces.get', { space_id: spaceId });
+      if (!data?.id) throw new Error('Backend returned an invalid Audio Space.');
       setSpace(data);
     } catch (error: any) {
       console.error('Error fetching space:', error);
@@ -117,13 +109,10 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
     if (!joined || !spaceId || !user || space.host?.id === user.id) return;
     let cancelled = false;
     const syncRole = async () => {
-      const [{ data: participant }, { data: request }] = await Promise.all([
-        supabase.from('space_participants').select('role').eq('space_id', spaceId).eq('user_id', user.id).is('left_at', null).maybeSingle(),
-        supabase.from('audio_space_speaker_requests').select('status').eq('space_id', spaceId).eq('user_id', user.id).maybeSingle(),
-      ]);
+      const status = await backendCapabilities.call<{ role: string; speaker_request_status: string; joined: boolean }>('testagram.audio_spaces.my_status', { space_id: spaceId });
       if (cancelled) return;
-      if (participant?.role === 'speaker') setRole('speaker');
-      setSpeakerRequestStatus((request?.status as any) || 'none');
+      if (status.role === 'speaker' || status.role === 'host') setRole('speaker');
+      setSpeakerRequestStatus((status.speaker_request_status as any) || 'none');
     };
     void syncRole();
     const timer = window.setInterval(() => void syncRole(), 2500);
@@ -138,8 +127,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
     if (!user || !spaceId) return;
     setLoading(true);
     try {
-      const { error } = await supabase.rpc('join_audio_space', { p_space_id: spaceId });
-      if (error) throw error;
+      await backendCapabilities.call('testagram.audio_spaces.join', { space_id: spaceId });
       setRole('listener');
       setSpeakerRequestStatus('none');
       setJoined(true);
@@ -156,8 +144,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
   const handleLeave = async () => {
     if (!user || !spaceId) return;
     try {
-      const { error } = await supabase.rpc('leave_audio_space', { p_space_id: spaceId });
-      if (error) throw error;
+      await backendCapabilities.call('testagram.audio_spaces.leave', { space_id: spaceId });
       setJoined(false);
       onOpenChange(false);
       toast({ title: 'Left Space', description: 'You have left the audio space' });
@@ -250,11 +237,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
                         await handleJoin();
                         return;
                       }
-                      const { error } = await supabase.rpc('request_audio_space_speaker', { p_space_id: spaceId });
-                      if (error) {
-                        toast({ title: 'Speaker request failed', description: error.message, variant: 'destructive' });
-                        return;
-                      }
+                      await backendCapabilities.call('testagram.audio_spaces.request_speaker', { space_id: spaceId });
                       setSpeakerRequestStatus('pending');
                       toast({ title: 'Request sent', description: 'The host will decide whether to bring you on stage.' });
                     }}
@@ -302,11 +285,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
                         className="mt-3"
                         disabled={speakerRequestStatus === 'pending'}
                         onClick={async () => {
-                          const { error } = await supabase.rpc('request_audio_space_speaker', { p_space_id: spaceId });
-                          if (error) {
-                            toast({ title: 'Speaker request failed', description: error.message, variant: 'destructive' });
-                            return;
-                          }
+                          await backendCapabilities.call('testagram.audio_spaces.request_speaker', { space_id: spaceId });
                           setSpeakerRequestStatus('pending');
                           toast({ title: 'Request sent', description: 'Waiting for the host.' });
                         }}
