@@ -1516,16 +1516,6 @@
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it."
     },
-    "src/modules/monetization/config.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/db.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
     "src/modules/monetization/eventBus.ts": {
       "source_type": "client_source",
       "status": "not_started",
@@ -1552,11 +1542,6 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it."
     },
     "src/modules/monetization/ledger.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/mpesaWebhook.ts": {
       "source_type": "client_source",
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it."
@@ -2815,6 +2800,26 @@
       "source_type": "client_source",
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/lib/appwrite.ts": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/services/appwriteAuth.ts": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/services/freshMediaApi.ts": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/services/socialApiClient.ts": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
     }
   }
 }
