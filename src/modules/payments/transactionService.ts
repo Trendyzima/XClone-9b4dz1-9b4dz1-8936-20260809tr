@@ -1,46 +1,6 @@
-export interface Transaction {
-  id: string;
-  checkoutRequestID: string;
-  amount: number;
-  phone: string;
-  receipt?: string;
-  status: "pending" | "success" | "failed";
-  createdAt: number;
-}
-
-/**
- * In-memory transaction store (replace with DB later)
- * This is intentionally simple to match your current repo state
- */
-
-const transactions: Record<string, Transaction> = {};
-
-export function createTransaction(data: Omit<Transaction, "status" | "createdAt">) {
-  const tx: Transaction = {
-    ...data,
-    status: "pending",
-    createdAt: Date.now(),
-  };
-
-  transactions[tx.checkoutRequestID] = tx;
-  return tx;
-}
-
-export function updateTransactionStatus(
-  checkoutRequestID: string,
-  status: Transaction["status"],
-  receipt?: string
-) {
-  const tx = transactions[checkoutRequestID];
-  if (!tx) return null;
-
-  tx.status = status;
-  if (receipt) tx.receipt = receipt;
-
-  transactions[checkoutRequestID] = tx;
-  return tx;
-}
-
-export function getTransaction(checkoutRequestID: string) {
-  return transactions[checkoutRequestID];
-}
+/** Payment transaction state is durable server data; browser memory is not a transaction store. */
+export interface Transaction { id: string; checkoutRequestID: string; amount: number; phone: string; receipt?: string; status: "pending" | "success" | "failed"; createdAt: number; }
+const backendOnly = (): never => { throw new Error("Payment transaction operations are server-only. Use the Testagram Backend payments API."); };
+export function createTransaction(_data: Omit<Transaction, "status" | "createdAt">): Transaction { return backendOnly(); }
+export function updateTransactionStatus(_checkoutRequestID: string, _status: Transaction["status"], _receipt?: string): Transaction | null { return backendOnly(); }
+export function getTransaction(_checkoutRequestID: string): Transaction | undefined { return backendOnly(); }
