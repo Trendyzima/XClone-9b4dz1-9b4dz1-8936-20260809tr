@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { profileApi } from '@/services/profileApi';
+import { walletApi } from '@/services/walletApi';
 import { toast } from 'sonner';
 import {
   Shield, X, Loader2, CheckCircle2, Smartphone,
@@ -551,18 +553,18 @@ export function PeerWalletTransferPanel({ walletBalance, currency, onComplete }:
     setSending(true);
     try {
       const key = crypto.randomUUID();
-      const data = await backendCapabilities.call<any>('testagram.wallet.transfer', {
-        recipient: username.trim().replace(/^@/, ''),
-        amount_kes: Math.floor(amountKes),
-        note: note.trim() || null,
-        idempotency_key: key,
-      });
-      if (!data?.success) throw new Error('Transfer could not be completed');
-      setDone({ username: username.trim().replace(/^@/, ''), amount: Number(data.amount_kes), transferId: data.transfer_id });
+      const handle = username.trim().replace(/^@/, '').toLowerCase();
+      const recipientId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(handle)
+        ? handle
+        : (await profileApi.getByUsername(handle)).profile.id;
+      const debitAmount = currency === 'KES' ? Math.floor(amountKes) : Number(debit.toFixed(2));
+      const data = await walletApi.transfer(recipientId, debitAmount, note.trim(), key);
+      if (data.status !== 'completed' || !data.transfer_id) throw new Error('Transfer was not confirmed by Backend');
+      setDone({ username: handle, amount: Number(data.amount), transferId: data.transfer_id });
       setUsername('');
       setAmount('');
       setNote('');
-      toast.success(`KES ${Number(data.amount_kes).toLocaleString()} sent to @${data.recipient_username}`);
+      toast.success(`${data.currency} ${Number(data.amount).toLocaleString()} sent to @${handle}`);
       onComplete();
     } catch (err: any) {
       toast.error(err?.message || 'Unable to send wallet money');
