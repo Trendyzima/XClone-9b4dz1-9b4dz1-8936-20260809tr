@@ -707,13 +707,9 @@ export default function ExplorePage() {
     if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
     if (!q.trim() || q.trim().length < 2) { setSearchSuggestions([]); setShowSuggestions(false); return; }
     suggestTimerRef.current = setTimeout(async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url, verified, follower_count')
-        .ilike('username', `%${q.trim()}%`)
-        .order('follower_count', { ascending: false })
-        .limit(5);
-      if (data && data.length > 0) { setSearchSuggestions(data); setShowSuggestions(true); }
+      const result = await backendCapabilities.listDiscoveryCreators(5, q.trim());
+      const data = result.items ?? [];
+      if (data.length > 0) { setSearchSuggestions(data); setShowSuggestions(true); }
       else { setSearchSuggestions([]); setShowSuggestions(false); }
     }, 250);
   };
@@ -726,17 +722,14 @@ export default function ExplorePage() {
       setInlineSearchLoading(true);
       const clean = q.trim();
       const [usersRes, hashtagsRes, postsRes] = await Promise.all([
-        supabase.from('profiles').select('id, username, avatar_url, verified, follower_count, bio')
-          .ilike('username', `%${clean}%`).order('follower_count', { ascending: false }).limit(5),
-        supabase.from('hashtags').select('id, tag, usage_count')
-          .ilike('tag', `${clean.replace(/^#/, '')}%`).order('usage_count', { ascending: false }).limit(5),
-        supabase.from('posts').select('id, content, image_url, is_video, views_count, likes_count, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .ilike('content', `%${clean}%`).is('community_id', null).order('likes_count', { ascending: false }).limit(5),
+        backendCapabilities.listDiscoveryCreators(5, clean),
+        backendCapabilities.searchHashtags(clean.replace(/^#/, ''), 5),
+        backendCapabilities.listDiscoveryPosts(5, clean, 'top'),
       ]);
       setInlineSearchResults({
-        users: usersRes.data ?? [],
-        hashtags: hashtagsRes.data ?? [],
-        posts: postsRes.data ?? [],
+        users: usersRes.items ?? [],
+        hashtags: hashtagsRes.items ?? [],
+        posts: postsRes.items ?? [],
       });
       setInlineSearchLoading(false);
     }, 350);
@@ -923,18 +916,18 @@ export default function ExplorePage() {
     setLoading(true);
     const [trendingData, hashtagRes, whoRes] = await Promise.allSettled([
       backendCapabilities.getTrends(50),
-      supabase.from('hashtags').select('id, tag, usage_count, post_count, federated_post_count, last_used_at').order('federated_post_count', { ascending: false }).order('usage_count', { ascending: false }).order('last_used_at', { ascending: false }).limit(20),
-      supabase.from('profiles').select('id, username, display_name, avatar_url, follower_count, verified_tier, verified').order('follower_count', { ascending: false }).limit(10),
+      backendCapabilities.listTrendingHashtags(20),
+      backendCapabilities.listDiscoveryCreators(10),
     ]);
     setTrending(trendingData.status === 'fulfilled' ? (trendingData.value?.items ?? []) : []);
-    if (hashtagRes.status === 'fulfilled' && hashtagRes.value.data) {
-      setTrendingHashtags((hashtagRes.value.data as any[])
+    if (hashtagRes.status === 'fulfilled' && hashtagRes.value.items) {
+      setTrendingHashtags((hashtagRes.value.items as any[])
         .filter((h: any) => !DISCOVERY_SUPPRESSED_TAGS.has(String(h.tag ?? '').replace(/^#/, '').toLowerCase()))
         .map((h: any) => ({ ...h, daily_posts: Number(h.federated_post_count ?? 0) + Number(h.post_count ?? h.usage_count ?? 0) })));
     }
     let suggestions: any[] = [];
-    if (whoRes.status === 'fulfilled' && whoRes.value.data) {
-      suggestions = whoRes.value.data;
+    if (whoRes.status === 'fulfilled' && whoRes.value.items) {
+      suggestions = whoRes.value.items;
       if (user) suggestions = suggestions.filter((u: any) => u.id !== user.id);
       setWhoToFollow(suggestions.slice(0, 5));
     }
