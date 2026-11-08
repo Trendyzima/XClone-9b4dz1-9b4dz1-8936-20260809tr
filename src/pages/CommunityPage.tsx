@@ -463,16 +463,15 @@ export default function CommunityPage({ section, standalone = false }: { section
   const fetchEvents = useCallback(async (communityId: string) => {
     setLoadingEvents(true);
     try {
-      const [{ data: eventData, error: eventError }, { data: rsvpData, error: rsvpError }] = await Promise.all([
-        supabase.from('community_events')
-          .select('id, community_id, created_by, title, description, scheduled_for, created_at, user_profiles:created_by(username, avatar_url)')
-          .eq('community_id', communityId).order('scheduled_for', { ascending: true }).limit(50),
-        user ? supabase.from('community_event_rsvps').select('event_id').eq('user_id', user.id) : Promise.resolve({ data: [], error: null } as any),
-      ]);
-      if (eventError) throw eventError;
-      if (rsvpError) throw rsvpError;
-      setEvents((eventData ?? []).map((e: any) => ({ ...e, content: e.description ? `${e.title}\n\n${e.description}` : e.title })));
-      setRsvpArr((rsvpData ?? []).map((r: any) => r.event_id));
+      const result = await backendCapabilities.listCommunityEvents(communityId);
+      const rows = result.items ?? [];
+      setEvents(rows.map((event: any) => ({
+        ...event,
+        scheduled_for: event.starts_at,
+        created_by: event.creator_id,
+        content: event.description ? `${event.title}\n\n${event.description}` : event.title,
+      })));
+      setRsvpArr(rows.filter((event: any) => event.is_attending).map((event: any) => event.id));
     } catch (error: any) {
       console.error('fetchEvents error:', error);
       setEvents([]);
@@ -480,16 +479,13 @@ export default function CommunityPage({ section, standalone = false }: { section
     } finally {
       setLoadingEvents(false);
     }
-  }, [user?.id]);
+  }, []);
 
   const handleRsvp = useCallback(async (eventId: string) => {
     if (!community || !user || !isMember) return;
     const wasIn = rsvpArr.indexOf(eventId) >= 0;
     try {
-      const result = wasIn
-        ? await supabase.from('community_event_rsvps').delete().eq('event_id', eventId).eq('user_id', user.id)
-        : await supabase.from('community_event_rsvps').insert({ event_id: eventId, user_id: user.id });
-      if (result.error) throw result.error;
+      await backendCapabilities.setCommunityEventRSVP(eventId, !wasIn);
       setRsvpArr(prev => wasIn ? prev.filter(id => id !== eventId) : [...prev, eventId]);
       sonnerToast.success(!wasIn ? "You're going! 🎉" : 'RSVP cancelled');
     } catch (error: any) {
@@ -501,13 +497,11 @@ export default function CommunityPage({ section, standalone = false }: { section
     if (!user || !community || !isMember || !eventForm.title.trim() || !eventForm.scheduled_for) return;
     setCreatingEvent(true);
     try {
-      const { error } = await supabase.rpc('create_community_event', {
-        p_community_id: community.id,
-        p_title: eventForm.title.trim(),
-        p_description: eventForm.description.trim() || null,
-        p_scheduled_for: new Date(eventForm.scheduled_for).toISOString(),
+      await backendCapabilities.createCommunityEvent(community.id, {
+        title: eventForm.title.trim(),
+        description: eventForm.description.trim(),
+        starts_at: new Date(eventForm.scheduled_for).toISOString(),
       });
-      if (error) throw error;
       setShowCreateEvent(false);
       setEventForm({ title: '', description: '', scheduled_for: '' });
       await fetchEvents(community.id);
