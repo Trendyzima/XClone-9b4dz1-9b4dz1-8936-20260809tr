@@ -1,6 +1,5 @@
 import { appwriteAuth } from '@/services/appwriteAuth';
 const isFreshAppwriteMode = true;
-import { appwriteAuth } from '@/services/appwriteAuth';
 
 type SocialEnvelope<T> = {
   ok: boolean;
