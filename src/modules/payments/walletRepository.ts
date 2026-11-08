@@ -1,6 +1,6 @@
 /** Wallet persistence is exclusively owned by Testagram Backend. */
 export class WalletRepository {
-  async getWallet(_userId: string): Promise<never> {
+  async getWallet(_userId: string): Promise<{ balance?: number } | null> {
     throw new Error("Wallet reads must use the authenticated Testagram Backend API. Direct database access from XClone is disabled.");
   }
   async createWallet(_userId: string): Promise<never> {
