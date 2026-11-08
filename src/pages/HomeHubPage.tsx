@@ -155,7 +155,7 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
-  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined); 
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const [feedLoadError,setFeedLoadError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined); 
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
@@ -210,11 +210,13 @@ export default function HomeHubPage(){
       finally{if(!background)setLoading(false);}
       return;
     }
+    if(!background)setFeedLoadError(null);
     try{
       // Background refresh reads the newest page, but its cursor must not replace
       // the continuation cursor for the already-loaded older pages.
       const continuationCursor=nextCursorRef.current;
       const next=await fetchTab('all',0,null,true);
+      setFeedLoadError(null);
       if(background){
         nextCursorRef.current=continuationCursor;
         setNextCursor(continuationCursor);
@@ -241,6 +243,7 @@ export default function HomeHubPage(){
       setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
     }catch(e){console.error('[home-hub]',e);if(!background){
+      setFeedLoadError('The Testagram Backend feed is unavailable. Please try again shortly.');
       const cached=await readHomeFeedCache(cacheKey).catch(()=>null);
       if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; feedBufferOffsetRef.current=cached.items.length; setItems(cached.items); cacheCursorRef.current=cached.cursor; nextCursorRef.current=cached.cursor; setHasMore(Boolean(cached.cursor)); }
       else {setItems([]);setHasMore(false);}
@@ -377,7 +380,7 @@ export default function HomeHubPage(){
     {!loading&&newCount>0&&<button onClick={()=>{window.scrollTo({top:0,behavior:'smooth'});setNewCount(0)}} className="w-full py-2 bg-primary/5 text-xs font-semibold text-primary">{newCount} new post{newCount===1?'':'s'} · Tap to view</button>}
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
     {loading?<div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
-      items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
+      items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">{feedLoadError?'Feed temporarily unavailable':'Nothing here yet'}</p><p className="text-sm mt-1">{feedLoadError??'Explore another section or be the first to add content.'}</p>{feedLoadError&&<button onClick={refresh} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">Retry</button>}</div>:
       <div className="tg-home-feed-list">{items.map((item,i)=>(
         <div className="tg-home-feed-row" key={item.type+'-'+(item.data?.id??i)}>
           <HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>
