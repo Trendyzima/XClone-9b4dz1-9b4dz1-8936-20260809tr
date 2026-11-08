@@ -1,7 +1,7 @@
 import { FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js';
-import { isFreshAppwriteMode, supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
-import { TestagramCapabilityClient } from '@/services/testagramCapabilityClient';
+import { CAPABILITY_GATEWAY_ENDPOINT, TestagramCapabilityClient } from '@/services/testagramCapabilityClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export type BackendFunctionError = {
@@ -78,10 +78,10 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
 }
 
 export function createBackendCapabilityClient(
-  endpoint: string = "/api/capability",
+  endpoint: string = CAPABILITY_GATEWAY_ENDPOINT,
   client: SupabaseClient = supabase,
 ): TestagramCapabilityClient {
-  return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4', apiKey: supabasePublishableKey });
+  return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4' });
 }
 
 export const backendCapabilities = createBackendCapabilityClient();
