@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { profileApi } from '@/services/profileApi';
 import { walletApi } from '@/services/walletApi';
+import { walletApi } from '@/services/walletApi';
 import { toast } from 'sonner';
 import {
   Shield, X, Loader2, CheckCircle2, Smartphone,
@@ -185,13 +186,13 @@ export function TwoFASetupCard({ userId }: { userId: string }) {
 // ── M-Pesa Payment History Tab ───────────────────────────────────────────
 function InlineReceiptModal({ tx, currency, onClose }: { tx: any; currency: ExtCur; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const kesAmount = useMemo(() => Math.round(Number(tx.amount) * EXTRAS_USD_TO_KES), [tx.amount]);
+  const kesAmount = useMemo(() => Number(tx.amount_kes ?? (tx.currency === 'KES' ? tx.amount : Number(tx.amount) * EXTRAS_USD_TO_KES)), [tx.amount, tx.amount_kes, tx.currency]);
 
   const copyReceipt = () => {
     const text = [
       'M-Pesa Receipt',
       `Amount: KES ${kesAmount.toLocaleString()} (${xfmt(Number(tx.amount), currency)})`,
-      tx.reference ? `Receipt: ${tx.reference}` : '',
+      (tx.receipt_number || tx.reference) ? `Receipt: ${tx.receipt_number || tx.reference}` : '',
       `Date: ${new Date(tx.created_at).toLocaleString()}`,
       `Status: ${tx.status}`,
     ].filter(Boolean).join('\n');
@@ -225,10 +226,10 @@ function InlineReceiptModal({ tx, currency, onClose }: { tx: any; currency: ExtC
           <p className="text-sm text-muted-foreground mt-0.5">KES {kesAmount.toLocaleString()}</p>
         </div>
         <div className="space-y-2.5 divide-y divide-border mb-4">
-          {tx.reference && (
+          {(tx.receipt_number || tx.reference) && (
             <div className="flex justify-between items-center pt-2.5">
               <span className="text-xs text-muted-foreground">Safaricom Receipt</span>
-              <span className="font-mono text-xs font-black">{tx.reference}</span>
+              <span className="font-mono text-xs font-black">{tx.receipt_number || tx.reference}</span>
             </div>
           )}
           <div className="flex justify-between items-center pt-2.5">
@@ -238,7 +239,7 @@ function InlineReceiptModal({ tx, currency, onClose }: { tx: any; currency: ExtC
           <div className="flex justify-between items-center pt-2.5">
             <span className="text-xs text-muted-foreground">Status</span>
             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-              tx.status === 'completed' ? 'bg-green-500/10 text-green-600' : 'bg-orange-500/10 text-orange-600'
+              (tx.status === 'completed' || tx.status === 'settled') ? 'bg-green-500/10 text-green-600' : 'bg-orange-500/10 text-orange-600'
             }`}>{tx.status}</span>
           </div>
         </div>
@@ -265,12 +266,12 @@ export function MpesaPaymentHistory({ userId, currency }: { userId: string; curr
 
   useEffect(() => {
     setLoading(true);
-    backendCapabilities.getWallet(100).then(result => { setTxns((result.transactions ?? []).filter((tx:any)=>tx.type==='deposit'&&tx.payment_method==='mpesa')); }).catch(()=>setTxns([])).finally(()=>setLoading(false));
+    walletApi.listTransactions(100).then(result => { setTxns(result.items.filter(tx => tx.kind === 'deposit' && tx.provider === 'mpesa').map(tx => ({ ...tx, reference: tx.receipt_number, amount_kes: tx.amount_kes }))); }).catch(()=>setTxns([])).finally(()=>setLoading(false));
   }, [userId]);
 
   const { totalKes, totalUsd } = useMemo(() => ({
-    totalKes: Math.round(txns.reduce((s, t) => s + Number(t.amount), 0) * EXTRAS_USD_TO_KES),
-    totalUsd: txns.reduce((s, t) => s + Number(t.amount), 0),
+    totalKes: Math.round(txns.reduce((s, t) => s + Number(t.amount_kes ?? (t.currency === 'KES' ? t.amount : Number(t.amount) * EXTRAS_USD_TO_KES)), 0)),
+    totalUsd: txns.reduce((s, t) => s + (t.currency === 'USD' ? Number(t.amount) : Number(t.amount_kes ?? t.amount) / EXTRAS_USD_TO_KES), 0),
   }), [txns]);
 
   return (
