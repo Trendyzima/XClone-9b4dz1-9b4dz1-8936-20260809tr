@@ -83,6 +83,13 @@ export async function getFederatedReplies(objectUri: string, options: { parentUr
   return Array.isArray(result?.items) ? result.items : [];
 }
 
+export async function setReaction(objectUri: string, emoji: string, enabled: boolean) { return api('/reactions', 'POST', { object_uri: objectUri, emoji, enabled }); }
+export async function getReactionState(objectUri: string): Promise<{ emoji?: string | null; active?: boolean; emojis?: string[] }> { return api('/reactions', 'GET', undefined, { object_uri: objectUri }); }
+export async function getReactionCounts(objectUri: string): Promise<Record<string, number>> { const result = await api<{ counts?: Record<string, number> }>('/reaction-counts', 'GET', undefined, { object_uri: objectUri }); return result?.counts ?? {}; }
+export async function getInteractionCounts(objectUri: string): Promise<any> { return api('/interaction-counts', 'GET', undefined, { object_uri: objectUri }); }
+export async function getInteractionState(objectUri: string): Promise<{ like: boolean; repost: boolean }> { return api('/interaction-state', 'GET', undefined, { object_uri: objectUri }); }
+export async function recordShare(objectUri: string): Promise<{ shares?: number }> { return api('/record-share', 'POST', { object_uri: objectUri }); }
+export async function recordView(objectUri: string): Promise<{ views?: number }> { return api('/record-view', 'POST', { object_uri: objectUri }); }
 export async function getNotifications(params: TimelineParams = {}): Promise<any[]> { return api('/notifications', 'GET', undefined, params as any); }
 export async function clearNotifications(): Promise<void> { return api('/notifications', 'DELETE'); }
 export async function search(q: string, type: 'users' | 'posts' | 'hashtags' | 'instances' = 'users'): Promise<any[]> {
