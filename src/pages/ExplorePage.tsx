@@ -11,7 +11,6 @@ import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotligh
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
 import { socialApi } from '@/services/socialApiClient';
-import { readPublicExpansion } from '@/lib/dataPlane';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -57,41 +56,15 @@ function ExploreMarketplace({ searchQuery, navigate }: { searchQuery: string; na
     let cancelled = false;
     setLoading(true);
     (async () => {
-      let query = supabase
-        .from('products')
-        .select('*, user_profiles:profiles!products_user_id_fkey(id, username, avatar_url, verified_tier)')
-        .eq('is_active', true)
-        .order('views_count', { ascending: false })
-        .limit(20);
-      if (catFilter !== 'all') query = query.eq('category', catFilter);
-
-      const result = await readPublicExpansion(
-        'products',
-        (client) => query,
-        (client) => client
-          .from('products')
-          .select('id, owner_id, name, description, image_url, external_url, price_cents, currency, created_at')
-          .order('created_at', { ascending: false })
-          .limit(20),
-      );
-      const primaryProducts = Array.isArray(result.primary) ? result.primary : [];
-      const secondaryProducts = Array.isArray(result.secondary)
-        ? result.secondary.map((p: any) => ({
-            ...p,
-            user_profiles: {
-              id: p.owner_id,
-              username: 'legacy_testagram',
-              display_name: 'Testagram',
-              avatar_url: null,
-              verified_tier: 'none',
-            },
-            _data_plane: 'secondary',
-          }))
-        : [];
-      const mergedProducts = [...primaryProducts, ...secondaryProducts]
-        .filter((p: any, index: number, all: any[]) => all.findIndex((x: any) => String(x.id) === String(p.id)) === index)
-        .slice(0, 20);
-      if (!cancelled) { setProducts(mergedProducts); setLoading(false); }
+      try {
+        const result = await backendCapabilities.listMarketplaceProducts(20, catFilter);
+        if (!cancelled) setProducts(result.items ?? []);
+      } catch (error) {
+        console.error('[explore-marketplace] Backend request failed', error);
+        if (!cancelled) setProducts([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [catFilter]);
