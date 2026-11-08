@@ -135,7 +135,11 @@ export default async function handler(request: Request): Promise<Response> {
     headers['Content-Type'] = upstream.headers.get('content-type') ?? 'application/activity+json; charset=utf-8';
     headers['X-Request-ID'] = upstream.headers.get('x-request-id') ?? requestId;
     headers['Cache-Control'] = upstream.headers.get('cache-control') ?? 'private, no-store';
-    return new Response(bytes, { status: upstream.status, headers });
+    // Materialize an ArrayBuffer so TypeScript's DOM BodyInit type does not
+    // retain Uint8Array<ArrayBufferLike> (which could include SharedArrayBuffer).
+    const bodyBuffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(bodyBuffer).set(bytes);
+    return new Response(bodyBuffer, { status: upstream.status, headers });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'AbortError';
     return json(request, timedOut ? 504 : 502, {
