@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Headphones, Radio, Users, Video, X, Tv } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { formatNumber } from '@/lib/utils';
 
 type Host = { username?: string | null; display_name?: string | null; avatar_url?: string | null };
@@ -19,11 +19,11 @@ export function LiveSpacesDiscoveryStrip() {
 
   const load = useCallback(async () => {
     const [spacesResult, tvResult] = await Promise.all([
-      supabase.from('spaces').select('id,title,host_id,listener_count,started_at,category,artwork_url,has_video,host:profiles!spaces_host_id_fkey(username,display_name,avatar_url)').eq('is_live', true).eq('is_archived', false).order('listener_count', { ascending: false }).limit(8),
-      supabase.from('live_streams').select('id,title,user_id,viewer_count,started_at,category,thumbnail_url,user:profiles!live_streams_user_id_fkey(username,display_name,avatar_url)').eq('is_live', true).eq('tv_provider', 'youtube').order('viewer_count', { ascending: false }).limit(8),
+      backendCapabilities.call<{items:LiveSpace[]}>('testagram.spaces.live.list',{limit:8}),
+      backendCapabilities.call<{items:LiveTv[]}>('testagram.tv.live.list',{provider:'youtube',limit:8}),
     ]);
-    const audio: LiveChannel[] = (spacesResult.data ?? []).map((s: any) => ({ ...s, kind: s.has_video ? 'video-space' : 'audio' }));
-    const tv: LiveChannel[] = (tvResult.data ?? []).map((s: any) => ({ ...s, kind: 'tv' }));
+    const audio: LiveChannel[] = (spacesResult.items ?? []).map((s: any) => ({ ...s, kind: s.has_video ? 'video-space' : 'audio' }));
+    const tv: LiveChannel[] = (tvResult.items ?? []).map((s: any) => ({ ...s, kind: 'tv' }));
     const all = [...audio, ...tv];
     const audience = (item: LiveChannel) => item.kind === 'tv' ? Number(item.viewer_count ?? 0) : Number(item.listener_count ?? 0);
     setChannels(all.sort((a, b) => audience(b) - audience(a)).slice(0, 10));
@@ -42,7 +42,7 @@ export function LiveSpacesDiscoveryStrip() {
     // Polling is the source of truth for this discovery strip. Do not attach
     // postgres_changes listeners here: this component is mounted on the global
     // home shell and can be mounted/unmounted during route transitions. A
-    // realtime channel racing with cleanup can be observed by supabase-js as
+    // realtime channel racing with cleanup can be observed by legacy realtime provider as
     // already subscribed, which aborts application startup. A 30s visible-only
     // poll keeps live discovery fresh without burning battery/network in the
     // background.
