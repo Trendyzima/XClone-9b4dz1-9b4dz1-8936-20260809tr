@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Wallet, RefreshCw, ArrowDownToLine, ArrowLeftRight, History, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { walletApi } from '@/services/walletApi';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 
-type WalletSnapshot = { wallet?: { id?: string; balance?: number; currency?: string }; transactions?: Array<{ id?: string; type?: string; amount?: number; currency?: string; status?: string; created_at?: string; reference?: string }> };
+type WalletSnapshot = { wallet?: { id?: string; balance?: number | string; currency?: string }; transactions?: any[] };
 
 type WalletPageProps = { initialTab?: string; standaloneTitle?: string };
 
@@ -21,7 +21,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
 
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
-    try { setSnapshot(await backendCapabilities.getWallet(50)); }
+    try { setSnapshot(await walletApi.getSnapshot(50)); }
     catch (e) { setError(e instanceof Error ? e.message : 'Wallet could not be loaded.'); }
     finally { setLoading(false); }
   }, []);
@@ -32,10 +32,9 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
     if (!Number.isFinite(value) || value < 10) { toast.error('Minimum deposit is KES 10.'); return; }
     setBusy(true);
     try {
-      const walletId = snapshot.wallet?.id;
-      if (!walletId) throw new Error('Your wallet is not available yet.');
-      const result = await backendCapabilities.call<{ checkout_request_id?: string; status?: string }>('testagram.wallet.mpesa.stk_push', { amount_kes: value, phone, wallet_id: walletId });
-      toast.success(result.status === 'success' ? 'Deposit confirmed.' : 'M-Pesa request sent. Check your phone to complete payment.');
+      if (!snapshot.wallet?.id) throw new Error('Your wallet is not available yet.');
+      const result = await walletApi.requestMpesaTopUp({ amountKes: value, phone, currency: (snapshot.wallet?.currency ?? 'KES') as 'KES' | 'USD' });
+      toast.success(result.status === 'settled' ? 'Deposit confirmed.' : 'M-Pesa request sent. Check your phone to complete payment.');
       await refresh();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'M-Pesa request failed.'); }
     finally { setBusy(false); }
@@ -46,8 +45,10 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
     if (!recipient.trim() || !Number.isFinite(value) || value <= 0) { toast.error('Enter a recipient and valid amount.'); return; }
     setBusy(true);
     try {
-      await backendCapabilities.call('testagram.wallet.transfer', { recipient: recipient.trim(), amount: value, currency: snapshot.wallet?.currency ?? 'KES' });
-      toast.success('Transfer submitted.'); await refresh();
+      const handle = recipient.trim().replace(/^@/, '').toLowerCase();
+      const recipientId = (await walletApi.resolveRecipient(handle)).user_id;
+      const result = await walletApi.transfer(recipientId, value, 'Wallet transfer');
+      toast.success(result.status === 'completed' ? 'Transfer completed.' : 'Transfer submitted.'); await refresh();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Transfer failed.'); }
     finally { setBusy(false); }
   };
@@ -63,7 +64,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
       </header>
       {error && <div role="alert" className="rounded-xl border border-destructive/40 p-4 text-sm flex gap-2"><AlertCircle className="h-5 w-5 shrink-0" />{error}</div>}
       <section className="rounded-2xl border bg-card p-6">
-        <p className="text-sm text-muted-foreground">Available balance</p>
+        <p className="text-sm text-muted-foreground">Available balance ({snapshot.wallet?.currency ?? 'KES'})</p>
         <p className="text-3xl font-bold mt-2">{loading ? 'Loading…' : `KES ${balance.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`}</p>
         <p className="text-xs text-muted-foreground mt-2">New wallet balances start at zero. Only verified Backend ledger entries change this amount.</p>
       </section>
@@ -77,13 +78,13 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
         <div className="rounded-2xl border bg-card p-5 space-y-3">
           <h2 className="font-semibold flex items-center gap-2"><ArrowLeftRight className="h-4 w-4" /> Send wallet funds</h2>
           <label className="block text-sm">Recipient username or ID<input className="mt-1 w-full rounded-lg border bg-background p-2" value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="@username" /></label>
-          <label className="block text-sm">Amount (KES)<input className="mt-1 w-full rounded-lg border bg-background p-2" type="number" min="1" value={amount} onChange={e=>setAmount(e.target.value)} /></label>
+          <label className="block text-sm">Amount ({snapshot.wallet?.currency ?? 'KES'})<input className="mt-1 w-full rounded-lg border bg-background p-2" type="number" min="1" value={amount} onChange={e=>setAmount(e.target.value)} /></label>
           <button onClick={()=>void sendTransfer()} disabled={busy||loading} className="w-full rounded-xl border px-4 py-2 disabled:opacity-50">{busy?'Please wait…':'Send transfer'}</button>
         </div>
       </section>
       <section className="rounded-2xl border bg-card p-5">
         <h2 className="font-semibold flex items-center gap-2 mb-4"><History className="h-4 w-4" /> Transaction history</h2>
-        {transactions.length===0 ? <p className="text-sm text-muted-foreground">No ledger transactions yet.</p> : <div className="divide-y">{transactions.map((tx,i)=><div key={tx.id??i} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-medium">{tx.type??'Transaction'}</p><p className="text-xs text-muted-foreground">{tx.created_at?new Date(tx.created_at).toLocaleString():''} · {tx.status??'recorded'}</p></div><p className="font-semibold tabular-nums">{tx.currency??'KES'} {Number(tx.amount??0).toLocaleString()}</p></div>)}</div>}
+        {transactions.length===0 ? <p className="text-sm text-muted-foreground">No ledger transactions yet.</p> : <div className="divide-y">{transactions.map((tx,i)=><div key={tx.id??i} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-medium">{tx.kind??tx.type??'Transaction'}</p><p className="text-xs text-muted-foreground">{tx.created_at?new Date(tx.created_at).toLocaleString():''} · {tx.status??'recorded'}</p></div><p className="font-semibold tabular-nums">{tx.currency??'KES'} {Number(tx.amount??0).toLocaleString()}</p></div>)}</div>}
       </section>
     </main>
   </div>;

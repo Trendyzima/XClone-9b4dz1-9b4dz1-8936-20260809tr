@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { PostCard } from '@/components/features/PostCard';
 import { Bookmark, FolderOpen, FolderPlus, Loader2, X, Folder, Plus, Trash2, Check, Play, Heart, Eye } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
@@ -21,6 +21,7 @@ export function BookmarksPage() {
   const [loadingMoreBookmarks, setLoadingMoreBookmarks] = useState(false);
   const [hasMoreBookmarks, setHasMoreBookmarks] = useState(true);
   const bookmarksPageRef = useRef(0);
+  const bookmarksCursorRef = useRef<string | null>(null);
   const loadingMoreBookmarksRef = useRef(false);
   const bookmarksSentinelRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState('all' as 'all' | 'videos' | 'collections');
@@ -29,6 +30,7 @@ export function BookmarksPage() {
   const [loadingMoreBookmarkedVideos, setLoadingMoreBookmarkedVideos] = useState(false);
   const [hasMoreBookmarkedVideos, setHasMoreBookmarkedVideos] = useState(true);
   const bookmarkedVideosPageRef = useRef(0);
+  const bookmarkedVideosCursorRef = useRef<string | null>(null);
   const bookmarkedVideosLoadedForUserRef = useRef<string | null>(null);
   const loadingMoreBookmarkedVideosRef = useRef(false);
   const bookmarkedVideosSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -60,23 +62,18 @@ export function BookmarksPage() {
     if (reset) setLoadingVideos(true);
     else { loadingMoreBookmarkedVideosRef.current = true; setLoadingMoreBookmarkedVideos(true); }
     try {
-      const pageIndex = reset ? 0 : bookmarkedVideosPageRef.current;
-      const { data, error } = await supabase
-        .from('bookmarks')
-        .select('*, post:posts(*, user:profiles!posts_user_id_fkey(*))')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(pageIndex * 20, pageIndex * 20 + 19);
-      if (error) throw error;
-      const rows = data ?? [];
-      const vids = rows.map((b: any) => b.post).filter((p: any) => p && p.is_video);
+      if (reset) bookmarkedVideosCursorRef.current = null;
+      const result = await backendCapabilities.listBookmarks(20, bookmarkedVideosCursorRef.current ?? undefined);
+      const rows = result.items ?? [];
+      const vids = rows.map((item: any) => item.post ?? item).filter((post: any) => post && (post.is_video || post.media_type === 'video'));
       setVideos(previous => {
         if (reset) return vids;
         const seen = new Set(previous.map((video: any) => String(video.id)));
         return [...previous, ...vids.filter((video: any) => !seen.has(String(video.id)))];
       });
-      setHasMoreBookmarkedVideos(rows.length === 20);
-      bookmarkedVideosPageRef.current = pageIndex + 1;
+      bookmarkedVideosCursorRef.current = result.next_cursor ?? null;
+      setHasMoreBookmarkedVideos(Boolean(result.next_cursor));
+      bookmarkedVideosPageRef.current += 1;
     } catch (error) { console.error('Error fetching bookmarked videos:', error); }
     finally {
       setLoadingVideos(false);
@@ -89,22 +86,17 @@ export function BookmarksPage() {
     if (reset) setLoading(true);
     else { loadingMoreBookmarksRef.current = true; setLoadingMoreBookmarks(true); }
     try {
-      const pageIndex = reset ? 0 : bookmarksPageRef.current;
-      const { data, error } = await supabase
-        .from('bookmarks')
-        .select('*, post:posts(*, user:profiles!posts_user_id_fkey(*))')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(pageIndex * 20, pageIndex * 20 + 19);
-      if (error) throw error;
-      const page = (data || []).map((b: any) => b.post).filter(Boolean);
+      if (reset) bookmarksCursorRef.current = null;
+      const result = await backendCapabilities.listBookmarks(20, bookmarksCursorRef.current ?? undefined);
+      const page = (result.items ?? []).map((item: any) => item.post ?? item).filter(Boolean);
       setPosts(previous => {
         if (reset) return page;
         const seen = new Set(previous.map((post: any) => String(post.id)));
         return [...previous, ...page.filter((post: any) => !seen.has(String(post.id)))];
       });
-      setHasMoreBookmarks((data?.length ?? 0) === 20);
-      bookmarksPageRef.current = pageIndex + 1;
+      bookmarksCursorRef.current = result.next_cursor ?? null;
+      setHasMoreBookmarks(Boolean(result.next_cursor));
+      bookmarksPageRef.current += 1;
     } catch (error) { console.error('Error fetching bookmarks:', error); }
     finally {
       setLoading(false);
@@ -143,32 +135,25 @@ export function BookmarksPage() {
   const fetchCollections = async () => {
     if (!user) return;
     setLoadingCollections(true);
-    const { data } = await supabase.from('lists').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    setCollections(data ?? []);
+    const result = await backendCapabilities.listLists();
+    setCollections(result.items ?? []);
     setLoadingCollections(false);
   };
 
   const fetchCollectionPosts = async (listId: string) => {
     setLoadingCollectionPosts(true);
-    const { data } = await supabase
-      .from('list_posts')
-      .select('*, post:posts(*, user_profiles:profiles!posts_user_id_fkey(*))')
-      .eq('list_id', listId)
-      .order('added_at', { ascending: false });
-    setCollectionPosts((data ?? []).map((lp: any) => lp.post).filter(Boolean));
+    const result = await backendCapabilities.getListTimeline(listId, 100);
+    setCollectionPosts((result.items ?? []).map((item: any) => item.post ?? item).filter(Boolean));
     setLoadingCollectionPosts(false);
   };
 
   const handleCreateCollection = async () => {
     if (!user || !newCollectionName.trim()) return;
     setCreating(true);
-    const { data, error } = await supabase.from('lists').insert({
-      user_id: user.id,
-      name: newCollectionName.trim(),
-      is_private: false,
-    }).select().single();
-    if (error) { toast.error('Failed to create collection'); setCreating(false); return; }
-    setCollections(prev => [data, ...prev]);
+    const result = await backendCapabilities.createList(newCollectionName.trim(), undefined, false);
+    const created = result.list as any;
+    if (!created) { toast.error('Failed to create collection'); setCreating(false); return; }
+    setCollections(prev => [created, ...prev]);
     setNewCollectionName('');
     setShowCreateDialog(false);
     toast.success('Collection created!');
@@ -177,7 +162,7 @@ export function BookmarksPage() {
 
   const handleDeleteCollection = async (listId: string) => {
     if (!confirm('Delete this collection? Posts will not be affected.')) return;
-    await supabase.from('lists').delete().eq('id', listId);
+    await backendCapabilities.call('testagram.lists.delete', { list_id: listId });
     setCollections(prev => prev.filter(c => c.id !== listId));
     if (activeCollectionId === listId) { setActiveCollectionId(null); setCollectionPosts([]); }
     toast.success('Collection deleted');
@@ -185,17 +170,14 @@ export function BookmarksPage() {
 
   const handleAddToCollection = async (listId: string, postId: string) => {
     setAddingToCollection(listId);
-    const { error } = await supabase.from('list_posts').insert({ list_id: listId, post_id: postId });
-    if (error?.code === '23505') { toast.info('Already in this collection'); }
-    else if (error) { toast.error('Failed to add to collection'); }
-    else { toast.success('Added to collection!'); }
+    try { await backendCapabilities.call('testagram.lists.posts.add', { list_id: listId, post_id: postId }); toast.success('Added to collection!'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to add to collection'); }
     setAddingToCollection(null);
     setShowAddPicker(null);
   };
 
   const handleRemoveFromCollection = async (postId: string) => {
     if (!activeCollectionId) return;
-    await supabase.from('list_posts').delete().eq('list_id', activeCollectionId).eq('post_id', postId);
+    await backendCapabilities.call('testagram.lists.posts.remove', { list_id: activeCollectionId, post_id: postId });
     setCollectionPosts(prev => prev.filter(p => p.id !== postId));
     toast.success('Removed from collection');
     // Update count in local state

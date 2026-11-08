@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Hash, Search, TrendingUp, Check, Plus, Loader2, X, Flame, Users,
@@ -10,6 +9,7 @@ import {
 import { toast } from 'sonner';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -53,15 +53,8 @@ export default function HashtagDiscoveryPage() {
     setTabLoading(true);
     try {
       if (tab === 'Posts') {
-        const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
-        const { data } = await supabase
-          .from('posts')
-          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .is('community_id', null)
-          .eq('is_video', false)
-          .gte('created_at', since48h)
-          .order('likes_count', { ascending: false })
-          .limit(30);
+        const result = await backendCapabilities.listDiscoveryPosts(30, '', 'top');
+        const data = result.items ?? [];
         // Engagement score: likes×2 + reposts×3 + replies×1.5 + views×0.05
         const scored = (data ?? []).map((p: any) => ({
           ...p,
@@ -69,38 +62,19 @@ export default function HashtagDiscoveryPage() {
         })).sort((a: any, b: any) => b._score - a._score);
         setRecommendedPosts(scored.slice(0, 20));
       } else if (tab === 'Videos') {
-        const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
-        const { data } = await supabase
-          .from('posts')
-          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .eq('is_video', true)
-          .gte('created_at', since48h)
-          .order('views_count', { ascending: false })
-          .limit(20);
-        setRecommendedVideos(data ?? []);
+        const result = await backendCapabilities.listDiscoveryVideos(20);
+        setRecommendedVideos(result.items ?? []);
       } else if (tab === 'Creators') {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url, verified, follower_count, bio, is_creator, creator_tier')
-          .order('follower_count', { ascending: false })
-          .limit(30);
+        const result = await backendCapabilities.listDiscoveryCreators(30);
+        const data = result.items ?? [];
         setRecommendedCreators((data ?? []).filter((u: any) => u.id !== user?.id));
         if (user) {
-          const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
-          setFollowingCreatorIds((follows ?? []).map((f: any) => f.following_id));
+          const followStates = await Promise.allSettled((data ?? []).filter((creator: any) => creator.id !== user.id).map(async (creator: any) => ({ id: creator.id, state: await backendCapabilities.getFollowState(creator.id) })));
+          setFollowingCreatorIds(followStates.flatMap((result: any) => result.status === 'fulfilled' && result.value.state?.following ? [result.value.id] : []));
         }
       } else if (tab === 'Threads') {
-        const { data } = await supabase
-          .from('threads')
-          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .eq('is_published', true)
-          .order('likes_count', { ascending: false })
-          .limit(20);
-        const rows = data ?? [];
-         const ownerIds = [...new Set(rows.map((r: any) => r.owner_id).filter(Boolean))];
-         const { data: profiles } = ownerIds.length ? await supabase.from('profiles').select('id, username, avatar_url, verified_tier').in('id', ownerIds) : { data: [] as any[] };
-         const byOwner = new Map((profiles ?? []).map((p: any) => [p.id, p]));
-         setRecommendedThreads(rows.map((r: any) => ({ ...r, user_profiles: byOwner.get(r.owner_id) ?? null })));
+        const result = await backendCapabilities.listDiscoveryThreads(20);
+        setRecommendedThreads(result.items ?? []);
       }
     } catch (err) {
       console.error('[fetchTabContent]', err);
@@ -116,10 +90,10 @@ export default function HashtagDiscoveryPage() {
     setFollowCreatorLoading(profileId);
     const isFollowing = followingCreatorIds.includes(profileId);
     if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', profileId);
+      await backendCapabilities.followUser(profileId, false);
       setFollowingCreatorIds(prev => prev.filter(id => id !== profileId));
     } else {
-      await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
+      await backendCapabilities.followUser(profileId, true);
       setFollowingCreatorIds(prev => [...prev, profileId]);
       toast.success(`Following @${username}!`);
     }
@@ -131,24 +105,14 @@ export default function HashtagDiscoveryPage() {
     const load = async () => {
       setLoading(true);
       const [followRes, trendRes] = await Promise.all([
-        user
-          ? supabase.from('hashtag_follows')
-              .select('hashtag_id, hashtags(id, tag, usage_count)')
-              .eq('user_id', user.id)
-              .order('created_at', { ascending: false })
-              .limit(100)
-          : Promise.resolve({ data: [] }),
-        supabase.from('hashtags')
-          .select('id, tag, usage_count, post_count, federated_post_count, follower_count, last_used_at')
-          .gte('last_used_at', new Date(Date.now() - 30 * 24 * 3600000).toISOString())
-          .order('last_used_at', { ascending: false })
-          .limit(100),
+        user ? backendCapabilities.listFollowedHashtags() : Promise.resolve({ items: [] }),
+        backendCapabilities.listTrendingHashtags(100),
       ]);
-      const followed = ((followRes as any).data ?? []).map((f: any) => f.hashtags).filter(Boolean);
+      const followed = (followRes.items ?? []).filter(Boolean);
       setFollowedHashtags(followed);
       setFollowedIds(followed.map((h: any) => h.id));
       const stopTags = new Set(['the','and','for','with','from','this','that','you','are','was','has','have','not','but','of','to','in','on','a','an','it','is','as','or','porn','nudes','onlyfans','sexwork','nsfw']);
-      const rankedTrends = ((trendRes.data ?? []) as any[])
+      const rankedTrends = ((trendRes.items ?? []) as any[])
         .filter((h: any) => h?.id && /^[a-z0-9][a-z0-9_-]{2,63}$/i.test(String(h.tag ?? '')))
         .filter((h: any) => !stopTags.has(String(h.tag).toLowerCase()))
         .map((h: any) => {
@@ -172,12 +136,8 @@ export default function HashtagDiscoveryPage() {
     if (!q.trim()) { setSearchResults([]); return; }
     setSearching(true);
     const clean = q.replace(/^#/, '').toLowerCase();
-    const { data } = await supabase.from('hashtags')
-      .select('id, tag, usage_count')
-      .ilike('tag', `${clean}%`)
-      .order('usage_count', { ascending: false })
-      .limit(20);
-    setSearchResults(data ?? []);
+    const result = await backendCapabilities.searchHashtags(clean, 20);
+    setSearchResults(result.items ?? []);
     setSearching(false);
   }, []);
 
@@ -191,12 +151,12 @@ export default function HashtagDiscoveryPage() {
     setActionLoading(hashtagId);
     const isFollowing = followedIds.includes(hashtagId);
     if (isFollowing) {
-      await supabase.from('hashtag_follows').delete().eq('user_id', user.id).eq('hashtag_id', hashtagId);
+      await backendCapabilities.setHashtagFollow(hashtagId, false);
       setFollowedIds(prev => prev.filter(id => id !== hashtagId));
       setFollowedHashtags(prev => prev.filter(h => h.id !== hashtagId));
       toast.success(`Unfollowed #${tag}`);
     } else {
-      await supabase.from('hashtag_follows').insert({ user_id: user.id, hashtag_id: hashtagId });
+      await backendCapabilities.setHashtagFollow(hashtagId, true);
       setFollowedIds(prev => [...prev, hashtagId]);
       const htData = trendingHashtags.find(h => h.id === hashtagId)
         ?? searchResults.find(h => h.id === hashtagId)
@@ -210,7 +170,7 @@ export default function HashtagDiscoveryPage() {
   const unfollowAll = async () => {
     if (!user || followedHashtags.length === 0) return;
     if (!window.confirm(`Unfollow all ${followedHashtags.length} hashtags?`)) return;
-    await supabase.from('hashtag_follows').delete().eq('user_id', user.id);
+    await Promise.allSettled(followedIds.map((hashtagId) => backendCapabilities.setHashtagFollow(hashtagId, false)));
     setFollowedHashtags([]);
     setFollowedIds([]);
     toast.success('Unfollowed all hashtags');

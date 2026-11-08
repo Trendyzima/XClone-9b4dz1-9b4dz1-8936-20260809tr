@@ -1,34 +1,28 @@
-import { appwriteAuth } from '@/services/appwriteAuth';
-import { megalodonGatewayService } from '@/services/megalodonGateway';
+import { testagramApiRequest, TestagramApiError } from '@/services/apiClient';
 
-const FEDERATION_API_ORIGIN = (import.meta.env.VITE_TESTAGRAM_FEDERATION_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
-async function getToken(): Promise<string | null> { try { return await appwriteAuth.createBackendJWT(); } catch { return null; } }
-function remoteInstanceFromHandle(acct: string): string | null {
-  const normalized = acct.trim().replace(/^@/, ''); const parts = normalized.split('@');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-  return `https://${parts[1].replace(/\/$/, '')}`;
-}
-async function api<T = any>(path: string, method = 'GET', body?: unknown, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
-  if (!FEDERATION_API_ORIGIN) throw new GatewayError(503, 'Federation API endpoint is not configured.', path);
-  const token = await getToken();
+const BACKEND_API_ORIGIN = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+async function api<T = any>(path: string, method: 'GET' | 'POST' | 'DELETE' = 'GET', body?: unknown, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
+  if (!BACKEND_API_ORIGIN) throw new GatewayError(503, 'The canonical Backend API endpoint is not configured.', path);
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params ?? {})) if (value !== undefined && value !== null) query.set(key, String(value));
-  const response = await fetch(`${FEDERATION_API_ORIGIN}/v1/federation${path.startsWith('/') ? path : `/${path}`}${query.size ? `?${query}` : ''}`, {
-    method, headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }), credentials: 'omit', cache: 'no-store',
-  });
-  const raw = await response.text(); let data: any = null; try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
-  if (!response.ok) throw new GatewayError(response.status, typeof data === 'string' ? data : data?.message ?? 'Federation API request failed', path);
-  return data as T;
+  const suffix = query.size ? `?${query.toString()}` : '';
+  try {
+    return await testagramApiRequest<T>(`/api/federation${path.startsWith('/') ? path : `/${path}`}${suffix}`, {
+      method,
+      body,
+    });
+  } catch (error) {
+    if (error instanceof TestagramApiError) throw new GatewayError(error.status, error.message, path);
+    throw error;
+  }
 }
 export class GatewayError extends Error {
   constructor(public status: number, public body: string, public path: string) { super(`Testagram API error on ${path}: ${body}`); this.name = 'GatewayError'; }
 }
-export function isGatewayAvailable(): boolean { return true; }
-export function getGatewayUrl(): string { return FEDERATION_API_ORIGIN ? `${FEDERATION_API_ORIGIN}/v1/federation` : ''; }
+export function isGatewayAvailable(): boolean { return Boolean(BACKEND_API_ORIGIN); }
+export function getGatewayUrl(): string { return BACKEND_API_ORIGIN ? `${BACKEND_API_ORIGIN}/api/federation` : ''; }
 export interface TimelineParams { limit?: number; before?: string; after?: string; feedId?: string; }
 export interface FederatedPage { items: any[]; pagination: { limit: number; hasMore: boolean; nextCursor: string | null }; }
-interface RemoteSearchResult { accounts?: any[]; statuses?: any[]; hashtags?: any[]; }
 export async function getHomeTimeline(params: TimelineParams = {}): Promise<any[]> { return api('/timeline/home', 'GET', undefined, params as any); }
 export async function getGlobalTimeline(params: TimelineParams = {}): Promise<any[]> { return api('/timeline/global', 'GET', undefined, params as any); }
 export async function getLocalTimeline(params: TimelineParams = {}): Promise<any[]> { return api('/timeline/local', 'GET', undefined, params as any); }
@@ -37,49 +31,12 @@ export async function getFederatedTimelinePage(params: TimelineParams = {}): Pro
   return api<FederatedPage>('/feed', 'GET', undefined, { limit: Math.min(Math.max(params.limit ?? 20, 1), 50), before: params.before, feed_id: params.feedId });
 }
 export async function getUser(acct: string): Promise<any> {
-  const instance = remoteInstanceFromHandle(acct);
-  if (instance) {
-    const normalized = acct.trim().replace(/^@/, ''); const [username] = normalized.split('@');
-    const remote = await megalodonGatewayService.search(instance, `@${username}`, 'accounts') as { result?: RemoteSearchResult };
-    const account = remote.result?.accounts?.[0]; if (!account) return null;
-    return {
-      ...account,
-      id: account.id,
-      preferredUsername: account.username,
-      username: account.username,
-      name: account.display_name,
-      display_name: account.display_name,
-      summary: account.note,
-      bio: account.note,
-      icon: account.avatar ? { url: account.avatar } : null,
-      avatar_url: account.avatar ?? null,
-      header_url: account.header ?? null,
-      followers: account.follower_count ?? 0,
-      following: account.following_count ?? 0,
-      followers_count: account.follower_count ?? 0,
-      following_count: account.following_count ?? 0,
-      fields: Array.isArray(account.fields) ? account.fields : [],
-      emojis: Array.isArray(account.emojis) ? account.emojis : [],
-      url: account.url,
-      // `uri` is Mastodon's ActivityPub actor identifier; `url` is only the web profile.
-      actor_url: account.uri ?? null,
-      actor_uri: account.uri ?? null,
-    };
-  }
-  return api(`/webfinger/${encodeURIComponent(acct)}`);
+  return api(`/resolve-account`, 'GET', undefined, { acct });
 }
 export async function webfinger(acct: string): Promise<any> { return getUser(acct); }
 export async function getActor(username: string): Promise<any> {
-  const instance = remoteInstanceFromHandle(username); if (instance) { const normalized = username.trim().replace(/^@/, ''); const [accountName] = normalized.split('@'); const remote = await megalodonGatewayService.search(instance, `@${accountName}`, 'accounts') as { result?: RemoteSearchResult }; return remote.result?.accounts?.[0] ?? null; }
-  const response = await fetch(`/api/federation-actor?username=${encodeURIComponent(username)}`, {
-    method: 'GET',
-    headers: { Accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"' },
-    credentials: 'same-origin',
-    cache: 'no-store',
-  });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Federation actor lookup failed (${response.status})`);
-  return response.json();
+  try { return await api('/actor', 'GET', undefined, { username }); }
+  catch (error) { if (error instanceof GatewayError && error.status === 404) return null; throw error; }
 }
 export async function postStatus(payload: { content: string; mediaIds?: string[]; visibility?: 'public' | 'unlisted' | 'followers' | 'direct'; inReplyTo?: string; sensitive?: boolean; spoilerText?: string }): Promise<any> { return api('/posts', 'POST', payload); }
 export async function deletePost(postId: string): Promise<void> { return api(`/posts/${encodeURIComponent(postId)}`, 'DELETE'); }
@@ -126,11 +83,18 @@ export async function getFederatedReplies(objectUri: string, options: { parentUr
   return Array.isArray(result?.items) ? result.items : [];
 }
 
+export async function setReaction(objectUri: string, emoji: string, enabled: boolean) { return api('/reactions', 'POST', { object_uri: objectUri, emoji, enabled }); }
+export async function getReactionState(objectUri: string): Promise<{ emoji?: string | null; active?: boolean; emojis?: string[] }> { return api('/reactions', 'GET', undefined, { object_uri: objectUri }); }
+export async function getReactionCounts(objectUri: string): Promise<Record<string, number>> { const result = await api<{ counts?: Record<string, number> }>('/reaction-counts', 'GET', undefined, { object_uri: objectUri }); return result?.counts ?? {}; }
+export async function getInteractionCounts(objectUri: string): Promise<any> { return api('/interaction-counts', 'GET', undefined, { object_uri: objectUri }); }
+export async function getInteractionState(objectUri: string): Promise<{ like: boolean; repost: boolean }> { return api('/interaction-state', 'GET', undefined, { object_uri: objectUri }); }
+export async function recordShare(objectUri: string): Promise<{ shares?: number }> { return api('/record-share', 'POST', { object_uri: objectUri }); }
+export async function recordView(objectUri: string): Promise<{ views?: number }> { return api('/record-view', 'POST', { object_uri: objectUri }); }
 export async function getNotifications(params: TimelineParams = {}): Promise<any[]> { return api('/notifications', 'GET', undefined, params as any); }
 export async function clearNotifications(): Promise<void> { return api('/notifications', 'DELETE'); }
 export async function search(q: string, type: 'users' | 'posts' | 'hashtags' | 'instances' = 'users'): Promise<any[]> {
   const match = q.trim().replace(/^@/, '').match(/^([^@\s]+)@([^@\s]+)$/);
-  if (match && (type === 'users' || type === 'instances')) { const remote = await megalodonGatewayService.search(`https://${match[2]}`, `@${match[1]}`, 'accounts') as { result?: RemoteSearchResult }; return remote.result?.accounts ?? []; }
+  if (match && (type === 'users' || type === 'instances')) return api('/resolve-account', 'GET', undefined, { acct: `${match[1]}@${match[2]}` });
   return api('/search', 'GET', undefined, { q, type });
 }
 export async function getFollowers(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/followers`, 'GET', undefined, params as any); }
@@ -142,8 +106,8 @@ export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: s
   return api<FederatedDiscoveryResult>('/discovery', 'POST', { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode, kind });
 }
 export async function getFollowing(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/following`, 'GET', undefined, params as any); }
-export async function getInstance(): Promise<any> { const remote = await megalodonGatewayService.getInstance('https://mastodon.social'); return remote.instance; }
-export async function getHealth(): Promise<any> { return megalodonGatewayService.detect('https://mastodon.social'); }
+export async function getInstance(): Promise<any> { return api('/instance', 'GET', undefined, { domain: 'mastodon.social' }); }
+export async function getHealth(): Promise<any> { return api('/health', 'GET', undefined, { domain: 'mastodon.social' }); }
 export async function pollFediverseInbox(_userId: string): Promise<any[]> { const result = await api<{items?:any[]}>('/inbox', 'GET', undefined, { limit: 50 }); return Array.isArray(result?.items) ? result.items : []; }
 /** @deprecated Use the named exports above. */
 export async function gwRelay<T = any>(path: string, method = 'GET', body?: any, params?: Record<string, any>): Promise<T> { return api<T>(path, method, body, params); }

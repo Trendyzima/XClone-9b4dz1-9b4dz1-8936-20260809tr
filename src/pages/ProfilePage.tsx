@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { profileApi } from '@/services/profileApi';
+import { socialApi } from '@/services/socialApiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
 import { TopBar } from '@/components/layout/TopBar';
@@ -11,7 +12,7 @@ import { RevenueAnalyticsWidget } from '@/components/features/RevenueAnalyticsWi
 import { StoryHighlights } from '@/components/features/StoryHighlights';
 import CreatorMonetizationHub, { SubscriptionTiersDisplay, TipGoalWidget, SubscriberBadge } from '@/components/features/CreatorMonetizationHub';
 import { Calendar, MapPin, Link as LinkIcon, Loader2, Twitter, Instagram, Linkedin, MessageCircle, Globe, ShieldCheck, X, Trophy, Flame, DollarSign, Gift, Check, Share2, Copy, Plus, Star, Eye, Crown, Sparkles, MoreHorizontal, Ban, VolumeX, Volume2, Flag, Send, Rss, Play, Heart, BookOpen, ChevronRight, Headphones, Clock, Users, Pencil, ExternalLink } from 'lucide-react';
-import { sendActivityNotification } from '@/components/layout/AuthProvider';
+
 import { toast } from 'sonner';
 import { useSEO, buildProfileLD, buildOgImageUrl } from '@/hooks/useSEO';
 import { usePremium } from '@/hooks/usePremium';
@@ -103,7 +104,8 @@ function fmtPodTotalDur(secs: number): string {
   return `${m}m`;
 }
 function getPodcastRssUrl(username: string) {
-  return `${import.meta.env.VITE_SUPABASE_URL?.replace('/v1', '')}/functions/v1/podcast-rss?username=${username}`;
+  const origin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+  return origin ? `${origin}/api/podcasts/rss?username=${encodeURIComponent(username)}` : '';
 }
 
 // Pure helpers replacing Record<string,T> index-sig objects in render (esbuild guard)
@@ -160,9 +162,9 @@ function SocialLinksEditor({
     const cleanTw = tw.trim().replace(/^@/, '') || null;
     const cleanIg = ig.trim().replace(/^@/, '') || null;
     const cleanLi = li.trim() || null;
-    const { error } = await supabase.from('profiles').update({ social_links: { twitter: cleanTw, instagram: cleanIg, linkedin: cleanLi } }).eq('id', userId);
+    try { await profileApi.sendSocialLinks({ twitter: cleanTw, instagram: cleanIg, linkedin: cleanLi }); }
+    catch { setSaving(false); toast.error('Failed to save social links'); return; }
     setSaving(false);
-    if (error) { toast.error('Failed to save social links'); return; }
     toast.success('Social links updated!');
     setOpen(false);
     onSaved();
@@ -381,119 +383,65 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!profile?.id) return;
-    // Check if this user has active (non-expired) stories
-    supabase
-      .from('stories')
-      .select('id', { count: 'exact', head: true })
-      .eq('owner_id', profile.id)
-      .gt('expires_at', new Date().toISOString())
-      .then(({ count }) => setProfileHasStories((count ?? 0) > 0));
+    let active = true;
+    profileApi.getStoryStatus(profile.id).then(result => { if (active) setProfileHasStories(result.has_stories); }).catch(() => { if (active) setProfileHasStories(false); });
+    return () => { active = false; };
   }, [profile?.id]);
 
   const checkBlockMuteStatus = async (profileId: string) => {
     if (!currentUser) return;
-    const [{ data: blockRow }, { data: muteRow }] = await Promise.all([
-      supabase.from('user_blocks').select('id').eq('blocker_id', currentUser.id).eq('blocked_id', profileId).maybeSingle(),
-      supabase.from('user_mutes').select('id').eq('muter_id', currentUser.id).eq('muted_id', profileId).maybeSingle(),
-    ]);
-    setIsBlocked(!!blockRow);
-    setIsMuted(!!muteRow);
+    const state = await profileApi.getBlockMuteState(profileId);
+    setIsBlocked(Boolean(state.blocked)); setIsMuted(Boolean(state.muted));
   };
 
   const handleBlock = async () => {
     if (!currentUser || !profile) return;
     setShowMoreMenu(false);
-    if (isBlocked) {
-      await supabase.from('user_blocks').delete().eq('blocker_id', currentUser.id).eq('blocked_id', profile.id);
-      setIsBlocked(false);
-      toast.success(`@${profile.username} unblocked`);
-    } else {
-      await supabase.from('user_blocks').insert({ blocker_id: currentUser.id, blocked_id: profile.id });
-      if (isFollowing) {
-        await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id);
-        setIsFollowing(false);
-      }
-      setIsBlocked(true);
-      toast.success(`@${profile.username} blocked`);
-    }
+    try { await socialApi.setBlock(profile.id, !isBlocked); setIsBlocked(!isBlocked); if (!isBlocked) setIsFollowing(false); toast.success(isBlocked ? 'Unblocked user' : 'User blocked'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not update block status'); }
   };
 
   const handleMute = async () => {
     if (!currentUser || !profile) return;
     setShowMoreMenu(false);
-    if (isMuted) {
-      await supabase.from('user_mutes').delete().eq('muter_id', currentUser.id).eq('muted_id', profile.id);
-      setIsMuted(false);
-      toast.success(`@${profile.username} unmuted`);
-    } else {
-      await supabase.from('user_mutes').insert({ muter_id: currentUser.id, muted_id: profile.id });
-      setIsMuted(true);
-      toast.success(`@${profile.username} muted — their posts won't appear in your feed`);
-    }
+    try { const result = await profileApi.setMute(profile.id, !isMuted); setIsMuted(result.muted); toast.success(result.muted ? 'User muted' : 'User unmuted'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not update mute status'); }
   };
 
   const handleGiftPremium = async () => {
     if (!currentUser || !profile) return;
-    const GIFT_PRICE = 4.99;
     setGiftingPremium(true);
     try {
-      const idempotencyKey = `premium-gift:${currentUser.id}:${profile.id}:${crypto.randomUUID()}`;
-      const { data, error } = await supabase.rpc('send_premium_gift', { p_recipient_id: profile.id, p_amount: GIFT_PRICE, p_idempotency_key: idempotencyKey });
-      if (error) throw error;
-      const expiresAt = new Date(data?.expires_at ?? Date.now() + 30 * 86400000);
-      await supabase.from('platform_inbox').insert({
-        user_id: profile.id, subject: '🎁 Someone gifted you Premium!',
-        body: `@${currentUser.username} gifted you 1 month of Premium! Enjoy an ad-free experience until ${expiresAt.toLocaleDateString()}.`,
-        type: 'update', icon_emoji: '👑', cta_label: 'View Premium Benefits', cta_url: '/premium',
-      }).catch(() => {});
-      await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
-      toast.success(`🎁 Premium gifted to @${profile.username} for 1 month!`);
-      setShowGiftPremiumDialog(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to gift premium');
-    } finally {
-      setGiftingPremium(false);
-    }
+      await profileApi.sendPremiumGift(profile.id, 4.99, 'premium-gift-' + crypto.randomUUID());
+      toast.success('Premium gift sent'); setShowGiftPremiumDialog(false);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to gift premium'); }
+    finally { setGiftingPremium(false); }
   };
 
   const handleSubscribe = async (tier: string, price: number) => {
     if (!currentUser) { navigate('/auth'); return; }
+    if (!profile) return;
     setSubscribing(true);
-    const idempotencyKey = `profile-subscription:${currentUser.id}:${profile.id}:${tier}:${crypto.randomUUID()}`;
-    const { data: transfer, error: transferError } = await supabase.rpc('p2p_wallet_transfer', {
-      p_from_user_id: currentUser.id, p_to_user_id: profile.id, p_amount: price,
-      p_note: `Subscription to @${profile.username} — ${tier}`, p_idempotency_key: idempotencyKey,
-    });
-    if (transferError) { toast.error(transferError.message || 'Subscription payment failed'); setSubscribing(false); return; }
-    const expiresAt = new Date();
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-    const { error } = await supabase.from('subscriptions').upsert({
-      creator_id: profile.id, subscriber_id: currentUser.id, plan: tier, status: 'active',
-      started_at: new Date().toISOString(), ends_at: expiresAt.toISOString(), provider: 'internal',
-      provider_reference: transfer?.reference ?? null,
-    }, { onConflict: 'creator_id,subscriber_id' });
-    if (error) { toast.error('Subscription record failed'); setSubscribing(false); return; }
-    await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'subscription', source_id: null, amount: price, currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
-    await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  }).catch(() => {});
-    toast.success(`Subscribed to @${profile.username} on ${tier} tier!`);
-    setActiveSubscription({ tier, price, status: 'active' });
-    setShowSubscribeDialog(false);
-    setSubscribing(false);
+    try {
+      const result = await profileApi.subscribe(profile.id, tier, price, 'profile-subscription-' + crypto.randomUUID());
+      setActiveSubscription(result.subscription); setShowSubscribeDialog(false);
+      toast.success('Subscription activated');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Subscription failed'); }
+    finally { setSubscribing(false); }
   };
 
   const handleUnsubscribe = async () => {
     if (!currentUser || !profile) return;
-    await supabase.from('subscriptions').update({ status: 'cancelled' }).eq('creator_id', profile.id).eq('subscriber_id', currentUser.id);
-    setActiveSubscription(null);
-    toast.success('Subscription cancelled');
+    try { await profileApi.cancelSubscription(profile.id); setActiveSubscription(null); toast.success('Subscription cancelled'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not cancel subscription'); }
   };
 
   const openHighlightViewer = async (h: any) => {
     if (!h.story_ids || h.story_ids.length === 0) { toast.error('No stories in this highlight'); return; }
     setLoadingHighlightStories(true);
     setViewingHighlight(h);
-    const { data } = await supabase.from('stories').select('*').in('id', h.story_ids);
-    setHighlightStories(data ?? []);
+    const { items } = await profileApi.getStories(h.story_ids);
+    setHighlightStories(items ?? []);
     setHighlightStoryIdx(0);
     setHighlightProgress(0);
     setLoadingHighlightStories(false);
@@ -508,56 +456,24 @@ export default function ProfilePage() {
 
   const trackProfileView = async (viewedUserId: string) => {
     if (!currentUser || currentUser.id === viewedUserId) return;
-    await supabase.from('browsing_history').insert({ user_id: currentUser.id, profile_id: viewedUserId, view_type: 'profile' }).catch(() => {});
-    // ── Profile View Notification: notify owner once per viewer per 24h (localStorage dedup) ──
-    const notifKey = `ts-pv-notif-${viewedUserId}-${currentUser.id}`;
-    try {
-      const last = parseInt(localStorage.getItem(notifKey) ?? '0', 10);
-      if (Date.now() - last < 86400000) return; // 24h cooldown
-      localStorage.setItem(notifKey, String(Date.now()));
-    } catch { return; }
-    supabase.from('platform_inbox').insert({
-      user_id: viewedUserId,
-      subject: `@${currentUser.username} viewed your profile`,
-      body: `@${currentUser.username} just visited your profile. They might be interested in your content!`,
-      type: 'info',
-      icon_emoji: '👀',
-      cta_label: 'View their profile',
-      cta_url: `/profile/${currentUser.username}`,
-    }).catch(() => {});
+    await profileApi.trackProfileView(viewedUserId).catch(() => {});
   };
 
   const fetchProfileViews7d = async (userId: string) => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { count } = await supabase.from('browsing_history').select('*', { count: 'exact', head: true }).eq('profile_id', userId).eq('view_type', 'profile').gte('created_at', sevenDaysAgo);
-    setProfileViews7d(count ?? 0);
+    const result = await profileApi.getProfileViews(userId, 7);
+    setProfileViews7d(result.count ?? 0);
   };
 
   const fetchSubscription = async (creatorId: string) => {
     if (!currentUser) return;
-    const { data, error } = await supabase.from('subscriptions').select('*').eq('creator_id', creatorId).eq('subscriber_id', currentUser.id).eq('status', 'active').maybeSingle();
-    if (error) console.error('[profile] subscription query failed', { creatorId, error });
-    setActiveSubscription(data ? { tier: data.plan, price: null, status: data.status, ends_at: data.ends_at } : null);
+    const result = await profileApi.getSubscription(creatorId);
+    const data = result.subscription;
+    setActiveSubscription(data ? { tier: data.plan ?? data.tier, price: null, status: data.status, ends_at: data.ends_at } : null);
   };
 
   const fetchTipGoal = async (userId: string) => {
-    const { data: mon } = await supabase.from('user_monetization').select('total_earnings').eq('user_id', userId).maybeSingle();
-    setTipGoal(null);
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const { data: monthTips, error: monthTipsError } = await supabase.from('tips').select('from_user_id, amount').eq('to_user_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
-    if (monthTipsError) console.error('[profile] monthly tips query failed', { userId, monthTipsError });
-    const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0);
-    setCurrentMonthTips(total);
-    const tipperIds: string[] = [];
-    const tipperAmts: number[] = [];
-    for (const t of (monthTips ?? [])) {
-      const idx = tipperIds.indexOf(t.from_user_id);
-      if (idx >= 0) tipperAmts[idx] += Number(t.amount ?? 0);
-      else { tipperIds.push(t.from_user_id); tipperAmts.push(Number(t.amount ?? 0)); }
-    }
-    const sorted = [...tipperAmts].sort((a, b) => b - a).slice(0, 3);
-    setTopTippers(sorted.map((amount, i) => ({ rank: i + 1, amount })));
+    const result = await profileApi.getTipSummary(userId);
+    setTipGoal(null); setCurrentMonthTips(Number(result.monthly_total ?? 0)); setTopTippers(result.top_tippers ?? []);
   };
 
   const handleSaveTipGoal = async () => {
@@ -572,18 +488,9 @@ export default function ProfilePage() {
 
   const fetchTipHistory = async (userId: string) => {
     setLoadingTips(true);
-    const { data: tips, error } = await supabase.from('tips').select('*').or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
-    if (!tips || tips.length === 0) { setTipHistory([]); setLoadingTips(false); return; }
-    const allUids = tips.flatMap((t: any) => [t.from_user_id, t.to_user_id]) as string[];
-    const uids = allUids.filter((u: string, i: number) => allUids.indexOf(u) === i);
-    const { data: profileRows } = await supabase.from('profiles').select('id, username, avatar_url').in('id', uids);
-    // Use parallel arrays instead of index-sig objects (esbuild guard)
-    const pIds: string[] = [];
-    const pData: any[] = [];
-    for (const p of (profileRows ?? [])) { pIds.push(p.id); pData.push(p); }
-    const getP = (uid: string) => pData[pIds.indexOf(uid)];
-    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.from_user_id), recipient: getP(t.to_user_id) })));
-    setLoadingTips(false);
+    try { const result = await profileApi.listTips(userId, 50); setTipHistory(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend tips request failed', error); setTipHistory([]); }
+    finally { setLoadingTips(false); }
   };
 
   const handleShareProfile = async () => {
@@ -607,87 +514,59 @@ export default function ProfilePage() {
 
   const fetchGiftHistory = async (userId: string) => {
     setLoadingGifts(true);
-    const { data } = await supabase.from('premium_gifts').select('*').or(`sender_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
-    if (!data || data.length === 0) { setGiftHistory([]); setLoadingGifts(false); return; }
-    setGiftHistory(data);
-    setLoadingGifts(false);
+    try { const result = await profileApi.listGifts(userId, 50); setGiftHistory(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend gifts request failed', error); setGiftHistory([]); }
+    finally { setLoadingGifts(false); }
   };
 
   const fetchProfilePodcasts = async (userId: string) => {
     if (podcastsFetched) return;
     setLoadingPodcasts(true);
-    const { data, error } = await supabase.from('space_recordings').select('id, title, audio_url, video_url, duration, created_at, space_id, spaces(title, artwork_url, category, episode_number, subscriber_only)').eq('user_id', userId).order('created_at', { ascending: false }).limit(30);
-    if (error) console.error('[profile] podcasts query failed', { userId, error });
-    setProfilePodcasts(data ?? []);
-    setLoadingPodcasts(false);
-    setPodcastsFetched(true);
+    try { const result = await profileApi.listPodcasts(userId, 30); setProfilePodcasts(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend podcasts request failed', error); setProfilePodcasts([]); }
+    finally { setLoadingPodcasts(false); setPodcastsFetched(true); }
   };
 
   const fetchPostImpressions = async (userId: string) => {
-    const { data: userPosts } = await supabase.from('posts').select('id').eq('author_id', userId).limit(50);
-    if (!userPosts || userPosts.length === 0) return;
-    const since = new Date(Date.now() - 29 * 86400000).toISOString();
-    const { data } = await supabase.from('browsing_history').select('created_at').in('post_id', userPosts.map((p: any) => p.id)).eq('view_type', 'post').gte('created_at', since);
+    const result = await profileApi.getPostImpressions(userId, 30);
     const days: { date: string; views: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      days.push({ date: d.toISOString().split('T')[0].slice(5), views: 0 });
-    }
-    (data ?? []).forEach((r: any) => {
-      const k = r.created_at?.split('T')[0]?.slice(5);
-      const entry = days.find(d => d.date === k);
-      if (entry) entry.views++;
-    });
+    for (let i = 29; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000); days.push({ date: d.toISOString().split('T')[0].slice(5), views: 0 }); }
+    (result.items ?? []).forEach(row => { const key = row.created_at?.split('T')[0]?.slice(5); const day = days.find(item => item.date === key); if (day) day.views++; });
     setPostImpressionsChart(days);
   };
 
   const fetchProfileSeries = async (userId: string) => {
     if (profileSeriesFetched) return;
     setLoadingProfileSeries(true);
-    const { data, error } = await supabase.from('post_series').select('*, post_series_items(count)').eq('owner_id', userId).order('created_at', { ascending: false }).limit(20);
-    if (error) console.error('[profile] series query failed', { userId, error });
-    setProfileSeries(data ?? []);
-    setLoadingProfileSeries(false);
-    setProfileSeriesFetched(true);
+    try { const result = await profileApi.listSeries(userId, 20); setProfileSeries(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend series request failed', error); setProfileSeries([]); }
+    finally { setLoadingProfileSeries(false); setProfileSeriesFetched(true); }
   };
 
   const togglePinPost = async (postId: string) => {
     if (!currentUser || !isOwnProfile) return;
     const newPinned = pinnedPostId === postId ? null : postId;
-    const { error } = await supabase.from('profiles').update({ pinned_post_id: newPinned }).eq('id', currentUser.id);
-    if (error) { toast.error('Could not save pinned post'); return; }
-    setPinnedPostId(newPinned);
-    toast.success(newPinned ? 'Post pinned to your profile' : 'Post unpinned');
+    try { await profileApi.pinPost(newPinned); setPinnedPostId(newPinned); toast.success(newPinned ? 'Post pinned to your profile' : 'Post unpinned'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not save pinned post'); }
   };
 
   useEffect(() => { if (username) fetchProfile(); }, [username]);
 
+  useEffect(() => { if (username) fetchProfile(); }, [username]);
+
   const fetchHighlights = async (userId: string) => {
-    const { data } = await supabase.from('user_highlights').select('*').eq('user_id', userId).order('sort_order', { ascending: true });
-    const list = data ?? [];
-    setHighlights(list);
-    const allStoryIds = list.flatMap((h: any) => h.story_ids ?? []) as string[];
-    if (allStoryIds.length > 0) {
-      const { data: viewData } = await supabase.from('story_views').select('story_id').in('story_id', allStoryIds);
-      // Use parallel arrays (no index-sig map) — esbuild guard
-      const ids: string[] = [];
-      const counts: number[] = [];
-      for (const h of list) {
-        ids.push(h.id);
-        counts.push((viewData ?? []).filter((v: any) => (h.story_ids ?? []).includes(v.story_id)).length);
-      }
-      setHighlightIds(ids);
-      setHighlightCounts(counts);
-    }
+    const result = await profileApi.listHighlights(userId);
+    const list = result.items ?? []; setHighlights(list);
+    setHighlightIds(list.map((item: any) => item.id));
+    setHighlightCounts(list.map((item: any) => Number(item.view_count ?? 0)));
   };
 
   const updateHighlightOrder = async (newOrder: any[]) => {
-    await Promise.all(newOrder.map((h, idx) => supabase.from('user_highlights').update({ sort_order: idx }).eq('id', h.id)));
+    await profileApi.reorderHighlights(newOrder.map((item, index) => ({ id: item.id, sort_order: index })));
   };
 
   const fetchAvailableStories = async (userId: string) => {
-    const { data } = await supabase.from('stories').select('*').eq('owner_id', userId).order('created_at', { ascending: false }).limit(30);
-    setAvailableStories(data ?? []);
+    const result = await profileApi.listStories(userId, 30); setAvailableStories(result.items ?? []);
   };
 
   const handleCreateHighlight = async () => {
@@ -712,22 +591,7 @@ export default function ProfilePage() {
       }
       const autoCover = selectedStories[0]?.media_url ?? null;
       const nextSortOrder = highlights.length;
-      const { error } = await supabase.from('user_highlights').insert({
-        user_id: currentUser.id,
-        title,
-        cover_url: highlightCoverUrl ?? autoCover,
-        story_ids: selectedStoryIds,
-        sort_order: nextSortOrder,
-      });
-      if (error) {
-        console.error('[profile/highlights] create failed', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
-        throw error;
-      }
+      await profileApi.createHighlight({ title, cover_url: highlightCoverUrl ?? autoCover, story_ids: selectedStoryIds, sort_order: nextSortOrder });
       toast.success('Highlight created!');
       setShowCreateHighlight(false);
       setHighlightTitle('');
@@ -743,7 +607,7 @@ export default function ProfilePage() {
   };
 
   const handleDeleteHighlight = async (id: string) => {
-    await supabase.from('user_highlights').delete().eq('id', id);
+    await profileApi.deleteHighlight(id);
     setHighlights(prev => prev.filter(h => h.id !== id));
     toast.success('Highlight removed');
   };
@@ -753,16 +617,14 @@ export default function ProfilePage() {
     const amount = tipAmount ?? Number(customTipAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid tip amount'); return; }
     setSendingTip(true);
-    const idempotencyKey = `profile-tip:${currentUser.id}:${profile.id}:${crypto.randomUUID()}`;
-    const { data: tipResult, error: tipErr } = await supabase.rpc('send_wallet_tip', { p_to_user_id: profile.id, p_amount: amount, p_note: `Tip to @${profile.username}`, p_idempotency_key: idempotencyKey });
-    if (tipErr) { toast.error(tipErr.message || 'Could not send tip'); setSendingTip(false); return; }
-    if (!tipResult?.success) { toast.error('Tip transaction was not completed'); setSendingTip(false); return; }
-    if (!tipResult?.tip_id) throw new Error('Tip payment completed without a receipt');
-    await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'tip', source_id: tipResult.tip_id, amount, currency: tipResult.currency ?? 'KES', status: 'paid' }).then(() => {}).catch(() => {});
-    await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
-    toast.success(`${tipResult.currency ?? 'KES'} ${amount.toFixed(2)} tip sent to @${profile.username}!`);
-    setTipSent(true); setShowTipDialog(false); setTipAmount(null); setCustomTipAmount(''); setSendingTip(false);
-    setTimeout(() => setTipSent(false), 3000);
+    try {
+      const result = await profileApi.sendTip(profile.id, amount, 'Tip to @' + profile.username, 'profile-tip-' + crypto.randomUUID());
+      if (!result.success || !result.tip_id) throw new Error('Tip transaction was not completed');
+      toast.success((result.currency ?? 'KES') + ' ' + amount.toFixed(2) + ' tip sent to @' + profile.username);
+      setTipSent(true); setShowTipDialog(false); setTipAmount(null); setCustomTipAmount('');
+      setTimeout(() => setTipSent(false), 3000);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not send tip'); }
+    finally { setSendingTip(false); }
   };
 
   useEffect(() => {
@@ -786,7 +648,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!profile?.id) return;
-    supabase.from('activitypub_actors').select('id', { count: 'exact', head: true }).eq('user_id', profile.id).then(({ count }) => setHasActorRecord((count ?? 0) > 0));
+    let active = true;
+    profileApi.getActorStatus(profile.id).then(result => { if (active) setHasActorRecord(Boolean(result.has_actor)); }).catch(() => { if (active) setHasActorRecord(false); });
+    return () => { active = false; };
   }, [profile?.id]);
 
   useEffect(() => {
@@ -797,44 +661,32 @@ export default function ProfilePage() {
     try {
       const requestedUsername = username?.trim() || '';
       const canonicalUsername = requestedUsername.toLowerCase();
-      const initialProfileQuery = canonicalUsername
-        ? await supabase.from('profiles').select('*').eq('username', canonicalUsername).maybeSingle()
-        : { data: null, error: null };
-      let profileData = initialProfileQuery.data;
-      if (!profileData && !username && currentUser) {
-        const ownProfileQuery = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
-        profileData = ownProfileQuery.data;
-      }
-      if (!profileData) throw initialProfileQuery.error ?? new Error('Canonical profile not found');
+      const result = canonicalUsername
+        ? await profileApi.getByUsername(canonicalUsername)
+        : currentUser ? await profileApi.getById(currentUser.id) : null;
+      const profileData = result?.profile;
+      if (!profileData) throw new Error('Canonical profile not found in Backend');
       if (requestedUsername && requestedUsername !== canonicalUsername) {
-        navigate(`/profile/${encodeURIComponent(canonicalUsername)}`, { replace: true });
-        return;
+        navigate('/profile/' + encodeURIComponent(canonicalUsername), { replace: true }); return;
       }
+      const verification = await profileApi.getVerification(profileData.id).catch(() => ({ is_verified: false, tier: null }));
       const socialLinks = (profileData.social_links ?? {}) as { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
-      // Verification is an entitlement, never a default profile field. The backend
-      // authoritatively grants it only to the platform owner or an active monthly
-      // verification subscription.
-      const { data: verificationStatus } = await supabase.rpc('get_profile_verification_status', { p_user_id: profileData.id });
-      // Critical path: render the canonical profile immediately. Non-critical profile
-      // enrichments must never block the profile shell from becoming visible.
       const normalizedProfile = {
         ...profileData,
         twitter_handle: socialLinks.twitter ?? null,
         instagram_handle: socialLinks.instagram ?? null,
         linkedin_url: socialLinks.linkedin ?? null,
         cover_image: profileData.cover_url ?? null,
-        verified: Boolean(verificationStatus?.is_verified),
-        verified_tier: verificationStatus?.tier ?? null,
+        verified: Boolean(verification.is_verified),
+        verified_tier: verification.tier ?? null,
         total_earnings: 0,
       };
       setPinnedPostId(profileData.pinned_post_id ?? null);
       setProfile(normalizedProfile);
       setLoading(false);
-      // Enrich non-critical fields after first paint.
-      void supabase.from('user_monetization').select('total_earnings').eq('user_id', profileData.id).maybeSingle()
-        .then(({ data }) => { if (data) setProfile((prev: any) => prev ? { ...prev, total_earnings: data.total_earnings ?? 0 } : prev); })
-        .catch(() => {});
-      // Route-owned data lifecycle: load only the collection represented by the current profile route.
+      void profileApi.getMonetization(profileData.id).then(data => {
+        setProfile((prev: any) => prev ? { ...prev, total_earnings: data.total_earnings ?? 0 } : prev);
+      }).catch(() => {});
       const loaders: Record<string, () => Promise<unknown>> = {
         Tips: () => Promise.all([fetchTipHistory(profileData.id), fetchTipGoal(profileData.id), fetchProfileViews7d(profileData.id)]),
         Gifts: () => fetchGiftHistory(profileData.id),
@@ -842,72 +694,46 @@ export default function ProfilePage() {
         Series: () => fetchProfileSeries(profileData.id),
         Analytics: () => Promise.all([fetchProfileStats(profileData.id), fetchPostImpressions(profileData.id)]),
       };
-      // Route-specific enrichment is non-blocking; the profile shell is already visible.
       void loaders[activeTab]?.().catch(() => {});
-      // Shared secondary data is also deferred so a slow query cannot blank/delay the profile.
       void Promise.allSettled([fetchHighlights(profileData.id), fetchSubscription(profileData.id)]);
       if (activeTab === 'Posts' || activeTab === 'Videos') void trackProfileView(profileData.id).catch(() => {});
       if (currentUser && currentUser.id !== profileData.id) void checkBlockMuteStatus(profileData.id).catch(() => {});
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Error fetching profile through Backend API:', error);
       setLoading(false);
-      navigate('/');
+      if (username) navigate('/'); 
     }
   };
 
   // ── Post Impression Milestone Alerts (1K / 10K views) ──────────────────────
   const checkImpressionMilestones = async (userId: string, postList: Post[]) => {
-    if (!currentUser || currentUser.id !== userId) return;
-    const alertKey = `ts-impression-alerts-${userId}`;
-    let alerted: string[] = [];
-    try { alerted = JSON.parse(localStorage.getItem(alertKey) ?? '[]'); } catch { /* ignore */ }
-    const toNotify: { postId: string; views: number; milestone: number }[] = [];
-    const IMPRESSION_MILESTONES = [10000, 1000];
-    for (const post of postList) {
-      const views = post.views_count ?? 0;
-      for (const m of IMPRESSION_MILESTONES) {
-        if (views >= m) {
-          const key = `${post.id}-${m}`;
-          if (!alerted.includes(key)) { toNotify.push({ postId: post.id, views, milestone: m }); alerted.push(key); }
-        }
-      }
-    }
-    if (toNotify.length === 0) return;
-    localStorage.setItem(alertKey, JSON.stringify(alerted));
-    await Promise.allSettled(toNotify.map(({ postId, views, milestone }) =>
-      supabase.from('platform_inbox').insert({
-        user_id: userId,
-        subject: `🎉 Your post hit ${milestone >= 10000 ? '10K' : '1K'} views!`,
-        body: `One of your posts just crossed ${milestone.toLocaleString()} views (currently ${views.toLocaleString()}). Keep creating!`,
-        type: 'update', icon_emoji: milestone >= 10000 ? '🚀' : '⭐',
-        cta_label: 'View Post', cta_url: `/post/${postId}`,
-      })
-    ));
+    // Impression notifications are emitted by Backend when a milestone is crossed.
+    // The client must not write inbox rows directly.
+    return;
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id', userId).order('created_at', { ascending: false });
-    if (error) {
-      console.error('[profile] posts query failed', { userId, error });
-      setPosts([]);
-      return;
-    }
-    // PostCard accepts the canonical `user_profiles` shape. Profile pages
-    // receive the joined author as `profiles`, so normalize it at the boundary
-    // instead of allowing the card to fall back to a placeholder identity.
-    const postList = (data || []).map((post: any) => ({
-      ...post,
-      user_profiles: post.user_profiles || post.profiles || null,
-    }));
-    setPosts(postList);
-    // Fire milestone alerts asynchronously — won't block UI
-    checkImpressionMilestones(userId, postList).catch(() => {});
+    try {
+      const result = await profileApi.listPosts(userId);
+      const postList = ((result as any).items ?? (result as any).posts ?? []).map((post: any) => ({
+        ...post, user_profiles: post.user_profiles || post.profiles || post.author || null,
+      }));
+      setPosts(postList);
+    } catch (error) { console.error('[profile] Backend posts request failed', error); setPosts([]); }
   };
+
   const fetchThreads = async (userId: string) => {
-    const { data, error } = await supabase.from('threads').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
-    if (error) console.error('[profile] threads query failed', { userId, error });
-    setThreads(data || []);
+    try { const result = await profileApi.listThreads(userId); setThreads(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend threads request failed', error); setThreads([]); }
   };
+
+  const fetchMedia = async (userId: string) => {
+    try {
+      const result = await profileApi.listMedia(userId);
+      setMedia((result.items ?? []).map((post: any) => ({ ...post, user_profiles: post.user_profiles || post.profiles || post.author || null })));
+    } catch (error) { console.error('[profile] Backend media request failed', error); setMedia([]); }
+  };
+
   const fetchReplies = async (userId: string) => {
     try {
       setReplies(await listProfileReplies(userId, 100));
@@ -916,21 +742,6 @@ export default function ProfilePage() {
       setReplies([]);
     }
   };
-  const fetchMedia = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles!posts_author_id_fkey(*)')
-      .eq('author_id', userId)
-      .is('deleted_at', null)
-      .or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]')
-      .order('created_at', { ascending: false });
-    if (error) console.error('[profile] media query failed', { userId, error });
-    setMedia((data || []).map((post: any) => ({
-      ...post,
-      user_profiles: post.user_profiles || post.profiles || null,
-    })));
-  };
-
   const fetchLikedPosts = async (userId: string) => {
     try {
       setLikedPosts(await listProfileLikes(userId, 100));
@@ -941,39 +752,37 @@ export default function ProfilePage() {
   };
 
   const fetchFollowers = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id', userId);
-    setFollowers((data || []).map((item: any) => item.follower).filter(Boolean));
+    try { const result = await profileApi.listFollowers(userId); setFollowers(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend followers request failed', error); setFollowers([]); }
   };
+
   const fetchProfileStats = async (userId: string) => {
-    const { data: reward } = await supabase.from('daily_rewards').select('streak_day').eq('user_id', userId).maybeSingle();
-    setStreakDay(reward?.streak_day ?? 0);
-    const { data: pd } = await supabase.from('profiles').select('follower_count').eq('id', userId).maybeSingle();
-    if (pd) {
-      const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).gt('follower_count', pd.follower_count ?? 0);
-      setFollowerRank((count ?? 0) + 1);
-    }
+    const result = await profileApi.getStats(userId);
+    setStreakDay(result.streak_day ?? 0); setFollowerRank(result.follower_rank ?? null);
   };
+
   const fetchFollowing = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('following:profiles!follows_following_id_fkey(*)').eq('follower_id', userId);
-    setFollowing((data || []).map((item: any) => item.following).filter(Boolean));
+    try { const result = await profileApi.listFollowing(userId); setFollowing(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend following request failed', error); setFollowing([]); }
   };
+
   const checkFollowStatus = async () => {
     if (!currentUser || !profile) return;
-    const { data } = await supabase.from('follows').select('id').eq('follower_id', currentUser.id).eq('following_id', profile.id).single();
-    setIsFollowing(!!data);
+    const result = await socialApi.getFollowState(profile.id);
+    setIsFollowing(Boolean(result.following));
   };
+
   const handleFollow = async () => {
     if (!currentUser) { navigate('/auth'); return; }
-    if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id);
-    } else {
-      await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: profile.id });
-      await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  });
-      await sendActivityNotification({ recipientUserId: profile.id, title: 'New Follower', body: `${currentUser.username} started following you`, data: { route: `/profile/${currentUser.username}`, type: 'follow', fromUserId: currentUser.id } });
-    }
-    setIsFollowing(!isFollowing);
-    fetchProfile();
+    try {
+      const result = await socialApi.setFollow(profile.id, !isFollowing);
+      setIsFollowing(!isFollowing);
+      if (result && 'status' in result && result.status === 'pending') toast.success('Follow request sent');
+      else toast.success(isFollowing ? 'Unfollowed' : 'Following');
+      await fetchProfile();
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not update follow status'); }
   };
+
   const handleMessage = () => {
     if (!currentUser) { navigate('/auth'); return; }
     navigate(`/messages?to=${profile.username}`);

@@ -14,7 +14,7 @@ window.addEventListener('vite:preloadError', (event) => {
   window.location.reload();
 });
 
-import { supabase } from './lib/supabase';
+import { appwriteAuth, APPWRITE_AUTH_CHANGED_EVENT } from './services/appwriteAuth';
 import { analytics } from './lib/posthog';
 import { TestagramEvent, trackTestagramEvent } from './lib/testagram-analytics';
 import { startNativePushRegistration } from './services/nativePushService';
@@ -25,23 +25,14 @@ try {
   console.warn('[Testagram] analytics initialization failed (non-fatal):', error);
 }
 
-// Auth/network initialization must never prevent the React application from mounting.
-// A transient Supabase/network failure is recoverable and should not trip the boot
-// fatal-error screen before the user can even see the app.
-void supabase.auth.getSession()
-  .then(({ data }) => {
-    try { analytics.identify(data.session?.user ?? null); } catch (error) {
-      console.warn('[Testagram] analytics identify failed (non-fatal):', error);
-    }
-  })
-  .catch((error) => {
-    console.warn('[Testagram] initial auth hydration failed (non-fatal):', error);
-  });
+// Appwrite is the only browser identity provider. Hydration is non-blocking;
+// the Backend API verifies short-lived Appwrite JWTs for every protected call.
+void appwriteAuth.getCurrentUser()
+  .then(user => { try { analytics.identify(user); } catch (error) { console.warn('[Testagram] analytics identify failed (non-fatal):', error); } })
+  .catch(error => console.warn('[Testagram] initial Appwrite auth hydration failed (non-fatal):', error));
 
-supabase.auth.onAuthStateChange((_event, session) => {
-  try { analytics.identify(session?.user ?? null); } catch (error) {
-    console.warn('[Testagram] auth analytics update failed (non-fatal):', error);
-  }
+window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, () => {
+  void appwriteAuth.getCurrentUser().then(user => analytics.identify(user)).catch(() => analytics.identify(null));
 });
 
 function trackRouteView() {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 
 interface PremiumStatus {
   isActive: boolean;
@@ -36,14 +36,14 @@ export function usePremium(): PremiumStatus & { refresh: () => Promise<void> } {
     const task = (async (): Promise<PremiumStatus> => {
       if (!user) return { isActive: false, plan: null, expiresAt: null, loading: false };
 
-      const { data, error } = await supabase.rpc('get_my_premium_status');
-      if (error) return { isActive: false, plan: null, expiresAt: null, loading: false };
+      const data = await backendCapabilities.call<any>('testagram.premium.status').catch(() => null);
+      if (!data) return { isActive: false, plan: null, expiresAt: null, loading: false };
 
-      const active = Boolean(data?.is_active);
+      const active = Boolean(data?.is_active ?? data?.isActive);
       return {
         isActive: active,
         plan: active && (data?.plan === 'monthly' || data?.plan === 'annual') ? data.plan : null,
-        expiresAt: active && data?.expires_at ? new Date(data.expires_at) : null,
+        expiresAt: active && (data?.expires_at ?? data?.expiresAt) ? new Date(data.expires_at ?? data.expiresAt) : null,
         loading: false,
       };
     })();

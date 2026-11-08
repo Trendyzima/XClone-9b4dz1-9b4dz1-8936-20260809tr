@@ -1,38 +1,15 @@
-import { supabase } from '@/lib/supabase';
-
-export type MatrixTransportStatus = {
-  enabled: boolean;
-  provider: 'matrix';
-  identity: string | null;
-};
-
+export type MatrixTransportStatus = { enabled: boolean; provider: 'matrix'; identity: string | null };
 export type MatrixTransport = {
   status(): Promise<MatrixTransportStatus>;
   syncConversation(conversationId: string): Promise<{ synced: boolean }>;
 };
 
-const bridgeUrl = () => (import.meta.env.VITE_MATRIX_BRIDGE_URL ?? '').replace(/\/$/, '');
-
-async function callBridge<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
-  const url = bridgeUrl();
-  if (!url) throw new Error('Matrix transport is not configured');
-  const session = await supabase.auth.getSession();
-  const token = session.data.session?.access_token;
-  if (!token) throw new Error('Authentication required');
-  const response = await fetch(`${url}${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload?.ok) throw new Error(payload?.error?.message ?? 'Matrix bridge request failed');
-  return payload.data as T;
-}
-
+// Matrix is not one of Testagram's five service repositories. Until Backend
+// owns an approved Matrix bridge adapter, the client must not contact a
+// separately configured bridge or forward Appwrite credentials to it.
 export const matrixTransport: MatrixTransport = {
-  async status() {
-    if (!bridgeUrl()) return { enabled: false, provider: 'matrix', identity: null };
-    return callBridge<MatrixTransportStatus>('/status');
+  async status() { return { enabled: false, provider: 'matrix', identity: null }; },
+  async syncConversation(_conversationId: string) {
+    throw new Error('Matrix transport is not enabled through the Testagram Backend API.');
   },
-  syncConversation: conversationId => callBridge<{ synced: boolean }>('/sync-conversation', { conversation_id: conversationId }),
 };

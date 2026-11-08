@@ -1,4 +1,4 @@
-import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 
 export interface StoryUploadItem {
   id: string;
@@ -9,14 +9,6 @@ export interface StoryUploadItem {
   mediaId?: string;
   publicUrl?: string;
   error?: string;
-}
-
-interface InitResponse {
-  media_id: string;
-  upload_url: string;
-  public_url?: string | null;
-  object_key: string;
-  expires_in: number;
 }
 
 interface CompleteResponse {
@@ -33,53 +25,20 @@ interface CompleteResponse {
 const MAX_RETRIES = 3;
 const CONCURRENCY = 4; // bounded browser-side fan-out; large bytes never transit Vercel
 
-function mediaApiUrl() {
-  return '/api/media';
-}
-
-async function authHeaders() {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error('Authentication required');
-  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-}
-
-function xhrPut(url: string, file: File, onProgress: (pct: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url, true);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    xhr.upload.onprogress = event => {
-      if (event.lengthComputable) onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        onProgress(100);
-        resolve();
-      } else {
-        reject(new Error(`Cloudflare upload failed (HTTP ${xhr.status})`));
-      }
-    };
-    xhr.onerror = () => reject(new Error('Network error while uploading media'));
-    xhr.onabort = () => reject(new Error('Upload cancelled'));
-    xhr.send(file);
-  });
-}
-
 async function uploadCanonical(file: File, onProgress: (pct: number) => void): Promise<CompleteResponse> {
-  const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session?.access_token) throw new Error('Authentication required');
-  const form = new FormData();
-  form.append('file', file, file.name);
-  const response = await fetch(`${supabaseUrl}/functions/v1/post-media-upload`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${data.session.access_token}`, apikey: supabasePublishableKey },
-    body: form,
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Upload failed (${response.status})`);
+  onProgress(10);
+  const result = await uploadTestagramMedia(file);
   onProgress(100);
-  return { id: body.media_id, object_key: body.object_key, public_url: body.public_url ?? null, media_url: body.media_url ?? body.public_url ?? null, media_type: body.media_type, mime_type: body.mime_type, byte_size: body.size_bytes, status: body.status };
+  return {
+    id: result.media_id ?? result.key,
+    object_key: result.object_key ?? result.key,
+    public_url: result.public_url ?? null,
+    media_url: result.media_url ?? result.public_url ?? null,
+    media_type: result.media_type,
+    mime_type: result.mime_type,
+    byte_size: result.size_bytes,
+    status: result.status,
+  };
 }
 
 async function uploadOne(

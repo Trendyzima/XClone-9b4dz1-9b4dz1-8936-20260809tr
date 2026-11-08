@@ -10,8 +10,7 @@ import { TrendingVideosSection } from '@/components/features/TrendingVideosSecti
 import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
-import { supabase, supabaseSecondary } from '@/lib/supabase';
-import { readPublicExpansion } from '@/lib/dataPlane';
+import { socialApi } from '@/services/socialApiClient';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -57,41 +56,15 @@ function ExploreMarketplace({ searchQuery, navigate }: { searchQuery: string; na
     let cancelled = false;
     setLoading(true);
     (async () => {
-      let query = supabase
-        .from('products')
-        .select('*, user_profiles:profiles!products_user_id_fkey(id, username, avatar_url, verified_tier)')
-        .eq('is_active', true)
-        .order('views_count', { ascending: false })
-        .limit(20);
-      if (catFilter !== 'all') query = query.eq('category', catFilter);
-
-      const result = await readPublicExpansion(
-        'products',
-        (client) => query,
-        (client) => client
-          .from('products')
-          .select('id, owner_id, name, description, image_url, external_url, price_cents, currency, created_at')
-          .order('created_at', { ascending: false })
-          .limit(20),
-      );
-      const primaryProducts = Array.isArray(result.primary) ? result.primary : [];
-      const secondaryProducts = Array.isArray(result.secondary)
-        ? result.secondary.map((p: any) => ({
-            ...p,
-            user_profiles: {
-              id: p.owner_id,
-              username: 'legacy_testagram',
-              display_name: 'Testagram',
-              avatar_url: null,
-              verified_tier: 'none',
-            },
-            _data_plane: 'secondary',
-          }))
-        : [];
-      const mergedProducts = [...primaryProducts, ...secondaryProducts]
-        .filter((p: any, index: number, all: any[]) => all.findIndex((x: any) => String(x.id) === String(p.id)) === index)
-        .slice(0, 20);
-      if (!cancelled) { setProducts(mergedProducts); setLoading(false); }
+      try {
+        const result = await backendCapabilities.listMarketplaceProducts(20, catFilter, searchQuery);
+        if (!cancelled) setProducts(result.items ?? []);
+      } catch (error) {
+        console.error('[explore-marketplace] Backend request failed', error);
+        if (!cancelled) setProducts([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [catFilter]);
@@ -274,16 +247,18 @@ function PostReactionBar({
 
 function ExploreCommunities({ navigate }: { navigate: (path: string) => void }) {
   const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(true);
-  useEffect(()=>{let dead=false;(async()=>{const {data}=await supabase.from('communities').select('id,name,display_name,description,icon_url,banner_url,member_count,post_count,is_private').order('member_count',{ascending:false}).limit(24);if(!dead)setRows(data??[]);setLoading(false)})();return()=>{dead=true}},[]);
+  useEffect(()=>{let dead=false;(async()=>{try{const result=await backendCapabilities.listCommunities(24);if(!dead)setRows(result.items??[]);}catch(error){console.error('[explore-communities]',error);}finally{if(!dead)setLoading(false);}})();return()=>{dead=true}},[]);
   return <section className="px-4 py-5"><div className="flex items-end justify-between mb-4"><div><h2 className="text-xl font-black">Communities</h2><p className="text-sm text-muted-foreground">Find active communities and join the conversations that interest you.</p></div><button className="text-sm font-bold text-primary" onClick={()=>navigate('/communities')}>See all</button></div>
   {loading?<div className="py-12 text-center"><Loader2 className="mx-auto animate-spin"/></div>:<div className="grid gap-3 sm:grid-cols-2">{rows.map(c=><button key={c.id} onClick={()=>navigate('/c/'+encodeURIComponent(c.name))} className="text-left rounded-2xl border bg-card p-4 hover:border-primary/40 transition-colors"><div className="flex gap-3"><div className="w-12 h-12 rounded-xl bg-muted overflow-hidden shrink-0">{c.icon_url?<img src={c.icon_url} alt="" loading="lazy" className="w-full h-full object-cover"/>:<UsersIcon className="w-6 h-6 m-3 text-muted-foreground"/>}</div><div className="min-w-0"><h3 className="font-bold truncate">{c.display_name||c.name}</h3><p className="text-xs text-muted-foreground line-clamp-2">{c.description||'Community on Testagram'}</p><p className="text-xs mt-2">{formatNumber(c.member_count??0)} members · {formatNumber(c.post_count??0)} posts</p></div></div></button>)}</div>}</section>;
 }
+
 function ExploreSpaces({ navigate }: { navigate: (path: string) => void }) {
   const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(true);
-  useEffect(()=>{let dead=false;(async()=>{const {data}=await supabase.from('spaces').select('id,title,description,category,listener_count,is_live,artwork_url,host:user_profiles!spaces_host_id_fkey(username,avatar_url)').eq('is_live',true).order('listener_count',{ascending:false}).limit(20);if(!dead)setRows(data??[]);setLoading(false)})();return()=>{dead=true}},[]);
+  useEffect(()=>{let dead=false;(async()=>{try{const result=await backendCapabilities.listLiveAudioSpaces();if(!dead)setRows(result.items??[]);}catch(error){console.error('[explore-spaces]',error);}finally{if(!dead)setLoading(false);}})();return()=>{dead=true}},[]);
   return <section className="px-4 py-5"><div className="flex items-end justify-between mb-4"><div><h2 className="text-xl font-black">Live Audio Spaces</h2><p className="text-sm text-muted-foreground">Join conversations happening right now.</p></div><button className="text-sm font-bold text-primary" onClick={()=>navigate('/spaces')}>Open Spaces</button></div>
   {loading?<div className="py-12 text-center"><Loader2 className="mx-auto animate-spin"/></div>:rows.length===0?<div className="rounded-2xl border p-8 text-center text-muted-foreground">No live spaces right now. Check upcoming episodes in Spaces.</div>:<div className="grid gap-3 sm:grid-cols-2">{rows.map(s=><button key={s.id} onClick={()=>navigate('/spaces/'+s.id)} className="text-left rounded-2xl border bg-card p-4 hover:border-primary/40 transition-colors"><div className="flex gap-3"><div className="w-14 h-14 rounded-xl bg-muted overflow-hidden shrink-0">{s.artwork_url?<img src={s.artwork_url} alt="" loading="lazy" className="w-full h-full object-cover"/>:<span className="flex items-center justify-center h-full text-2xl">🎙️</span>}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/><span className="text-[10px] font-bold text-red-500 uppercase">Live</span><span className="ml-auto text-xs">{formatNumber(s.listener_count??0)} listening</span></div><h3 className="font-bold mt-1 truncate">{s.title}</h3><p className="text-xs text-muted-foreground truncate">Hosted by @{s.host?.username??'creator'}</p></div></div></button>)}</div>}</section>;
 }
+
 function ExploreFediverse({ navigate }: { navigate: (path: string) => void }) {
   return <section className="px-4 py-5"><div className="rounded-3xl border bg-gradient-to-br from-primary/10 via-card to-purple-500/10 p-5 mb-5"><div className="flex items-center gap-2"><Globe className="w-5 h-5 text-primary"/><h2 className="text-xl font-black">Fediverse Discovery</h2></div><p className="text-sm text-muted-foreground mt-1">Discover posts, creators and hashtags from connected Fediverse servers.</p><div className="flex gap-2 mt-4 flex-wrap"><button onClick={()=>navigate('/search?q=%23')} className="rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm font-bold">Explore hashtags</button><button onClick={()=>navigate('/search?q=%40')} className="rounded-full border px-4 py-2 text-sm font-bold">Find creators</button><button onClick={()=>navigate('/fediverse/discover')} className="rounded-full border px-4 py-2 text-sm font-bold">Open Fediverse</button></div></div><FederatedOrganicInjection surface="explore"/><FederatedHashtagDiscovery surface="explore"/></section>;
 }
@@ -327,117 +302,44 @@ function CategoryTabContent({
       // trending feed: a sparse category should stay sparse rather than
       // displaying unrelated posts that belong to another surface.
       const since7d = new Date(Date.now() - 7 * 86400000).toISOString();
-      const orFilter = keywords.map(k => `content.ilike.%${k}%`).join(',');
-      let query = supabase
-        .from('posts')
-        .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-        .or(orFilter)
-        .is('community_id', null)
-        .is('deleted_at', null)
-        .gte('created_at', since7d);
-
-      // Distinct editorial intent per surface:
-      // News = recency, Sports = conversation velocity, Entertainment = engagement/media.
-      if (activeTab === 'News') {
-        query = query.order('created_at', { ascending: false });
-      } else if (activeTab === 'Sports') {
-        query = query.order('likes_count', { ascending: false });
-      } else {
-        query = query.order('views_count', { ascending: false });
-      }
-
-      const { data } = await query.limit(30);
-
-      // Secondary Supabase is a public/legacy read plane. It has an older
-      // posts shape and intentionally has no primary auth session, so only
-      // public, non-interactive discovery data is read from it. Never send
-      // the primary user's JWT to the secondary project.
-      let secondaryPosts: any[] = [];
-      try {
-        const secondaryResult = await supabaseSecondary
-          .from('posts')
-          .select('id, content, body, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, author_id')
-          .or(orFilter)
-          .is('community_id', null)
-          .is('deleted_at', null)
-          .gte('created_at', since7d)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        secondaryPosts = (secondaryResult.data ?? []).map((p: any) => ({
-          ...p,
-          content: p.content ?? p.body ?? '',
-          // Secondary legacy identities are not authoritative Testagram
-          // profiles. Keep them explicitly labelled rather than inventing a
-          // primary profile relationship.
-          user_profiles: {
-            id: p.author_id,
-            username: 'legacy_testagram',
-            display_name: 'Testagram',
-            avatar_url: null,
-            verified_tier: 'none',
-          },
-          _data_plane: 'secondary',
-        }));
-      } catch {
-        // Secondary is an enhancement/fallback. Primary discovery must remain
-        // fully functional if the second project is unavailable.
-      }
-
+      const sortMode = activeTab === 'News' ? 'recent' : activeTab === 'Sports' ? 'likes' : 'views';
+      const discoveryResult = await backendCapabilities.listDiscoveryCategoryPosts(keywords, sortMode, since7d, 30);
+      const finalPosts = discoveryResult.items ?? [];
       if (!cancelled) {
-        const primaryPosts = data ?? [];
-        const merged = [...primaryPosts, ...secondaryPosts];
-        const seen = new Set<string>();
-        const finalPosts = merged
-          .filter((p: any) => {
-            const key = String(p.id);
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })
-          .sort((a: any, b: any) => {
-            if (activeTab === 'News') return +new Date(b.created_at) - +new Date(a.created_at);
-            return Number(b.likes_count ?? b.views_count ?? 0) - Number(a.likes_count ?? a.views_count ?? 0);
-          })
-          .slice(0, 30);
         setPosts(finalPosts);
-        setLoading(false);
-        // Fetch reactions for these posts
-        if (finalPosts.length > 0) {
-          const pids = finalPosts.map((p: any) => p.id);
-          const { data: rxData } = await supabase
-            .from('post_reactions')
-            .select('post_id, user_id, emoji')
-            .in('post_id', pids);
-          if (!cancelled && rxData) {
-            // Build count map using parallel arrays (esbuild guard: no Record)
-            // esbuild guard: no typed array declarations in async closure — use plain untyped
-            const cPostIds = [];
-            const cEmojis = [];
-            const cCounts = [];
-            for (const r of rxData) {
-              // find existing entry
-              let found = false;
-              for (let i = 0; i < cPostIds.length; i++) {
-                if (cPostIds[i] === r.post_id && cEmojis[i] === r.emoji) {
-                  cCounts[i] += 1;
-                  found = true;
-                  break;
-                }
+        if (finalPosts.length > 0 && user) {
+          const summaries = await Promise.allSettled(finalPosts.map(async (post: any) => {
+            const interaction = await socialApi.getInteractionSummary(post.id);
+            return { post_id: post.id, user_reactions: interaction.user_reactions ?? [], reactions: interaction.reactions ?? {} };
+          }));
+          if (!cancelled) {
+            const cPostIds: any[] = [];
+            const cEmojis: any[] = [];
+            const cCounts: any[] = [];
+            const ownPostIds: any[] = [];
+            const ownEmojis: any[] = [];
+            for (const result of summaries) {
+              if (result.status !== 'fulfilled') continue;
+              const summary = result.value;
+              for (const [emoji, count] of Object.entries(summary.reactions)) {
+                cPostIds.push(summary.post_id);
+                cEmojis.push(emoji);
+                cCounts.push(Number(count) || 0);
               }
-              if (!found) { cPostIds.push(r.post_id); cEmojis.push(r.emoji); cCounts.push(1); }
+              for (const emoji of summary.user_reactions) {
+                ownPostIds.push(summary.post_id);
+                ownEmojis.push(emoji);
+              }
             }
             setRxCountPostIds(cPostIds as any);
             setRxCountEmojis(cEmojis as any);
             setRxCounts(cCounts as any);
-            // User's own reactions
-            if (user) {
-              const myRx = rxData.filter((r: any) => r.user_id === user.id);
-              setRxPostIds(myRx.map((r: any) => r.post_id) as any);
-              setRxEmojis(myRx.map((r: any) => r.emoji) as any);
-            }
+            setRxPostIds(ownPostIds as any);
+            setRxEmojis(ownEmojis as any);
           }
         }
+        setLoading(false);
+
       }
     })();
     return () => { cancelled = true; };
@@ -452,7 +354,7 @@ function CategoryTabContent({
     const curEmoji = existIdx >= 0 ? curEmojis[existIdx] : null;
     if (curEmoji === emoji) {
       // Remove reaction
-      await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', user.id);
+      await socialApi.setLike(postId, false, emoji);
       const newIds = curPostIds.filter((_: any, i: number) => i !== existIdx);
       const newEmojis = curEmojis.filter((_: any, i: number) => i !== existIdx);
       setRxPostIds(newIds as any);
@@ -469,7 +371,7 @@ function CategoryTabContent({
       }
     } else {
       // Upsert reaction
-      await supabase.from('post_reactions').upsert({ post_id: postId, user_id: user.id, emoji }, { onConflict: 'post_id,user_id' });
+      await socialApi.setLike(postId, true, emoji);
       const newIds = existIdx >= 0 ? curPostIds.map((id: any, i: number) => i === existIdx ? postId : id) : [...curPostIds, postId];
       const newEmojis = existIdx >= 0 ? curEmojis.map((e: any, i: number) => i === existIdx ? emoji : e) : [...curEmojis, emoji];
       setRxPostIds(newIds as any);
@@ -704,13 +606,9 @@ export default function ExplorePage() {
     if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
     if (!q.trim() || q.trim().length < 2) { setSearchSuggestions([]); setShowSuggestions(false); return; }
     suggestTimerRef.current = setTimeout(async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url, verified, follower_count')
-        .ilike('username', `%${q.trim()}%`)
-        .order('follower_count', { ascending: false })
-        .limit(5);
-      if (data && data.length > 0) { setSearchSuggestions(data); setShowSuggestions(true); }
+      const result = await backendCapabilities.listDiscoveryCreators(5, q.trim());
+      const data = result.items ?? [];
+      if (data.length > 0) { setSearchSuggestions(data); setShowSuggestions(true); }
       else { setSearchSuggestions([]); setShowSuggestions(false); }
     }, 250);
   };
@@ -722,18 +620,11 @@ export default function ExplorePage() {
     inlineSearchTimer.current = setTimeout(async () => {
       setInlineSearchLoading(true);
       const clean = q.trim();
-      const [usersRes, hashtagsRes, postsRes] = await Promise.all([
-        supabase.from('profiles').select('id, username, avatar_url, verified, follower_count, bio')
-          .ilike('username', `%${clean}%`).order('follower_count', { ascending: false }).limit(5),
-        supabase.from('hashtags').select('id, tag, usage_count')
-          .ilike('tag', `${clean.replace(/^#/, '')}%`).order('usage_count', { ascending: false }).limit(5),
-        supabase.from('posts').select('id, content, image_url, is_video, views_count, likes_count, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-          .ilike('content', `%${clean}%`).is('community_id', null).order('likes_count', { ascending: false }).limit(5),
-      ]);
+      const results = await backendCapabilities.searchUnified(clean, 'all', 5);
       setInlineSearchResults({
-        users: usersRes.data ?? [],
-        hashtags: hashtagsRes.data ?? [],
-        posts: postsRes.data ?? [],
+        users: results.users ?? [],
+        hashtags: results.hashtags ?? [],
+        posts: results.posts ?? [],
       });
       setInlineSearchLoading(false);
     }, 350);
@@ -822,14 +713,11 @@ export default function ExplorePage() {
     const since7d = new Date(Date.now() - 7 * 86400000).toISOString();
     const results = await Promise.all(
       CAT_KEYWORDS_MAP.map(async kws => {
-        const orFilter = kws.map(k => `content.ilike.%${k}%`).join(',');
-        const { count } = await supabase
-          .from('posts')
-          .select('id', { count: 'exact', head: true })
-          .or(orFilter)
-          .is('community_id', null)
-          .gte('created_at', since7d);
-        return count ?? 0;
+        const pages = await Promise.all(kws.map(keyword =>
+          backendCapabilities.listDiscoveryPosts(100, keyword, 'recent', since7d)
+        ));
+        const unique = new Set(pages.flatMap(page => (page.items ?? []).map((post: any) => String(post.id))));
+        return unique.size;
       })
     );
     setCatPostCounts(results);
@@ -837,27 +725,25 @@ export default function ExplorePage() {
 
   const fetchTrendingPosts = async () => {
     setTrendingPostsLoading(true);
-    const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
-    const { data } = await supabase
-      .from('posts')
-      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-      .is('community_id', null)
-      .gte('created_at', since48h)
-      .order('views_count', { ascending: false })
-      .limit(10);
-    setTrendingPosts(data ?? []);
-    setTrendingPostsLoading(false);
+    try {
+      const result = await backendCapabilities.listDiscoveryPosts(10, '', 'top');
+      setTrendingPosts(result.items ?? []);
+    } catch (error) {
+      console.error('[explore-trending-posts] Backend request failed', error);
+      setTrendingPosts([]);
+    } finally {
+      setTrendingPostsLoading(false);
+    }
   };
 
   const fetchFreshExplorePosts = async () => {
-    const { data } = await supabase
-      .from('posts')
-      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-      .is('community_id', null)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(12);
-    setFreshExplorePosts(data ?? []);
+    try {
+      const result = await backendCapabilities.listDiscoveryPosts(12, '', 'recent');
+      setFreshExplorePosts(result.items ?? []);
+    } catch (error) {
+      console.error('[explore-fresh-posts] Backend request failed', error);
+      setFreshExplorePosts([]);
+    }
   };
 
   // Story progress timer
@@ -887,13 +773,8 @@ export default function ExplorePage() {
   const fetchExploreStories = async () => {
     setStoriesLoading(true);
     try {
-      const { data: stories } = await supabase
-        .from('stories')
-        .select('id, media_url, media_type, caption, views_count, user_id, expires_at, created_at')
-        .gt('expires_at', new Date().toISOString())
-        .order('views_count', { ascending: false })
-        .limit(30);
-      if (!stories) { setStoriesLoading(false); return; }
+      const storyResult = await backendCapabilities.listExploreStories(30);
+      const stories = storyResult.items ?? [];
       let filtered = stories;
       if (user) filtered = stories.filter((s: any) => s.user_id !== user.id);
       setExploreStories(filtered);
@@ -908,11 +789,16 @@ export default function ExplorePage() {
     setActiveStoryIdx(idx);
     const story = exploreStories[idx];
     if (story && user) {
-      await supabase.from('story_views').upsert(
-        { story_id: story.id, viewer_id: user.id },
-        { onConflict: 'story_id,viewer_id' }
-      ).catch(() => {});
-      await supabase.from('stories').update({ views_count: (story.views_count || 0) + 1 }).eq('id', story.id).catch(() => {});
+      try {
+        const result = await backendCapabilities.recordStoryView(story.id);
+        if (result.created) {
+          setExploreStories(previous => previous.map(item =>
+            item.id === story.id ? { ...item, views_count: result.views_count } : item
+          ));
+        }
+      } catch (error) {
+        console.warn('[story-view] Backend request failed', error);
+      }
     }
   };
 
@@ -920,23 +806,27 @@ export default function ExplorePage() {
     setLoading(true);
     const [trendingData, hashtagRes, whoRes] = await Promise.allSettled([
       backendCapabilities.getTrends(50),
-      supabase.from('hashtags').select('id, tag, usage_count, post_count, federated_post_count, last_used_at').order('federated_post_count', { ascending: false }).order('usage_count', { ascending: false }).order('last_used_at', { ascending: false }).limit(20),
-      supabase.from('profiles').select('id, username, display_name, avatar_url, follower_count, verified_tier, verified').order('follower_count', { ascending: false }).limit(10),
+      backendCapabilities.listTrendingHashtags(20),
+      backendCapabilities.listDiscoveryCreators(10),
     ]);
     setTrending(trendingData.status === 'fulfilled' ? (trendingData.value?.items ?? []) : []);
-    if (hashtagRes.status === 'fulfilled' && hashtagRes.value.data) {
-      setTrendingHashtags((hashtagRes.value.data as any[])
+    if (hashtagRes.status === 'fulfilled' && hashtagRes.value.items) {
+      setTrendingHashtags((hashtagRes.value.items as any[])
         .filter((h: any) => !DISCOVERY_SUPPRESSED_TAGS.has(String(h.tag ?? '').replace(/^#/, '').toLowerCase()))
         .map((h: any) => ({ ...h, daily_posts: Number(h.federated_post_count ?? 0) + Number(h.post_count ?? h.usage_count ?? 0) })));
     }
-    if (whoRes.status === 'fulfilled' && whoRes.value.data) {
-      let suggestions = whoRes.value.data;
+    let suggestions: any[] = [];
+    if (whoRes.status === 'fulfilled' && whoRes.value.items) {
+      suggestions = whoRes.value.items;
       if (user) suggestions = suggestions.filter((u: any) => u.id !== user.id);
       setWhoToFollow(suggestions.slice(0, 5));
     }
     if (user) {
-      const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
-      if (follows) setFollowingIdArr(follows.map((f: any) => f.following_id));
+      const followStates = await Promise.allSettled(suggestions.map((profile: any) => socialApi.getFollowState(profile.id)));
+      setFollowingIdArr(suggestions.filter((profile: any, index: number) => {
+        const result = followStates[index];
+        return result.status === 'fulfilled' && result.value.following;
+      }).map((profile: any) => profile.id));
     }
     setLoading(false);
   };
@@ -944,14 +834,15 @@ export default function ExplorePage() {
   const handleFollow = async (profileId: string, username: string) => {
     if (!user) { navigate('/auth'); return; }
     const isFollowing = isFollowingId(profileId);
-    if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', profileId);
-      setFollowingIdArr(prev => prev.filter(id => id !== profileId));
-    } else {
-      await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
-      setFollowingIdArr(prev => [...prev, profileId]);
-      await supabase.from('notifications').insert({ recipient_id: profileId, kind: 'follow', actor_id: user.id  }).catch(() => {});
-      toast.success(`Following @${username}!`);
+    try {
+      await socialApi.setFollow(profileId, !isFollowing);
+      if (isFollowing) setFollowingIdArr(prev => prev.filter(id => id !== profileId));
+      else {
+        setFollowingIdArr(prev => [...prev, profileId]);
+        toast.success(`Following @${username}!`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Could not update follow');
     }
   };
 
@@ -975,14 +866,13 @@ export default function ExplorePage() {
   };
 
   const fetchActiveChallenges = async () => {
-    const { data } = await supabase
-      .from('hashtag_challenges')
-      .select('*, hashtags(tag)')
-      .eq('is_active', true)
-      .gte('end_date', new Date().toISOString())
-      .order('entry_count', { ascending: false })
-      .limit(5);
-    setActiveChallenges(data ?? []);
+    try {
+      const result = await backendCapabilities.listHashtagChallenges(5);
+      setActiveChallenges(result.items ?? []);
+    } catch (error) {
+      console.error('[explore-challenges] Backend request failed', error);
+      setActiveChallenges([]);
+    }
   };
 
   const handleCreateChallenge = async () => {
@@ -993,24 +883,12 @@ export default function ExplorePage() {
     }
     setCreatingChallenge(true);
     try {
-      const cleanTag = challengeForm.hashtag.replace(/^#/, '');
-      let hashtagId: string | null = null;
-      const { data: existingTag } = await supabase.from('hashtags').select('id').eq('tag', cleanTag).maybeSingle();
-      if (existingTag) { hashtagId = existingTag.id; }
-      else {
-        const { data: newTag } = await supabase.from('hashtags').insert({ tag: cleanTag, usage_count: 0 }).select('id').single();
-        hashtagId = newTag?.id ?? null;
-      }
-      if (!hashtagId) throw new Error('Could not create hashtag');
-      await supabase.from('hashtag_challenges').insert({
-        title: challengeForm.title,
-        description: challengeForm.description || null,
-        prize: challengeForm.prize || null,
+      await backendCapabilities.createHashtagChallenge({
+        title: challengeForm.title.trim(),
+        description: challengeForm.description || '',
+        prize: challengeForm.prize || '',
         end_date: new Date(challengeForm.end_date).toISOString(),
-        hashtag_id: hashtagId,
-        created_by: user.id,
-        entry_count: 0,
-        is_active: true,
+        hashtag: challengeForm.hashtag,
       });
       toast.success('Challenge created!');
       setShowCreateChallenge(false);
@@ -1527,19 +1405,9 @@ export default function ExplorePage() {
                       key={emoji}
                       onClick={async () => {
                         if (!user || !activeStory || activeStory.user_id === user.id) return;
-                        const { data: existing } = await supabase.from('conversations').select('id')
-                          .or(`and(participant_1.eq.${user.id},participant_2.eq.${activeStory.user_id}),and(participant_1.eq.${activeStory.user_id},participant_2.eq.${user.id})`)
-                          .maybeSingle();
-                        let convId = existing?.id;
-                        if (!convId) {
-                          const { data: nc } = await supabase.from('conversations')
-                            .insert({ participant_1: user.id, participant_2: activeStory.user_id }).select('id').single();
-                          convId = nc?.id;
-                        }
-                        if (convId) {
-                          await supabase.from('direct_messages').insert({ conversation_id: convId, sender_id: user.id, content: `${emoji} Reacted to your story` });
-                          toast.success(`${emoji} Sent!`, { duration: 1500 });
-                        }
+                        const conversation = await backendCapabilities.openConversation(activeStory.user_id);
+                        await backendCapabilities.sendDirectMessage(conversation.conversation_id, `${emoji} Reacted to your story`);
+                        toast.success(`${emoji} Sent!`, { duration: 1500 });
                       }}
                       className="w-11 h-11 text-2xl rounded-full bg-black/40 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-black/60 active:scale-125 transition-all duration-150"
                     >{emoji}</button>

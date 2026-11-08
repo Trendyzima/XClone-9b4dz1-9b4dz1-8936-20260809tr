@@ -1,6 +1,7 @@
 import { backendCapabilities, type CapabilityPage } from '@/services/testagramCapabilityClient';
 import { communicationCrypto } from '@/services/communicationCrypto';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
+import { subscribeConversationRealtime } from '@/services/realtimeClient';
 
 export type CommunicationConversation = { id: string; created_at: string; updated_at: string; latest_message?: Record<string, unknown> | null; [key: string]: unknown };
 export type CommunicationMessage = { id: string; conversation_id: string; sender_id: string; body: string; media_url?: string | null; media_type?: string | null; created_at: string; edited_at?: string | null; deleted_at?: string | null; reply_to_message_id?: string | null; shared_post_id?: string | null; client_message_id?: string | null; delivered_at?: string | null; read_at?: string | null; view_once?: boolean; expires_at?: string | null; forwarded_from_id?: string | null; e2ee_enabled?: boolean; e2ee_version?: string | null; e2ee_epoch?: number | null; ciphertext?: string | null; nonce?: string | null; aad?: string | null; sender?: Record<string, unknown> | null };
@@ -44,6 +45,7 @@ export const communicationService = {
   createTextStatus(text: string, background = 'default') { return backendCapabilities.call<CommunicationStatus>('testagram.statuses.create', { media_type: 'text', caption: text, background }); },
   createMediaStatus(mediaUrl: string, mediaType: 'image' | 'video', caption = '') { return backendCapabilities.call<CommunicationStatus>('testagram.statuses.create', { media_type: mediaType, media_url: mediaUrl, caption }); },
   markStatusViewed(statusId: string) { return backendCapabilities.call('testagram.statuses.view', { status_id: statusId }); },
+  getCall(callId: string) { return backendCapabilities.call<{ call: CallSession }>('testagram.calls.get', { call_id: callId }); },
   async createCall(conversationId: string, kind: 'voice' | 'video' | 'screen' = 'video') { const result = await backendCapabilities.call<CallSession>('testagram.calls.create', { conversation_id: conversationId, kind, e2ee_enabled: true }); trackTestagramEvent('testagram_call_started' as never, { conversation_id: conversationId, call_id: result.call_id, kind, encrypted: true, e2ee_mode: 'dtls-srtp-p2p', transport: 'testagram-p2p' }); return result; },
   async joinCall(callId: string) { const result = await backendCapabilities.call<{ call_id: string; joined: boolean; conversation_id?: string }>('testagram.calls.join', { call_id: callId }); trackTestagramEvent('testagram_call_joined' as never, { call_id: result.call_id }); return result; },
   async endCall(callId: string) { const result = await backendCapabilities.call<{ call_id: string; ended: boolean }>('testagram.calls.end', { call_id: callId }); trackTestagramEvent('testagram_call_ended' as never, { call_id: result.call_id }); return result; },
@@ -65,8 +67,17 @@ export const communicationService = {
       } catch (error) { console.warn('[communication] call polling failed', error); }
     };
     void poll();
-    const timer = window.setInterval(() => { void poll(); }, 4000);
-    return () => { stopped = true; window.clearInterval(timer); };
+    let closeRealtime: (() => void) | null = null;
+    void subscribeConversationRealtime(conversationId, event => {
+      if (event.type === 'message.created' || event.type === 'message.updated' || event.type === 'message.deleted' || event.type.startsWith('call.')) {
+        void poll();
+      }
+    }).then(connection => {
+      if (stopped) connection.close();
+      else closeRealtime = connection.close;
+    }).catch(error => console.warn('[communication] realtime subscription unavailable; polling fallback remains active', error));
+    const timer = window.setInterval(() => { void poll(); }, 15000);
+    return () => { stopped = true; window.clearInterval(timer); closeRealtime?.(); };
   },
   subscribeToCallSessions(conversationId: string, handlersOrCallback: CallHandlers | ((change: CallSessionChange) => void) = {}) {
     const handlers: CallHandlers = typeof handlersOrCallback === 'function' ? { onCall: handlersOrCallback } : handlersOrCallback;

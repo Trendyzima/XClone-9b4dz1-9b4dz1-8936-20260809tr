@@ -17,7 +17,7 @@ export function useWallet(){
    const raw=(result as any).wallet as Wallet|null;
    if(!raw)throw new Error('Wallet is not provisioned for this account.');
    const [security,identity]=await Promise.all([
-    backendCapabilities.call<any>('testagram.wallet.security.read'),
+    backendCapabilities.call<any>('testagram.wallet.security.read').catch(()=>null),
     walletPhoneAuthService.getWalletPhoneIdentity(raw.id).catch(()=>null),
    ]);
    setWalletSecurity(security??null);setPhoneIdentity(identity);

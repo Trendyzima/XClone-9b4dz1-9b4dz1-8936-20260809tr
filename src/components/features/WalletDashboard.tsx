@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Wallet, RefreshCw, ArrowDownLeft, History } from 'lucide-react';
 import { useWallet } from '@/hooks/useWallet';
-import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { walletApi } from '@/services/walletApi';
 import { toast } from 'sonner';
 export function WalletDashboard(){
  const {wallet,loading,fetchWallet}=useWallet();
  const [amount,setAmount]=useState('100');const [phone,setPhone]=useState('');const [busy,setBusy]=useState(false);
- const deposit=async()=>{const value=Number(amount);if(!wallet?.id||!Number.isFinite(value)||value<10){toast.error('Enter a valid amount (minimum KES 10).');return;}setBusy(true);try{await backendCapabilities.call('testagram.wallet.mpesa.stk_push',{wallet_id:wallet.id,amount_kes:value,phone});toast.success('M-Pesa prompt requested. Complete it on your phone.');await fetchWallet();}catch(e){toast.error(e instanceof Error?e.message:'M-Pesa request failed.');}finally{setBusy(false);}};
+ const deposit=async()=>{const value=Number(amount);if(!wallet?.id||!Number.isFinite(value)||value<10){toast.error('Enter a valid amount (minimum KES 10).');return;}setBusy(true);try{const result=await walletApi.requestMpesaTopUp({amountKes:value,phone,currency:(wallet.currency??'KES') as 'KES'|'USD'});toast.success(result.status==='settled'?'Deposit confirmed.':'M-Pesa prompt requested. Complete it on your phone.');await fetchWallet();}catch(e){toast.error(e instanceof Error?e.message:'M-Pesa request failed.');}finally{setBusy(false);}};
  return <section className="rounded-2xl border bg-card p-5 space-y-4">
   <div className="flex items-center justify-between"><h2 className="font-semibold flex items-center gap-2"><Wallet className="h-5 w-5"/> Wallet</h2><button onClick={()=>void fetchWallet()} disabled={loading} className="text-sm flex items-center gap-1"><RefreshCw className="h-4 w-4"/> Refresh</button></div>
   <p className="text-2xl font-bold">{loading?'Loading…':`KES ${Number(wallet?.balance??0).toLocaleString()}`}</p>

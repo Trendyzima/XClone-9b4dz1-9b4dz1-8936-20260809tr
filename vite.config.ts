@@ -1,6 +1,11 @@
-'use strict';
-const fs   = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /* ─── Surgical Vite-chunk patcher ─────────────────────────────────────────── */
 function fixSource(src) {
@@ -37,13 +42,7 @@ function patchViteChunks() {
 patchViteChunks();
 
 /* ─── Vite config ──────────────────────────────────────────────────────────── */
-const { defineConfig } = require('vite');
-
-let reactPlugin = null;
-try {
-  const { default: react } = require('@vitejs/plugin-react');
-  reactPlugin = react();
-} catch (_) {}
+const reactPlugin = react();
 
 const root = __dirname;
 const src  = path.join(root, 'src');
@@ -136,7 +135,7 @@ const layoutAliases = {
   '@/hooks/useFollow':                      a('hooks/useFollow.ts'),
 };
 
-module.exports = defineConfig({
+export default defineConfig({
   server: {
     host: '::',
     port: 8080,

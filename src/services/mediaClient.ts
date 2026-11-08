@@ -1,4 +1,5 @@
 import { requireAccessToken } from '@/services/backendClient';
+import { testagramApiRequest } from '@/services/apiClient';
 
 export type MediaCompleted = {
   key: string;
@@ -13,14 +14,14 @@ export type MediaCompleted = {
   public_url: string | null;
 };
 
-type ApiEnvelope<T> = { ok: boolean; data?: T; error?: { code?: string; message?: string } | null };
-
 export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
-const BACKEND_ORIGIN = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
-const API = BACKEND_ORIGIN ? `${BACKEND_ORIGIN}/api/media` : '';
-function requireMediaApi(): string {
-  if (!API) throw new Error('VITE_TESTAGRAM_API_URL is required; media requests cannot use a same-origin XClone proxy.');
-  return API;
+
+// Media is served only by the configured canonical Backend API. Never use a
+// same-origin proxy or an implicit legacy storage endpoint.
+const mediaApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+export function requireMediaApi(): string {
+  if (!mediaApiOrigin) throw new Error('VITE_TESTAGRAM_API_URL is required for media operations.');
+  return `${mediaApiOrigin}/api/media`;
 }
 
 function friendlyMediaError(error: unknown) {
@@ -31,23 +32,9 @@ function friendlyMediaError(error: unknown) {
   return message || 'Media upload failed. Please try again.';
 }
 
-async function apiRequest<T>(path: string, token: string, method: 'POST' | 'PUT', body?: unknown, contentType?: string): Promise<T> {
-  const response = await fetch(requireMediaApi() + path, {
-    method,
-    headers: {
-      Authorization: 'Bearer ' + token,
-      Accept: 'application/json',
-      ...(contentType ? { 'Content-Type': contentType } : {}),
-    },
-    body: body as BodyInit | undefined,
-    credentials: 'omit',
-    cache: 'no-store',
-  });
-  const payload = await response.json().catch(() => null) as ApiEnvelope<T> | null;
-  if (!response.ok || !payload?.ok || payload.data == null) {
-    throw new Error(payload?.error?.message || 'Testagram media API failed (' + response.status + ').');
-  }
-  return payload.data;
+async function apiRequest<T>(path: string, token: string, method: 'POST', body: Record<string, unknown>): Promise<T> {
+  requireMediaApi();
+  return testagramApiRequest<T>(`/api/media${path}`, { method, body, accessToken: token });
 }
 
 async function sha256Hex(file: File): Promise<string> {
@@ -62,14 +49,13 @@ async function uploadAttempt(file: File, accessTokenOverride?: string): Promise<
     '/upload-intent',
     token,
     'POST',
-    JSON.stringify({ name: file.name, content_type: contentType, visibility: 'public', size_bytes: file.size }),
-    'application/json',
+    { name: file.name, content_type: contentType, visibility: 'public', size_bytes: file.size },
   );
   if (!intent.key || !intent.url) throw new Error('Backend returned an incomplete media upload intent.');
 
   const upload = await fetch(intent.url, {
     method: 'PUT',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': contentType },
+    headers: { 'Content-Type': contentType },
     body: file,
     credentials: 'omit',
     cache: 'no-store',
@@ -80,8 +66,7 @@ async function uploadAttempt(file: File, accessTokenOverride?: string): Promise<
     '/complete',
     token,
     'POST',
-    JSON.stringify({ key: intent.key, visibility: 'public', content_type: contentType, checksum_sha256: await sha256Hex(file) }),
-    'application/json',
+    { key: intent.key, visibility: 'public', content_type: contentType, checksum_sha256: await sha256Hex(file) },
   );
   return {
     ...completed,
@@ -109,12 +94,12 @@ export async function attachTestagramMedia(mediaId: string, postId: string, acce
   const key = String(mediaId ?? '').trim();
   const target = String(postId ?? '').trim();
   if (!key || !target) throw new Error('Media attachment could not start because the media or post ID was missing.');
-  await apiRequest('/attach', token, 'POST', JSON.stringify({ key, media_id: key, post_id: target }), 'application/json');
+  await apiRequest('/attach', token, 'POST', { key, media_id: key, post_id: target });
 }
 
 export async function deleteTestagramMedia(mediaId: string, accessTokenOverride?: string): Promise<void> {
   const key = String(mediaId ?? '').trim();
   if (!key) return;
   const token = accessTokenOverride ?? await requireAccessToken();
-  await apiRequest('/delete', token, 'POST', JSON.stringify({ key, media_id: key }), 'application/json');
+  await apiRequest('/delete', token, 'POST', { key, media_id: key });
 }
