@@ -446,7 +446,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         return;
       }
       try {
-        const result = await backendCapabilities.call<{ poll: any }>('testagram.posts.poll.get', { post_id: post.id });
+        const result = await backendCapabilities.getPollByPost(post.id);
         if (!cancelled && result?.poll) setPoll(result.poll);
       } catch { /* Poll API is not enabled for this post yet. */ }
     };
