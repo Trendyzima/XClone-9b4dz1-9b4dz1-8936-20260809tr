@@ -231,7 +231,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/FediverseProfileVideosPage.tsx` — pending audit/migration
 - [ ] `src/pages/FediverseRelayPage.tsx` — pending audit/migration
 - [ ] `src/pages/FraudDetection.tsx` — pending audit/migration
-- [ ] `src/pages/HashtagChallengePage.tsx` — pending audit/migration
+- [x] `src/pages/HashtagChallengePage.tsx` — challenge detail/list/create/entry, hashtag feed pagination and likes now use Backend APIs; no direct browser Supabase access.
 - [ ] `src/pages/HashtagDiscoveryPage.tsx` — hashtag search/trending/follow/unfollow now use native Backend API; Posts, Videos, Creators and Threads tabs still need full backend migration
 - [x] `src/pages/HashtagPage.tsx` — hashtag resolution, local recent/top posts and follow state now use native Backend hashtag APIs; federation reads remain delegated to the Federation-owned discovery surface.
 - [ ] `src/pages/HelpPage.tsx` — pending audit/migration
@@ -503,7 +503,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/FediverseParityPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/FediverseProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/FraudDetection.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/HashtagChallengePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/HashtagChallengePage.tsx` — baseline violation resolved; no direct Supabase access remains.
 - [ ] `src/pages/HashtagDiscoveryPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [x] `src/pages/HashtagPage.tsx` — baseline direct Supabase access removed; current page uses Backend APIs and no browser Supabase client.
 - [ ] `src/pages/HelpPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -583,3 +583,5 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - ExplorePage.tsx now uses Backend endpoints for creator suggestions, mixed search (creators/hashtags/posts), trending hashtags and creator lists. Post reactions and creator follow/unfollow use the canonical social API, including server-side follow notifications.
 - ExplorePage.tsx remains incomplete: story-view tracking, hashtag challenge list/create, and story-to-direct-message actions still contain direct Supabase operations and need dedicated Backend/Federation contracts. Do not mark ExplorePage migrated yet.
 - Backend discovery endpoints were added for public creators and posts; they are committed on feat/central-api-contract-v1 but not yet deployment-verified.
+
+- Hashtag challenge creation, listing, detail, and idempotent entry are now Backend-owned on the central API branch, with a Neon migration and direct XClone client methods. CI/runtime verification remains pending.
