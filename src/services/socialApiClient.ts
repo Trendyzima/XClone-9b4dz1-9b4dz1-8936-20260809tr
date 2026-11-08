@@ -27,6 +27,7 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
 const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/home` : '/v1/feed/home';
+const freshApiPublicFeedPath = freshApiOrigin ? `${freshApiOrigin}/v1/feed/public` : '/v1/feed/public';
 
 function assertSocialAPIAvailable(): void {
   // Social operations are served by the authenticated Backend API. There is no
@@ -46,11 +47,11 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, _allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
+async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, _allowFreshRoute = false, extraHeaders: Record<string, string> = {}, allowAnonymous = false): Promise<T> {
   assertSocialAPIAvailable();
-  const token = await getSessionToken();
+  const token = allowAnonymous ? null : await getSessionToken();
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     Accept: 'application/json',
     ...extraHeaders,
   };
@@ -98,6 +99,13 @@ export const socialApi = {
     if (before) query.set('before', before);
     return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
       `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
+    );
+  },
+  getPublicHomeFeed(limit = 20, before?: string) {
+    const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
+    if (before) query.set('before', before);
+    return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'chronological' }>(
+      `${freshApiPublicFeedPath}?${query.toString()}`, 'GET', undefined, true, {}, true,
     );
   },
   createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
