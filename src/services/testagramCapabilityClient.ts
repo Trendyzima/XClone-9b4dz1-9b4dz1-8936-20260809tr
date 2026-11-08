@@ -20,7 +20,7 @@ export class CapabilityClientError extends Error{readonly code:string;readonly r
 const PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read","testagram.news.trending"]);
 // Every capability call targets the canonical Backend API and uses an Appwrite JWT.
 const configuredBackendOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??"").trim().replace(/\/+$/,"");
-const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"/api/capability";
+export const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"";
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
 const rid=()=>typeof crypto?.randomUUID==="function"?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
