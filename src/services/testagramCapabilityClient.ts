@@ -1,4 +1,5 @@
 import { socialApi } from '@/services/socialApiClient';
+import { testagramApiRequest, TestagramApiError } from '@/services/apiClient';
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
@@ -46,52 +47,34 @@ export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;
  constructor(o:TestagramCapabilityClientOptions){this.endpoint=o.endpoint.trim().replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));}
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
-  const headers: Record<string,string> = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    'Content-Type': 'application/json', Accept: 'application/json',
-    'X-Client-Info': `testagram-web/${this.version}`, 
-    'X-Testagram-API-Version': '1',
-    'X-Request-ID': id,
-    ...(!isReadOnlyCapability(capability) ? { 'Idempotency-Key': id } : {}),
-  };
   try {
     if (!this.endpoint) throw new CapabilityClientError("VITE_TESTAGRAM_API_URL is required; XClone does not provide a same-origin API proxy.", { code: "BACKEND_API_URL_REQUIRED" });
-    // Send capability requests directly to the separately deployed Testagram Backend API.
-    // This keeps capability dispatch on the same server-side auth boundary as media
-    // uploads and avoids browser/PostgREST auth-header races after large uploads.
-    const response = await fetch(this.endpoint, {
+    const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\\/+$/, '');
+    const endpoint = new URL(this.endpoint);
+    if (!configuredOrigin || endpoint.origin !== new URL(configuredOrigin).origin || endpoint.pathname !== '/api/capability') {
+      throw new CapabilityClientError("Capability gateway must use the canonical Backend API origin and /api/capability route.", { code: "API_ORIGIN_MISMATCH" });
+    }
+    const data = await testagramApiRequest<T>('/api/capability', {
       method: 'POST',
-      headers,
-      body: JSON.stringify({ capability, input }),
+      body: { capability, input },
+      accessToken: token ?? undefined,
+      anonymous: !token,
       signal: ctl.signal,
-      credentials: 'omit',
+      headers: {
+        'X-Client-Info': `testagram-web/${this.version}`,
+        ...( !isReadOnlyCapability(capability) ? { 'Idempotency-Key': id } : {}),
+      },
+      timeoutMs: this.timeout,
     });
-    const raw = await response.text();
-    let data: unknown = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
-    if (!response.ok) {
-      const message = typeof data === 'object' && data && 'message' in data
-        ? String((data as { message?: unknown }).message)
-        : response.status === 401 || response.status === 403
-          ? 'Authentication required'
-          : 'Capability database request failed';
-      const auth = response.status === 401 || response.status === 403 || /authentication required|jwt|token/i.test(message);
+    return { r: { ok: true, status: 200 }, p: { ok: true, data, error: null, request_id: id } };
+  } catch (error) {
+    if (error instanceof CapabilityClientError) throw error;
+    if (error instanceof TestagramApiError) {
       return {
-        r: response,
-        p: {
-          ok: false,
-          data: null,
-          error: { code: auth ? 'AUTH_REQUIRED' : 'CAPABILITY_DISPATCH_FAILED', message },
-          request_id: response.headers.get('X-Request-ID') ?? id,
-        },
+        r: { ok: false, status: error.status },
+        p: { ok: false, data: null, error: { code: error.code, message: error.message }, request_id: error.requestId ?? id },
       };
     }
-    return {
-      r: response,
-      p: { ok: true, data: data as T, error: null, request_id: response.headers.get('X-Request-ID') ?? id },
-    };
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error;
     throw error;
   }
  }
