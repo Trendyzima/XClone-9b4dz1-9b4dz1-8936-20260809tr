@@ -3,6 +3,7 @@ import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import { UserSuggestion as UserSuggestionType } from '@/types/app-types';
 import { Button } from '@/components/ui/button';
 import {  } from 'lucide-react';
@@ -52,15 +53,8 @@ export function UserSuggestions() {
     if (!user) return;
 
     try {
-      // Insert follow
-      await supabase.from('follows').insert({
-        follower_id: user.id,
-        following_id: userId,
-      });
-
-      // Insert notification for the followed user
-      await supabase.from('notifications').insert({ recipient_id: userId, kind: 'follow', actor_id: user.id,
-       });
+      // The canonical Backend owns follow state and emits its own notification/outbox event.
+      await socialApi.setFollow(userId, true);
 
       // Send push notification
       const { sendActivityNotification } = await import('@/components/layout/AuthProvider');
