@@ -7,7 +7,6 @@ import { profileApi } from '@/services/profileApi';
 import { socialApi } from '@/services/socialApiClient';
 import { UserSuggestion as UserSuggestionType } from '@/types/app-types';
 import { Button } from '@/components/ui/button';
-import {  } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function UserSuggestions() {
