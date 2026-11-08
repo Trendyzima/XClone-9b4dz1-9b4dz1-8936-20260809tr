@@ -31,6 +31,7 @@ import { formatDistanceToNow, isPast } from 'date-fns';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { backendCapabilities } from '@/services/backendClient';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 
 // ── Module-level constants (esbuild-safe) ────────────────────────────────────
 const LEADERBOARD_MEDALS = ['🥇', '🥈', '🥉'] as const;
@@ -539,36 +540,32 @@ export default function CommunityPage({ section, standalone = false }: { section
     setSavingEdit(true);
     try {
       let iconUrl = community.icon_url ?? null; let bannerUrl = community.banner_url ?? null;
-      const uploadImage = async (file: File, path: string) => {
-        const ext = file.name.split('.').pop();
-        const fileName = `${path}/${Date.now()}.${ext}`;
-        const { error } = await supabase.storage.from('posts').upload(fileName, file, { upsert: true });
-        if (error) throw error;
-        const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(fileName);
-        return publicUrl;
+      const uploadImage = async (file: File) => {
+        if (!file.type.startsWith('image/') || file.size <= 0 || file.size > 5 * 1024 * 1024) {
+          throw new Error('Community images must be valid images no larger than 5MB');
+        }
+        const uploaded = await uploadTestagramMedia(file);
+        const url = uploaded.public_url ?? uploaded.media_url;
+        if (!url) throw new Error('Backend did not return a public community image URL');
+        return url;
       };
-      if (editIconFile) iconUrl = await uploadImage(editIconFile, `communities/icons/${user!.id}`);
-      if (editBannerFile) bannerUrl = await uploadImage(editBannerFile, `communities/banners/${user!.id}`);
-      const { data: updated, error } = await supabase.rpc('update_community_profile', {
-        p_community_id: community.id,
-        p_display_name: editForm.display_name.trim() || community.display_name,
-        p_description: editForm.description.trim(),
-        p_icon_url: iconUrl,
-        p_banner_url: bannerUrl,
+      if (editIconFile) iconUrl = await uploadImage(editIconFile);
+      if (editBannerFile) bannerUrl = await uploadImage(editBannerFile);
+      await backendCapabilities.updateCommunity(community.id, {
+        display_name: editForm.display_name.trim() || community.display_name,
+        description: editForm.description.trim(),
+        icon_url: iconUrl ?? '',
+        banner_url: bannerUrl ?? '',
       });
-      if (error) throw error;
-      setCommunity(updated as Community);
+      setCommunity({ ...community, display_name: editForm.display_name.trim() || community.display_name,
+        description: editForm.description.trim(), icon_url: iconUrl ?? '', banner_url: bannerUrl ?? '' });
       setShowEditDialog(false); sonnerToast.success('Community updated!');
     } catch (err: any) { toast({ title: 'Error', description: err.message, variant: 'destructive' }); }
     finally { setSavingEdit(false); }
   };
 
   useEffect(() => { if (name) fetchCommunity(); }, [name, user]);
-  useEffect(() => {
-    if (!community?.id) return;
-    supabase.from('platform_settings').select('setting_value').eq('setting_key', `community_pinned_${community.id}`).maybeSingle()
-      .then(({ data }) => { if (data?.setting_value?.pinned) setPinnedPostArr(data.setting_value.pinned); });
-  }, [community?.id]);
+
   useEffect(() => {
     if (community?.rules) setRules(Array.isArray(community.rules) ? community.rules.map((r: any) => typeof r === 'string' ? r : r.text ?? r.rule ?? String(r)) : []);
   }, [community?.rules]);
