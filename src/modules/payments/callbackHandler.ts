@@ -1,40 +1,4 @@
-import { isPaymentSuccessful, extractPaymentData } from "./verifyPayment";
-import { updateTransactionStatus } from "./transactionService";
-
-/**
- * Main M-Pesa callback processor
- * This is the bridge between Safaricom and your wallet system (future step)
- */
-
-export function handleMpesaCallback(callback: any) {
-  const success = isPaymentSuccessful(callback);
-
-  const data = extractPaymentData(callback);
-
-  const checkoutId = data.checkoutRequestID;
-
-  if (!checkoutId) {
-    return { error: "Missing checkoutRequestID" };
-  }
-
-  if (success) {
-    const tx = updateTransactionStatus(
-      checkoutId,
-      "success",
-      data.receipt
-    );
-
-    return {
-      status: "success",
-      transaction: tx,
-      walletUpdateRequired: true
-    };
-  } else {
-    const tx = updateTransactionStatus(checkoutId, "failed");
-
-    return {
-      status: "failed",
-      transaction: tx
-    };
-  }
+/** Provider callback processing is owned by Testagram Backend. */
+export function handleMpesaCallback(_callback: unknown): never {
+  throw new Error("M-Pesa callback processing is server-only. Do not process provider callbacks in XClone.");
 }

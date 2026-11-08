@@ -175,10 +175,13 @@ The legacy Supabase integration remains in the repository during migration. The 
 | Build | Vite |
 | Styling and components | Tailwind CSS, Radix UI, shadcn-style components |
 | Data and state | TanStack Query, Redux Toolkit/Zustand where used |
-| Backend and database | Supabase, PostgreSQL |
-| Authentication | Supabase Auth |
-| Realtime and storage | Supabase Realtime and Storage |
-| Edge/serverless | Supabase Edge Functions and API handlers |
+| Authentication | Appwrite end-user authentication |
+| Application API | Public Testagram Backend API (Appwrite JWT) |
+| Canonical social data | Neon PostgreSQL, accessed only by Backend |
+| Realtime | Backend-authorized realtime transport via Data Centre |
+| Object storage and delivery | Backend-authorized B2/R2 and CDN media URLs |
+| Federation | Backend orchestration with private Federated Content service |
+| Recommendations | Backend orchestration with private Algorithm service |
 | Video | HLS.js and application media-player surfaces |
 | Live media | WebRTC / Testagram Media Engine integrations |
 | Android | Existing Android/Capacitor project |
@@ -232,13 +235,18 @@ npm run preview
 See `.env.example` for the browser-facing example configuration. Typical client settings include:
 
 ```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_APPWRITE_ENDPOINT=
+VITE_APPWRITE_PROJECT_ID=
+VITE_TESTAGRAM_AUTH_PROVIDER=appwrite
+VITE_TESTAGRAM_FRESH_MODE=true
+VITE_TESTAGRAM_FRESH_API_URL=https://api.testagram.site
+VITE_TESTAGRAM_API_URL=https://api.testagram.site
+VITE_TESTAGRAM_CDN_URL=https://media.testagram.site
 VITE_POSTHOG_KEY=
 VITE_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
-Never place Supabase service-role keys, payment secrets, private API credentials, or other privileged values in client-side Vite variables. Privileged operations belong on trusted server infrastructure.
+These are public client configuration values only. Appwrite server API keys, Neon connection strings, B2/R2 credentials, Cloudflare signing secrets, payment provider secrets and private service tokens must remain in trusted server environments. Do not add Supabase configuration to fresh production builds. Legacy compatibility modules remain migration blockers until their callers have been moved and verified.
 
 ## Performance, reliability, and security principles
 
