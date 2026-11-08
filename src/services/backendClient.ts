@@ -37,7 +37,7 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
   _body: TBody,
   _legacyClient?: unknown,
 ): Promise<TResponse> {
-  throw new BackendClientError(`Backend function "${functionName}" has not been migrated to a typed Testagram API route.`, {
+  throw new BackendClientError('Backend function "' + functionName + '" has not been migrated to a typed Testagram API route.', {
     code: 'BACKEND_FUNCTION_NOT_MIGRATED',
     status: 501,
   });
