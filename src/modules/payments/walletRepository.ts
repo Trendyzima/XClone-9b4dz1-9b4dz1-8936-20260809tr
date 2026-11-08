@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { backendCapabilities } from "@/services/testagramCapabilityClient";
 
 /**
  * Canonical wallet repository.
@@ -9,9 +9,7 @@ import { supabase } from "@/lib/supabase";
  */
 export class WalletRepository {
   async getWallet(_userId: string) {
-    const { data, error } = await supabase.rpc("get_my_wallet");
-    if (error) throw error;
-    return data;
+    return backendCapabilities.call<{ balance: string; currency: string; status: string }>("testagram.wallet.balance", {});
   }
 
   async createWallet(_userId: string) {
