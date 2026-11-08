@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Check, ChevronDown, ChevronUp, Clock, Loader2, MessageCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -37,9 +37,8 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const loadResults = async (pollId: string) => {
-    const { data, error } = await supabase.rpc('poll_results', { p_poll_id: pollId });
-    if (error) throw error;
-    const raw = data as Partial<PollData> | null;
+    const response = await backendCapabilities.getPoll(pollId);
+    const raw = response.poll as Partial<PollData> & { selected_option_id?: string };
     const result: PollData = {
       id: String(raw?.id ?? pollId),
       question: String(raw?.question ?? ''),
@@ -50,17 +49,12 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
       options: Array.isArray(raw?.options) ? raw.options : [],
     };
     setPollData(result);
-    if (user) {
-      const { data: vote } = await supabase
-        .from('poll_votes')
-        .select('option_id')
-        .eq('poll_id', pollId)
-        .eq('voter_id', user.id)
-        .maybeSingle();
-      if (vote?.option_id) {
-        setSelectedOption(vote.option_id);
-        setVoted(true);
-      }
+    if (raw?.selected_option_id) {
+      setSelectedOption(raw.selected_option_id);
+      setVoted(true);
+    } else {
+      setSelectedOption(null);
+      setVoted(false);
     }
   };
 
@@ -68,19 +62,25 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
     let cancelled = false;
     const load = async () => {
       try {
-        if (poll?.id) {
-          await loadResults(poll.id);
-        } else {
-          const { data, error } = await supabase
-            .from('polls')
-            .select('id')
-            .eq('post_id', postId)
-            .maybeSingle();
-          if (error) throw error;
-          if (data?.id) await loadResults(data.id);
-        }
+        const response = poll?.id
+          ? await backendCapabilities.getPoll(poll.id)
+          : await backendCapabilities.getPollByPost(postId);
+        if (cancelled || !response?.poll) return;
+        const raw = response.poll as Partial<PollData> & { selected_option_id?: string };
+        const result: PollData = {
+          id: String(raw.id ?? ''),
+          question: String(raw.question ?? ''),
+          description: raw.description ?? null,
+          status: String(raw.status ?? 'open'),
+          ends_at: raw.ends_at ?? null,
+          total_votes: Number(raw.total_votes ?? 0),
+          options: Array.isArray(raw.options) ? raw.options : [],
+        };
+        setPollData(result);
+        setSelectedOption(raw.selected_option_id ?? null);
+        setVoted(Boolean(raw.selected_option_id));
       } catch (error) {
-        if (!cancelled) console.warn('[poll] load failed', error);
+        if (!cancelled) console.warn('[poll] Backend poll load failed', error);
       }
     };
     void load();
@@ -99,11 +99,7 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
     if (!pollData || isExpired || voted) return;
     setLoading(true);
     try {
-      const { error } = await supabase.rpc('cast_poll_vote', {
-        p_poll_id: pollData.id,
-        p_option_ids: [optionId],
-      });
-      if (error) throw error;
+      await backendCapabilities.votePoll(pollData.id, optionId);
       setSelectedOption(optionId);
       setVoted(true);
       await loadResults(pollData.id);
