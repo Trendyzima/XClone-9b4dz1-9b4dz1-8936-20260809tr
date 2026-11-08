@@ -46,12 +46,12 @@ requireText(home, /previous\.map\(homeFeedItemIdentity\)\.filter\(Boolean\)/,
   'Background refresh must compare incoming content against canonical identities.');
 requireText(home, /setItems\(prev=>appendUniqueFeedItems\(fresh,prev\)\)/,
   'Background refresh must preserve existing items while deduplicating newly discovered content.');
-requireText(aggregator, /function sourceKey\(item: any\)[\s\S]*data\.remote_status_uri[\s\S]*data\.uri[\s\S]*url\.hostname = url\.hostname\.toLowerCase\(\)/,
-  'Server-side aggregation must canonicalize object URIs before blending source lanes.');
-requireText(aggregator, /item\?\.type === 'post' \|\| item\?\.type === 'fedpost' \? 'content'/,
-  'Server-side aggregation must collapse local/Fediverse wrappers with the same fallback ID.');
-requireText(aggregator, /postsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)[\s\S]*threadsQuery\.abortSignal\(AbortSignal\.timeout\(8000\)\)/,
-  'Home feed source queries must be independently time-bounded so one slow lane cannot block the entire page.');
+requireText(aggregator, /authorization[\s\S]*Bearer\\s\\+\\S\{16,8192\}[\s\S]*BACKEND_NOT_CONFIGURED/,
+  'Home feed edge handler must require an Appwrite bearer session and fail closed when Backend is not configured.');
+requireText(aggregator, /new URL\('\\/v1\\/feed\\/home', backend\)[\s\S]*target\.searchParams\.set\('limit'[\s\S]*target\.searchParams\.set\('before'/,
+  'Home feed edge handler must proxy bounded cursor pagination to the canonical Backend feed endpoint.');
+requireText(aggregator, /redirect: 'manual'[\s\S]*AbortController[\s\S]*BACKEND_TIMEOUT/,
+  'Home feed proxy must not follow redirects and must bound upstream Backend requests with explicit timeout handling.');
 
 requireText(search, /function normalizeSearchHashtag[\s\S]*encodeURIComponent\(tag\)[\s\S]*function GlobalSearchResults/,
   'Search hashtag links must normalize optional # prefixes and URL-encode the canonical tag.');
