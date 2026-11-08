@@ -68,8 +68,8 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/components/features/PayPalTopUp.tsx` — pending audit/migration
 - [ ] `src/components/features/PaymentDialog.tsx` — pending audit/migration
 - [ ] `src/components/features/PesaPalTopUp.tsx` — pending audit/migration
-- [ ] `src/components/features/PollCard.tsx` — pending audit/migration
-- [ ] `src/components/features/PostCard.tsx` — pending audit/migration
+- [x] `src/components/features/PollCard.tsx` — poll reads, results and votes use typed Backend poll APIs; direct Supabase access removed
+- [x] `src/components/features/PostCard.tsx` — poll lookup now uses native Backend API; direct Supabase access removed
 - [ ] `src/components/features/ProductTagDialog.tsx` — pending audit/migration
 - [ ] `src/components/features/ProfileCompactActions.tsx` — pending audit/migration
 - [ ] `src/components/features/ProfileCreatorTools.tsx` — pending audit/migration
@@ -437,7 +437,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/components/features/OrganicSportsStories.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/PayPalTopUp.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/PesaPalTopUp.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/components/features/PollCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/components/features/PollCard.tsx` — legacy poll RPC/table access replaced with Backend poll retrieval and vote endpoints
 - [ ] `src/components/features/ProductTagDialog.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/ProfileCreatorTools.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/ProfileMobileContactCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -568,6 +568,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 ## Community feature migration update — 2026-11-08
 
 - XClone CommunityPage.tsx now contains no direct Supabase imports or calls. Community page operations route through typed Backend API methods, including community detail, posts, members, chat, events, RSVPs, settings, role changes, moderation, shop, achievement badges, scheduled posts, and self-notifications.
+- `PollCard.tsx` now loads poll data and records votes through `/api/social/polls`; `PostCard.tsx` resolves a poll through `/api/social/posts/{post_id}/poll`. Poll creation is atomic with the community post through `/api/communities/{community_id}/polls`.
 - Backend branch feat/central-api-contract-v1 now includes native community detail/admin/member/event/chat/post/shop/badge/scheduled-post handlers and migrations 20261108_community_core.sql through 20261114_community_admin.sql.
 - Community achievement badges are application-issued database badges, not blockchain NFTs. The page copy was changed to avoid claiming an on-chain mint.
 - Community marketplace listing reads the Backend-owned marketplace catalog. Product catalog population/management APIs remain a separate migration item.
