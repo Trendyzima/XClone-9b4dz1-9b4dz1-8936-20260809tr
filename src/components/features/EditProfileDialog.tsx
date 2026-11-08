@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { testagramApiRequest } from '@/services/apiClient';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,8 +77,7 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
     if (!user || !open) return;
     const loadCurrentProfile = async () => {
       try {
-        const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (error) throw error;
+        const data = await testagramApiRequest<ProfileRow>('/v1/me');
         const row = (data ?? profileProp ?? {}) as ProfileRow;
         const links = (row.social_links ?? {}) as SocialLinks;
         setUsername(textValue(row.username));
@@ -85,8 +85,7 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
         setWebsite(textValue(row.website));
         setLocation(textValue(row.location));
         setBirthDate(textValue(row.birth_date));
-        const { data: contact } = await supabase.from('profile_contact_methods').select('phone_e164').eq('user_id', user.id).maybeSingle();
-        setMobilePhone(textValue(contact?.phone_e164));
+        setMobilePhone(textValue((row as any).phone_e164));
         setTwitterHandle(textValue(links.twitter));
         setInstagramHandle(textValue(links.instagram));
         setLinkedinUrl(textValue(links.linkedin));
@@ -137,23 +136,10 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
   const uploadProfileMedia = async (file: File, kind: MediaKind) => {
     if (!user) throw new Error('Not authenticated');
     const optimized = await optimizeProfileImage(file, kind);
-    const form = new FormData();
-    form.append('kind', kind);
-    form.append('file', optimized, optimized.name);
-    const { data, error } = await supabase.functions.invoke('profile-media-upload', { body: form });
-    if (error) {
-      let detail = error.message || 'Profile media upload failed';
-      try {
-        const response = (error as { context?: Response }).context;
-        if (response) {
-          const payload = await response.clone().json().catch(() => null);
-          if (payload?.error) detail = payload.missing?.length ? `${payload.error} [missing: ${payload.missing.join(', ')}]` : payload.error;
-        }
-      } catch { /* keep the provider error */ }
-      throw new Error(detail);
-    }
-    if (!data?.ok || !data.delivery_url) throw new Error('Profile media upload was not completed');
-    return data.delivery_url as string;
+    const uploaded = await uploadTestagramMedia(optimized);
+    const deliveryUrl = uploaded.public_url ?? uploaded.media_url;
+    if (!deliveryUrl) throw new Error(`Profile ${kind} upload did not return a delivery URL`);
+    return deliveryUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -182,8 +168,9 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
         linkedin: linkedinUrl.trim() || null,
       };
 
-      const { data: profileUpdate, error: updateError } = await supabase.rpc('profile_update', {
-        p_input: {
+      await testagramApiRequest('/v1/me/profile', {
+        method: 'PUT',
+        body: {
           username: cleanUsername,
           bio: bio.trim() || null,
           website: website.trim() || null,
@@ -194,15 +181,9 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
           cover_url: coverUrl || null,
         },
       });
-      if (updateError) throw updateError;
-      if (!profileUpdate?.updated) throw new Error('Profile update was not confirmed by the server');
-
       if (mobilePhone.trim()) {
-        const { error: phoneError } = await supabase.rpc('set_my_mobile_phone', { p_phone: mobilePhone.trim() });
-        if (phoneError) throw phoneError;
+        await testagramApiRequest('/v1/me/contact', { method: 'PUT', body: { phone_e164: mobilePhone.trim() } });
       }
-
-      await supabase.auth.updateUser({ data: { username: cleanUsername } });
       toast({ title: 'Success', description: 'Profile updated successfully' });
       onSuccess();
       onOpenChange(false);
