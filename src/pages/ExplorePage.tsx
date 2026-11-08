@@ -11,6 +11,7 @@ import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotligh
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase, supabaseSecondary } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import { readPublicExpansion } from '@/lib/dataPlane';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -454,7 +455,7 @@ function CategoryTabContent({
     const curEmoji = existIdx >= 0 ? curEmojis[existIdx] : null;
     if (curEmoji === emoji) {
       // Remove reaction
-      await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', user.id);
+      await socialApi.setLike(postId, false, emoji);
       const newIds = curPostIds.filter((_: any, i: number) => i !== existIdx);
       const newEmojis = curEmojis.filter((_: any, i: number) => i !== existIdx);
       setRxPostIds(newIds as any);
@@ -471,7 +472,7 @@ function CategoryTabContent({
       }
     } else {
       // Upsert reaction
-      await supabase.from('post_reactions').upsert({ post_id: postId, user_id: user.id, emoji }, { onConflict: 'post_id,user_id' });
+      await socialApi.setLike(postId, true, emoji);
       const newIds = existIdx >= 0 ? curPostIds.map((id: any, i: number) => i === existIdx ? postId : id) : [...curPostIds, postId];
       const newEmojis = existIdx >= 0 ? curEmojis.map((e: any, i: number) => i === existIdx ? emoji : e) : [...curEmojis, emoji];
       setRxPostIds(newIds as any);
@@ -937,8 +938,11 @@ export default function ExplorePage() {
       setWhoToFollow(suggestions.slice(0, 5));
     }
     if (user) {
-      const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
-      if (follows) setFollowingIdArr(follows.map((f: any) => f.following_id));
+      const followStates = await Promise.allSettled(suggestions.map((profile: any) => socialApi.getFollowState(profile.id)));
+      setFollowingIdArr(suggestions.filter((profile: any, index: number) => {
+        const result = followStates[index];
+        return result.status === 'fulfilled' && result.value.following;
+      }).map((profile: any) => profile.id));
     }
     setLoading(false);
   };
@@ -946,14 +950,15 @@ export default function ExplorePage() {
   const handleFollow = async (profileId: string, username: string) => {
     if (!user) { navigate('/auth'); return; }
     const isFollowing = isFollowingId(profileId);
-    if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', profileId);
-      setFollowingIdArr(prev => prev.filter(id => id !== profileId));
-    } else {
-      await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
-      setFollowingIdArr(prev => [...prev, profileId]);
-      await supabase.from('notifications').insert({ recipient_id: profileId, kind: 'follow', actor_id: user.id  }).catch(() => {});
-      toast.success(`Following @${username}!`);
+    try {
+      await socialApi.setFollow(profileId, !isFollowing);
+      if (isFollowing) setFollowingIdArr(prev => prev.filter(id => id !== profileId));
+      else {
+        setFollowingIdArr(prev => [...prev, profileId]);
+        toast.success(`Following @${username}!`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Could not update follow');
     }
   };
 
