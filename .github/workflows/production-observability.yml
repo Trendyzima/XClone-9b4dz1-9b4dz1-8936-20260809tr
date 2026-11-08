@@ -40,13 +40,16 @@ jobs:
           node-version: 22
       - name: Test federation response contracts
         run: node --test scripts/production-contracts.test.mjs
+      # A pre-existing production outage must not block unrelated pull requests.
+      # Scheduled, main-push and manual runs continue to exercise the live endpoints.
       - name: Run independent production probes
         id: probe
+        if: github.event_name != 'pull_request'
         env:
           OBSERVABILITY_INCLUDE_FEDERATION: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         run: node scripts/production-observability.mjs
       - name: Manage observability incident
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         uses: actions/github-script@v8
         env:
           PROBE_RESULT: ${{ steps.probe.outcome }}
