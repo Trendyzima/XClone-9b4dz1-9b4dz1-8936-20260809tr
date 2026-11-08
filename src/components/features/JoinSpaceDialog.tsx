@@ -110,7 +110,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
     const syncRole = async () => {
       const state = await backendCapabilities.call<{ role: string; speaker_request_status: string; joined: boolean }>('testagram.audio_spaces.my_status', { space_id: spaceId });
       if (cancelled) return;
-      if (state.role === 'speaker' || state.role === 'host') setRole(state.role as 'speaker' | 'host');
+      if (state.role === 'speaker') setRole('speaker');
       setSpeakerRequestStatus((state.speaker_request_status as any) || 'none');
     };
     void syncRole();
