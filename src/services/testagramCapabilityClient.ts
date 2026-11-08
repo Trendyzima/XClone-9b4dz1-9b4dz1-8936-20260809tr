@@ -206,7 +206,6 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
  createCommunityPoll(communityId:string,input:{question:string;options:string[];duration_minutes:number;description?:string}){return testagramApiRequest<{post_id:string;poll:any}>('/api/communities/'+encodeURIComponent(communityId)+'/polls',{method:'POST',body:input})}
  getPost(postId:string){return testagramApiRequest<any>('/api/social/posts/'+encodeURIComponent(postId))}
  getPoll(pollId:string){return testagramApiRequest<{poll:any}>('/api/social/polls/'+encodeURIComponent(pollId))} getPollByPost(postId:string){return testagramApiRequest<{poll:any}>('/api/social/posts/'+encodeURIComponent(postId)+'/poll')}
- votePoll(pollId:string,optionId:string){return testagramApiRequest<{poll_id:string;option_id:string;voted:boolean}>('/api/social/polls/'+encodeURIComponent(pollId)+'/vote',{method:'POST',body:{option_id:optionId}})}
  listCommunityPosts(communityId:string,n=30,page=0){const query=new URLSearchParams({limit:String(limit(n)),page:String(Math.max(0,Math.floor(page)))});return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/posts?'+query.toString())}
  createCommunityPost(communityId:string,input:{text:string;media_ids?:string[];language?:string}){return testagramApiRequest<{id:string;community_id:string;author_id:string;text:string;content:string}>('/api/communities/'+encodeURIComponent(communityId)+'/posts',{method:'POST',body:input})}
 
@@ -256,8 +255,6 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
  sendAudioSpaceSuperchat(spaceId:string,message:string,amount:number,idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean}>("testagram.audio_spaces.superchat",{space_id:spaceId,message,amount,idempotency_key:idempotencyKey})}
  listPolls(n=20,offset=0){return testagramApiRequest<{items:any[];next_offset:number;has_more:boolean}>('/api/social/polls?limit='+limit(n)+'&offset='+Math.max(0,Math.trunc(offset)))}
  createPoll(input:{question:string;description?:string;options:string[];ends_at?:string|null}){return testagramApiRequest<any>('/api/social/polls',{method:'POST',body:input})}
- getPoll(pollId:string){return testagramApiRequest<any>('/api/social/polls/'+encodeURIComponent(pollId))}
- getPollByPost(postId:string){return testagramApiRequest<any>('/api/social/posts/'+encodeURIComponent(postId)+'/poll')}
  votePoll(pollId:string,optionId:string){return testagramApiRequest<{poll_id:string;option_id:string;voted:boolean}>('/api/social/polls/'+encodeURIComponent(pollId)+'/vote',{method:'POST',body:{option_id:optionId}})}
 }
  
