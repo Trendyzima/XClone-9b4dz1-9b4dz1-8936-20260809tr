@@ -72,8 +72,8 @@ jobs:
         run: |
           set -euo pipefail
           test -f wrangler.jsonc
-          ! grep -q '"main"' wrangler.jsonc
-          ! grep -q '"run_worker_first"' wrangler.jsonc
+          if grep -q '"main"' wrangler.jsonc; then exit 1; fi
+          if grep -q '"run_worker_first"' wrangler.jsonc; then exit 1; fi
           grep -q '"name": "testagram-web"' wrangler.jsonc
           grep -q '"pattern": "testagram.site"' wrangler.jsonc
           grep -q '"pattern": "www.testagram.site"' wrangler.jsonc
