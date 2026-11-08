@@ -22,7 +22,7 @@ export class SocialApiError extends Error {
   }
 }
 
-const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.env.VITE_API_URL ?? '')
+const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '')
   .trim()
   .replace(/\/+$/, '');
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
@@ -98,7 +98,7 @@ export const socialApi = {
     );
   },
   getFederationPreference() {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'GET', undefined, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/api/me/federation`, 'GET', undefined, true);
   },
   setFederationPreference(enabled: boolean) {
     return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
