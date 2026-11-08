@@ -742,21 +742,6 @@ export default function ProfilePage() {
       setReplies([]);
     }
   };
-  const fetchMedia = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles!posts_author_id_fkey(*)')
-      .eq('author_id', userId)
-      .is('deleted_at', null)
-      .or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]')
-      .order('created_at', { ascending: false });
-    if (error) console.error('[profile] media query failed', { userId, error });
-    setMedia((data || []).map((post: any) => ({
-      ...post,
-      user_profiles: post.user_profiles || post.profiles || null,
-    })));
-  };
-
   const fetchLikedPosts = async (userId: string) => {
     try {
       setLikedPosts(await listProfileLikes(userId, 100));
