@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Wallet, RefreshCw, ArrowDownToLine, ArrowLeftRight, History, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { profileApi } from '@/services/profileApi';
 import { walletApi } from '@/services/walletApi';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
@@ -47,9 +46,7 @@ export default function WalletPage({ initialTab = 'overview', standaloneTitle = 
     setBusy(true);
     try {
       const handle = recipient.trim().replace(/^@/, '').toLowerCase();
-      const recipientId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(handle)
-        ? handle
-        : (await profileApi.getByUsername(handle)).profile.id;
+      const recipientId = (await walletApi.resolveRecipient(handle)).user_id;
       const result = await walletApi.transfer(recipientId, value, 'Wallet transfer');
       toast.success(result.status === 'completed' ? 'Transfer completed.' : 'Transfer submitted.'); await refresh();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Transfer failed.'); }
