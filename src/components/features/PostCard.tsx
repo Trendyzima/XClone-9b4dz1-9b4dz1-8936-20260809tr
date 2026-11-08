@@ -3,7 +3,7 @@ import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, Trash2, TrendingUp, Zap, Eye, BarChart3, Users, History, X, Languages, Loader2 as TransLoader, DollarSign, Flag, Check as CheckIcon, Send as SendIcon, Crown, Megaphone, Quote, Activity, Globe } from 'lucide-react';
 import { Post } from '@/types/app-types';
 import { formatDistanceToNow } from 'date-fns';
-import { supabase } from '@/lib/supabase';
+import { testagramApiRequest } from '@/services/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -121,18 +121,9 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       setIsAuthorPremium(premiumCache.get(uid)!);
       return;
     }
-    supabase
-      .from('premium_subscriptions')
-      .select('id')
-      .eq('user_id', uid)
-      .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle()
-      .then(({ data }) => {
-        const has = !!data;
-        premiumCache.set(uid, has);
-        setIsAuthorPremium(has);
-      });
+    backendCapabilities.call<{ active: boolean }>('testagram.profile.premium.status', { user_id: uid })
+      .then(result => { const has = Boolean(result?.active); premiumCache.set(uid, has); setIsAuthorPremium(has); })
+      .catch(() => { premiumCache.set(uid, false); setIsAuthorPremium(false); });
   }, [post.user_id]);
 
   // Post Reactions
@@ -275,14 +266,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!tipAmount || tipAmount <= 0) return;
     setTippingLoading(true);
     try {
-      const { error: tipErr } = await supabase.rpc('send_wallet_tip', {
-        p_to_user_id: post.user_id,
-        p_amount: tipAmount,
-        p_note: tipMessage.trim() || `Tip on post ${post.id}`,
-        p_idempotency_key: `post-tip:${post.id}:${user.id}:${crypto.randomUUID()}`,
-      });
-      if (tipErr) throw tipErr;
-      await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id });
+      await backendCapabilities.tipWallet(post.user_id, tipAmount, tipMessage.trim() || `Tip on post ${post.id}`, `post-tip:${post.id}:${user.id}:${crypto.randomUUID()}`);
       toast({ title: `Tip of $${tipAmount} sent!`, description: `You tipped @${authorUsername}` });
       setShowTipDialog(false);
       setTipAmount(null);
@@ -365,11 +349,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       if (isFederatedPost) {
         await federation.flagStatus(interactionPostId, reportCategory);
       } else {
-        const { error } = await supabase.from('post_reports').upsert(
-          { post_id: post.id, reporter_id: user.id, category: reportCategory },
-          { onConflict: 'post_id,reporter_id' }
-        );
-        if (error) throw error;
+        await backendCapabilities.call('testagram.posts.report', { post_id: post.id, category: reportCategory });
       }
       toast({ title: 'Report submitted', description: 'Thanks for helping keep the community safe.' });
       setShowReportDialog(false);
@@ -507,12 +487,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         if (!cancelled) setPoll(embedded);
         return;
       }
-      const { data } = await supabase
-        .from('polls')
-        .select('id,post_id,question,description,status,ends_at,allow_multiple,visibility')
-        .eq('post_id', post.id)
-        .maybeSingle();
-      if (!cancelled && data) setPoll(data);
+      try {
+        const result = await backendCapabilities.call<{ poll: any }>('testagram.posts.poll.get', { post_id: post.id });
+        if (!cancelled && result?.poll) setPoll(result.poll);
+      } catch { /* Poll API is not enabled for this post yet. */ }
     };
     void fetchPoll();
     return () => { cancelled = true; };
@@ -647,8 +625,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) return;
     try {
-      const { error } = await supabase.from('posts').delete().eq('id', post.id).eq('user_id', user?.id);
-      if (error) throw error;
+      await testagramApiRequest(`/v1/posts/${encodeURIComponent(post.id)}`, { method: 'DELETE' });
       toast({ title: 'Post deleted successfully' });
       onUpdate?.();
     } catch (error: any) {
