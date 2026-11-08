@@ -254,8 +254,13 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
  decideAudioSpaceSpeaker(spaceId:string,userId:string,decision:'approved'|'denied'){return this.call<{space_id:string;user_id:string;status:string}>("testagram.audio_spaces.decide_speaker",{space_id:spaceId,user_id:userId,decision})}
  endAudioSpace(spaceId:string){return this.call<{space_id:string;ended:boolean}>("testagram.audio_spaces.end",{space_id:spaceId})}
  sendAudioSpaceSuperchat(spaceId:string,message:string,amount:number,idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean}>("testagram.audio_spaces.superchat",{space_id:spaceId,message,amount,idempotency_key:idempotencyKey})}
+ listPolls(n=20,offset=0){return testagramApiRequest<{items:any[];next_offset:number;has_more:boolean}>('/api/social/polls?limit='+limit(n)+'&offset='+Math.max(0,Math.trunc(offset)))}
+ createPoll(input:{question:string;description?:string;options:string[];ends_at?:string|null}){return testagramApiRequest<any>('/api/social/polls',{method:'POST',body:input})}
+ getPoll(pollId:string){return testagramApiRequest<any>('/api/social/polls/'+encodeURIComponent(pollId))}
+ getPollByPost(postId:string){return testagramApiRequest<any>('/api/social/posts/'+encodeURIComponent(postId)+'/poll')}
+ votePoll(pollId:string,optionId:string){return testagramApiRequest<{poll_id:string;option_id:string;voted:boolean}>('/api/social/polls/'+encodeURIComponent(pollId)+'/vote',{method:'POST',body:{option_id:optionId}})}
 }
-
+ 
 export const backendCapabilities = new TestagramCapabilityClient({
  endpoint: CAPABILITY_GATEWAY_ENDPOINT,
  getAccessToken: async () => appwriteAuth.createBackendJWT(),
