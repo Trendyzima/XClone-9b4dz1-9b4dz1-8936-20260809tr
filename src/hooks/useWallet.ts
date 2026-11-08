@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { backendCapabilities } from '@/services/backendClient';
+import type { WalletPhoneIdentity } from '@/services/walletPhoneAuthService';
 import { useAuth } from './useAuth';
 
 export interface Wallet {
@@ -75,9 +76,9 @@ export function useWallet() {
     wallet,
     loading,
     error,
-    phoneIdentity: null,
+    phoneIdentity: null as WalletPhoneIdentity | null,
     phoneVerified: false,
-    walletSecurity: null,
+    walletSecurity: null as { pin_set: boolean; biometric_credential_id: string | null; biometric_enabled: boolean } | null,
     requestPhoneOtp,
     verifyPhoneOtp,
     fetchWallet,
