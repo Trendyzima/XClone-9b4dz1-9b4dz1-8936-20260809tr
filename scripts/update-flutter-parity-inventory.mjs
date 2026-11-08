@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'docs', 'flutter-parity-inventory.json');
-const roots = ['src', 'api', 'supabase/functions', 'supabase/migrations', 'android/app/src/main', 'android/scripts'];
+const roots = ['src', 'android/app/src/main', 'android/scripts'];
 const existing = fs.existsSync(output) ? JSON.parse(fs.readFileSync(output, 'utf8')) : { sources: {} };
 const sources = { ...(existing.sources ?? {}) };
 
@@ -15,10 +15,9 @@ function walk(dir) {
     if (entry.isDirectory()) return walk(absolute);
     const relative = path.relative(root, absolute).split(path.sep).join('/');
     const sourceFile = /\.(tsx?|jsx?)$/.test(entry.name) && !/\.(test|spec)\./.test(entry.name);
-    const migrationFile = relative.startsWith('supabase/migrations/') && entry.name.endsWith('.sql');
     const nativeReference = relative.startsWith('android/app/src/main/') && /\.(java|kt|xml|gradle|kts|json)$/.test(entry.name);
     const nativeScript = relative.startsWith('android/scripts/') && /\.(py|sh)$/.test(entry.name);
-    if (!sourceFile && !migrationFile && !nativeReference && !nativeScript) return [];
+    if (!sourceFile && !nativeReference && !nativeScript) return [];
     return [relative];
   });
 }

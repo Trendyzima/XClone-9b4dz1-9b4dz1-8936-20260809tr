@@ -1,7 +1,7 @@
 import { appwriteAuth } from '@/services/appwriteAuth';
 import { megalodonGatewayService } from '@/services/megalodonGateway';
 
-const FEDERATION_API_ORIGIN = (import.meta.env.VITE_TESTAGRAM_FEDERATION_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\\/+$/, '');
+const FEDERATION_API_ORIGIN = (import.meta.env.VITE_TESTAGRAM_FEDERATION_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
 async function getToken(): Promise<string | null> { try { return await appwriteAuth.createBackendJWT(); } catch { return null; } }
 function remoteInstanceFromHandle(acct: string): string | null {
   const normalized = acct.trim().replace(/^@/, ''); const parts = normalized.split('@');

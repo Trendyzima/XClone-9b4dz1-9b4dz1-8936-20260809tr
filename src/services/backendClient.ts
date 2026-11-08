@@ -44,7 +44,7 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
 }
 
 export function createBackendCapabilityClient(
-  endpoint = '/api/capability',
+  endpoint = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '') ? \`\${(import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '')}/api/capability\` : '',
   _legacyClient?: unknown,
 ): TestagramCapabilityClient {
   return new TestagramCapabilityClient({

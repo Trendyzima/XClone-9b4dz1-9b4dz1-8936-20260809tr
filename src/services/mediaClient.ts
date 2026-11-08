@@ -16,7 +16,12 @@ export type MediaCompleted = {
 type ApiEnvelope<T> = { ok: boolean; data?: T; error?: { code?: string; message?: string } | null };
 
 export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
-const API = '/api/media';
+const BACKEND_ORIGIN = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+const API = BACKEND_ORIGIN ? `${BACKEND_ORIGIN}/api/media` : '';
+function requireMediaApi(): string {
+  if (!API) throw new Error('VITE_TESTAGRAM_API_URL is required; media requests cannot use a same-origin XClone proxy.');
+  return API;
+}
 
 function friendlyMediaError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? '');
@@ -27,7 +32,7 @@ function friendlyMediaError(error: unknown) {
 }
 
 async function apiRequest<T>(path: string, token: string, method: 'POST' | 'PUT', body?: unknown, contentType?: string): Promise<T> {
-  const response = await fetch(API + path, {
+  const response = await fetch(requireMediaApi() + path, {
     method,
     headers: {
       Authorization: 'Bearer ' + token,

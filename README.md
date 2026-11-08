@@ -51,6 +51,13 @@ This is the responsive web experience—not a native iOS app. This repository cu
 ### Desktop
 
 Use [XClone in your browser](https://testagram.site/) for the web experience. For desktop installers, open the [desktop OS preview releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop). The workflow builds Windows MSI/EXE, macOS DMG and Linux DEB/AppImage packages; only formats actually attached to the newest release are available. These are preview builds and may trigger OS security warnings because they are not yet distributed through a signed commercial installer channel. Developers can follow the [Tauri desktop instructions](desktop/README.md) or inspect the [desktop release workflow](.github/workflows/platform-apps-release.yml).
+
+## Repository architecture and API boundary
+
+XClone is the client-only presentation repository in the five-repository Testagram architecture. It does not host backend handlers, database access, federation workers, ranking logic, payment settlement, or media infrastructure. It authenticates users with the Appwrite client SDK and calls the separately deployed Testagram Backend using a short-lived Backend JWT. Federation, ranking, and durable media storage remain owned by their respective services.
+
+See the [client-only boundary and integration contract](docs/architecture/client-only-boundary.md) for repository ownership, API configuration, security rules, and acceptance checks.
+
 ## What can you do with XClone?
 
 XClone brings social networking, short videos, live experiences, communities, creator tools, discovery, and commerce into one connected product. Feature availability may depend on account permissions, configuration, integrations, and rollout status.
