@@ -21,7 +21,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/components/features/AudioRecorder.tsx` — pending audit/migration
 - [ ] `src/components/features/BookmarkButton.tsx` — pending audit/migration
 - [ ] `src/components/features/BoostPostDialog.tsx` — pending audit/migration
-- [ ] `src/components/features/CommunityAdminOverlay.tsx` — pending audit/migration
+- [ ] `src/components/features/CommunityAdminOverlay.tsx` — pending audit/migration (separate overlay component).
 - [x] `src/components/features/CommunitySpotlightStrip.tsx` — list and membership actions use the typed Backend community API; deployment and runtime verification remain pending
 - [ ] `src/components/features/ContentSuggestionsWidget.tsx` — pending audit/migration
 - [ ] `src/components/features/CreatePollDialog.tsx` — pending audit/migration
@@ -193,7 +193,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/ChallengeLeaderboardPage.tsx` — pending audit/migration
 - [ ] `src/pages/ChannelProfilePage.tsx` — pending audit/migration
 - [x] `src/pages/CommunitiesPage.tsx` — migrated; verify backend contract and tests
-- [ ] `src/pages/CommunityPage.tsx` — pending audit/migration
+- [x] `src/pages/CommunityPage.tsx` — removed all direct Supabase access; community detail, posts, chat, events/RSVP, members, moderation, settings, shop, achievement badges, scheduling and reminders now call Backend APIs. Backend runtime/CI verification remains outstanding.
 - [ ] `src/pages/CompleteProfilePage.tsx` — pending audit/migration
 - [ ] `src/pages/ContentPolicyPage.tsx` — pending audit/migration
 - [ ] `src/pages/CreateAdPage.tsx` — pending audit/migration
@@ -488,7 +488,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/BoostCreatePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/ChallengeLeaderboardPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/ChannelProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/CommunityPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/CommunityPage.tsx` — baseline violation resolved; current source has no Supabase imports or operations.
 - [ ] `src/pages/CompleteProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/CreateAdPageCanonical.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/CreateThreadPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -563,3 +563,12 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/VideoWatchLaterPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/VideosPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/WishlistPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+
+
+## Community feature migration update — 2026-11-08
+
+- XClone CommunityPage.tsx now contains no direct Supabase imports or calls. Community page operations route through typed Backend API methods, including community detail, posts, members, chat, events, RSVPs, settings, role changes, moderation, shop, achievement badges, scheduled posts, and self-notifications.
+- Backend branch feat/central-api-contract-v1 now includes native community detail/admin/member/event/chat/post/shop/badge/scheduled-post handlers and migrations 20261108_community_core.sql through 20261114_community_admin.sql.
+- Community achievement badges are application-issued database badges, not blockchain NFTs. The page copy was changed to avoid claiming an on-chain mint.
+- Community marketplace listing reads the Backend-owned marketplace catalog. Product catalog population/management APIs remain a separate migration item.
+- These changes are committed but are not yet live-verified. Backend CI is configured to run on main/PR, not this feature branch; frontend production gates on the current branch have exposed many unrelated unresolved Supabase imports in other pages. Do not treat the full repository as migrated.
