@@ -99,19 +99,8 @@ export default function HashtagPage() {
   }, []);
 
   const fetchTopPosts = async (hashtagId: string) => {
-    const { data } = await supabase
-      .from('post_hashtags')
-      .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-      .eq('hashtag_id', hashtagId)
-      .limit(30);
-    if (!data) return;
-    const allPosts = data.map((item: any) => item.posts).filter(Boolean).slice(0, 30);
-    const sorted = [...allPosts].sort((a, b) => {
-      const scoreA = (a.likes_count || 0) + (a.reposts_count || 0) + (a.replies_count || 0);
-      const scoreB = (b.likes_count || 0) + (b.reposts_count || 0) + (b.replies_count || 0);
-      return scoreB - scoreA;
-    });
-    setTopPosts(sorted);
+    const result = await backendCapabilities.listHashtagPosts(hashtagId, 30, 0, 'top');
+    setTopPosts(result.items ?? []);
   };
 
   const fetchHashtagAndPosts = async () => {
