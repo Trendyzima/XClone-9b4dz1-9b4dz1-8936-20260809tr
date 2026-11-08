@@ -440,8 +440,8 @@ export default function ProfilePage() {
     if (!h.story_ids || h.story_ids.length === 0) { toast.error('No stories in this highlight'); return; }
     setLoadingHighlightStories(true);
     setViewingHighlight(h);
-    const { data } = await supabase.from('stories').select('*').in('id', h.story_ids);
-    setHighlightStories(data ?? []);
+    const { items } = await profileApi.getStories(h.story_ids);
+    setHighlightStories(items ?? []);
     setHighlightStoryIdx(0);
     setHighlightProgress(0);
     setLoadingHighlightStories(false);
@@ -456,56 +456,24 @@ export default function ProfilePage() {
 
   const trackProfileView = async (viewedUserId: string) => {
     if (!currentUser || currentUser.id === viewedUserId) return;
-    await supabase.from('browsing_history').insert({ user_id: currentUser.id, profile_id: viewedUserId, view_type: 'profile' }).catch(() => {});
-    // ── Profile View Notification: notify owner once per viewer per 24h (localStorage dedup) ──
-    const notifKey = `ts-pv-notif-${viewedUserId}-${currentUser.id}`;
-    try {
-      const last = parseInt(localStorage.getItem(notifKey) ?? '0', 10);
-      if (Date.now() - last < 86400000) return; // 24h cooldown
-      localStorage.setItem(notifKey, String(Date.now()));
-    } catch { return; }
-    supabase.from('platform_inbox').insert({
-      user_id: viewedUserId,
-      subject: `@${currentUser.username} viewed your profile`,
-      body: `@${currentUser.username} just visited your profile. They might be interested in your content!`,
-      type: 'info',
-      icon_emoji: '👀',
-      cta_label: 'View their profile',
-      cta_url: `/profile/${currentUser.username}`,
-    }).catch(() => {});
+    await profileApi.trackProfileView(viewedUserId).catch(() => {});
   };
 
   const fetchProfileViews7d = async (userId: string) => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { count } = await supabase.from('browsing_history').select('*', { count: 'exact', head: true }).eq('profile_id', userId).eq('view_type', 'profile').gte('created_at', sevenDaysAgo);
-    setProfileViews7d(count ?? 0);
+    const result = await profileApi.getProfileViews(userId, 7);
+    setProfileViews7d(result.count ?? 0);
   };
 
   const fetchSubscription = async (creatorId: string) => {
     if (!currentUser) return;
-    const { data, error } = await supabase.from('subscriptions').select('*').eq('creator_id', creatorId).eq('subscriber_id', currentUser.id).eq('status', 'active').maybeSingle();
-    if (error) console.error('[profile] subscription query failed', { creatorId, error });
-    setActiveSubscription(data ? { tier: data.plan, price: null, status: data.status, ends_at: data.ends_at } : null);
+    const result = await profileApi.getSubscription(creatorId);
+    const data = result.subscription;
+    setActiveSubscription(data ? { tier: data.plan ?? data.tier, price: null, status: data.status, ends_at: data.ends_at } : null);
   };
 
   const fetchTipGoal = async (userId: string) => {
-    const { data: mon } = await supabase.from('user_monetization').select('total_earnings').eq('user_id', userId).maybeSingle();
-    setTipGoal(null);
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const { data: monthTips, error: monthTipsError } = await supabase.from('tips').select('from_user_id, amount').eq('to_user_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
-    if (monthTipsError) console.error('[profile] monthly tips query failed', { userId, monthTipsError });
-    const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0);
-    setCurrentMonthTips(total);
-    const tipperIds: string[] = [];
-    const tipperAmts: number[] = [];
-    for (const t of (monthTips ?? [])) {
-      const idx = tipperIds.indexOf(t.from_user_id);
-      if (idx >= 0) tipperAmts[idx] += Number(t.amount ?? 0);
-      else { tipperIds.push(t.from_user_id); tipperAmts.push(Number(t.amount ?? 0)); }
-    }
-    const sorted = [...tipperAmts].sort((a, b) => b - a).slice(0, 3);
-    setTopTippers(sorted.map((amount, i) => ({ rank: i + 1, amount })));
+    const result = await profileApi.getTipSummary(userId);
+    setTipGoal(null); setCurrentMonthTips(Number(result.monthly_total ?? 0)); setTopTippers(result.top_tippers ?? []);
   };
 
   const handleSaveTipGoal = async () => {
@@ -520,18 +488,9 @@ export default function ProfilePage() {
 
   const fetchTipHistory = async (userId: string) => {
     setLoadingTips(true);
-    const { data: tips, error } = await supabase.from('tips').select('*').or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
-    if (!tips || tips.length === 0) { setTipHistory([]); setLoadingTips(false); return; }
-    const allUids = tips.flatMap((t: any) => [t.from_user_id, t.to_user_id]) as string[];
-    const uids = allUids.filter((u: string, i: number) => allUids.indexOf(u) === i);
-    const { data: profileRows } = await supabase.from('profiles').select('id, username, avatar_url').in('id', uids);
-    // Use parallel arrays instead of index-sig objects (esbuild guard)
-    const pIds: string[] = [];
-    const pData: any[] = [];
-    for (const p of (profileRows ?? [])) { pIds.push(p.id); pData.push(p); }
-    const getP = (uid: string) => pData[pIds.indexOf(uid)];
-    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.from_user_id), recipient: getP(t.to_user_id) })));
-    setLoadingTips(false);
+    try { const result = await profileApi.listTips(userId, 50); setTipHistory(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend tips request failed', error); setTipHistory([]); }
+    finally { setLoadingTips(false); }
   };
 
   const handleShareProfile = async () => {
@@ -555,58 +514,43 @@ export default function ProfilePage() {
 
   const fetchGiftHistory = async (userId: string) => {
     setLoadingGifts(true);
-    const { data } = await supabase.from('premium_gifts').select('*').or(`sender_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
-    if (!data || data.length === 0) { setGiftHistory([]); setLoadingGifts(false); return; }
-    setGiftHistory(data);
-    setLoadingGifts(false);
+    try { const result = await profileApi.listGifts(userId, 50); setGiftHistory(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend gifts request failed', error); setGiftHistory([]); }
+    finally { setLoadingGifts(false); }
   };
 
   const fetchProfilePodcasts = async (userId: string) => {
     if (podcastsFetched) return;
     setLoadingPodcasts(true);
-    const { data, error } = await supabase.from('space_recordings').select('id, title, audio_url, video_url, duration, created_at, space_id, spaces(title, artwork_url, category, episode_number, subscriber_only)').eq('user_id', userId).order('created_at', { ascending: false }).limit(30);
-    if (error) console.error('[profile] podcasts query failed', { userId, error });
-    setProfilePodcasts(data ?? []);
-    setLoadingPodcasts(false);
-    setPodcastsFetched(true);
+    try { const result = await profileApi.listPodcasts(userId, 30); setProfilePodcasts(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend podcasts request failed', error); setProfilePodcasts([]); }
+    finally { setLoadingPodcasts(false); setPodcastsFetched(true); }
   };
 
   const fetchPostImpressions = async (userId: string) => {
-    const { data: userPosts } = await supabase.from('posts').select('id').eq('author_id', userId).limit(50);
-    if (!userPosts || userPosts.length === 0) return;
-    const since = new Date(Date.now() - 29 * 86400000).toISOString();
-    const { data } = await supabase.from('browsing_history').select('created_at').in('post_id', userPosts.map((p: any) => p.id)).eq('view_type', 'post').gte('created_at', since);
+    const result = await profileApi.getPostImpressions(userId, 30);
     const days: { date: string; views: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      days.push({ date: d.toISOString().split('T')[0].slice(5), views: 0 });
-    }
-    (data ?? []).forEach((r: any) => {
-      const k = r.created_at?.split('T')[0]?.slice(5);
-      const entry = days.find(d => d.date === k);
-      if (entry) entry.views++;
-    });
+    for (let i = 29; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000); days.push({ date: d.toISOString().split('T')[0].slice(5), views: 0 }); }
+    (result.items ?? []).forEach(row => { const key = row.created_at?.split('T')[0]?.slice(5); const day = days.find(item => item.date === key); if (day) day.views++; });
     setPostImpressionsChart(days);
   };
 
   const fetchProfileSeries = async (userId: string) => {
     if (profileSeriesFetched) return;
     setLoadingProfileSeries(true);
-    const { data, error } = await supabase.from('post_series').select('*, post_series_items(count)').eq('owner_id', userId).order('created_at', { ascending: false }).limit(20);
-    if (error) console.error('[profile] series query failed', { userId, error });
-    setProfileSeries(data ?? []);
-    setLoadingProfileSeries(false);
-    setProfileSeriesFetched(true);
+    try { const result = await profileApi.listSeries(userId, 20); setProfileSeries(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend series request failed', error); setProfileSeries([]); }
+    finally { setLoadingProfileSeries(false); setProfileSeriesFetched(true); }
   };
 
   const togglePinPost = async (postId: string) => {
     if (!currentUser || !isOwnProfile) return;
     const newPinned = pinnedPostId === postId ? null : postId;
-    const { error } = await supabase.from('profiles').update({ pinned_post_id: newPinned }).eq('id', currentUser.id);
-    if (error) { toast.error('Could not save pinned post'); return; }
-    setPinnedPostId(newPinned);
-    toast.success(newPinned ? 'Post pinned to your profile' : 'Post unpinned');
+    try { await profileApi.pinPost(newPinned); setPinnedPostId(newPinned); toast.success(newPinned ? 'Post pinned to your profile' : 'Post unpinned'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not save pinned post'); }
   };
+
+  useEffect(() => { if (username) fetchProfile(); }, [username]);
 
   useEffect(() => { if (username) fetchProfile(); }, [username]);
 
