@@ -648,7 +648,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!profile?.id) return;
-    supabase.from('activitypub_actors').select('id', { count: 'exact', head: true }).eq('user_id', profile.id).then(({ count }) => setHasActorRecord((count ?? 0) > 0));
+    let active = true;
+    profileApi.getActorStatus(profile.id).then(result => { if (active) setHasActorRecord(Boolean(result.has_actor)); }).catch(() => { if (active) setHasActorRecord(false); });
+    return () => { active = false; };
   }, [profile?.id]);
 
   useEffect(() => {
@@ -659,44 +661,32 @@ export default function ProfilePage() {
     try {
       const requestedUsername = username?.trim() || '';
       const canonicalUsername = requestedUsername.toLowerCase();
-      const initialProfileQuery = canonicalUsername
-        ? await supabase.from('profiles').select('*').eq('username', canonicalUsername).maybeSingle()
-        : { data: null, error: null };
-      let profileData = initialProfileQuery.data;
-      if (!profileData && !username && currentUser) {
-        const ownProfileQuery = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
-        profileData = ownProfileQuery.data;
-      }
-      if (!profileData) throw initialProfileQuery.error ?? new Error('Canonical profile not found');
+      const result = canonicalUsername
+        ? await profileApi.getByUsername(canonicalUsername)
+        : currentUser ? await profileApi.getById(currentUser.id) : null;
+      const profileData = result?.profile;
+      if (!profileData) throw new Error('Canonical profile not found in Backend');
       if (requestedUsername && requestedUsername !== canonicalUsername) {
-        navigate(`/profile/${encodeURIComponent(canonicalUsername)}`, { replace: true });
-        return;
+        navigate('/profile/' + encodeURIComponent(canonicalUsername), { replace: true }); return;
       }
+      const verification = await profileApi.getVerification(profileData.id).catch(() => ({ is_verified: false, tier: null }));
       const socialLinks = (profileData.social_links ?? {}) as { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
-      // Verification is an entitlement, never a default profile field. The backend
-      // authoritatively grants it only to the platform owner or an active monthly
-      // verification subscription.
-      const { data: verificationStatus } = await supabase.rpc('get_profile_verification_status', { p_user_id: profileData.id });
-      // Critical path: render the canonical profile immediately. Non-critical profile
-      // enrichments must never block the profile shell from becoming visible.
       const normalizedProfile = {
         ...profileData,
         twitter_handle: socialLinks.twitter ?? null,
         instagram_handle: socialLinks.instagram ?? null,
         linkedin_url: socialLinks.linkedin ?? null,
         cover_image: profileData.cover_url ?? null,
-        verified: Boolean(verificationStatus?.is_verified),
-        verified_tier: verificationStatus?.tier ?? null,
+        verified: Boolean(verification.is_verified),
+        verified_tier: verification.tier ?? null,
         total_earnings: 0,
       };
       setPinnedPostId(profileData.pinned_post_id ?? null);
       setProfile(normalizedProfile);
       setLoading(false);
-      // Enrich non-critical fields after first paint.
-      void supabase.from('user_monetization').select('total_earnings').eq('user_id', profileData.id).maybeSingle()
-        .then(({ data }) => { if (data) setProfile((prev: any) => prev ? { ...prev, total_earnings: data.total_earnings ?? 0 } : prev); })
-        .catch(() => {});
-      // Route-owned data lifecycle: load only the collection represented by the current profile route.
+      void profileApi.getMonetization(profileData.id).then(data => {
+        setProfile((prev: any) => prev ? { ...prev, total_earnings: data.total_earnings ?? 0 } : prev);
+      }).catch(() => {});
       const loaders: Record<string, () => Promise<unknown>> = {
         Tips: () => Promise.all([fetchTipHistory(profileData.id), fetchTipGoal(profileData.id), fetchProfileViews7d(profileData.id)]),
         Gifts: () => fetchGiftHistory(profileData.id),
@@ -704,72 +694,46 @@ export default function ProfilePage() {
         Series: () => fetchProfileSeries(profileData.id),
         Analytics: () => Promise.all([fetchProfileStats(profileData.id), fetchPostImpressions(profileData.id)]),
       };
-      // Route-specific enrichment is non-blocking; the profile shell is already visible.
       void loaders[activeTab]?.().catch(() => {});
-      // Shared secondary data is also deferred so a slow query cannot blank/delay the profile.
       void Promise.allSettled([fetchHighlights(profileData.id), fetchSubscription(profileData.id)]);
       if (activeTab === 'Posts' || activeTab === 'Videos') void trackProfileView(profileData.id).catch(() => {});
       if (currentUser && currentUser.id !== profileData.id) void checkBlockMuteStatus(profileData.id).catch(() => {});
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Error fetching profile through Backend API:', error);
       setLoading(false);
-      navigate('/');
+      if (username) navigate('/'); 
     }
   };
 
   // ── Post Impression Milestone Alerts (1K / 10K views) ──────────────────────
   const checkImpressionMilestones = async (userId: string, postList: Post[]) => {
-    if (!currentUser || currentUser.id !== userId) return;
-    const alertKey = `ts-impression-alerts-${userId}`;
-    let alerted: string[] = [];
-    try { alerted = JSON.parse(localStorage.getItem(alertKey) ?? '[]'); } catch { /* ignore */ }
-    const toNotify: { postId: string; views: number; milestone: number }[] = [];
-    const IMPRESSION_MILESTONES = [10000, 1000];
-    for (const post of postList) {
-      const views = post.views_count ?? 0;
-      for (const m of IMPRESSION_MILESTONES) {
-        if (views >= m) {
-          const key = `${post.id}-${m}`;
-          if (!alerted.includes(key)) { toNotify.push({ postId: post.id, views, milestone: m }); alerted.push(key); }
-        }
-      }
-    }
-    if (toNotify.length === 0) return;
-    localStorage.setItem(alertKey, JSON.stringify(alerted));
-    await Promise.allSettled(toNotify.map(({ postId, views, milestone }) =>
-      supabase.from('platform_inbox').insert({
-        user_id: userId,
-        subject: `🎉 Your post hit ${milestone >= 10000 ? '10K' : '1K'} views!`,
-        body: `One of your posts just crossed ${milestone.toLocaleString()} views (currently ${views.toLocaleString()}). Keep creating!`,
-        type: 'update', icon_emoji: milestone >= 10000 ? '🚀' : '⭐',
-        cta_label: 'View Post', cta_url: `/post/${postId}`,
-      })
-    ));
+    // Impression notifications are emitted by Backend when a milestone is crossed.
+    // The client must not write inbox rows directly.
+    return;
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id', userId).order('created_at', { ascending: false });
-    if (error) {
-      console.error('[profile] posts query failed', { userId, error });
-      setPosts([]);
-      return;
-    }
-    // PostCard accepts the canonical `user_profiles` shape. Profile pages
-    // receive the joined author as `profiles`, so normalize it at the boundary
-    // instead of allowing the card to fall back to a placeholder identity.
-    const postList = (data || []).map((post: any) => ({
-      ...post,
-      user_profiles: post.user_profiles || post.profiles || null,
-    }));
-    setPosts(postList);
-    // Fire milestone alerts asynchronously — won't block UI
-    checkImpressionMilestones(userId, postList).catch(() => {});
+    try {
+      const result = await profileApi.listPosts(userId);
+      const postList = ((result as any).items ?? (result as any).posts ?? []).map((post: any) => ({
+        ...post, user_profiles: post.user_profiles || post.profiles || post.author || null,
+      }));
+      setPosts(postList);
+    } catch (error) { console.error('[profile] Backend posts request failed', error); setPosts([]); }
   };
+
   const fetchThreads = async (userId: string) => {
-    const { data, error } = await supabase.from('threads').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
-    if (error) console.error('[profile] threads query failed', { userId, error });
-    setThreads(data || []);
+    try { const result = await profileApi.listThreads(userId); setThreads(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend threads request failed', error); setThreads([]); }
   };
+
+  const fetchMedia = async (userId: string) => {
+    try {
+      const result = await profileApi.listMedia(userId);
+      setMedia((result.items ?? []).map((post: any) => ({ ...post, user_profiles: post.user_profiles || post.profiles || post.author || null })));
+    } catch (error) { console.error('[profile] Backend media request failed', error); setMedia([]); }
+  };
+
   const fetchReplies = async (userId: string) => {
     try {
       setReplies(await listProfileReplies(userId, 100));
@@ -803,39 +767,37 @@ export default function ProfilePage() {
   };
 
   const fetchFollowers = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id', userId);
-    setFollowers((data || []).map((item: any) => item.follower).filter(Boolean));
+    try { const result = await profileApi.listFollowers(userId); setFollowers(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend followers request failed', error); setFollowers([]); }
   };
+
   const fetchProfileStats = async (userId: string) => {
-    const { data: reward } = await supabase.from('daily_rewards').select('streak_day').eq('user_id', userId).maybeSingle();
-    setStreakDay(reward?.streak_day ?? 0);
-    const { data: pd } = await supabase.from('profiles').select('follower_count').eq('id', userId).maybeSingle();
-    if (pd) {
-      const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).gt('follower_count', pd.follower_count ?? 0);
-      setFollowerRank((count ?? 0) + 1);
-    }
+    const result = await profileApi.getStats(userId);
+    setStreakDay(result.streak_day ?? 0); setFollowerRank(result.follower_rank ?? null);
   };
+
   const fetchFollowing = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('following:profiles!follows_following_id_fkey(*)').eq('follower_id', userId);
-    setFollowing((data || []).map((item: any) => item.following).filter(Boolean));
+    try { const result = await profileApi.listFollowing(userId); setFollowing(result.items ?? []); }
+    catch (error) { console.error('[profile] Backend following request failed', error); setFollowing([]); }
   };
+
   const checkFollowStatus = async () => {
     if (!currentUser || !profile) return;
-    const { data } = await supabase.from('follows').select('id').eq('follower_id', currentUser.id).eq('following_id', profile.id).single();
-    setIsFollowing(!!data);
+    const result = await socialApi.getFollowState(profile.id);
+    setIsFollowing(Boolean(result.following));
   };
+
   const handleFollow = async () => {
     if (!currentUser) { navigate('/auth'); return; }
-    if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id);
-    } else {
-      await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: profile.id });
-      await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  });
-      await sendActivityNotification({ recipientUserId: profile.id, title: 'New Follower', body: `${currentUser.username} started following you`, data: { route: `/profile/${currentUser.username}`, type: 'follow', fromUserId: currentUser.id } });
-    }
-    setIsFollowing(!isFollowing);
-    fetchProfile();
+    try {
+      const result = await socialApi.setFollow(profile.id, !isFollowing);
+      setIsFollowing(!isFollowing);
+      if (result && 'status' in result && result.status === 'pending') toast.success('Follow request sent');
+      else toast.success(isFollowing ? 'Unfollowed' : 'Following');
+      await fetchProfile();
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not update follow status'); }
   };
+
   const handleMessage = () => {
     if (!currentUser) { navigate('/auth'); return; }
     navigate(`/messages?to=${profile.username}`);
