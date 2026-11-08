@@ -96,10 +96,10 @@ export default function HashtagChallengePage() {
     } : undefined,
   });
 
-  const fetchChallengePosts = async (tag: string, sort: 'engagement' | 'newest' = 'engagement', page = 0) => {
-    if (!tag) return;
+  const fetchChallengePosts = async (hashtagId: string, sort: 'engagement' | 'newest' = 'engagement', page = 0) => {
+    if (!hashtagId) return;
     if (page === 0) setLoadingPosts(true); else setLoadingMore(true);
-    const result = await backendCapabilities.listHashtagPosts(tag, FEED_PAGE_SIZE, page * FEED_PAGE_SIZE, sort === 'engagement' ? 'top' : 'recent');
+    const result = await backendCapabilities.listHashtagPosts(hashtagId, FEED_PAGE_SIZE, page * FEED_PAGE_SIZE, sort === 'engagement' ? 'top' : 'recent');
     const data = result.items ?? [];
     {
       if (page === 0) {
@@ -161,25 +161,21 @@ export default function HashtagChallengePage() {
   const changeSortAndFetch = (sort: 'engagement' | 'newest', tag: string) => {
     setFeedSort(sort);
     setFeedPage(0);
-    fetchChallengePosts(tag, sort, 0);
+    fetchChallengePosts(challenge?.hashtags?.id ?? '', sort, 0);
   };
 
   useEffect(() => { fetchChallenge(); }, [fetchChallenge]);
   useEffect(() => {
-    if (challenge?.hashtags?.tag) fetchChallengePosts(challenge.hashtags.tag, feedSort, 0);
-  }, [challenge?.hashtags?.tag, feedSort, user]); // Added user to dependencies
+    if (challenge?.hashtags?.id) fetchChallengePosts(challenge.hashtags.id, feedSort, 0);
+  }, [challenge?.hashtags?.id, feedSort, user]); // Added user to dependencies
 
   const handleEnter = async () => {
     if (!user) { navigate('/auth'); return; }
     if (!challenge?.hashtags?.tag) return;
     setEntering(true);
     try {
-      // Increment entry count
-      await supabase
-        .from('hashtag_challenges')
-        .update({ entry_count: (challenge.entry_count ?? 0) + 1 })
-        .eq('id', challenge.id);
-      setChallenge((prev: any) => ({ ...prev, entry_count: (prev.entry_count ?? 0) + 1 }));
+      const result = await backendCapabilities.enterHashtagChallenge(challenge.id);
+      setChallenge((prev: any) => ({ ...prev, entry_count: (prev.entry_count ?? 0) + (result.created ? 1 : 0) }));
       setHasEntered(true);
       toast.success(`Entered! Post with #${challenge.hashtags.tag} to participate`);
       navigate(`/?compose=true&hashtag=${challenge.hashtags.tag}`);
@@ -552,14 +548,14 @@ export default function HashtagChallengePage() {
                     <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Your entry</span>
                   )}
                 </div>
-                <PostCard post={post} onUpdate={() => fetchChallengePosts(hashtag, feedSort, 0)} />
+                <PostCard post={post} onUpdate={() => fetchChallengePosts(challenge.hashtags?.id ?? '', feedSort, 0)} />
               </div>
             ))}
             {/* Load more button */}
             {posts.length >= FEED_PAGE_SIZE && (
               <div className="flex justify-center py-6">
                 <button
-                  onClick={() => fetchChallengePosts(hashtag, feedSort, feedPage + 1)}
+                  onClick={() => fetchChallengePosts(challenge.hashtags?.id ?? '', feedSort, feedPage + 1)}
                   disabled={loadingMore}
                   className="flex items-center gap-2 px-5 py-2.5 border border-border rounded-full text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-50"
                 >
