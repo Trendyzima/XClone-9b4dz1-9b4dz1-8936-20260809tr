@@ -253,21 +253,16 @@ export default function HomeHubPage(){
     if(tab!=='all'){void load(tab);return()=>{active=false;};}
     void readHomeFeedCache(cacheKey).then(cached=>{
       if(!active)return;
-      if(cached?.items?.length){
-        // Keep cached federation entries across refreshes. The server-side
-        // federated-feed already applies its freshness/moderation window; the
-        // client must not independently discard valid remote posts just because
-        // they are older than 24h while a refresh is in flight.
+      // Never render a stale or unverified cache as if it were the live feed.
+      // Cache v4 is populated only by successful canonical Backend responses;
+      // old cache databases are intentionally not read after the cutover.
+      if(cached?.items?.length && isHomeFeedCacheUsable(cached)){
         const freshCached=cached.items;
         feedBufferRef.current=freshCached;
         feedBufferOffsetRef.current=freshCached.length;
         setItems(freshCached);
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
-        if(isHomeFeedCacheUsable(cached)){
-          setHasMore(Boolean(cached.cursor));
-        } else {
-          setHasMore(freshCached.length>6);
-        }
+        setHasMore(Boolean(cached.cursor));
         setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
       }else {
