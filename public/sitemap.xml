@@ -1,8 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <sitemap><loc>https://testagram.site/sitemap-static.xml</loc></sitemap>
-  <sitemap><loc>https://testagram.site/api/sitemap-users?part=0</loc></sitemap>
-  <sitemap><loc>https://testagram.site/api/sitemap-community?part=0</loc></sitemap>
-  <sitemap><loc>https://testagram.site/api/sitemap-posts?part=0</loc></sitemap>
-  <sitemap><loc>https://testagram.site/api/sitemap-threads?part=0</loc></sitemap>
-</sitemapindex>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- ── Core Pages ── -->
+  <url>
+    <loc>https://testagram.site/</loc>
+    <changefreq>always</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://testagram.site/og-image.jpg</image:loc>
+      <image:title>Testagram – Social Media &amp; Short Videos</image:title>
+    </image:image>
+  </url>
+
+  <url><loc>https://testagram.site/explore</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://testagram.site/videos</loc><changefreq>always</changefreq><priority>0.9</priority></url>
+  <url><loc>https://testagram.site/tv</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://testagram.site/tv/channels</loc><changefreq>hourly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://testagram.site/tv/reels</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/iptv</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/threads</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://testagram.site/communities</loc><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://testagram.site/news</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/spaces</loc><changefreq>always</changefreq><priority>0.85</priority></url>
+  <url><loc>https://testagram.site/leaderboard</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/search</loc><changefreq>always</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/discover</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/fediverse</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/premium</loc><changefreq>weekly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/ai</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/help</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
+
+  <!-- ── Help Center Article Deep Links (all 20 articles) ── -->
+  <url><loc>https://testagram.site/products</loc><changefreq>hourly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://testagram.site/series</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+
+  <!-- ── Trending Topic Feeds ── -->
+  <url><loc>https://testagram.site/trending/technology</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/trending/sports</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/trending/entertainment</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/trending/business</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/trending/health</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/trending/science</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/trending/lifestyle</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/trending/politics</loc><changefreq>hourly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/trending/ai</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/trending/music</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- ── Hashtag Pages (top tags) ── -->
+  <url><loc>https://testagram.site/hashtag/technology</loc><changefreq>hourly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/hashtag/sports</loc><changefreq>hourly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/hashtag/entertainment</loc><changefreq>hourly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/hashtag/news</loc><changefreq>always</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/hashtag/africa</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/hashtag/kenya</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/hashtag/music</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/hashtag/food</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/hashtag/gaming</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/hashtag/fashion</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/hashtag/travel</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://testagram.site/hashtag/crypto</loc><changefreq>hourly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/hashtag/ai</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/hashtag/politics</loc><changefreq>hourly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/hashtag/business</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- ── Static community pages (popular known ones) ── -->
+  <url><loc>https://testagram.site/c/technology</loc><changefreq>hourly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://testagram.site/c/sports</loc><changefreq>hourly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://testagram.site/c/entertainment</loc><changefreq>hourly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://testagram.site/c/business</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/c/health</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/c/science</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://testagram.site/c/gaming</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/c/music</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://testagram.site/c/travel</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+
+</urlset>
