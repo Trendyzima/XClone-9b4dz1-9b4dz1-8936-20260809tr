@@ -59,9 +59,7 @@ export class TestagramCapabilityClient{
  }
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
   // Send the session JWT explicitly to PostgREST. The previous implementation
-  // called supabase.rpc(), which relies on the client's mutable auth header. A
-  // valid useAuth() user can therefore race Auth hydration and reach the RPC as
-  // anon. Explicit Authorization makes the browser identity deterministic.
+  // Appwrite JWT is sent explicitly; no provider SDK state is consulted.
   const headers: Record<string,string> = {
     apikey: supabasePublishableKey,
     Authorization: token ? `Bearer ${token}` : `Bearer ${supabasePublishableKey}`,
