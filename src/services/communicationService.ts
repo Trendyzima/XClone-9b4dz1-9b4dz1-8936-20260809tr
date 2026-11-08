@@ -12,7 +12,8 @@ export type CallSessionChange = { operation: 'INSERT' | 'UPDATE' | 'DELETE'; ses
 export type ConversationSettings = { conversation_id: string; user_id: string; archived_at?: string | null; pinned_at?: string | null; muted_until?: string | null; disappearing_seconds?: number | null };
 export type CommunicationStatus = { id: string; user_id: string; media_url?: string | null; media_type: 'text' | 'image' | 'video'; caption?: string | null; background?: string | null; created_at: string; expires_at: string };
 
-const unavailable = (feature: string): never => { throw new Error(`${feature} is unavailable: the Testagram Backend API replacement is not implemented. Direct database/realtime access from XClone is disabled.`); };
+const unavailable = (feature: string): Promise<never> => Promise.reject(new Error(`${feature} is unavailable: the Testagram Backend API replacement is not implemented. Direct database/realtime access from XClone is disabled.`));
+const unavailableSubscription = (feature: string): (() => void) => { console.warn(`${feature} is unavailable until the Backend realtime transport is implemented.`); return () => {}; };
 type ConversationHandlers = { onMessage?: (message: CommunicationMessage) => void; onMessageChanged?: (message: CommunicationMessage) => void; onMessageDeleted?: (message: CommunicationMessage) => void; onTyping?: (state: TypingState) => void; onPresence?: (state: PresenceState) => void; onCall?: (change: CallSessionChange) => void };
 type CallHandlers = { onCall?: (change: CallSessionChange) => void };
 const encryptInput = async (conversationId: string, body: string) => { const encrypted = await communicationCrypto.encryptMessage(conversationId, body); return { ...encrypted, aad: `${conversationId}:${encrypted.epoch}`, e2ee_version: 'v1' }; };
@@ -47,10 +48,10 @@ export const communicationService = {
   async joinCall(callId: string) { const result = await backendCapabilities.call<{ call_id: string; joined: boolean; conversation_id?: string }>('testagram.calls.join', { call_id: callId }); trackTestagramEvent('testagram_call_joined' as never, { call_id: result.call_id }); return result; },
   async endCall(callId: string) { const result = await backendCapabilities.call<{ call_id: string; ended: boolean }>('testagram.calls.end', { call_id: callId }); trackTestagramEvent('testagram_call_ended' as never, { call_id: result.call_id }); return result; },
   subscribeToConversation(_conversationId: string, _handlers: ConversationHandlers = {}) {
-    return unavailable('Conversation realtime subscriptions');
+    return unavailableSubscription('Conversation realtime subscriptions');
   },
   subscribeToCallSessions(_conversationId: string, _handlersOrCallback: CallHandlers | ((change: CallSessionChange) => void) = {}) {
-    return unavailable('Call realtime subscriptions');
+    return unavailableSubscription('Call realtime subscriptions');
   },
   setTyping(_conversationId: string, _typing: boolean) { return unavailable('Typing indicators'); },
   setPresence(_conversationId: string, _status: PresenceState['status']) { return unavailable('Presence updates'); },
