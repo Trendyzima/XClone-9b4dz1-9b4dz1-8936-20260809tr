@@ -136,6 +136,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
     // Appwrite sign-out dispatches this event. Hydration below handles the
     // initial signed-in session; no Supabase auth listener is used.
     clearAuthentication();
+    void hydrateAppwriteSession();
   };
 
   const hydrateAppwriteSession = async () => {
