@@ -46,7 +46,7 @@ async function uploadAttempt(file: File, accessTokenOverride?: string): Promise<
 
   const upload = await fetch(intent.url, {
     method: 'PUT',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': contentType },
+    headers: { 'Content-Type': contentType },
     body: file,
     credentials: 'omit',
     cache: 'no-store',
