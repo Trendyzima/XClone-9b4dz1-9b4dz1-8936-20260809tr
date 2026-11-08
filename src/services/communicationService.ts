@@ -51,21 +51,76 @@ export const communicationService = {
   async listCalls(conversationId: string) { const result = await backendCapabilities.call<{ items: CallSession[] }>('testagram.calls.list', { conversation_id: conversationId }); return (result.items ?? []).map(row => normalizeCall(row as unknown as Record<string, unknown>)); },
   async getCall(callId: string) { const result = await backendCapabilities.call<CallSession & { metadata?: Record<string, unknown> }>('testagram.calls.get', { call_id: callId }); return normalizeCall(result as unknown as Record<string, unknown>); },
   subscribeToConversation(conversationId: string, handlers: ConversationHandlers = {}) {
+    let cancelled = false;
+    let socket: WebSocket | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let initialized = false;
+    const known = new Map<string, string>();
     const channel = supabase.channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, payload => { void this.decryptMessage(payload.new as CommunicationMessage).then(message => handlers.onMessage?.(message)); })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, payload => { void this.decryptMessage(payload.new as CommunicationMessage).then(message => handlers.onMessageChanged?.(message)); })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, payload => { void this.decryptMessage(payload.old as CommunicationMessage).then(message => handlers.onMessageDeleted?.(message)); })
       .on('broadcast', { event: 'typing' }, payload => { if (payload.payload) handlers.onTyping?.(payload.payload as TypingState); })
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         Object.values(state).flat().forEach(entry => handlers.onPresence?.(entry as unknown as PresenceState));
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: normalizeCall(payload.new as Record<string, unknown>) }))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: normalizeCall(payload.new as Record<string, unknown>), previous: payload.old as Partial<CallSession> }))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: normalizeCall(payload.old as Record<string, unknown>) }))
-      .subscribe((status, error) => { if (error) console.warn('[communication] conversation realtime error', status, error); });
-    return () => { void supabase.removeChannel(channel); };
-  },
+      .subscribe((status, error) => { if (error) console.warn('[communication] legacy typing/presence channel error', status, error); });
+
+    const refreshMessages = async (emitNew: boolean) => {
+      try {
+        const result = await this.listMessages(conversationId, 50);
+        for (const message of result.items ?? []) {
+          const version = message.edited_at ?? message.created_at;
+          const previous = known.get(message.id);
+          if (!initialized) known.set(message.id, version);
+          else if (!previous && emitNew) { known.set(message.id, version); handlers.onMessage?.(message); }
+          else if (previous && previous !== version) { known.set(message.id, version); handlers.onMessageChanged?.(message); }
+        }
+        initialized = true;
+      } catch (error) { console.debug('[communication] Backend message refresh unavailable', error); }
+    };
+    void refreshMessages(false);
+    pollTimer = setInterval(() => { if (!cancelled) void refreshMessages(true); }, 5000);
+
+    const connectRealtime = async () => {
+      try {
+        const ticket = await backendCapabilities.call<{ ticket: string; websocket_url: string }>('testagram.realtime.ticket', { conversation_id: conversationId });
+        if (cancelled) return;
+        socket = new WebSocket(ticket.websocket_url, ['testagram.realtime.v1', 'ticket.' + ticket.ticket]);
+        socket.onmessage = event => {
+          try {
+            const envelope = JSON.parse(String(event.data)) as { event_type?: string; payload?: Record<string, unknown> };
+            const payload = envelope.payload ?? {};
+            const messageId = String(payload.message_id ?? '');
+            if (!messageId) return;
+            if (envelope.event_type === 'message.deleted') {
+              const deleted: CommunicationMessage = { id: messageId, conversation_id: conversationId, sender_id: String(payload.sender_id ?? ''), body: '', created_at: new Date().toISOString(), deleted_at: new Date().toISOString() };
+              known.delete(messageId);
+              handlers.onMessageDeleted?.(deleted);
+              return;
+            }
+            if (envelope.event_type === 'message.created' || envelope.event_type === 'message.updated') {
+              void this.listMessages(conversationId, 50).then(result => {
+                const message = result.items?.find(item => item.id === messageId);
+                if (!message) return;
+                known.set(message.id, message.edited_at ?? message.created_at);
+                if (envelope.event_type === 'message.created') handlers.onMessage?.(message);
+                else handlers.onMessageChanged?.(message);
+              }).catch(error => console.debug('[communication] realtime message hydration failed', error));
+            }
+          } catch (error) { console.debug('[communication] invalid realtime event', error); }
+        };
+        socket.onerror = () => console.debug('[communication] Data Centre realtime socket error');
+        socket.onclose = () => { socket = null; };
+      } catch (error) { console.debug('[communication] Backend realtime ticket unavailable; polling remains active', error); }
+    };
+    void connectRealtime();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'conversation view closed');
+      void supabase.removeChannel(channel);
+    };
+  }
 
   subscribeToCallSessions(conversationId: string, handlersOrCallback: CallHandlers | ((change: CallSessionChange) => void) = {}) { const handlers: CallHandlers = typeof handlersOrCallback === 'function' ? { onCall: handlersOrCallback } : handlersOrCallback; const channel = supabase.channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false } } }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: normalizeCall(payload.new as Record<string, unknown>) })).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: normalizeCall(payload.new as Record<string, unknown>), previous: payload.old as Partial<CallSession> })).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: normalizeCall(payload.old as Record<string, unknown>) })).subscribe((status, error) => { if (error) console.warn('[communication] call realtime error', status, error); }); return () => { void supabase.removeChannel(channel); }; },
   async setTyping(conversationId: string, typing: boolean) { const channel = supabase.channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false, ack: true } } }); const session = await supabase.auth.getSession(); const userId = session.data.session?.user.id; if (!userId) throw new Error('Authentication required'); await channel.subscribe(); try { const result = await channel.send({ type: 'broadcast', event: 'typing', payload: { user_id: userId, typing, at: new Date().toISOString() } }); if (result !== 'ok') throw new Error(`Typing broadcast failed: ${String(result)}`); } finally { await supabase.removeChannel(channel); } },
