@@ -183,47 +183,57 @@ export default function CommunityPage({ section, standalone = false }: { section
 
   const fetchLeaderboard = useCallback(async (communityId: string) => {
     setLoadingLeaderboard(true);
-    const since30d = new Date(Date.now() - 30 * 86400000).toISOString();
-    const { data } = await supabase.from('posts')
-      .select('user_id, likes_count, user_profiles!posts_user_id_fkey(id, username, avatar_url, verified)')
-      .eq('community_id', communityId).gte('created_at', since30d);
-    if (data) {
-      const agg: any = {};
-      for (const row of data) {
-        if (!row.user_id) continue;
-        if (!agg[row.user_id]) agg[row.user_id] = { profile: row.user_profiles, likes: 0, posts: 0 };
-        agg[row.user_id].likes += row.likes_count ?? 0;
-        agg[row.user_id].posts += 1;
+    try {
+      const result = await backendCapabilities.listCommunityPosts(communityId, 100);
+      const since30d = Date.now() - 30 * 86400000;
+      const agg: Record<string, { profile: any; likes: number; posts: number }> = {};
+      for (const row of result.items ?? []) {
+        if (!row.author_id || new Date(row.created_at).getTime() < since30d) continue;
+        if (!agg[row.author_id]) agg[row.author_id] = { profile: row.user_profiles, likes: 0, posts: 0 };
+        agg[row.author_id].likes += row.likes_count ?? 0;
+        agg[row.author_id].posts += 1;
       }
-      setLeaderboard((Object.values(agg) as Array<{ profile: any; likes: number; posts: number }>).sort((a, b) => b.likes - a.likes).slice(0, 3));
+      setLeaderboard(Object.values(agg).sort((a, b) => b.likes - a.likes).slice(0, 3));
+    } catch (error) {
+      console.error('[community-leaderboard] Backend request failed', error);
+      setLeaderboard([]);
+    } finally {
+      setLeaderboardFetched(true);
+      setLoadingLeaderboard(false);
     }
-    setLeaderboardFetched(true);
-    setLoadingLeaderboard(false);
   }, []);
 
   const [digestPosts, setDigestPosts] = useState<any[]>([]);
   const [showDigest, setShowDigest] = useState(true);
   const fetchWeeklyDigest = useCallback(async (communityId: string) => {
-    const since7d = new Date(Date.now() - 7 * 86400000).toISOString();
-    const { data } = await supabase.from('posts')
-      .select('id, content, likes_count, created_at, user_profiles:profiles(username, avatar_url)')
-      .eq('community_id', communityId).gte('created_at', since7d)
-      .order('likes_count', { ascending: false }).limit(3);
-    setDigestPosts(data ?? []);
+    try {
+      const result = await backendCapabilities.listCommunityPosts(communityId, 100);
+      const since7d = Date.now() - 7 * 86400000;
+      setDigestPosts((result.items ?? [])
+        .filter((post: any) => new Date(post.created_at).getTime() >= since7d)
+        .sort((a: any, b: any) => (b.likes_count ?? 0) - (a.likes_count ?? 0))
+        .slice(0, 3));
+    } catch (error) {
+      console.error('[community-digest] Backend request failed', error);
+      setDigestPosts([]);
+    }
   }, []);
 
   const [relatedSpaces, setRelatedSpaces] = useState<any[]>([]);
   const fetchRelatedSpaces = useCallback(async (_communityName: string, communityDisplayName: string) => {
-    const keyword = communityDisplayName.split(' ')[0];
-    const { data } = await supabase.from('spaces')
-      .select('id, title, listener_count, host:user_profiles!spaces_host_id_fkey(username, avatar_url, verified), category')
-      .eq('is_live', true).ilike('title', `%${keyword}%`).limit(3);
-    if (!data || data.length === 0) {
-      const { data: fallback } = await supabase.from('spaces')
-        .select('id, title, listener_count, host:user_profiles!spaces_host_id_fkey(username, avatar_url, verified), category')
-        .eq('is_live', true).order('listener_count', { ascending: false }).limit(3);
-      setRelatedSpaces(fallback ?? []);
-    } else { setRelatedSpaces(data); }
+    try {
+      const result = await backendCapabilities.listLiveAudioSpaces();
+      const rows = Array.isArray(result.items) ? result.items as any[] : [];
+      const keyword = communityDisplayName.split(' ')[0]?.toLowerCase() ?? '';
+      const matching = rows.filter(space => String(space.title ?? '').toLowerCase().includes(keyword));
+      const ranked = (matching.length ? matching : rows)
+        .sort((a, b) => Number(b.listener_count ?? 0) - Number(a.listener_count ?? 0))
+        .slice(0, 3);
+      setRelatedSpaces(ranked);
+    } catch (error) {
+      console.error('[community-spaces] Backend request failed', error);
+      setRelatedSpaces([]);
+    }
   }, []);
 
   // Chat state
