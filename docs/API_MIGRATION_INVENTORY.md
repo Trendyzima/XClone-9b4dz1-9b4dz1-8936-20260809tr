@@ -22,7 +22,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/components/features/BookmarkButton.tsx` — pending audit/migration
 - [ ] `src/components/features/BoostPostDialog.tsx` — pending audit/migration
 - [ ] `src/components/features/CommunityAdminOverlay.tsx` — pending audit/migration
-- [ ] `src/components/features/CommunitySpotlightStrip.tsx` — pending audit/migration
+- [x] `src/components/features/CommunitySpotlightStrip.tsx` — list and membership actions moved to canonical community capabilities; backend support still needs verification
 - [ ] `src/components/features/ContentSuggestionsWidget.tsx` — pending audit/migration
 - [ ] `src/components/features/CreatePollDialog.tsx` — pending audit/migration
 - [ ] `src/components/features/CreatorMediaStudio.tsx` — pending audit/migration
