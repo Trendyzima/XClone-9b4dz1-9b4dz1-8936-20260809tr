@@ -181,10 +181,7 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
           cover_url: coverUrl || null,
         },
       });
-      if (mobilePhone.trim()) {
-        await testagramApiRequest('/v1/me/contact', { method: 'PUT', body: { phone_e164: mobilePhone.trim() } });
-      }
-      toast({ title: 'Success', description: 'Profile updated successfully' });
+      toast({ title: 'Success', description: mobilePhone.trim() ? 'Profile updated. Phone number changes are not yet supported by the Backend API.' : 'Profile updated successfully' });
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
