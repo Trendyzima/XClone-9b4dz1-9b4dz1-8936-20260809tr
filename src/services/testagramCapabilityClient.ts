@@ -45,7 +45,7 @@ export class TestagramCapabilityClient{
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
   try {
     if (!this.endpoint) throw new CapabilityClientError("VITE_TESTAGRAM_API_URL is required; XClone does not provide a same-origin API proxy.", { code: "BACKEND_API_URL_REQUIRED" });
-    const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\\/+$/, '');
+    const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
     const endpoint = new URL(this.endpoint);
     if (!configuredOrigin || endpoint.origin !== new URL(configuredOrigin).origin || endpoint.pathname !== '/api/capability') {
       throw new CapabilityClientError("Capability gateway must use the canonical Backend API origin and /api/capability route.", { code: "API_ORIGIN_MISMATCH" });
