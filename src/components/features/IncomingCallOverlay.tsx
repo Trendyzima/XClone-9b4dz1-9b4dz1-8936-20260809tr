@@ -56,11 +56,48 @@ export function IncomingCallOverlay() {
       return;
     }
 
-    const unsubscribe = communicationService.subscribeToCallSessions(conversationId, change => {
-      if (change.operation !== 'DELETE') setIncomingCall(change.session);
+    let disposed = false;
+    const unsubscribers: Array<() => void> = [];
+
+    // Incoming calls belong to one of the signed-in user's conversations.
+    // Subscribe through the Backend call-session API; never open a database
+    // realtime channel from the client.
+    void communicationService.listConversations().then(({ items }) => {
+      if (disposed) return;
+      for (const conversation of items ?? []) {
+        const unsubscribe = communicationService.subscribeToCallSessions(conversation.id, change => {
+          const session = change.session;
+          const callId = session.call_id;
+          if (!callId) return;
+          if (change.operation === 'DELETE' || session.status === 'ended' || session.status === 'failed') {
+            setIncoming(current => current?.callId === callId ? null : current);
+            return;
+          }
+          if (session.status !== 'ringing' || session.created_by === user.id) return;
+          const conversationId = session.conversation_id ?? conversation.id;
+          setIncoming({
+            callId,
+            conversationId,
+            kind: session.kind === 'voice' ? 'voice' : 'video',
+            callerId: session.created_by ?? '',
+            name: session.caller_display_name || session.caller_username || 'Testagram user',
+            username: session.caller_username ?? null,
+            avatarUrl: session.caller_avatar_url ?? null,
+            phone: session.caller_phone ?? null,
+            phoneVerified: Boolean(session.caller_phone_verified),
+          });
+        });
+        unsubscribers.push(unsubscribe);
+      }
+    }).catch(error => {
+      console.warn('[calls] incoming call subscriptions could not be initialized', error);
     });
-    return () => unsubscribe();
-  }, [user?.id, incoming?.callId]);
+
+    return () => {
+      disposed = true;
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!incoming || location.pathname.startsWith('/call/')) return;
