@@ -139,7 +139,7 @@ const run=async(q=query,nextTab=tab,append=false,sortMode=sort)=>{if(!q.trim())r
   const loadTrendingHashtags=async()=>{
    setBrowseHashtagsLoading(true);setBrowseHashtagsError(null);
    try{
-    const result=await api.searchHashtags('',60);
+    const result=await api.listTrendingHashtags(60);
     const rows=(result.items??[]).filter((h:any)=>/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(String(h.tag??'').replace(/^#/,'')));
     if(!cancelled)setBrowseHashtags(rows);
    }catch(err){
