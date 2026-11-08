@@ -806,13 +806,8 @@ export default function ExplorePage() {
   const fetchExploreStories = async () => {
     setStoriesLoading(true);
     try {
-      const { data: stories } = await supabase
-        .from('stories')
-        .select('id, media_url, media_type, caption, views_count, user_id, expires_at, created_at')
-        .gt('expires_at', new Date().toISOString())
-        .order('views_count', { ascending: false })
-        .limit(30);
-      if (!stories) { setStoriesLoading(false); return; }
+      const storyResult = await backendCapabilities.listExploreStories(30);
+      const stories = storyResult.items ?? [];
       let filtered = stories;
       if (user) filtered = stories.filter((s: any) => s.user_id !== user.id);
       setExploreStories(filtered);
@@ -827,11 +822,16 @@ export default function ExplorePage() {
     setActiveStoryIdx(idx);
     const story = exploreStories[idx];
     if (story && user) {
-      await supabase.from('story_views').upsert(
-        { story_id: story.id, viewer_id: user.id },
-        { onConflict: 'story_id,viewer_id' }
-      ).catch(() => {});
-      await supabase.from('stories').update({ views_count: (story.views_count || 0) + 1 }).eq('id', story.id).catch(() => {});
+      try {
+        const result = await backendCapabilities.recordStoryView(story.id);
+        if (result.created) {
+          setExploreStories(previous => previous.map(item =>
+            item.id === story.id ? { ...item, views_count: result.views_count } : item
+          ));
+        }
+      } catch (error) {
+        console.warn('[story-view] Backend request failed', error);
+      }
     }
   };
 
