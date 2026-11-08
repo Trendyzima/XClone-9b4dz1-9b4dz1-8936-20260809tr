@@ -629,19 +629,32 @@ export default function CommunityPage({ section, standalone = false }: { section
   const fetchCommunity = async () => {
     if (!name) return;
     try {
-      const { data, error } = await supabase.from('communities').select('*').eq('name', name).single();
-      if (error) throw error;
+      const result = await backendCapabilities.getCommunity(name);
+      const data = result.community as Community & { is_member?: boolean; my_role?: string; rules?: string[]; pinned_post_ids?: string[] };
+      if (!data?.id) throw new Error('Community was not found');
       setCommunity(data);
-      if (user) {
-        const { data: memberData } = await supabase.from('community_members').select('id, role, status').eq('community_id', data.id).eq('user_id', user.id).maybeSingle();
-        setIsMember(memberData?.status === 'active');
-        setMemberStatus(memberData?.status === 'active' || memberData?.status === 'pending' ? memberData.status : null);
-        if (memberData) setUserRole(memberData.role);
-      }
-      const { data: membersData } = await supabase.from('community_members').select('*, user_profiles:profiles(id, username, avatar_url, verified)').eq('community_id', data.id).order('role', { ascending: true }).limit(20);
-      if (membersData) setMembers(membersData);
-    } catch { toast({ title: 'Community not found', variant: 'destructive' }); navigate('/communities'); }
-    finally { setLoading(false); }
+      setRules(Array.isArray(data.rules) ? data.rules : []);
+      setPinnedPostArr(Array.isArray(data.pinned_post_ids) ? data.pinned_post_ids : []);
+      setIsMember(Boolean(data.is_member));
+      setMemberStatus(data.is_member ? 'active' : null);
+      setUserRole(data.my_role ?? 'member');
+      const membersResult = await backendCapabilities.listCommunityMembers(data.id, 20);
+      setMembers((membersResult.items ?? []).map((member: any) => ({
+        ...member,
+        id: member.user_id ?? member.id,
+        user_id: member.user_id ?? member.id,
+        user_profiles: member.user_profiles ?? {
+          username: member.username ?? '',
+          avatar_url: member.avatar_url,
+          verified: false,
+        },
+      })));
+    } catch (error: any) {
+      toast({ title: 'Community not found', description: error?.message, variant: 'destructive' });
+      navigate('/communities');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -656,26 +669,9 @@ export default function CommunityPage({ section, standalone = false }: { section
     setLoadingPosts(true);
     try {
       const pageIndex = reset ? 0 : postsPageRef.current;
-      let query = supabase.from('posts')
-        .select('*, user_profiles:profiles!posts_author_id_fkey(*)')
-        .eq('community_id', community.id)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .range(pageIndex * 25, pageIndex * 25 + 24);
-      const { data, error } = await query;
-      if (error) {
-        console.error('Community posts query failed', {
-          communityId: community.id,
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
-        if (reset) setPostsError(error.message || 'Unable to load community posts');
-        throw error;
-      }
+      const result = await backendCapabilities.listCommunityPosts(community.id, 25, pageIndex);
+      const page = Array.isArray(result.items) ? result.items as Post[] : [];
       if (reset) setPostsError(null);
-      const page = Array.isArray(data) ? data : [];
       setPosts(prev => reset ? page : [...prev, ...page]);
       setHasMorePosts(page.length === 25);
       postsPageRef.current = page.length === 25 ? pageIndex + 1 : pageIndex;
@@ -705,21 +701,17 @@ export default function CommunityPage({ section, standalone = false }: { section
           toast({ title: 'Error', description: 'Owners cannot leave.', variant: 'destructive' });
           return;
         }
-        const { error } = await supabase.rpc('leave_community', { p_community_id: community.id });
-        if (error) throw error;
+        await backendCapabilities.leaveCommunity(community.id);
         setIsMember(false);
         setMemberStatus(null);
         setUserRole('member');
         toast({ title: 'Left community' });
       } else {
-        const { error } = await supabase.rpc('join_community', { p_community_id: community.id });
-        if (error) throw error;
-        const { data: joinedMembership } = await supabase.from('community_members').select('status, role').eq('community_id', community.id).eq('user_id', user.id).maybeSingle();
-        const nextStatus = joinedMembership?.status === 'pending' ? 'pending' : 'active';
-        setMemberStatus(nextStatus);
-        setIsMember(nextStatus === 'active');
-        if (joinedMembership?.role) setUserRole(joinedMembership.role);
-        toast({ title: nextStatus === 'pending' ? 'Request sent' : '✅ Joined community!', description: nextStatus === 'pending' ? 'The community owner must approve your request.' : undefined });
+        await backendCapabilities.joinCommunity(community.id);
+        setMemberStatus('active');
+        setIsMember(true);
+        setUserRole('member');
+        toast({ title: '✅ Joined community!' });
       }
       fetchCommunity();
     } catch (error: any) {
@@ -731,9 +723,13 @@ export default function CommunityPage({ section, standalone = false }: { section
   const handlePromoteRole = async (memberId: string, _userId: string, newRole: 'member' | 'moderator') => {
     if (!community || !isOwner) return;
     setPromotingMemberId(memberId);
-    const { data: updated, error } = await supabase.rpc('set_community_member_role', { p_membership_id: memberId, p_role: newRole });
-    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); }
-    else { setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m)); toast({ title: newRole === 'moderator' ? '🛡 Promoted to Moderator' : 'Role changed to Member' }); }
+    try {
+      await backendCapabilities.updateCommunityMemberRole(community.id, _userId, newRole);
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+      toast({ title: newRole === 'moderator' ? '🛡 Promoted to Moderator' : 'Role changed to Member' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
     setPromotingMemberId(null); setShowRoleMenu(null);
   };
 
@@ -741,18 +737,26 @@ export default function CommunityPage({ section, standalone = false }: { section
     if (!community || !isAdmin) return;
     const wasPin = pinnedPostIds.has(postId);
     const updatedArr = wasPin ? pinnedPostArr.filter(id => id !== postId) : [...pinnedPostArr, postId];
-    setPinnedPostArr(updatedArr);
-    await supabase.from('platform_settings').upsert({ setting_key: `community_pinned_${community.id}`, setting_value: { pinned: updatedArr } }, { onConflict: 'setting_key' });
-    toast({ title: !wasPin ? 'Post pinned' : 'Post unpinned' });
+    try {
+      await backendCapabilities.updateCommunity(community.id, { pinned_post_ids: updatedArr });
+      setPinnedPostArr(updatedArr);
+      setCommunity(prev => prev ? { ...prev, pinned_post_ids: updatedArr } as Community : prev);
+      toast({ title: !wasPin ? 'Post pinned' : 'Post unpinned' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
   };
 
   const handleModDeletePost = async (postId: string) => {
     if (!isAdmin) return;
     if (!window.confirm('Delete this post as moderator?')) return;
-    const { error } = await supabase.rpc('moderate_community_post', { p_post_id: postId });
-    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
-    setPosts(prev => prev.filter(p => p.id !== postId));
-    toast({ title: 'Post deleted by moderator' });
+    try {
+      await backendCapabilities.moderateCommunityPost(community.id, postId);
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      toast({ title: 'Post deleted by moderator' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -967,9 +971,14 @@ export default function CommunityPage({ section, standalone = false }: { section
                   {editingRules && <button onClick={async () => {
                     const updated = rules.filter((_, i) => i !== idx);
                     setSavingRules(true);
-                    const { error } = await supabase.rpc('update_community_rules', { p_community_id: community.id, p_rules: updated });
-                    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' }); else setRules(updated);
-                    setSavingRules(false);
+                    try {
+                      await backendCapabilities.updateCommunity(community.id, { rules: updated });
+                      setRules(updated);
+                    } catch (error: any) {
+                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                    } finally {
+                      setSavingRules(false);
+                    }
                   }} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>}
                 </div>
               ))}
@@ -980,10 +989,16 @@ export default function CommunityPage({ section, standalone = false }: { section
                     if (!newRuleText.trim()) return;
                     const updated = [...rules, newRuleText.trim()];
                     setSavingRules(true);
-                    const { error } = await supabase.rpc('update_community_rules', { p_community_id: community.id, p_rules: updated });
-                    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                    else { setRules(updated); setNewRuleText(''); toast({ title: 'Rule added' }); }
-                    setSavingRules(false);
+                    try {
+                      await backendCapabilities.updateCommunity(community.id, { rules: updated });
+                      setRules(updated);
+                      setNewRuleText('');
+                      toast({ title: 'Rule added' });
+                    } catch (error: any) {
+                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                    } finally {
+                      setSavingRules(false);
+                    }
                   }} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                     {savingRules ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Add Rule
                   </button>
@@ -1363,11 +1378,14 @@ export default function CommunityPage({ section, standalone = false }: { section
                         {member.role === 'moderator' && <button onClick={() => handlePromoteRole(member.id, member.user_id, 'member')} disabled={promotingMemberId === member.id} className="w-full flex items-center gap-2 px-3 py-3 text-sm hover:bg-muted text-orange-600">{promotingMemberId === member.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldOff className="w-4 h-4" />}Remove Moderator</button>}
                         <button onClick={async () => {
                           if (!window.confirm(`Remove @${member.user_profiles?.username}?`)) return;
-                          const { error } = await supabase.rpc('remove_community_member', { p_membership_id: member.id });
-                          if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
-                          setMembers(prev => prev.filter(m => m.id !== member.id));
-                          setShowRoleMenu(null);
-                          toast({ title: 'Member removed' });
+                          try {
+                            await backendCapabilities.removeCommunityMember(community.id, member.user_id);
+                            setMembers(prev => prev.filter(m => m.id !== member.id));
+                            setShowRoleMenu(null);
+                            toast({ title: 'Member removed' });
+                          } catch (error: any) {
+                            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                          }
                         }} className="w-full flex items-center gap-2 px-3 py-3 text-sm hover:bg-destructive/10 text-destructive border-t border-border"><Trash2 className="w-4 h-4" />Remove</button>
                       </div>
                     </>
