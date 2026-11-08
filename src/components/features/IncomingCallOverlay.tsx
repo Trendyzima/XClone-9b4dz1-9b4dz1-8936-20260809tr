@@ -4,7 +4,6 @@ import { Phone, PhoneCall, PhoneOff, ShieldCheck, Video } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { communicationService } from '@/services/communicationService';
-import { communicationService } from '@/services/communicationService';
 
 type IncomingCall = {
   callId: string;
