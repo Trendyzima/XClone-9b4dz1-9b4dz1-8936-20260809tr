@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { normalizeKenyaPhone } from '@/services/walletPhoneAuthService';
 
 export type ResolvedWalletUser = {
@@ -16,15 +16,7 @@ export type ResolvedWalletUser = {
 export async function resolveUserByPhone(phone: string): Promise<ResolvedWalletUser> {
   const phoneE164 = normalizeKenyaPhone(phone);
 
-  const { data, error } = await supabase
-    .from('wallet_phone_identities')
-    .select('user_id,wallet_id,phone_e164')
-    .eq('phone_e164', phoneE164)
-    .not('verified_at', 'is', null)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data) throw new Error('Verified wallet identity not found for phone.');
-
-  return data as ResolvedWalletUser;
+  const result = await backendCapabilities.call<ResolvedWalletUser>('testagram.wallet.resolve_phone', { phone_e164: phoneE164 });
+  if (!result?.user_id || !result?.wallet_id) throw new Error('Verified wallet identity not found for phone.');
+  return result;
 }
