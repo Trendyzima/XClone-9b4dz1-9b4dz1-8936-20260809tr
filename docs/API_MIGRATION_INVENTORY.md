@@ -193,7 +193,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/ChallengeLeaderboardPage.tsx` — pending audit/migration
 - [ ] `src/pages/ChannelProfilePage.tsx` — pending audit/migration
 - [x] `src/pages/CommunitiesPage.tsx` — migrated; verify backend contract and tests
-- [x] `src/pages/CommunityPage.tsx` — removed all direct Supabase access; community detail, posts, chat, events/RSVP, members, moderation, settings, shop, achievement badges, scheduling and reminders now call Backend APIs. Backend runtime/CI verification remains outstanding.
+- [x] `src/pages/CommunityPage.tsx` — removed all direct Supabase access; community detail, posts, chat, events/RSVP, members, moderation, settings, shop, achievement badges, scheduling and reminders now call Backend APIs. Backend runtime/CI verification remains outstanding; wallet tipping and live-space recommendations still require native contract verification rather than generic capability forwarding.
 - [ ] `src/pages/CompleteProfilePage.tsx` — pending audit/migration
 - [ ] `src/pages/ContentPolicyPage.tsx` — pending audit/migration
 - [ ] `src/pages/CreateAdPage.tsx` — pending audit/migration
@@ -589,3 +589,5 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - HashtagDiscoveryPage.tsx now uses the Backend discovery endpoints for creators, posts, videos and threads, plus native hashtag/follow APIs. Discovery endpoint runtime validation and population checks remain outstanding.
 
 - ExplorePage.tsx is now free of direct Supabase imports/operations. Its marketplace, discovery, stories, hashtag challenges, social reactions/follows, and story-reaction DMs use Backend API client methods. Remaining work is to replace/verify the generic trend-ranking capability and validate the new catalog/story/messaging contracts against a live Neon deployment.
+
+- CommunityPage remaining contract audit: wallet tips and live-audio recommendations still route through capability methods whose backend implementation must be checked against the legacy RPC dispatcher. Direct Supabase browser access is gone, but those feature contracts are not certified complete.
