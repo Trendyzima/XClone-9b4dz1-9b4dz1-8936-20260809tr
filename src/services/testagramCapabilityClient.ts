@@ -14,14 +14,12 @@ export type NewsifyTrendItem={id:string;newsify_item_id:string;newsify_trend_id:
 export type NotificationPreference={id:string;user_id:string;notif_type:string;in_app:boolean;push:boolean;email:boolean;sound_enabled:boolean;vibration_enabled:boolean;digest_frequency:string;quiet_hours_start:string|null;quiet_hours_end:string|null;timezone:string;muted_until:string|null;updated_at:string};
 export type TestagramCapabilityClientOptions={endpoint:string;getAccessToken:()=>Promise<string|null>;clientName?:string;clientVersion?:string;timeoutMs?:number};
 export class CapabilityClientError extends Error{readonly code:string;readonly requestId:string|null;readonly status:number|null;constructor(message:string,o:{code?:string;requestId?:string|null;status?:number|null}={}){super(message);this.name="CapabilityClientError";this.code=o.code??"CAPABILITY_REQUEST_FAILED";this.requestId=o.requestId??null;this.status=o.status??null;}}
-// Only registry capabilities marked access: "public" may use the unauthenticated
-// same-origin edge path. Search, timelines, trends and all account-bound reads
-// remain authenticated and therefore bypass CDN caching.
+// Only registry capabilities marked access: "public" may omit authentication.
+// Every request targets the separately deployed Backend API; XClone has no API proxy.
 const PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read","testagram.news.trending"]);
-const EDGE_CAPABILITY_PATH="/api/capability";
 // This prevents profile/search paths from falling back to a stale VITE_* key.
 const configuredBackendOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??"").trim().replace(/\/+$/,"");
-const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"/api/capability";
+const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"";
 const DIRECT_MUTATION_CAPABILITIES=new Set([
  "testagram.posts.create",
  "testagram.posts.like",
@@ -43,7 +41,7 @@ const capabilityEvent=(capability:string)=>{
 };
 export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;
- constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));}
+ constructor(o:TestagramCapabilityClientOptions){this.endpoint=o.endpoint.trim().replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));}
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
   const headers: Record<string,string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -51,7 +49,8 @@ export class TestagramCapabilityClient{
     'X-Client-Info': `testagram-web/${this.version}`,
   };
   try {
-    // Route authenticated capability calls through the canonical same-origin gateway.
+    if (!this.endpoint) throw new CapabilityClientError("VITE_TESTAGRAM_API_URL is required; XClone does not provide a same-origin API proxy.", { code: "BACKEND_API_URL_REQUIRED" });
+    // Send capability requests directly to the separately deployed Testagram Backend API.
     // This keeps capability dispatch on the same server-side auth boundary as media
     // uploads and avoids browser/PostgREST auth-header races after large uploads.
     const response = await fetch(this.endpoint, {
