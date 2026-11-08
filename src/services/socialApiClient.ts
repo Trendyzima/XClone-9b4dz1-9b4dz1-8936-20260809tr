@@ -1,5 +1,4 @@
 import { appwriteAuth } from '@/services/appwriteAuth';
-import { appwriteAuth } from '@/services/appwriteAuth';
 
 type SocialEnvelope<T> = {
   ok: boolean;
