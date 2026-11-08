@@ -491,8 +491,7 @@ export default function CommunityPage({ section, standalone = false }: { section
   const handleScheduleCommunityPost = async (date: Date) => {
     if (!user || !community || !scheduleContent.trim()) return;
     try {
-      const { error } = await supabase.from('scheduled_posts').insert({ user_id: user.id, content: scheduleContent.trim(), scheduled_for: date.toISOString(), status: 'pending' });
-      if (error) throw error;
+      await backendCapabilities.scheduleCommunityPost({ community_id: community.id, content: scheduleContent.trim(), scheduled_for: date.toISOString() });
       sonnerToast.success(`Post scheduled for ${date.toLocaleDateString()}`);
       setShowScheduleDialog(false); setScheduleContent('');
     } catch (err: any) { toast({ title: 'Error', description: err.message, variant: 'destructive' }); }
@@ -570,14 +569,16 @@ export default function CommunityPage({ section, standalone = false }: { section
         const now = Date.now();
         const toFire = reminders.filter((r: any) => r.reminderAt <= now && !sent.includes(r.eventId));
         for (const r of toFire) {
-          await supabase.from('platform_inbox').insert({
-            user_id: user.id,
-            subject: `⏰ Reminder: "${r.title}" starts in 1 hour!`,
-            body: `You RSVPed to "${r.title}" in c/${r.communityName}. It starts in about 1 hour!`,
-            type: 'update',
-            icon_emoji: '📅',
-            cta_label: `View c/${r.communityName}`,
-            cta_url: `/c/${r.communityName}`,
+          await backendCapabilities.createSelfNotification({
+            kind: 'community_event_reminder',
+            event_key: `community-event-reminder:${r.eventId}`,
+            payload: {
+              subject: `⏰ Reminder: "${r.title}" starts in 1 hour!`,
+              body: `You RSVPed to "${r.title}" in c/${r.communityName}. It starts in about 1 hour!`,
+              icon_emoji: '📅',
+              cta_label: `View c/${r.communityName}`,
+              cta_url: `/c/${r.communityName}`,
+            },
           }).catch(() => {});
           sent.push(r.eventId);
           sonnerToast(`⏰ "${r.title}" starts in 1 hour!`, { duration: 6000 });
