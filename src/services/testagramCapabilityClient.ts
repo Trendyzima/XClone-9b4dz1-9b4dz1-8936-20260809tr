@@ -19,7 +19,6 @@ export class CapabilityClientError extends Error{readonly code:string;readonly r
 // remain authenticated and therefore bypass CDN caching.
 const PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read","testagram.news.trending"]);
 const EDGE_CAPABILITY_PATH="/api/capability";
-// Keep every capability call on the same browser Supabase configuration used by Auth.
 // This prevents profile/search paths from falling back to a stale VITE_* key.
 const configuredBackendOrigin=(import.meta.env.VITE_TESTAGRAM_API_URL??"").trim().replace(/\/+$/,"");
 const CAPABILITY_GATEWAY_ENDPOINT=configuredBackendOrigin?`${configuredBackendOrigin}/api/capability`:"/api/capability";
