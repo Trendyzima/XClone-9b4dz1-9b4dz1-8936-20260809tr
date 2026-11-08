@@ -12,6 +12,7 @@ import { WalletDashboard } from '@/components/features/WalletDashboard';
 import { WalletSavingsCard } from '@/components/features/WalletSavingsCard';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import { toast } from 'sonner';
@@ -1532,26 +1533,22 @@ function SendMoneyTab({ userId, senderUsername, walletBalance, pinHash, biometri
     const amt = parseFloat(amount);
     if (amt > walletBalance) { toast.error('Insufficient balance'); return; }
     setSending(true);
-    const { error } = await supabase.rpc('p2p_wallet_transfer', {
-      p_from_user_id: userId, p_to_user_id: selectedUser.id, p_amount: amt, p_note: note.trim() || null,
-    });
-    if (error) { setSending(false); toast.error(error.message || 'Transfer failed'); return; }
-    const txRef = `TXN${Date.now().toString(36).toUpperCase().slice(-8)}`;
-    await Promise.allSettled([
-      supabase.from('platform_inbox').insert({
-        user_id: selectedUser.id,
-        subject: `You received $${amt.toFixed(2)} from @${senderUsername}`,
-        body: `@${senderUsername} sent you $${amt.toFixed(2)}${note.trim() ? ` — "${note.trim()}"` : ''}. Your wallet has been credited instantly.`,
-        type: 'payment', icon_emoji: '💸', cta_label: 'View Wallet', cta_url: '/wallet',
-      }),
-      supabase.from('platform_inbox').insert({
-        user_id: userId, subject: `Transfer of $${amt.toFixed(2)} to @${selectedUser.username} complete`,
-        body: `Your transfer was successful. Ref: ${txRef}`,
-        type: 'payment', icon_emoji: '✅', cta_label: 'View History', cta_url: '/wallet?tab=history',
-      }),
-    ]);
+    let transfer: { transfer_id: string; status: string };
+    try {
+      transfer = await backendCapabilities.call<{ transfer_id: string; status: string }>('testagram.wallet.transfer', {
+        recipient_id: selectedUser.id,
+        amount: amt,
+        note: note.trim(),
+        idempotency_key: crypto.randomUUID(),
+      });
+    } catch (error) {
+      setSending(false);
+      toast.error(error instanceof Error ? error.message : 'Transfer failed');
+      return;
+    }
+    const txRef = transfer.transfer_id;
     setSending(false);
-    toast.success(`$${amt.toFixed(2)} sent to @${selectedUser.username}!`);
+    toast.success(`KSh ${amt.toFixed(2)} sent to @${selectedUser.username}!`);
     setReceipt({ recipient: selectedUser, amount: amt, note: note.trim(), ref: txRef, timestamp: new Date().toISOString() });
     setSelectedUser(null); setAmount(''); setNote(''); setQuery('');
     onComplete();
