@@ -126,7 +126,6 @@ const layoutAliases = {
   '@/components/features/LiveSpaceBanner':  a('components/features/LiveSpaceBanner.tsx'),
   '@/components/features/LiveNotificationBanner': a('components/features/LiveNotificationBanner.tsx'),
   '@/hooks/useCreatorTierAlert':            a('hooks/useCreatorTierAlert.ts'),
-  '@/lib/supabase':                         a('lib/supabase.ts'),
   '@/lib/auth':                             a('lib/auth.ts'),
   '@/lib/utils':                            a('lib/utils.ts'),
   '@/stores/authStore':                     a('stores/authStore.ts'),
@@ -186,7 +185,6 @@ module.exports = defineConfig({
           if (!id.includes('/node_modules/')) return undefined;
           if (/\/node_modules\/(d3-[^/]+|victory-vendor)\//.test(id)) return 'vendor-chart-engine';
           if (id.includes('/node_modules/recharts/')) return 'vendor-recharts';
-          if (id.includes('/node_modules/@supabase/')) return 'vendor-supabase';
           if (id.includes('/node_modules/@react-three/') || id.includes('/node_modules/three/')) return 'vendor-3d';
           if (id.includes('/node_modules/framer-motion/')) return 'vendor-motion';
         },
