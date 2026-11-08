@@ -101,12 +101,11 @@ export default function CommunityPage({ section, standalone = false }: { section
   const fetchShopProducts = useCallback(async (_communityId: string) => {
     if (shopFetched) return;
     setLoadingShop(true);
-    const keyword = community?.display_name?.split(' ')[0] ?? '';
     const result = await backendCapabilities.listCommunityShop(_communityId);
     setShopProducts(result.items ?? []);
     setLoadingShop(false);
     setShopFetched(true);
-  }, [shopFetched, community?.display_name]);
+  }, [shopFetched]);
 
   const fetchNftBadges = useCallback(async (communityId: string) => {
     const result = await backendCapabilities.listCommunityBadges(communityId);
@@ -121,7 +120,7 @@ export default function CommunityPage({ section, standalone = false }: { section
       sonnerToast.success('🏅 Community badge earned!');
       await fetchNftBadges(community.id);
     } catch (error: any) {
-      sonnerToast.error(error?.message || 'Could not mint badge');
+      sonnerToast.error(error?.message || 'Could not claim badge');
     } finally {
       setMintingNft(false);
     }
