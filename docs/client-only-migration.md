@@ -92,3 +92,30 @@ These are migration sources, not proof that the listed feature is currently full
 ## Current audit note
 
 The current XClone default branch still contains Supabase client construction and feature code that invokes Supabase functions/database APIs. The Backend fresh API has only a subset of the full product surface (identity/profile/legal/federation preference, home/public feeds, post creation/moderation, media lifecycle and internal federation contracts). Therefore this document establishes the target and migration inventory; it does not claim that XClone is already a pure read-only client or that every backend endpoint exists.
+
+
+## Complete legacy Edge Function inventory
+
+The current XClone tree contains **98** function entrypoints under `supabase/functions/**/index.ts`. Each must be classified, ported, and covered by a replacement test before the directory can be removed.
+
+| Function family | Existing function entrypoints | Destination |
+| --- | --- | --- |
+| Identity and account | `account-lifecycle`, `identity-engine-result`, `identity-engine-worker`, `identity-signup`, `identity-verification`, `submit-identity-verification`, `testagram-auth-email`, `testagram-magic-link`, `testagram-security-email` | Backend + Appwrite |
+| Capability/API gateway | `capability-gateway`, `gateway-relay`, `testagram-api`, `heartbeat`, `service-health` | Backend; remove legacy Supabase RPC proxy |
+| Social discovery and feeds | `federated-discovery-feed`, `federated-feed`, `search-discovery`, `trending-hashtag-alert` | Backend + Algorithm; Federation for remote protocol reads |
+| ActivityPub/Fediverse | `activitypub-keygen`, `federation-delivery-worker`, `federation-inbound-worker`, `federation-inbox`, `federation-transport`, `mastodon-api`, `mastodon-edge`, `mastodon-federation`, `megalodon-gateway` | Federated Content, orchestrated by Backend |
+| Messaging bridges | `matrix-bridge`, `matrix-message-bridge` | Backend messaging; optional protocol bridge isolated as adapter |
+| Media and storage | `community-space-media-upload`, `federated-media-cleanup`, `federated-media-proxy`, `federated-media`, `media-delivery`, `post-media-upload`, `profile-media-upload`, `r2-media`, `testagram-media-token` | Backend authorization + Data Centre storage/CDN |
+| Notifications | `notification-delivery-worker`, `notification-fcm-worker`, `novu-notification-delivery`, `push-notification-delivery`, `register-push-token` | Backend notification domain + Data Centre delivery |
+| Wallet, payments and payouts | `creator-mpesa-payout`, `creator-mpesa-result`, `distribute-earnings`, `mpesa-ad-payment`, `mpesa-b2c-payout`, `mpesa-b2c-result`, `mpesa-config-status`, `mpesa-stk-push`, `mpesa-stk-status`, `paypal-capture-order`, `paypal-create-order`, `paypal-payout-status`, `paypal-payout`, `paypal-webhook`, `pesapal-create-order`, `pesapal-ipn`, `pesapal-sync-order`, `premium-paypal-capture-order`, `premium-paypal-create-order` | Backend payment adapters, wallet ledger and workers |
+| Advertising and monetization | `budget-alerts`, `testagram-ad-asset-upload`, `testagram-ad-campaign`, `testagram-ads`, `zenad-ad-asset-upload`, `zenad-campaign`, `zenad-decision`, `zenad-event` | Backend ads/monetization; Algorithm only for ranking |
+| Communities and content governance | `ai-moderation`, `community-admin-runtime`, `community-sitemap` | Backend; moderation provider adapter stays server-side |
+| News, podcasts and external content | `newsify-feed`, `newsify-sync`, `podcast-rss`, `testagram-rss-feed`, `testagram-rss-ingest`, `tenor-proxy`, `testagram-sports` | Backend integration services |
+| TV and streaming | `tv-catalog`, `tv-cdn-playback`, `tv-health`, `tv-media-control`, `tv-stream-proxy` | Backend catalog/entitlements + Data Centre/CDN |
+| Rides and geospatial | `ride-distance`, `ride-fare`, `ride-geocode`, `ride-service` | Backend rides domain; external maps provider server adapter |
+| AI and support | `help-chatbot`, `transcribe-audio` | Backend AI/support orchestration |
+| Replication and operations | `replication-projector`, `replication-receiver`, `replication-relay`, `sitemap-refresh`, `sitemap-users`, `og-image`, `og-meta` | Backend event/API and SEO service; Data Centre for infrastructure replication |
+
+The shared `supabase/functions/_shared/**` utilities must also be audited. Security, ActivityPub signing/validation, delivery, observability, CORS, replication contracts, mail and Redis helpers must be reimplemented or relocated to the owning server repository; do not copy browser-inappropriate privileged code into XClone.
+
+**Deletion gate:** do not delete any of the 98 entrypoints merely because the frontend no longer imports the Supabase SDK. Confirm scheduled triggers, webhooks, provider callbacks, deployment workflows and external callers have been redirected to their replacement service.
