@@ -443,7 +443,6 @@ export class TestagramMediaSession {
     this.lastDiagnostics = { transport: 'p2p', encryption: 'dtls-srtp', signaling: 'testagram-realtime', callId: this.roomId };
     const ws = new WebSocket(this.info.ws_url!, ['testagram.realtime.v1', 'ticket.' + this.info.token]);
     this.ws = ws;
-    let answerSent = false;
     await new Promise<void>((resolve, reject) => {
       const timeout = window.setTimeout(() => reject(new Error('Secure call signaling timed out.')), 20000);
       const finish = () => { window.clearTimeout(timeout); resolve(); };
@@ -456,9 +455,9 @@ export class TestagramMediaSession {
             if (!this.pc.localDescription?.sdp) throw new Error('Secure call offer was not created.');
             // The callee may be connecting at the same time; retransmit the offer
             // briefly until an answer arrives, without relying on a Supabase channel.
-            for (let attempt = 0; attempt < 3 && !this.answerReceived; attempt += 1) {
+            for (let attempt = 0; attempt < 10 && !this.answerReceived; attempt += 1) {
               if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'offer', sdp: this.pc.localDescription.sdp }));
-              if (attempt < 2) await new Promise(r => window.setTimeout(r, 700));
+              if (attempt < 9) await new Promise(r => window.setTimeout(r, 700));
             }
             if (this.answerReceived) finish();
           }
@@ -483,7 +482,6 @@ export class TestagramMediaSession {
             await waitForIce(this.pc);
             if (ws.readyState === WebSocket.OPEN && this.pc.localDescription?.sdp) {
               ws.send(JSON.stringify({ type: 'answer', sdp: this.pc.localDescription.sdp }));
-              answerSent = true;
               finish();
             }
             return;
