@@ -932,8 +932,9 @@ export default function ExplorePage() {
         .filter((h: any) => !DISCOVERY_SUPPRESSED_TAGS.has(String(h.tag ?? '').replace(/^#/, '').toLowerCase()))
         .map((h: any) => ({ ...h, daily_posts: Number(h.federated_post_count ?? 0) + Number(h.post_count ?? h.usage_count ?? 0) })));
     }
+    let suggestions: any[] = [];
     if (whoRes.status === 'fulfilled' && whoRes.value.data) {
-      let suggestions = whoRes.value.data;
+      suggestions = whoRes.value.data;
       if (user) suggestions = suggestions.filter((u: any) => u.id !== user.id);
       setWhoToFollow(suggestions.slice(0, 5));
     }
