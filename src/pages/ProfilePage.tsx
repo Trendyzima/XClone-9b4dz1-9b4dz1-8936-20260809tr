@@ -383,111 +383,57 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!profile?.id) return;
-    // Check if this user has active (non-expired) stories
-    supabase
-      .from('stories')
-      .select('id', { count: 'exact', head: true })
-      .eq('owner_id', profile.id)
-      .gt('expires_at', new Date().toISOString())
-      .then(({ count }) => setProfileHasStories((count ?? 0) > 0));
+    let active = true;
+    profileApi.getStoryStatus(profile.id).then(result => { if (active) setProfileHasStories(result.has_stories); }).catch(() => { if (active) setProfileHasStories(false); });
+    return () => { active = false; };
   }, [profile?.id]);
 
   const checkBlockMuteStatus = async (profileId: string) => {
     if (!currentUser) return;
-    const [{ data: blockRow }, { data: muteRow }] = await Promise.all([
-      supabase.from('user_blocks').select('id').eq('blocker_id', currentUser.id).eq('blocked_id', profileId).maybeSingle(),
-      supabase.from('user_mutes').select('id').eq('muter_id', currentUser.id).eq('muted_id', profileId).maybeSingle(),
-    ]);
-    setIsBlocked(!!blockRow);
-    setIsMuted(!!muteRow);
+    const state = await profileApi.getBlockMuteState(profileId);
+    setIsBlocked(Boolean(state.blocked)); setIsMuted(Boolean(state.muted));
   };
 
   const handleBlock = async () => {
     if (!currentUser || !profile) return;
     setShowMoreMenu(false);
-    if (isBlocked) {
-      await supabase.from('user_blocks').delete().eq('blocker_id', currentUser.id).eq('blocked_id', profile.id);
-      setIsBlocked(false);
-      toast.success(`@${profile.username} unblocked`);
-    } else {
-      await supabase.from('user_blocks').insert({ blocker_id: currentUser.id, blocked_id: profile.id });
-      if (isFollowing) {
-        await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id);
-        setIsFollowing(false);
-      }
-      setIsBlocked(true);
-      toast.success(`@${profile.username} blocked`);
-    }
+    try { await socialApi.setBlock(profile.id, !isBlocked); setIsBlocked(!isBlocked); if (!isBlocked) setIsFollowing(false); toast.success(isBlocked ? 'Unblocked user' : 'User blocked'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not update block status'); }
   };
 
   const handleMute = async () => {
     if (!currentUser || !profile) return;
     setShowMoreMenu(false);
-    if (isMuted) {
-      await supabase.from('user_mutes').delete().eq('muter_id', currentUser.id).eq('muted_id', profile.id);
-      setIsMuted(false);
-      toast.success(`@${profile.username} unmuted`);
-    } else {
-      await supabase.from('user_mutes').insert({ muter_id: currentUser.id, muted_id: profile.id });
-      setIsMuted(true);
-      toast.success(`@${profile.username} muted — their posts won't appear in your feed`);
-    }
+    try { const result = await profileApi.setMute(profile.id, !isMuted); setIsMuted(result.muted); toast.success(result.muted ? 'User muted' : 'User unmuted'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not update mute status'); }
   };
 
   const handleGiftPremium = async () => {
     if (!currentUser || !profile) return;
-    const GIFT_PRICE = 4.99;
     setGiftingPremium(true);
     try {
-      const idempotencyKey = `premium-gift:${currentUser.id}:${profile.id}:${crypto.randomUUID()}`;
-      const { data, error } = await supabase.rpc('send_premium_gift', { p_recipient_id: profile.id, p_amount: GIFT_PRICE, p_idempotency_key: idempotencyKey });
-      if (error) throw error;
-      const expiresAt = new Date(data?.expires_at ?? Date.now() + 30 * 86400000);
-      await supabase.from('platform_inbox').insert({
-        user_id: profile.id, subject: '🎁 Someone gifted you Premium!',
-        body: `@${currentUser.username} gifted you 1 month of Premium! Enjoy an ad-free experience until ${expiresAt.toLocaleDateString()}.`,
-        type: 'update', icon_emoji: '👑', cta_label: 'View Premium Benefits', cta_url: '/premium',
-      }).catch(() => {});
-      await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
-      toast.success(`🎁 Premium gifted to @${profile.username} for 1 month!`);
-      setShowGiftPremiumDialog(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to gift premium');
-    } finally {
-      setGiftingPremium(false);
-    }
+      await profileApi.sendPremiumGift(profile.id, 4.99, 'premium-gift-' + crypto.randomUUID());
+      toast.success('Premium gift sent'); setShowGiftPremiumDialog(false);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to gift premium'); }
+    finally { setGiftingPremium(false); }
   };
 
   const handleSubscribe = async (tier: string, price: number) => {
     if (!currentUser) { navigate('/auth'); return; }
+    if (!profile) return;
     setSubscribing(true);
-    const idempotencyKey = `profile-subscription:${currentUser.id}:${profile.id}:${tier}:${crypto.randomUUID()}`;
-    const { data: transfer, error: transferError } = await supabase.rpc('p2p_wallet_transfer', {
-      p_from_user_id: currentUser.id, p_to_user_id: profile.id, p_amount: price,
-      p_note: `Subscription to @${profile.username} — ${tier}`, p_idempotency_key: idempotencyKey,
-    });
-    if (transferError) { toast.error(transferError.message || 'Subscription payment failed'); setSubscribing(false); return; }
-    const expiresAt = new Date();
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-    const { error } = await supabase.from('subscriptions').upsert({
-      creator_id: profile.id, subscriber_id: currentUser.id, plan: tier, status: 'active',
-      started_at: new Date().toISOString(), ends_at: expiresAt.toISOString(), provider: 'internal',
-      provider_reference: transfer?.reference ?? null,
-    }, { onConflict: 'creator_id,subscriber_id' });
-    if (error) { toast.error('Subscription record failed'); setSubscribing(false); return; }
-    await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'subscription', source_id: null, amount: price, currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
-    await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  }).catch(() => {});
-    toast.success(`Subscribed to @${profile.username} on ${tier} tier!`);
-    setActiveSubscription({ tier, price, status: 'active' });
-    setShowSubscribeDialog(false);
-    setSubscribing(false);
+    try {
+      const result = await profileApi.subscribe(profile.id, tier, price, 'profile-subscription-' + crypto.randomUUID());
+      setActiveSubscription(result.subscription); setShowSubscribeDialog(false);
+      toast.success('Subscription activated');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Subscription failed'); }
+    finally { setSubscribing(false); }
   };
 
   const handleUnsubscribe = async () => {
     if (!currentUser || !profile) return;
-    await supabase.from('subscriptions').update({ status: 'cancelled' }).eq('creator_id', profile.id).eq('subscriber_id', currentUser.id);
-    setActiveSubscription(null);
-    toast.success('Subscription cancelled');
+    try { await profileApi.cancelSubscription(profile.id); setActiveSubscription(null); toast.success('Subscription cancelled'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not cancel subscription'); }
   };
 
   const openHighlightViewer = async (h: any) => {
