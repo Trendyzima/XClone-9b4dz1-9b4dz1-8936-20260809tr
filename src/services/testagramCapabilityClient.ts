@@ -36,7 +36,7 @@ const capabilityEvent=(capability:string)=>{
 };
 export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;
- constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));}
+ constructor(o:TestagramCapabilityClientOptions){this.endpoint=(o.endpoint??"").trim().replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));}
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
   // Appwrite JWT is sent explicitly; no provider SDK state is consulted.
   const headers: Record<string,string> = {
@@ -86,6 +86,7 @@ export class TestagramCapabilityClient{
   }
  }
  async call<T>(capability:string,input:Record<string,unknown>={},tokenOverride?:string|null):Promise<T>{
+  if(!this.endpoint)throw new CapabilityClientError("Set VITE_TESTAGRAM_API_URL to the canonical Testagram Backend origin; refusing the legacy same-origin Supabase capability proxy.",{code:"BACKEND_API_URL_REQUIRED",status:503});
   if(!capability.trim())throw new CapabilityClientError("Capability name is required",{code:"CAPABILITY_REQUIRED"});
   const isPublic=PUBLIC_CAPABILITIES.has(capability);
   let token=tokenOverride ?? await this.token();
