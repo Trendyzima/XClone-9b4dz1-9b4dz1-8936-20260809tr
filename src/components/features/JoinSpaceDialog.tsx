@@ -44,16 +44,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('spaces')
-        .select(`
-          *,
-          host:user_profiles!spaces_host_id_fkey(*)
-        `)
-        .eq('id', spaceId)
-        .single();
-
-      if (error) throw error;
+      const data = await backendCapabilities.call<any>('testagram.audio_spaces.get', { space_id: spaceId });
       setSpace(data);
     } catch (error: any) {
       console.error('Error fetching space:', error);
