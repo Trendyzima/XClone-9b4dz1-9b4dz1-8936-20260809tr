@@ -120,6 +120,13 @@ export const socialApi = {
       'POST',
     );
   },
+  listPostInteractions(postId: string, kind: 'likes' | 'reposts' | 'quotes' | 'quote-likes', limit = 50) {
+    const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
+    return request<{ items: any[]; has_more: boolean }>(
+      `/posts/${encodeURIComponent(postId)}/interactions/${kind}?${query.toString()}`,
+      'GET',
+    );
+  },
   getInteractionSummary(postId: string) {
     return request<{
       likes: number; reposts: number; replies: number; quotes: number; views: number; shares: number;
