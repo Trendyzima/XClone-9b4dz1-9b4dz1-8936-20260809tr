@@ -187,7 +187,7 @@ class AppwriteAdminSession {
     if (body != null) request.body = jsonEncode(body);
     final streamed = await _appwriteClient.send(request).timeout(const Duration(seconds: 15));
     final response = await http.Response.fromStream(streamed);
-    _captureSessionCookie(response);
+    await _captureSessionCookie(response);
     return _decodeResponse(response);
   }
 
@@ -246,7 +246,7 @@ class AppwriteAdminSession {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
-  void _captureSessionCookie(http.Response response) {
+  Future<void> _captureSessionCookie(http.Response response) async {
     if (kIsWeb) return;
     final raw = response.headers['set-cookie'];
     if (raw == null || raw.isEmpty) return;
@@ -258,7 +258,7 @@ class AppwriteAdminSession {
       final value = candidate.substring(start).split(';').first.trim();
       if (value.startsWith(cookieName) && value.length > cookieName.length) {
         _sessionCookie = value;
-        _storage.write(key: _cookieStorageKey, value: value);
+        await _storage.write(key: _cookieStorageKey, value: value);
         return;
       }
     }
