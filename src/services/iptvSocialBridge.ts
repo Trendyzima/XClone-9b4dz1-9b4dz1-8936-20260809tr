@@ -44,10 +44,6 @@ export function installIptvSocialBridge() {
     const payload = message.payload && typeof message.payload === 'object' && !Array.isArray(message.payload)
       ? message.payload
       : {};
-    if (!API_ORIGIN) {
-      respond(target, event.origin, message.requestId, false, null, 'The canonical Backend API URL is not configured.');
-      return;
-    }
     if (action === 'session_info') {
       try {
         const user = await appwriteAuth.getCurrentUser();
@@ -73,6 +69,10 @@ export function installIptvSocialBridge() {
         respond(target, event.origin, message.requestId, false, null,
           error instanceof Error ? error.message : 'Could not sign out.');
       }
+      return;
+    }
+    if (!API_ORIGIN) {
+      respond(target, event.origin, message.requestId, false, null, 'The canonical Backend API URL is not configured.');
       return;
     }
     activeRequests += 1;
