@@ -493,8 +493,9 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
     ).then(result => Boolean(result.reposted));
   }
   getThreadRepostStates(threadIds: string[]) {
-    return Promise.all(threadIds.map(async id => (await this.getThreadRepostState(id)) ? id : null))
-      .then(ids => new Set(ids.filter((id): id is string => Boolean(id))));
+    return testagramApiRequest<{ thread_ids: string[] }>('/api/threads/reposts/states', {
+      method: 'POST', body: { thread_ids: threadIds.slice(0, 100) },
+    }).then(result => new Set(result.thread_ids ?? []));
   }
   createThread(input: { body: string; visibility?: 'public' | 'unlisted' | 'private' }) {
     return testagramApiRequest<{ id: string; owner_id: string; body: string; visibility: string; media_urls: any[] }>(
