@@ -473,6 +473,9 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
       'testagram.audio_spaces.superchat', { space_id: spaceId, message, amount, idempotency_key: idempotencyKey },
     );
   }
+  getThread(threadId: string) {
+    return testagramApiRequest<any>('/api/threads/' + encodeURIComponent(threadId));
+  }
   createThread(input: { body: string; visibility?: 'public' | 'unlisted' | 'private' }) {
     return testagramApiRequest<{ id: string; owner_id: string; body: string; visibility: string; media_urls: any[] }>(
       '/api/threads', { method: 'POST', body: input },
