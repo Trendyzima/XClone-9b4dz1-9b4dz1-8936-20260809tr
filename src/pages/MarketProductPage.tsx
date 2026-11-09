@@ -94,7 +94,7 @@ export default function MarketProductPage() {
     return () => { document.title = previousTitle; };
   }, [product]);
 
-  const shareUrl = product ? `${window.location.origin}/marketplace/product/${encodeURIComponent(product.id)}` : '';
+  const shareUrl = product ? `${window.location.origin}/p/${encodeURIComponent(product.id)}` : '';
   const share = async () => {
     if (!product) return;
     if (navigator.share) {
