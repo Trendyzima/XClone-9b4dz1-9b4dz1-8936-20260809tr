@@ -8,7 +8,7 @@ const ALLOWED_ACTIONS = new Set([
   'reactions_state', 'reaction_toggle',
   'comments_list', 'comments_count', 'comment_add', 'comment_delete',
   'bookmark_list', 'bookmark_toggle',
-  'history_list', 'history_upsert', 'history_delete', 'history_clear',
+  'history_list', 'history_upsert', 'history_delete', 'history_clear', 'notifications',
   'trending', 'report',
 ]);
 const PUBLIC_ACTIONS = new Set(['reactions_state', 'comments_list', 'comments_count', 'trending']);
