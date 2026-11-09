@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Play, Pause, Loader2, SlidersHorizontal } from 'lucide-react';
@@ -103,26 +103,17 @@ export function AudioRecorder({ spaceId, onRecordingComplete }: AudioRecorderPro
   const uploadAudio = async (audioBlob: Blob) => {
     setUploading(true);
     try {
-      const fileName = `spaces/${spaceId}/${Date.now()}.webm`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('posts')
-        .upload(fileName, audioBlob, {
-          cacheControl: '86400', // 24 hours
-          upsert: false,
-        });
+      const fileName = `space-${spaceId}-recording-${Date.now()}.webm`;
+      const file = new File([audioBlob], fileName, { type: audioBlob.type || 'audio/webm', lastModified: Date.now() });
+      const uploaded = await uploadTestagramMedia(file);
+      const mediaUrl = uploaded.media_url || uploaded.public_url;
+      if (!mediaUrl) throw new Error('Backend did not return a playable recording URL.');
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('posts')
-        .getPublicUrl(fileName);
-
-      onRecordingComplete?.(publicUrl);
+      onRecordingComplete?.(mediaUrl);
 
       toast({
         title: 'Recording saved',
-        description: 'Audio will be available for 24 hours',
+        description: 'Your recording was uploaded to Testagram media storage.',
       });
     } catch (error: any) {
       console.error('Error uploading audio:', error);
@@ -208,7 +199,7 @@ export function AudioRecorder({ spaceId, onRecordingComplete }: AudioRecorderPro
                 )}
               </Button>
               <span className="text-sm text-muted-foreground">
-                Recording saved (available for 24 hours)
+                Recording saved to Testagram media storage
               </span>
             </div>
             <Button
