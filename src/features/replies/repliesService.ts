@@ -1,4 +1,5 @@
 import { socialApi } from '@/services/socialApiClient';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import * as federation from '@/api/federation';
 export type ReplyItem={id:string;user_id:string;post_id:string;content:string;created_at:string;updated_at:string;parent_reply_id?:string|null;profile:any};
 const boundedLimit=(n=50)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):50));
@@ -6,7 +7,7 @@ export async function listReplies(postId:string,limit=50):Promise<{items:ReplyIt
  if(/^https:\/\//i.test(postId)){const items=await federation.getFederatedReplies(postId);return {items:items.slice(0,boundedLimit(limit)) as ReplyItem[],next_cursor:null};}
  const result=await socialApi.listReplies(postId,boundedLimit(limit));return {items:(result.items??[]).map((item:any)=>({...item,profile:item.profile??item.user_profiles??null})) as ReplyItem[],next_cursor:null};
 }
-export async function createReply(postId:string,content:string,parentReplyId?:string){return /^https:\/\//i.test(postId)?federation.reply({postId,content,parentReplyId}):backendCapabilities.createReply(postId,content,parentReplyId);}
+export async function createReply(postId:string,content:string,parentReplyId?:string){return /^https:\/\//i.test(postId)?federation.reply({postId,content,parentReplyId}):socialApi.createReply(postId,content,parentReplyId);}
 export async function getReplyChain(replyId:string,limit=100):Promise<ReplyItem[]>{const result=await socialApi.getReplyChain(replyId,limit);return (result.items??[]).map((item:any)=>({...item,profile:item.profile??item.user_profiles??null})) as ReplyItem[];}
 export async function listProfileReplies(userId:string,limit=50):Promise<ReplyItem[]>{const result=await backendCapabilities.call<{items:ReplyItem[]}>('testagram.profile.replies.list',{user_id:userId,limit:boundedLimit(limit)});return result.items??[];}
 export type ProfileRepliesPage={items:ReplyItem[];next_cursor:string|null};
