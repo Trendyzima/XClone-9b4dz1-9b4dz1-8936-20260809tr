@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 
 interface Message {
@@ -99,11 +98,7 @@ export default function AIPage() {
       });
 
       if (error) {
-        let msg = error.message;
-        if (error instanceof FunctionsHttpError) {
-          try { msg = await error.context?.text() || msg; } catch {}
-        }
-        throw new Error(msg);
+        throw new Error(error.message || 'AI request failed');
       }
 
       setMessages(prev => [...prev, {
