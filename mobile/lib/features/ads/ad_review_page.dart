@@ -449,6 +449,7 @@ class _AdReviewPageState extends State<AdReviewPage> {
               TextField(
                 minLines: 1,
                 maxLines: 3,
+                maxLength: 500,
                 decoration: const InputDecoration(labelText: 'Review note (required for rejection)', border: OutlineInputBorder()),
                 onChanged: (value) => _notes[id] = value,
               ),
