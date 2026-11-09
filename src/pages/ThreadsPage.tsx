@@ -5,6 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { useAuth } from '@/hooks/useAuth';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
@@ -110,12 +111,7 @@ export default function ThreadsPage() {
         ids=(data??[]).map((r:any)=>r.following_id).filter(Boolean);
         if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
       }
-      if(tab==='Saved'){
-        if(!user){setThreads([]);setMixedItems([]);setHasMore(false);return;}
-        const {data}=await supabase.from('thread_bookmarks').select('thread_id').eq('user_id',user.id).order('created_at',{ascending:false}).limit(100);
-        ids=(data??[]).map((r:any)=>r.thread_id).filter(Boolean);
-        if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
-      }
+      if(tab==='Saved'&&!user){setThreads([]);setMixedItems([]);setHasMore(false);return;}
 
       const pageSize=6;
       // For the default For-you surface, start independent network reads together.
@@ -128,17 +124,9 @@ export default function ThreadsPage() {
             federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}}))
           ])
         : null;
-      let query=supabase.from('threads').select('id, owner_id, body, visibility, created_at, likes_count, reposts_count, quotes_count, replies_count, views_count, media_urls')
-        .eq('visibility','public').is('deleted_at',null).order('created_at',{ascending:false}).limit(pageSize);
-      if(cursor&&!reset) query=query.lt('created_at',cursor);
-      if(tab==='Following'&&ids)query=query.in('owner_id',ids);
-      if(tab==='Saved'&&ids)query=query.in('id',ids);
-      const {data,error}=await query; if(error)throw error;
-      const rows=(data??[]) as Thread[];
-      const ownerIds=[...new Set(rows.map(r=>r.owner_id))];
-      const profiles:Profile[]=ownerIds.length?(((await supabase.from('profiles').select('id, username, avatar_url, verified, display_name').in('id',ownerIds)).data ?? []) as Profile[]):[];
-      const byId=new Map(profiles.map((p:any)=>[p.id,p]));
-      const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)}));
+      const threadPage=await backendCapabilities.listThreads(tab==='For you'?'for-you':tab==='Following'?'following':'saved',pageSize,reset?undefined:cursor);
+      const rows=(threadPage.items??[]) as Thread[];
+      const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[]}));
       // Render the first thread slice immediately. Posts/Fediverse are secondary
       // discovery sources and must not block the primary Threads surface.
       const initialThreadItems:MixedItem[]=normalizedThreads.map(data=>({kind:'thread' as const,data}));
@@ -176,21 +164,21 @@ export default function ThreadsPage() {
 
       setThreads(prev=>reset?normalizedThreads:[...prev,...normalizedThreads]);
       setMixedItems(prev=>reset?mixed:[...prev,...mixed.filter(next=>!prev.some(old=>old.kind===next.kind&&old.data.id===next.data.id))]);
-      const nextCursor=rows.at(-1)?.created_at??null;
+      const nextCursor=threadPage.next_cursor??null;
       setCursor(nextCursor);
-      setHasMore(rows.length>=pageSize || Boolean(fedRes.pagination?.hasMore) || postItems.length>=8);
-      const cacheValue={threads:reset?normalizedThreads:[...normalizedThreads],mixed,cursor:nextCursor,hasMore:rows.length>=pageSize||Boolean(fedRes.pagination?.hasMore)||postItems.length>=8}; threadsCache.set(cacheKey,{at:Date.now(),...cacheValue}); writeThreadsCache(cacheKey,cacheValue);
+      setHasMore(Boolean(threadPage.has_more) || Boolean(fedRes.pagination?.hasMore) || postItems.length>=8);
+      const cacheValue={threads:reset?normalizedThreads:[...normalizedThreads],mixed,cursor:nextCursor,hasMore:Boolean(threadPage.has_more)||Boolean(fedRes.pagination?.hasMore)||postItems.length>=8}; threadsCache.set(cacheKey,{at:Date.now(),...cacheValue}); writeThreadsCache(cacheKey,cacheValue);
 
       if(user&&rows.length){
         const ids2=rows.map(r=>r.id);
         const [l,rr,b]=await Promise.all([
           getThreadLikeStates(ids2,user.id),
           getThreadRepostStates(ids2,user.id),
-          supabase.from('thread_bookmarks').select('thread_id').eq('user_id',user.id).in('thread_id',ids2)
+          backendCapabilities.getThreadBookmarkStates(ids2)
         ]);
         setLiked(prev=>{const n=new Set(reset?[]:prev);l.forEach((id)=>n.add(id));return n;});
         setReposted(prev=>{const n=new Set(reset?[]:prev);rr.forEach((id)=>n.add(id));return n;});
-        setBookmarked(prev=>{const n=new Set(reset?[]:prev);(b.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
+        setBookmarked(prev=>{const n=new Set(reset?[]:prev);b.forEach((id:string)=>n.add(id));return n;});
       }
     }catch(error){console.error('[Threads] feed request failed',error);setFeedError('Could not load this section. Check your connection and retry.');toast.error('Could not load Threads');}
     finally{setLoading(false);setRefreshing(false);setLoadingMore(false);}
@@ -208,7 +196,7 @@ export default function ThreadsPage() {
   const toggleRepost=async(thread:Thread)=>{if(!user){navigate('/auth');return;}try{const active=await toggleThreadRepost(thread.id,user.id);mutate(setReposted,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t));}catch(e:any){toast.error(e?.message||'Repost failed');}};
   const shareThread=async(thread:Thread)=>{try{const url=window.location.origin+'/thread/'+thread.id;if(navigator.share)await navigator.share({title:'Testagram thread',text:thread.body.slice(0,120),url});else{await navigator.clipboard.writeText(url);toast.success('Thread link copied');}}catch(error){if(error instanceof DOMException&&error.name==='AbortError')return;toast.error('Could not share thread');}};
 
-  const toggleBookmark=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!bookmarked.has(thread.id);mutate(setBookmarked,thread.id,active);const res=active?await supabase.from('thread_bookmarks').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_bookmarks').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setBookmarked,thread.id,!active);toast.error('Bookmark failed');}else toast.success(active?'Saved to your reading list':'Removed from saved');};
+  const toggleBookmark=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const previous=bookmarked.has(thread.id);mutate(setBookmarked,thread.id,!previous);try{const active=await backendCapabilities.toggleThreadBookmark(thread.id);mutate(setBookmarked,thread.id,active);toast.success(active?'Saved to your reading list':'Removed from saved');}catch(e:any){mutate(setBookmarked,thread.id,previous);toast.error(e?.message||'Bookmark failed');}};
 
   const visible=useMemo(()=>{
     const q=search.trim().toLowerCase();
