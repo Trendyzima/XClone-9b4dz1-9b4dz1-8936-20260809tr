@@ -88,6 +88,7 @@ function mapCampaign(row: any) {
 
 export default function AdminAdsDashboard() {
   const { user } = useAuth();
+  const userId = user?.id;
   const navigate = useNavigate();
   useSEO({ noindex: true, title: 'Admin — Ads Review', url: '/admin/ads' });
 
@@ -121,7 +122,7 @@ export default function AdminAdsDashboard() {
     setLoading(true);
     try {
       const result = await backendCapabilities.listAdminAdReviewQueue('all', 200);
-      const mapped = (result.items ?? []).map(mapCampaign);
+      const mapped = (result.items ?? []).filter((row: any) => !['completed', 'archived'].includes(row.campaign_status)).map(mapCampaign);
       setAds(mapped);
       setIsAdmin(true);
       setMfaRequired(false);
@@ -152,12 +153,12 @@ export default function AdminAdsDashboard() {
   }, [loadMfaFactors, navigate]);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       navigate('/auth');
       return;
     }
     void fetchAds();
-  }, [user?.id, fetchAds, navigate]);
+  }, [userId, fetchAds, navigate]);
 
   const submitMfa = async () => {
     setMfaBusy(true);
