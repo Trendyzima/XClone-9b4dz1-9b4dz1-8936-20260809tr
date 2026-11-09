@@ -273,9 +273,9 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "}",
     "const goToHostAuth = () => { if (window.top) window.top.location.assign('/auth?returnTo=/iptv-app/entry.html'); };",
     "export const authService = {",
-    "  async sendOtp() { goToHostAuth(); },",
-    "  async verifyOtpAndRegister() { goToHostAuth(); throw new Error('Complete registration in Testagram.'); },",
-    "  async signInWithPassword() { goToHostAuth(); throw new Error('Sign in through Testagram.'); },",
+    "  async sendOtp(..._args: any[]) { goToHostAuth(); },",
+    "  async verifyOtpAndRegister(..._args: any[]) { goToHostAuth(); throw new Error('Complete registration in Testagram.'); },",
+    "  async signInWithPassword(..._args: any[]) { goToHostAuth(); throw new Error('Sign in through Testagram.'); },",
     "  async signOut() { await iptvSocial('sign_out'); },",
     "};",
   ].join('\n'), 'utf8');
