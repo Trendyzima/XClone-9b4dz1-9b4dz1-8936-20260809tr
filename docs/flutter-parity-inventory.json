@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-15T13:45:19.413Z",
+  "generated_at": "2026-11-09T06:20:00.000Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -449,11 +449,6 @@
     "src/components/features/CommunitySpotlightStrip.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/components/features/ComposePost.tsx": {
-      "status": "foundation",
-      "note": "Flutter feed supports text/photo/video compose and Supabase Storage upload; edit flows, full media parity and backend contract tests remain.",
       "source_type": "client_source"
     },
     "src/components/features/ContentSuggestionsWidget.tsx": {
@@ -2501,11 +2496,6 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/pages/TrendingTopicFeedPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
     "src/pages/TvChannelsPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -2820,6 +2810,31 @@
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
+    },
+    "src/services/apiClient.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation and canonical Backend API before retiring any legacy feature path."
+    },
+    "src/services/iptvSocialBridge.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation and canonical Backend API before retiring any legacy feature path."
+    },
+    "src/services/profileApi.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation and canonical Backend API before retiring any legacy feature path."
+    },
+    "src/services/realtimeClient.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation and canonical Backend API before retiring any legacy feature path."
+    },
+    "src/services/walletApi.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation and canonical Backend API before retiring any legacy feature path."
     }
   }
 }
