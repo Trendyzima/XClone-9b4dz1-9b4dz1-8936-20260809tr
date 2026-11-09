@@ -48,7 +48,7 @@ function VideoCommentDrawer({ post, onClose }: { post: Post; onClose: () => void
     try {
       const content = replyText.trim();
       await backendCapabilities.createReply(post.id, content);
-      setReplies(prev => [{ id: crypto.randomUUID(), content, created_at: new Date().toISOString(), user_profiles: { username: user.name || user.email?.split('@')[0] || 'you', avatar_url: null, verified: false } }, ...prev]);
+      setReplies(prev => [{ id: crypto.randomUUID(), content, created_at: new Date().toISOString(), user_profiles: { username: user.username || user.email?.split('@')[0] || 'you', avatar_url: null, verified: false } }, ...prev]);
       setReplyText('');
       toast.success('Comment posted!');
     } catch (error) {
