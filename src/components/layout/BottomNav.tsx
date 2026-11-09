@@ -88,87 +88,22 @@ export function BottomNav() {
     if (location.pathname === '/platform-inbox') setUnreadInbox(0);
   }, [location.pathname]);
 
-  // Fetch pending appeals count for regulators
+  // Platform inbox, moderation appeals, daily rewards and scheduled-post
+  // badges do not yet have verified owner-service read contracts. Keep these
+  // counters at zero rather than silently querying legacy Supabase tables.
   useEffect(() => {
-    if (!user || !isReg) { setPendingAppeals(0); return; }
-    const fetchAppeals = async () => {
-      const { count } = await supabase
-        .from('moderation_appeals')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      setPendingAppeals(count ?? 0);
-    };
-    fetchAppeals();
-    const iv = setInterval(fetchAppeals, 30000);
-    return () => clearInterval(iv);
+    if (!user) {
+      setPendingAppeals(0); setStreakDay(0); setHasNewSuggestions(false);
+      setUnreadInbox(0); setScheduledBadge(0); setUnreadHelpReplies(0);
+      return;
+    }
+    setPendingAppeals(0);
+    setStreakDay(0);
+    setHasNewSuggestions(false);
+    setUnreadInbox(0);
+    setScheduledBadge(0);
+    setUnreadHelpReplies(0);
   }, [user?.id, isReg]);
-
-  // Fetch current streak on mount and after auth changes
-  useEffect(() => {
-    if (!user) { setStreakDay(0); setHasNewSuggestions(false); return; }
-    supabase
-      .from('daily_rewards')
-      .select('streak_day')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => setStreakDay(data?.streak_day ?? 0));
-
-    // Check for unread user suggestions (score > 0)
-    supabase
-      .from('user_suggestions')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gt('score', 0)
-      .then(({ count }) => setHasNewSuggestions((count ?? 0) > 0));
-    // Check platform inbox unread count
-    supabase
-      .from('platform_inbox')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('read', false)
-      .then(({ count }) => setUnreadInbox(count ?? 0));
-    // Scheduled posts pending count
-    supabase
-      .from('scheduled_posts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .then(({ count }) => setScheduledBadge(count ?? 0));
-
-    // Help support ticket reply badge — unread inbox items with [Support] subject that are read=true (team viewed them)
-    // We show a green dot on Help nav when the user has pending (unread by user) support reply messages
-    supabase
-      .from('platform_inbox')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .like('subject', '[Support]%')
-      .eq('read', false)
-      .then(({ count }) => setUnreadHelpReplies(count ?? 0));
-
-    // Real-time subscription for new inbox messages → instant badge + toast
-    const inboxSub = supabase
-      .channel(`inbox-realtime-${user.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'platform_inbox',
-        filter: `user_id=eq.${user.id}`,
-      }, (payload: any) => {
-        setUnreadInbox(prev => prev + 1);
-        // Show in-app toast for the new message
-        const msg = payload.new;
-        if (msg?.subject) {
-          toast(msg.icon_emoji ? `${msg.icon_emoji} ${msg.subject}` : msg.subject, {
-            description: msg.body?.slice(0, 100),
-            action: msg.cta_url ? { label: msg.cta_label ?? 'View', onClick: () => window.location.href = msg.cta_url } : undefined,
-            duration: 6000,
-          });
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(inboxSub); };
-  }, [user?.id]);
 
   useEffect(() => {
     const handleScroll = () => {
