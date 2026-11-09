@@ -15,9 +15,12 @@ window.addEventListener('vite:preloadError', (event) => {
 });
 
 import { appwriteAuth, APPWRITE_AUTH_CHANGED_EVENT } from './services/appwriteAuth';
+import { installIptvSocialBridge } from './services/iptvSocialBridge';
 import { analytics } from './lib/posthog';
 import { TestagramEvent, trackTestagramEvent } from './lib/testagram-analytics';
 import { startNativePushRegistration } from './services/nativePushService';
+
+installIptvSocialBridge();
 
 try {
   analytics.init();
