@@ -14,6 +14,8 @@ const required = [
   ['admin session requests a short-lived Appwrite JWT', /\/account\/jwt/.test(session)],
   ['admin session implements MFA challenge and completion', /\/account\/mfa\/challenges/.test(session) && /completeMfaChallenge/.test(session)],
   ['Backend requests carry the Appwrite JWT', /Authorization.*Bearer/.test(session)],
+  ['client contains no Appwrite API key or service credential', !/X-Appwrite-Key|APPWRITE_API_KEY|service[_-]?role/i.test(session)],
+  ['Appwrite session cookies are not forwarded to the Backend API', !/_backendRequest[\\s\\S]*Cookie/.test(session)],
   ['Backend queue, review and status routes are used', /\/api\/admin\/ads\/review-queue/.test(session) && /\/review/.test(session) && /\/status/.test(session)],
   ['MFA-required responses are handled in the page', /ADMIN_MFA_REQUIRED/.test(page)],
   ['rejection requires a reason and caps it at 500 characters', /decision == 'rejected' && note\.isEmpty/.test(page) && /maxLength: 500/.test(page)],
