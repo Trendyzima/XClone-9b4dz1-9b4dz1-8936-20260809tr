@@ -268,40 +268,143 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
       { method: 'DELETE' },
     );
   }
- getFederationStatus(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.federation.status",{limit:limit(n),...cursor(c)})} getWallet(n=20,c?:string,currency='KES'){return Promise.all([this.call<{id:string;user_id:string;balance:string;currency:string;status:string}>("testagram.wallet.balance",{currency}),this.call<{items:unknown[]}>("testagram.wallet.transactions.list",{limit:limit(n),...cursor(c)})]).then(([wallet,history])=>({wallet,transactions:history.items??[],next_cursor:null as string|null}))}
- getWalletTransactions(n=20,c?:string){return this.call<{items:unknown[]}>("testagram.wallet.transactions.list",{limit:limit(n),...cursor(c)}).then(x=>({items:x.items,next_cursor:null as string|null}))}
- transferWallet(recipientId:string,amount:number,note='',idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean;amount:string;currency:string}>("testagram.wallet.transfer",{recipient_id:recipientId,amount,note,idempotency_key:idempotencyKey})}
- tipWallet(recipientId:string,amount:number,note='',idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean;amount:string;currency:string}>("testagram.wallet.tip",{recipient_id:recipientId,amount,note,idempotency_key:idempotencyKey})}
- listConversations(limitValue=50){return this.call<{items:any[];next_cursor:string|null}>("testagram.conversations.list",{limit:Math.min(100,Math.max(1,Math.floor(limitValue)))})}
- createConversation(memberIds:string[],title=''){return this.call<{conversation_id:string}>("testagram.conversations.create",{member_ids:memberIds,title})}
- listMessages(conversationId:string,limitValue=50,c?:string){return this.call<CapabilityPage<any>>("testagram.messages.list",{conversation_id:conversationId,limit:limit(limitValue),...cursor(c)})}
- sendEncryptedMessage(input:{conversationId:string;ciphertext:string;nonce:string;clientMessageId:string;replyToMessageId?:string;sharedPostId?:string;aad?:string}){return this.call<{message:any}>("testagram.messages.send_encrypted",{conversation_id:input.conversationId,ciphertext:input.ciphertext,nonce:input.nonce,client_message_id:input.clientMessageId,...(input.replyToMessageId ? {reply_to_message_id:input.replyToMessageId} : {}),...(input.sharedPostId ? {shared_post_id:input.sharedPostId} : {}),...(input.aad ? {aad:input.aad} : {})})}
- editEncryptedMessage(messageId:string,ciphertext:string,nonce:string,aad?:string){return this.call<{message:any}>("testagram.messages.edit_encrypted",{message_id:messageId,ciphertext,nonce,...(aad ? {aad} : {})})}
- deleteMessage(messageId:string){return this.call<{deleted:boolean}>("testagram.messages.delete",{message_id:messageId})}
- markConversationRead(conversationId:string){return this.call<{read:boolean}>("testagram.messages.mark_read",{conversation_id:conversationId})}
- reactToMessage(messageId:string,reaction:string,remove=false){return this.call<{reacted:boolean}>("testagram.messages.react",{message_id:messageId,reaction,remove})}
- attachMessageMetadata(messageId:string,attachmentMetadata:Record<string,unknown>){return this.call<{attached:boolean}>("testagram.messages.attach",{message_id:messageId,attachment_metadata:attachmentMetadata})}
- getConversationRealtimeTicket(conversationId:string){return this.call<{ticket:string;websocket_url:string;expires_in:number}>("testagram.realtime.ticket",{conversation_id:conversationId})}
- createCall(conversationId:string,kind='audio'){return this.call<{call_id:string;status:string}>("testagram.calls.create",{conversation_id:conversationId,kind})}
- joinCall(callId:string){return this.call<{call_id:string;joined:boolean}>("testagram.calls.join",{call_id:callId})}
- endCall(callId:string){return this.call<{call_id:string;ended:boolean}>("testagram.calls.end",{call_id:callId})}
- listCalls(limitValue=30){return this.call<CapabilityPage<any>>("testagram.calls.list",{limit:Math.min(100,Math.max(1,Math.floor(limitValue)))})}
- getCall(callId:string){return this.call<{call:any}>("testagram.calls.get",{call_id:callId})}
- getCallMediaToken(roomId:string){return this.call<{token:string;ws_url:string;room_id:string;room_type:string;role:string;ice_servers:any[]}>("testagram.media.token",{room_id:roomId,room_type:'call'})}
- listLiveAudioSpaces(){return this.call<CapabilityPage<any>>("testagram.audio_spaces.list_live",{})}
- getAudioSpace(spaceId:string){return this.call<{space:any}>("testagram.audio_spaces.get",{space_id:spaceId})}
- getMyAudioSpaceStatus(){return this.call<{items:any[]}>("testagram.audio_spaces.my_status",{})}
- getPendingAudioSpaceSpeakerRequests(spaceId:string){return this.call<{items:any[]}>("testagram.audio_spaces.pending_speaker_requests",{space_id:spaceId})}
- createAudioSpace(title:string,description='',maxAudience=1000){return this.call<{space_id:string;status:string;host_id:string}>("testagram.audio_spaces.create",{title,description,max_audience:maxAudience})}
- joinAudioSpace(spaceId:string){return this.call<{space_id:string;joined:boolean}>("testagram.audio_spaces.join",{space_id:spaceId})}
- leaveAudioSpace(spaceId:string){return this.call<{space_id:string;left:boolean}>("testagram.audio_spaces.leave",{space_id:spaceId})}
- requestAudioSpaceSpeaker(spaceId:string){return this.call<{space_id:string;status:string}>("testagram.audio_spaces.request_speaker",{space_id:spaceId})}
- decideAudioSpaceSpeaker(spaceId:string,userId:string,decision:'approved'|'denied'){return this.call<{space_id:string;user_id:string;status:string}>("testagram.audio_spaces.decide_speaker",{space_id:spaceId,user_id:userId,decision})}
- endAudioSpace(spaceId:string){return this.call<{space_id:string;ended:boolean}>("testagram.audio_spaces.end",{space_id:spaceId})}
- sendAudioSpaceSuperchat(spaceId:string,message:string,amount:number,idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean}>("testagram.audio_spaces.superchat",{space_id:spaceId,message,amount,idempotency_key:idempotencyKey})}
- listPolls(n=20,offset=0){return testagramApiRequest<{items:any[];next_offset:number;has_more:boolean}>('/api/social/polls?limit='+limit(n)+'&offset='+Math.max(0,Math.trunc(offset)))}
- createPoll(input:{question:string;description?:string;options:string[];ends_at?:string|null}){return testagramApiRequest<any>('/api/social/polls',{method:'POST',body:input})}
- votePoll(pollId:string,optionId:string){return testagramApiRequest<{poll_id:string;option_id:string;voted:boolean}>('/api/social/polls/'+encodeURIComponent(pollId)+'/vote',{method:'POST',body:{option_id:optionId}})}
+   getFederationStatus(n = 20, c?: string) {
+    return this.call<CapabilityPage<unknown>>('testagram.federation.status', { limit: limit(n), ...cursor(c) });
+  }
+  getWallet(n = 20, c?: string, currency = 'KES') {
+    return Promise.all([
+      this.call<{ id: string; user_id: string; balance: string; currency: string; status: string }>('testagram.wallet.balance', { currency }),
+      this.call<{ items: unknown[] }>('testagram.wallet.transactions.list', { limit: limit(n), ...cursor(c) }),
+    ]).then(([wallet, history]) => ({ wallet, transactions: history.items ?? [], next_cursor: null as string | null }));
+  }
+  getWalletTransactions(n = 20, c?: string) {
+    return this.call<{ items: unknown[] }>('testagram.wallet.transactions.list', { limit: limit(n), ...cursor(c) })
+      .then((result) => ({ items: result.items, next_cursor: null as string | null }));
+  }
+  transferWallet(recipientId: string, amount: number, note: string = '', idempotencyKey: string = rid()) {
+    return this.call<{ transfer_id: string; status: string; duplicate: boolean; amount: string; currency: string }>(
+      'testagram.wallet.transfer',
+      { recipient_id: recipientId, amount, note, idempotency_key: idempotencyKey },
+    );
+  }
+  tipWallet(recipientId: string, amount: number, note: string = '', idempotencyKey: string = rid()) {
+    return this.call<{ transfer_id: string; status: string; duplicate: boolean; amount: string; currency: string }>(
+      'testagram.wallet.tip',
+      { recipient_id: recipientId, amount, note, idempotency_key: idempotencyKey },
+    );
+  }
+  listConversations(limitValue = 50) {
+    return this.call<{ items: any[]; next_cursor: string | null }>(
+      'testagram.conversations.list',
+      { limit: Math.min(100, Math.max(1, Math.floor(limitValue))) },
+    );
+  }
+  createConversation(memberIds: string[], title: string = '') {
+    return this.call<{ conversation_id: string }>('testagram.conversations.create', { member_ids: memberIds, title });
+  }
+  listMessages(conversationId: string, limitValue = 50, c?: string) {
+    return this.call<CapabilityPage<any>>('testagram.messages.list', { conversation_id: conversationId, limit: limit(limitValue), ...cursor(c) });
+  }
+  sendEncryptedMessage(input: { conversationId: string; ciphertext: string; nonce: string; clientMessageId: string; replyToMessageId?: string; sharedPostId?: string; aad?: string }) {
+    return this.call<{ message: any }>('testagram.messages.send_encrypted', {
+      conversation_id: input.conversationId,
+      ciphertext: input.ciphertext,
+      nonce: input.nonce,
+      client_message_id: input.clientMessageId,
+      ...(input.replyToMessageId ? { reply_to_message_id: input.replyToMessageId } : {}),
+      ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}),
+      ...(input.aad ? { aad: input.aad } : {}),
+    });
+  }
+  editEncryptedMessage(messageId: string, ciphertext: string, nonce: string, aad?: string) {
+    return this.call<{ message: any }>('testagram.messages.edit_encrypted', {
+      message_id: messageId, ciphertext, nonce, ...(aad ? { aad } : {}),
+    });
+  }
+  deleteMessage(messageId: string) {
+    return this.call<{ deleted: boolean }>('testagram.messages.delete', { message_id: messageId });
+  }
+  markConversationRead(conversationId: string) {
+    return this.call<{ read: boolean }>('testagram.messages.mark_read', { conversation_id: conversationId });
+  }
+  reactToMessage(messageId: string, reaction: string, remove = false) {
+    return this.call<{ reacted: boolean }>('testagram.messages.react', { message_id: messageId, reaction, remove });
+  }
+  attachMessageMetadata(messageId: string, attachmentMetadata: Record<string, unknown>) {
+    return this.call<{ attached: boolean }>('testagram.messages.attach', { message_id: messageId, attachment_metadata: attachmentMetadata });
+  }
+  getConversationRealtimeTicket(conversationId: string) {
+    return this.call<{ ticket: string; websocket_url: string; expires_in: number }>('testagram.realtime.ticket', { conversation_id: conversationId });
+  }
+  createCall(conversationId: string, kind = 'audio') {
+    return this.call<{ call_id: string; status: string }>('testagram.calls.create', { conversation_id: conversationId, kind });
+  }
+  joinCall(callId: string) {
+    return this.call<{ call_id: string; joined: boolean }>('testagram.calls.join', { call_id: callId });
+  }
+  endCall(callId: string) {
+    return this.call<{ call_id: string; ended: boolean }>('testagram.calls.end', { call_id: callId });
+  }
+  listCalls(limitValue = 30) {
+    return this.call<CapabilityPage<any>>('testagram.calls.list', { limit: Math.min(100, Math.max(1, Math.floor(limitValue))) });
+  }
+  getCall(callId: string) {
+    return this.call<{ call: any }>('testagram.calls.get', { call_id: callId });
+  }
+  getCallMediaToken(roomId: string) {
+    return this.call<{ token: string; ws_url: string; room_id: string; room_type: string; role: string; ice_servers: any[] }>(
+      'testagram.media.token', { room_id: roomId, room_type: 'call' },
+    );
+  }
+  listLiveAudioSpaces() {
+    return this.call<CapabilityPage<any>>('testagram.audio_spaces.list_live', {});
+  }
+  getAudioSpace(spaceId: string) {
+    return this.call<{ space: any }>('testagram.audio_spaces.get', { space_id: spaceId });
+  }
+  getMyAudioSpaceStatus() {
+    return this.call<{ items: any[] }>('testagram.audio_spaces.my_status', {});
+  }
+  getPendingAudioSpaceSpeakerRequests(spaceId: string) {
+    return this.call<{ items: any[] }>('testagram.audio_spaces.pending_speaker_requests', { space_id: spaceId });
+  }
+  createAudioSpace(title: string, description = '', maxAudience = 1000) {
+    return this.call<{ space_id: string; status: string; host_id: string }>('testagram.audio_spaces.create', { title, description, max_audience: maxAudience });
+  }
+  joinAudioSpace(spaceId: string) {
+    return this.call<{ space_id: string; joined: boolean }>('testagram.audio_spaces.join', { space_id: spaceId });
+  }
+  leaveAudioSpace(spaceId: string) {
+    return this.call<{ space_id: string; left: boolean }>('testagram.audio_spaces.leave', { space_id: spaceId });
+  }
+  requestAudioSpaceSpeaker(spaceId: string) {
+    return this.call<{ space_id: string; status: string }>('testagram.audio_spaces.request_speaker', { space_id: spaceId });
+  }
+  decideAudioSpaceSpeaker(spaceId: string, userId: string, decision: 'approved' | 'denied') {
+    return this.call<{ space_id: string; user_id: string; status: string }>('testagram.audio_spaces.decide_speaker', { space_id: spaceId, user_id: userId, decision });
+  }
+  endAudioSpace(spaceId: string) {
+    return this.call<{ space_id: string; ended: boolean }>('testagram.audio_spaces.end', { space_id: spaceId });
+  }
+  sendAudioSpaceSuperchat(spaceId: string, message: string, amount: number, idempotencyKey: string = rid()) {
+    return this.call<{ transfer_id: string; status: string; duplicate: boolean }>(
+      'testagram.audio_spaces.superchat', { space_id: spaceId, message, amount, idempotency_key: idempotencyKey },
+    );
+  }
+  listPolls(n = 20, offset = 0) {
+    return testagramApiRequest<{ items: any[]; next_offset: number; has_more: boolean }>(
+      '/api/social/polls?limit=' + limit(n) + '&offset=' + Math.max(0, Math.trunc(offset)),
+    );
+  }
+  createPoll(input: { question: string; description?: string; options: string[]; ends_at?: string | null }) {
+    return testagramApiRequest<any>('/api/social/polls', { method: 'POST', body: input });
+  }
+  votePoll(pollId: string, optionId: string) {
+    return testagramApiRequest<{ poll_id: string; option_id: string; voted: boolean }>(
+      '/api/social/polls/' + encodeURIComponent(pollId) + '/vote',
+      { method: 'POST', body: { option_id: optionId } },
+    );
+  }
 }
  
 export const backendCapabilities = new TestagramCapabilityClient({
