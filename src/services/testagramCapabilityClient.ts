@@ -19,13 +19,13 @@ export type TestagramCapabilityClientOptions={endpoint:string;getAccessToken?:()
 export class CapabilityClientError extends Error{readonly code:string;readonly requestId:string|null;readonly status:number|null;constructor(message:string,o:{code?:string;requestId?:string|null;status?:number|null}={}){super(message);this.name="CapabilityClientError";this.code=o.code??"CAPABILITY_REQUEST_FAILED";this.requestId=o.requestId??null;this.status=o.status??null;}}
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
-const CAPABILITY_GATEWAY_ENDPOINT='/v1/capabilities';
+const CAPABILITY_GATEWAY_ENDPOINT='/api/capability';
 export class TestagramCapabilityClient{
  private readonly endpoint: string;
  constructor(o:TestagramCapabilityClientOptions){
   const endpoint = o.endpoint.trim();
-  if (!endpoint.startsWith('/v1/') || endpoint.startsWith('/v1/internal/') || endpoint.startsWith('//')) {
-   throw new Error('Capability endpoint must be a public, versioned Backend route.');
+  if (endpoint !== '/api/capability') {
+   throw new Error('Capability endpoint must use the registered public Backend capability route.');
   }
   this.endpoint = endpoint;
  }
