@@ -495,6 +495,27 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
   getThread(threadId: string) {
     return testagramApiRequest<any>('/api/threads/' + encodeURIComponent(threadId), { anonymous: true });
   }
+  listThreadLikes(threadId: string, n = 50) {
+    return testagramApiRequest<{ items: any[] }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/likes?limit=' + limit(n),
+    ).then(result => result.items ?? []);
+  }
+  getThreadLikeState(threadId: string) {
+    return testagramApiRequest<{ liked: boolean }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/likes/state',
+    ).then(result => Boolean(result.liked));
+  }
+  getThreadLikeStates(threadIds: string[]) {
+    return testagramApiRequest<{ thread_ids: string[] }>('/api/threads/likes/states', {
+      method: 'POST', body: { thread_ids: threadIds.slice(0, 100) },
+    }).then(result => new Set(result.thread_ids ?? []));
+  }
+  toggleThreadLike(threadId: string) {
+    return testagramApiRequest<{ thread_id: string; liked: boolean }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/likes/toggle',
+      { method: 'POST', body: {} },
+    ).then(result => Boolean(result.liked));
+  }
   listThreadReposts(threadId: string, n = 50) {
     return testagramApiRequest<{ items: any[] }>(
       '/api/threads/' + encodeURIComponent(threadId) + '/reposts?limit=' + limit(n),
