@@ -1,9 +1,10 @@
-import { appwriteAuth } from '@/services/appwriteAuth';
+import { appwriteAuth, APPWRITE_AUTH_CHANGED_EVENT } from '@/services/appwriteAuth';
 
 const REQUEST_TYPE = 'testagram:iptv-social:request';
 const RESPONSE_TYPE = 'testagram:iptv-social:response';
 const API_ORIGIN = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
 const ALLOWED_ACTIONS = new Set([
+  'session_info', 'sign_out',
   'reactions_state', 'reaction_toggle',
   'comments_list', 'comments_count', 'comment_add', 'comment_delete',
   'bookmark_list', 'bookmark_toggle',
@@ -47,6 +48,33 @@ export function installIptvSocialBridge() {
       respond(target, event.origin, message.requestId, false, null, 'The canonical Backend API URL is not configured.');
       return;
     }
+    if (action === 'session_info') {
+      try {
+        const user = await appwriteAuth.getCurrentUser();
+        respond(target, event.origin, message.requestId, true, {
+          user: user ? {
+            id: user.$id,
+            email: user.email,
+            username: user.prefs?.username || user.name || user.email.split('@')[0],
+            avatar: user.prefs?.avatar_url || undefined,
+          } : null,
+        }, null);
+      } catch (error) {
+        respond(target, event.origin, message.requestId, false, null,
+          error instanceof Error ? error.message : 'Could not read the Appwrite session.');
+      }
+      return;
+    }
+    if (action === 'sign_out') {
+      try {
+        await appwriteAuth.signOut();
+        respond(target, event.origin, message.requestId, true, { signed_out: true }, null);
+      } catch (error) {
+        respond(target, event.origin, message.requestId, false, null,
+          error instanceof Error ? error.message : 'Could not sign out.');
+      }
+      return;
+    }
     activeRequests += 1;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 12000);
@@ -84,5 +112,10 @@ export function installIptvSocialBridge() {
       window.clearTimeout(timeout);
       activeRequests = Math.max(0, activeRequests - 1);
     }
+  });
+  window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, () => {
+    document.querySelectorAll('iframe').forEach((frame) => {
+      try { frame.contentWindow?.postMessage({ type: 'testagram:auth-changed' }, window.location.origin); } catch {}
+    });
   });
 }
