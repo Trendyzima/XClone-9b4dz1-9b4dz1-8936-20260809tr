@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Hash, Plus, Check, Loader2, TrendingUp, X } from 'lucide-react';
@@ -24,15 +24,14 @@ export function HashtagFollowButton({ tag, hashtagId, usageCount, showCount = tr
 
   useEffect(() => {
     if (!user || !resolvedId) return;
-    supabase.from('hashtag_follows').select('id').eq('user_id', user.id).eq('hashtag_id', resolvedId).maybeSingle()
-      .then(({ data }) => setFollowing(!!data));
+    backendCapabilities.getHashtagFollowState(resolvedId).then(({ following }) => setFollowing(Boolean(following))).catch(() => setFollowing(false));
   }, [user?.id, resolvedId]);
 
   // Resolve hashtag id if not provided
   useEffect(() => {
     if (hashtagId) return;
-    supabase.from('hashtags').select('id').eq('tag', tag.replace(/^#/, '').toLowerCase()).maybeSingle()
-      .then(({ data }) => { if (data) setResolvedId(data.id); });
+    backendCapabilities.resolveHashtag(tag.replace(/^#/, '').toLowerCase())
+      .then(data => setResolvedId(data.id)).catch(() => {});
   }, [tag, hashtagId]);
 
   const toggle = async (e: React.MouseEvent) => {
@@ -40,18 +39,17 @@ export function HashtagFollowButton({ tag, hashtagId, usageCount, showCount = tr
     e.stopPropagation();
     if (!user) { navigate('/auth'); return; }
     if (!resolvedId) {
-      // Upsert hashtag first
-      const { data } = await supabase.from('hashtags').upsert({ tag: tag.replace(/^#/, '').toLowerCase() }, { onConflict: 'tag' }).select('id').maybeSingle();
-      if (!data) return;
+      const data = await backendCapabilities.resolveHashtag(tag.replace(/^#/, '').toLowerCase());
+      if (!data?.id) return;
       setResolvedId(data.id);
     }
     setLoading(true);
     if (following) {
-      await supabase.from('hashtag_follows').delete().eq('user_id', user.id).eq('hashtag_id', resolvedId!);
+      await backendCapabilities.setHashtagFollow(resolvedId!, false);
       setFollowing(false);
       toast.success(`Unfollowed #${tag.replace(/^#/, '')}`);
     } else {
-      await supabase.from('hashtag_follows').insert({ user_id: user.id, hashtag_id: resolvedId });
+      await backendCapabilities.setHashtagFollow(resolvedId!, true);
       setFollowing(true);
       toast.success(`Following #${tag.replace(/^#/, '')}!`);
     }
@@ -103,15 +101,10 @@ export function FollowedHashtagsPanel({ onClose }: { onClose?: () => void }) {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('hashtag_follows')
-      .select('hashtag_id, hashtags(id, tag, usage_count)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setHashtags((data ?? []).map((d: any) => d.hashtags).filter(Boolean));
-        setLoading(false);
-      });
+    backendCapabilities.listFollowedHashtags()
+      .then(({ items }) => setHashtags(items ?? []))
+      .catch(error => { console.warn('[hashtags] Backend follow list unavailable', error); setHashtags([]); })
+      .finally(() => setLoading(false));
   }, [user?.id]);
 
   if (!user) return null;
@@ -165,11 +158,11 @@ export function HashtagChip({ tag }: HashtagChipProps) {
   const cleanTag = tag.replace(/^#/, '').toLowerCase();
 
   const loadHashtag = async () => {
-    const { data } = await supabase.from('hashtags').select('id, tag, usage_count').eq('tag', cleanTag).maybeSingle();
+    const data = await backendCapabilities.resolveHashtag(cleanTag);
     setHashtagData(data);
     if (data && user) {
-      const { data: follow } = await supabase.from('hashtag_follows').select('id').eq('user_id', user.id).eq('hashtag_id', data.id).maybeSingle();
-      setFollowing(!!follow);
+      const follow = await backendCapabilities.getHashtagFollowState(data.id);
+      setFollowing(Boolean(follow.following));
     }
   };
 
@@ -180,11 +173,11 @@ export function HashtagChip({ tag }: HashtagChipProps) {
     if (!hashtagData) return;
     setLoading(true);
     if (following) {
-      await supabase.from('hashtag_follows').delete().eq('user_id', user.id).eq('hashtag_id', hashtagData.id);
+      await backendCapabilities.setHashtagFollow(hashtagData.id, false);
       setFollowing(false);
       toast.success(`Unfollowed #${cleanTag}`);
     } else {
-      await supabase.from('hashtag_follows').insert({ user_id: user.id, hashtag_id: hashtagData.id });
+      await backendCapabilities.setHashtagFollow(hashtagData.id, true);
       setFollowing(true);
       toast.success(`Following #${cleanTag}!`);
     }

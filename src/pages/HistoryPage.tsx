@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, History, Trash2 } from 'lucide-react';
@@ -21,6 +21,7 @@ export default function HistoryPage() {
   const { toast } = useToast();
   const [history, setHistory] = useState<any[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [threads, setThreads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,23 +36,19 @@ export default function HistoryPage() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('browsing_history')
-        .select('id, entity_type, entity_id, metadata, created_at')
-        .eq('user_id', user.id)
-        .eq('entity_type', 'post')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      setHistory(data || []);
-      const postIds = (data || []).map((item: any) => item.entity_id).filter(Boolean);
-      if (postIds.length) {
-        const { data: viewedPosts } = await supabase.from('posts').select('*, profiles(*)').in('id', postIds).is('deleted_at', null);
-        const byId = new Map((viewedPosts || []).map((post: any) => [post.id, post]));
-        setPosts(postIds.map((id: string) => byId.get(id)).filter(Boolean) as Post[]);
-      } else setPosts([]);
+      const result = await backendCapabilities.listBrowsingHistory();
+      const entries = (result.items || []).filter((item) => ['post', 'video', 'thread'].includes(item.entity_type));
+      setHistory(entries);
+      const [postRows, threadRows] = await Promise.all([
+        Promise.all(entries.filter(item => item.entity_type === 'post' || item.entity_type === 'video').map(item =>
+          backendCapabilities.getPost(item.entity_id).catch(() => null),
+        )),
+        Promise.all(entries.filter(item => item.entity_type === 'thread').map(item =>
+          backendCapabilities.getThread(item.entity_id).catch(() => null),
+        )),
+      ]);
+      setPosts(postRows.filter(Boolean).map((item: any) => item.post ?? item) as Post[]);
+      setThreads(threadRows.filter(Boolean));
     } catch (error) {
       console.error('Error fetching history:', error);
     } finally {
@@ -65,15 +62,11 @@ export default function HistoryPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('browsing_history')
-        .delete()
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
+      await backendCapabilities.clearBrowsingHistory();
 
       setHistory([]);
       setPosts([]);
+      setThreads([]);
       toast({
         title: 'History cleared',
         description: 'Your browsing history has been deleted',
@@ -112,7 +105,7 @@ export default function HistoryPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      ) : posts.length === 0 ? (
+      ) : posts.length === 0 && threads.length === 0 ? (
         <div className="text-center py-12 px-4">
           <History className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
           <p className="font-semibold mb-2">No browsing history</p>
@@ -122,6 +115,12 @@ export default function HistoryPage() {
         </div>
       ) : (
         <div>
+          {threads.map((thread) => (
+            <button key={thread.id} onClick={() => navigate('/thread/' + thread.id)} className="w-full border-b border-border px-4 py-4 text-left hover:bg-muted/20">
+              <p className="whitespace-pre-wrap break-words text-sm leading-6">{thread.body || 'Thread with attachments'}</p>
+              <span className="mt-2 block text-xs text-muted-foreground">Thread · {new Date(thread.created_at).toLocaleString()}</span>
+            </button>
+          ))}
           {posts.map((post) => (
             <PostCard key={post.id} post={post} onUpdate={fetchHistory} />
           ))}

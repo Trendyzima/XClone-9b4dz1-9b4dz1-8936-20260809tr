@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, TrendingUp, Users, CheckCircle2, RefreshCw, Search, Globe2 } from 'lucide-react';
@@ -90,80 +90,55 @@ export default function DiscoverPage({ section, standalone = false }: { section?
 
   const loadFollowing = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
-    if (data) setFollowing(new Set(data.map((f) => f.following_id)));
-  }, [user]);
+    const targets = users.filter((item) => item.origin !== 'fediverse').slice(0, 40);
+    const states = await Promise.all(targets.map(async (item) => {
+      try { const result = await backendCapabilities.getFollowState(item.id); return [item.id, Boolean(result.state.following || result.state.requested)] as const; }
+      catch { return [item.id, false] as const; }
+    }));
+    setFollowing(new Set(states.filter(([, active]) => active).map(([id]) => id)));
+  }, [user, users]);
 
   const loadPopular = useCallback(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username, avatar_url, bio, follower_count, verified')
-      .order('follower_count', { ascending: false })
-      .neq('id', user?.id ?? '')
-      .limit(25);
-    if (data) setUsers(data);
-    setLoading(false);
+    try {
+      const page = await backendCapabilities.searchUsers('', 25);
+      setUsers((page.items ?? []).map((item: any) => ({
+        id: String(item.id), username: item.username ?? item.handle ?? 'user',
+        avatar_url: item.avatar_url ?? null, bio: item.bio ?? null,
+        follower_count: Number(item.follower_count ?? 0), verified: Boolean(item.verified),
+      })).filter((item: any) => item.id && item.id !== user?.id));
+    } catch (error) { console.error('[discover] Backend suggestions unavailable', error); setUsers([]); }
+    finally { setLoading(false); }
   }, [user]);
 
   const loadFediverse = useCallback(async () => {
     setLoading(true);
     try {
-      // Discovery must read the actual federated_actors contract. This table
-      // stores actor_uri/username/domain/display_name/bio/avatar_url; it does
-      // not use the old Mastodon serializer fields (uri/preferred_username).
-      const { data, error } = await supabase
-        .from('federated_actors')
-        .select('id, actor_uri, username, domain, display_name, bio, avatar_url, raw_actor, created_at')
-        .order('created_at', { ascending: false })
-        .limit(40);
-
-      if (error) throw error;
-
-      const merged: SuggestedUser[] = (data ?? []).map((row: any) => ({
-        id: 'fed:' + row.actor_uri,
-        username: String(row.username ?? row.display_name ?? 'Fediverse user'),
-        avatar_url: row.avatar_url ?? row.raw_actor?.icon?.url ?? row.raw_actor?.icon?.href ?? null,
-        bio: row.bio ?? row.raw_actor?.summary ?? null,
-        follower_count: Number(row.raw_actor?.followersCount ?? row.raw_actor?.followers_count ?? 0),
-        verified: Boolean(row.raw_actor?.verified),
-        origin: 'fediverse' as const,
-        actor_uri: row.actor_uri,
-        acct: row.domain ? `${row.username}@${row.domain}` : row.username,
-        domain: row.domain,
-      }));
-
+      const page = await backendCapabilities.searchUnified('', 'fediverse', 40);
+      const merged: SuggestedUser[] = (page.users ?? []).map((row: any) => ({
+        id: String(row.id ?? row.actor_uri ?? ''),
+        username: String(row.username ?? row.display_name ?? row.acct ?? 'Fediverse user'),
+        avatar_url: row.avatar_url ?? null, bio: row.bio ?? null,
+        follower_count: Number(row.follower_count ?? 0), verified: Boolean(row.verified),
+        origin: 'fediverse' as const, actor_uri: row.actor_uri ?? row.url ?? undefined,
+        acct: row.acct ?? row.username, domain: row.domain,
+      })).filter((row: any) => row.id);
       setUsers(merged);
-    } catch (error) {
-      console.error('[discover] fediverse discovery failed', error);
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error('[discover] Fediverse discovery unavailable', error); setUsers([]); }
+    finally { setLoading(false); }
   }, []);
+
   const loadSuggested = useCallback(async () => {
     if (!user) { await loadPopular(); return; }
-    const { data } = await supabase
-      .from('user_suggestions')
-      .select(`
-        score,
-        reason,
-        suggested_user:user_profiles!user_suggestions_suggested_user_id_fkey(
-          id, username, avatar_url, bio, follower_count, verified
-        )
-      `)
-      .eq('user_id', user.id)
-      .order('score', { ascending: false })
-      .limit(25);
-
-    if (data && data.length > 0) {
-      const mapped: SuggestedUser[] = data
-        .filter((d) => d.suggested_user)
-        .map((d) => ({ ...(d.suggested_user as any), score: d.score, reason: d.reason }));
-      setUsers(mapped);
-      setLoading(false);
-    } else {
-      await loadPopular();
-    }
+    try {
+      const result = await backendCapabilities.generateRecommendations();
+      const rows = Array.isArray(result.recommendations) ? result.recommendations : [];
+      const mapped: SuggestedUser[] = rows.map((row: any) => {
+        const profile = row.user ?? row.profile ?? row;
+        return { ...profile, id: String(profile.id ?? ''), score: row.score, reason: row.reason };
+      }).filter((row: any) => row.id && row.id !== user.id);
+      if (mapped.length) { setUsers(mapped); setLoading(false); }
+      else await loadPopular();
+    } catch (error) { console.warn('[discover] recommendations unavailable; using API user search', error); await loadPopular(); }
   }, [user, loadPopular]);
 
   useEffect(() => {
@@ -193,11 +168,13 @@ export default function DiscoverPage({ section, standalone = false }: { section?
     } else {
       const isFollowing = following.has(targetId);
       if (isFollowing) {
-        const { error } = await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetId);
-        if (!error) { setFollowing((prev) => { const n = new Set(prev); n.delete(targetId); return n; }); toast.success('Unfollowed'); }
+        await backendCapabilities.followUser(targetId, false);
+        setFollowing((prev) => { const n = new Set(prev); n.delete(targetId); return n; });
+        toast.success('Unfollowed');
       } else {
-        const { error } = await supabase.from('follows').insert({ follower_id: user.id, following_id: targetId });
-        if (!error) { setFollowing((prev) => new Set(prev).add(targetId)); toast.success('Following!'); }
+        await backendCapabilities.followUser(targetId, true);
+        setFollowing((prev) => new Set(prev).add(targetId));
+        toast.success('Following!');
       }
     }
     setFollowLoading((prev) => { const n = new Set(prev); n.delete(targetId); return n; });

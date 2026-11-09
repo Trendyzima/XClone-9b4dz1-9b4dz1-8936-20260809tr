@@ -1,4 +1,6 @@
-const DB_NAME='testagram-feed-cache-v3-appwrite';
+// v4 starts with an empty client cache after the canonical Backend feed cutover.
+// This prevents any pre-cutover or ambiguous feed rows from being replayed offline.
+const DB_NAME='testagram-feed-cache-v4';
 const STORE='home-feed';
 // Keep a bounded offline window; page size is six so this aligns with full feed pages.
 export const HOME_FEED_CACHE_LIMIT=288;

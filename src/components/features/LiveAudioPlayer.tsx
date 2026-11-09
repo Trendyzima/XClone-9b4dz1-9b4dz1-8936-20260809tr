@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useToast } from '@/hooks/use-toast';
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,16 +30,9 @@ export function LiveAudioPlayer({ spaceId, isLive = false }: LiveAudioPlayerProp
 
   const fetchRecordings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('space_recordings')
-        .select('*')
-        .eq('space_id', spaceId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (error) throw error;
-      if (data?.length) {
-        setCurrentRecording(prev => prev ?? data[0]);
-      }
+      const result = await backendCapabilities.call<{ items: any[] }>('testagram.audio_spaces.recordings.list', { space_id: spaceId, limit: 1 });
+      const recording = result.items?.[0];
+      if (recording) setCurrentRecording(prev => prev ?? recording);
     } catch (error) {
       console.error('[Audio Space] recording fetch failed', error);
     }

@@ -9,6 +9,7 @@ type UploadReservation = {
   expires_at: string;
   reserved_bytes: number;
   status: 'reserved' | 'uploaded_primary' | 'protected';
+  primary_provider?: 'b2' | 'r2';
 };
 
 type APIError = { error?: { message?: string } };
@@ -62,8 +63,8 @@ function safeUploadType(file: File): string {
 
 export const freshMediaApi = {
   /**
-   * Uploads directly from the browser to private B2 storage, then asks the
-   * Appwrite-backed API to verify B2 and create a verified R2 replica.
+   * Uploads directly to the provider selected and persisted by Backend for this
+   * reservation, then asks Backend to verify the origin and its peer replica.
    * The server calculates SHA-256 while streaming the stored object, avoiding
    * loading large video files into browser memory for Web Crypto hashing.
    */
@@ -99,8 +100,20 @@ export const freshMediaApi = {
     }
 
     if (reservation.status === 'reserved') {
+      const primaryProvider = reservation.primary_provider ?? 'b2';
+      if (primaryProvider !== 'b2' && primaryProvider !== 'r2') {
+        throw new FreshMediaError('The storage service selected an unsupported upload provider.');
+      }
       if (!reservation.upload_url || reservation.upload_method !== 'PUT' || !reservation.required_headers?.['Content-Type']) {
-        throw new FreshMediaError('The storage service returned an invalid B2 upload URL.');
+        throw new FreshMediaError('The storage service returned an invalid upload URL.');
+      }
+      let uploadURL: URL;
+      try { uploadURL = new URL(reservation.upload_url); } catch { throw new FreshMediaError('The storage service returned an invalid upload URL.'); }
+      const allowedHost = primaryProvider === 'b2'
+        ? uploadURL.hostname === 'backblazeb2.com' || uploadURL.hostname.endsWith('.backblazeb2.com')
+        : uploadURL.hostname === 'r2.cloudflarestorage.com' || uploadURL.hostname.endsWith('.r2.cloudflarestorage.com');
+      if (uploadURL.protocol !== 'https:' || uploadURL.username || uploadURL.password || uploadURL.hash || !allowedHost) {
+        throw new FreshMediaError('The storage service returned an upload URL outside the selected private object-store provider.');
       }
       // Do not attach the Appwrite JWT to the object-store URL.
       let uploadResponse: Response;
@@ -114,9 +127,9 @@ export const freshMediaApi = {
           redirect: 'error',
         });
       } catch {
-        throw new FreshMediaError('The media upload to B2 failed. Retry with the same idempotency key.', 0, idempotencyKey);
+        throw new FreshMediaError('The media upload failed. Retry with the same idempotency key.', 0, idempotencyKey);
       }
-      if (!uploadResponse.ok) throw new FreshMediaError('The media upload to B2 failed. Retry with the same idempotency key.', uploadResponse.status, idempotencyKey);
+      if (!uploadResponse.ok) throw new FreshMediaError('The media upload failed. Retry with the same idempotency key.', uploadResponse.status, idempotencyKey);
     }
 
     let completeResponse: Response;

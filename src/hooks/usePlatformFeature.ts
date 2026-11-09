@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 
 export type PlatformFeatureKey =
   | 'platform.overview'
@@ -30,13 +30,9 @@ export function usePlatformFeatures() {
     }
 
     setLoading(true);
-    const { data } = await supabase
-      .from('platform_feature_assignments')
-      .select('feature_key')
-      .eq('user_id', user.id)
-      .eq('active', true);
+    const result = await backendCapabilities.call<{ items: Array<{ feature_key: string }> }>('testagram.platform.features.list').catch(() => ({ items: [] }));
 
-    setFeatures(new Set((data ?? []).map((row) => row.feature_key)));
+    setFeatures(new Set((result.items ?? []).map((row) => row.feature_key)));
     setLoading(false);
   }, [user?.id]);
 
@@ -70,13 +66,10 @@ export function usePlatformFeature(feature: PlatformFeatureKey | string) {
       }
 
       setLoading(true);
-      const { data, error } = await supabase.rpc('platform_has_feature', {
-        p_feature_key: feature,
-        p_user_id: user.id,
-      });
+      const result = await backendCapabilities.call<{ allowed: boolean }>('testagram.platform.features.check', { feature_key: feature }).catch(() => ({ allowed: false }));
 
       if (mounted) {
-        setAllowed(!error && data === true);
+        setAllowed(result.allowed === true);
         setLoading(false);
       }
     };

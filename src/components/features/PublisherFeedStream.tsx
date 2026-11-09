@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ExternalLink, Heart, Flame, Laugh, Newspaper, ThumbsUp } from 'lucide-react';
-import { supabaseUrl } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 
 export type FeedItem = {
   id: string;
@@ -51,17 +51,28 @@ function writeReactions(value: Record<string, ReactionKey>) {
 export async function loadPublisherFeed(): Promise<FeedItem[]> {
   if (cache.items.length && Date.now() - cache.at < CACHE_TTL) return freshRssItems(cache.items);
   if (pending) return pending;
-  pending = fetch(supabaseUrl + '/functions/v1/testagram-rss-feed?limit=12', {
-    headers: { Accept: 'application/json' },
-    credentials: 'omit',
-    cache: 'no-store',
-  })
-    .then(async response => {
-      if (!response.ok) throw new Error('RSS feed HTTP ' + response.status);
-      const payload = await response.json();
-      const items = freshRssItems(Array.isArray(payload?.items) ? payload.items.slice(0, 12) as FeedItem[] : []);
+  pending = backendCapabilities.call<any>('testagram.news.trending', { limit: 12 })
+    .then(payload => {
+      const sourceItems = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+      const items = sourceItems.slice(0, 12).map((row: any): FeedItem | null => {
+        const canonical = String(row?.detail_url ?? row?.source_url ?? '').trim();
+        const published = String(row?.published_at ?? row?.updated_at ?? '').trim();
+        if (!canonical || !/^https:\/\//i.test(canonical) || !published) return null;
+        return {
+          id: String(row.id ?? row.newsify_item_id ?? canonical),
+          title: String(row.title ?? row.trend_title ?? 'News update'),
+          excerpt: row.excerpt ?? null,
+          canonical_url: canonical,
+          image_url: row.metadata?.image_url ?? row.metadata?.image ?? null,
+          favicon_url: null,
+          category: row.category ?? row.geo ?? 'news',
+          country_code: row.country_code ?? null,
+          published_at: published,
+          testagram_rss_source_profiles: { display_name: row.source_name ?? 'News partner' },
+        };
+      }).filter((item: FeedItem | null): item is FeedItem => Boolean(item));
       cache = { at: Date.now(), items };
-      return items;
+      return freshRssItems(items);
     })
     .catch(() => freshRssItems(cache.items))
     .finally(() => { pending = null; });

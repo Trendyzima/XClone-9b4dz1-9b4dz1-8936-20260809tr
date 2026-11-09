@@ -3,7 +3,7 @@ import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, Trash2, TrendingUp, Zap, Eye, BarChart3, Users, History, X, Languages, Loader2 as TransLoader, DollarSign, Flag, Check as CheckIcon, Send as SendIcon, Crown, Megaphone, Quote, Activity, Globe } from 'lucide-react';
 import { Post } from '@/types/app-types';
 import { formatDistanceToNow } from 'date-fns';
-import { supabase } from '@/lib/supabase';
+import { testagramApiRequest } from '@/services/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -114,25 +114,16 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const [showEditHistory, setShowEditHistory] = useState(false);
   const editHistory: any[] = (post as any).edit_history ?? [];
 
-  // Fetch author premium status using the static supabase import (no dynamic import)
+  // Author premium status is resolved by the Backend capability.
   useEffect(() => {
     const uid = post.user_id;
     if (premiumCache.has(uid)) {
       setIsAuthorPremium(premiumCache.get(uid)!);
       return;
     }
-    supabase
-      .from('premium_subscriptions')
-      .select('id')
-      .eq('user_id', uid)
-      .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle()
-      .then(({ data }) => {
-        const has = !!data;
-        premiumCache.set(uid, has);
-        setIsAuthorPremium(has);
-      });
+    backendCapabilities.call<{ active: boolean }>('testagram.profile.premium.status', { user_id: uid })
+      .then(result => { const has = Boolean(result?.active); premiumCache.set(uid, has); setIsAuthorPremium(has); })
+      .catch(() => { premiumCache.set(uid, false); setIsAuthorPremium(false); });
   }, [post.user_id]);
 
   // Post Reactions
@@ -199,38 +190,16 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     setTranslating(true);
     setShowLangPicker(false);
     try {
-      const langName = LANGUAGES.find(l => l.code === selectedLang)?.label ?? selectedLang;
-      const { data: cached } = await supabase
-        .from('post_translations')
-        .select('translated_content')
-        .eq('post_id', post.id)
-        .eq('language_code', selectedLang)
-        .maybeSingle();
-      if (cached?.translated_content) {
-        translationCacheRef.current[selectedLang] = cached.translated_content;
-        setTranslatedContent(cached.translated_content);
-        setTargetLang(selectedLang);
-        setShowTranslation(true);
-        setTranslating(false);
-        return;
-      }
-      const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: {
-          messages: [{ role: 'user', content: `Translate the following social media post to ${langName}. Return ONLY the translated text, no explanations:\n\n${post.content}` }],
-          model: 'gemini-2.0-flash',
-        },
+      const result = await backendCapabilities.call<{ translated_content: string }>('testagram.posts.translate', {
+        post_id: post.id,
+        language_code: selectedLang,
       });
-      if (error) throw error;
-      const translated = data?.choices?.[0]?.message?.content ?? data?.content ?? data?.text ?? data?.response ?? '';
-      if (translated.trim()) {
-        translationCacheRef.current[selectedLang] = translated.trim();
-        setTranslatedContent(translated.trim());
+      const translated = String(result?.translated_content ?? '').trim();
+      if (translated) {
+        translationCacheRef.current[selectedLang] = translated;
+        setTranslatedContent(translated);
         setTargetLang(selectedLang);
         setShowTranslation(true);
-        await supabase.from('post_translations').upsert(
-          { post_id: post.id, language_code: selectedLang, translated_content: translated.trim() },
-          { onConflict: 'post_id,language_code' }
-        ).catch(() => {});
       }
     } catch (err) {
       console.warn('[translate]', err);
@@ -275,14 +244,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!tipAmount || tipAmount <= 0) return;
     setTippingLoading(true);
     try {
-      const { error: tipErr } = await supabase.rpc('send_wallet_tip', {
-        p_to_user_id: post.user_id,
-        p_amount: tipAmount,
-        p_note: tipMessage.trim() || `Tip on post ${post.id}`,
-        p_idempotency_key: `post-tip:${post.id}:${user.id}:${crypto.randomUUID()}`,
-      });
-      if (tipErr) throw tipErr;
-      await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id });
+      await backendCapabilities.tipWallet(post.user_id, tipAmount, tipMessage.trim() || `Tip on post ${post.id}`, `post-tip:${post.id}:${user.id}:${crypto.randomUUID()}`);
       toast({ title: `Tip of $${tipAmount} sent!`, description: `You tipped @${authorUsername}` });
       setShowTipDialog(false);
       setTipAmount(null);
@@ -310,51 +272,31 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const fetchFullAnalyticsData = useCallback(async () => {
     if (fullAnalyticsData) return;
     setFullAnalyticsLoading(true);
-    // 7-day daily view counts from browsing_history
-    const since = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
-    const [historyRes, analyticsRes] = await Promise.all([
-      supabase.from('browsing_history').select('created_at').eq('entity_id', post.id).eq('entity_type', 'post').gte('created_at', since),
-      supabase.from('post_analytics').select('views, unique_viewers, engagement_rate, shares').eq('post_id', post.id).maybeSingle(),
-    ]);
-    // Build 7-day chart — parallel arrays, no index-sig (esbuild guard)
-    const dayKeys: string[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      dayKeys.push(d.toISOString().slice(0, 10));
+    try {
+      const result = await backendCapabilities.call<{
+        daily_views?: Array<{ date: string; views: number }>;
+        views?: number; unique_viewers?: number; engagement_rate?: number; shares?: number;
+        reactions?: Record<string, number>;
+      }>('testagram.posts.analytics.get', { post_id: post.id });
+      const dayKeys: string[] = [];
+      for (let i = 6; i >= 0; i--) dayKeys.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+      setFullAnalyticsData(Array.isArray(result.daily_views) ? result.daily_views : dayKeys.map(date => ({ date: date.slice(5), views: 0 })));
+      setFullAnalyticsMeta({
+        views: Number(result.views ?? post.views_count ?? 0),
+        unique: Number(result.unique_viewers ?? 0),
+        engagement: Number(result.engagement_rate ?? 0),
+        shares: Number(result.shares ?? 0),
+      });
+      const entries = Object.entries(result.reactions ?? {}).sort((a,b) => b[1]-a[1]);
+      setReactionSummaryEmojis(entries.map(([emoji]) => emoji));
+      setReactionSummaryCounts(entries.map(([,count]) => Number(count)));
+    } catch (error) {
+      console.warn('[post-analytics] Backend analytics unavailable', error);
+      setFullAnalyticsData([]);
+      setFullAnalyticsMeta({ views: Number(post.views_count ?? 0), unique: 0, engagement: 0, shares: 0 });
+      setReactionSummaryEmojis([]);
+      setReactionSummaryCounts([]);
     }
-    const counts = new Array<number>(7).fill(0);
-    for (const row of (historyRes.data ?? [])) {
-      const day = String(row.created_at ?? '').slice(0, 10);
-      const idx = dayKeys.indexOf(day);
-      if (idx >= 0) counts[idx]++;
-    }
-    setFullAnalyticsData(dayKeys.map((d, i) => ({ date: d.slice(5), views: counts[i] })));
-    const a = analyticsRes.data;
-    setFullAnalyticsMeta({
-      views: a?.views ?? post.views_count ?? 0,
-      unique: a?.unique_viewers ?? 0,
-      engagement: Number(a?.engagement_rate ?? 0),
-      shares: a?.shares ?? 0,
-    });
-    // Fetch reactions summary
-    const { data: reactData } = await supabase
-      .from('post_reactions')
-      .select('emoji')
-      .eq('post_id', post.id)
-      .eq('emoji', '❤️');
-    const emojiList: string[] = [];
-    const countList: number[] = [];
-    for (const row of (reactData ?? [])) {
-      const idx = emojiList.indexOf(row.emoji);
-      if (idx >= 0) countList[idx]++;
-      else { emojiList.push(row.emoji); countList.push(1); }
-    }
-    // Sort descending by count
-    const sortOrder = countList
-      .map((c, i) => ({ c, i }))
-      .sort((a, b) => b.c - a.c);
-    setReactionSummaryEmojis(sortOrder.map(s => emojiList[s.i]));
-    setReactionSummaryCounts(sortOrder.map(s => s.c));
     setFullAnalyticsLoading(false);
   }, [post.id, post.views_count, fullAnalyticsData]);
 
@@ -365,11 +307,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       if (isFederatedPost) {
         await federation.flagStatus(interactionPostId, reportCategory);
       } else {
-        const { error } = await supabase.from('post_reports').upsert(
-          { post_id: post.id, reporter_id: user.id, category: reportCategory },
-          { onConflict: 'post_id,reporter_id' }
-        );
-        if (error) throw error;
+        await backendCapabilities.call('testagram.posts.report', { post_id: post.id, category: reportCategory });
       }
       toast({ title: 'Report submitted', description: 'Thanks for helping keep the community safe.' });
       setShowReportDialog(false);
@@ -507,12 +445,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         if (!cancelled) setPoll(embedded);
         return;
       }
-      const { data } = await supabase
-        .from('polls')
-        .select('id,post_id,question,description,status,ends_at,allow_multiple,visibility')
-        .eq('post_id', post.id)
-        .maybeSingle();
-      if (!cancelled && data) setPoll(data);
+      try {
+        const result = await backendCapabilities.getPollByPost(post.id);
+        if (!cancelled && result?.poll) setPoll(result.poll);
+      } catch { /* Poll API is not enabled for this post yet. */ }
     };
     void fetchPoll();
     return () => { cancelled = true; };
@@ -647,8 +583,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) return;
     try {
-      const { error } = await supabase.from('posts').delete().eq('id', post.id).eq('user_id', user?.id);
-      if (error) throw error;
+      await testagramApiRequest(`/v1/posts/${encodeURIComponent(post.id)}`, { method: 'DELETE' });
       toast({ title: 'Post deleted successfully' });
       onUpdate?.();
     } catch (error: any) {

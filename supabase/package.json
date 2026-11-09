@@ -1,5 +1,0 @@
-{
-  "private": true,
-  "name": "supabase-edge-functions",
-  "description": "Deno edge functions — not part of the Vite/React build"
-}

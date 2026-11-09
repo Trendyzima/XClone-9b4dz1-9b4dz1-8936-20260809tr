@@ -1,0 +1,589 @@
+# XClone API migration inventory
+
+Branch: `feat/five-repo-api-layer-20261108`  
+Generated from the tracked Git tree. This is the pinned file-by-file worklist; statuses are intentionally conservative and do not imply an audit or migration that has not happened.
+
+## Current verified migration
+
+- [x] `src/pages/CommunitiesPage.tsx` — removed browser Supabase access; discovery/create/join/leave use the canonical Backend community API; community images use the canonical media client. Backend deployment and live DB migration remain release gates.
+- [x] `src/services/testagramCapabilityClient.ts` — community listing/create/join/leave now call typed `/api/communities` endpoints directly; these operations no longer pass through the generic capability gateway.
+
+## Backend contract progress (separate repository)\n\n- Added `migrations/20261108_community_core.sql` for canonical community and membership records in Neon.\n- Added `cmd/api/community.go` and `/api/communities` routes for public discovery, joined-community listing, creation, joining, and leaving.\n- Added `cmd/api/community_test.go` and extended PostgreSQL CI migration coverage.\n- These handlers are committed on `Trendyzima/Testagram-backend-` branch `feat/central-api-contract-v1`; migration application and deployed API verification are still outstanding.\n\n## Worklist
+
+### src/api/
+
+- [ ] `src/api/federation.ts` — pending audit/migration
+### src/components/features/
+
+- [ ] `src/components/features/AdMobAd.tsx` — pending audit/migration
+- [ ] `src/components/features/AdSenseAd.tsx` — pending audit/migration
+- [ ] `src/components/features/AdvertiserSurface.tsx` — pending audit/migration
+- [ ] `src/components/features/AudioRecorder.tsx` — pending audit/migration
+- [ ] `src/components/features/BookmarkButton.tsx` — pending audit/migration
+- [ ] `src/components/features/BoostPostDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/CommunityAdminOverlay.tsx` — pending audit/migration (separate overlay component).
+- [x] `src/components/features/CommunitySpotlightStrip.tsx` — list and membership actions use the typed Backend community API; deployment and runtime verification remain pending
+- [ ] `src/components/features/ContentSuggestionsWidget.tsx` — pending audit/migration
+- [ ] `src/components/features/CreatePollDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/CreatorMediaStudio.tsx` — pending audit/migration
+- [ ] `src/components/features/CreatorMonetizationHub.tsx` — pending audit/migration
+- [ ] `src/components/features/CreatorReelStudio.tsx` — pending audit/migration
+- [ ] `src/components/features/CreatorStudioAssetComposer.tsx` — pending audit/migration
+- [ ] `src/components/features/CreatorStudioWorkbench.tsx` — pending audit/migration
+- [ ] `src/components/features/CreditBoostDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/CreditsBoostDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/DynamicAd.tsx` — pending audit/migration
+- [ ] `src/components/features/EditPostDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/EditProfileDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/EmbedRenderer.tsx` — pending audit/migration
+- [ ] `src/components/features/ExoClickInlineAd.tsx` — pending audit/migration
+- [ ] `src/components/features/ExoClickVastPreRoll.tsx` — pending audit/migration
+- [ ] `src/components/features/ExoClickVerticalOutstream.tsx` — pending audit/migration
+- [ ] `src/components/features/ExternalAdEngine.tsx` — pending audit/migration
+- [ ] `src/components/features/FederatedOrganicDiscovery.tsx` — pending audit/migration
+- [ ] `src/components/features/FediverseBadge.tsx` — pending audit/migration
+- [ ] `src/components/features/FediverseRichText.tsx` — pending audit/migration
+- [ ] `src/components/features/FeedAdCard.tsx` — pending audit/migration
+- [ ] `src/components/features/FriendActivityFeed.tsx` — pending audit/migration
+- [ ] `src/components/features/GifPicker.tsx` — pending audit/migration
+- [ ] `src/components/features/HashtagFollowButton.tsx` — pending audit/migration
+- [ ] `src/components/features/HybridAdComponent.tsx` — pending audit/migration
+- [ ] `src/components/features/IncomingCallOverlay.tsx` — pending audit/migration
+- [ ] `src/components/features/InlineRssSuggestion.tsx` — pending audit/migration
+- [ ] `src/components/features/InlineTvSuggestion.tsx` — pending audit/migration
+- [ ] `src/components/features/InterestOnboardingSheet.tsx` — pending audit/migration
+- [ ] `src/components/features/JoinSpaceDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/LazyImage.tsx` — pending audit/migration
+- [ ] `src/components/features/LiveAudioBroadcaster.tsx` — pending audit/migration
+- [ ] `src/components/features/LiveAudioPlayer.tsx` — pending audit/migration
+- [ ] `src/components/features/LiveNotificationBanner.tsx` — pending audit/migration
+- [ ] `src/components/features/LiveSpaceBanner.tsx` — pending audit/migration
+- [ ] `src/components/features/LiveSpacesDiscoveryStrip.tsx` — pending audit/migration
+- [ ] `src/components/features/ManageSpaceDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/MpesaTab.tsx` — pending audit/migration
+- [ ] `src/components/features/NativeAdCard.tsx` — pending audit/migration
+- [ ] `src/components/features/NewsifyTrendingRail.tsx` — pending audit/migration
+- [ ] `src/components/features/OneClickBoost.tsx` — pending audit/migration
+- [ ] `src/components/features/OrganicSportsStories.tsx` — pending audit/migration
+- [ ] `src/components/features/PayPalTopUp.tsx` — pending audit/migration
+- [ ] `src/components/features/PaymentDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/PesaPalTopUp.tsx` — pending audit/migration
+- [x] `src/components/features/PollCard.tsx` — poll reads, results and votes use typed Backend poll APIs; direct Supabase access removed
+- [x] `src/components/features/PostCard.tsx` — poll lookup now uses native Backend API; direct Supabase access removed
+- [ ] `src/components/features/ProductTagDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/ProfileCompactActions.tsx` — pending audit/migration
+- [ ] `src/components/features/ProfileCreatorTools.tsx` — pending audit/migration
+- [ ] `src/components/features/ProfileGovernanceCard.tsx` — pending audit/migration
+- [ ] `src/components/features/ProfileMobileContactCard.tsx` — pending audit/migration
+- [ ] `src/components/features/ProfileRewardsRedemptionCard.tsx` — pending audit/migration
+- [ ] `src/components/features/PublisherFeedStream.tsx` — pending audit/migration
+- [ ] `src/components/features/QuotedPostPreview.tsx` — pending audit/migration
+- [ ] `src/components/features/ReplyActions.tsx` — pending audit/migration
+- [ ] `src/components/features/RevenueAnalyticsWidget.tsx` — pending audit/migration
+- [ ] `src/components/features/RewardedAdBoost.tsx` — pending audit/migration
+- [ ] `src/components/features/SavingsGoalsTab.tsx` — pending audit/migration
+- [ ] `src/components/features/SchedulePostDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/SharePostDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/SiteAdInjector.tsx` — pending audit/migration
+- [ ] `src/components/features/SpaceRecordingsPlaylist.tsx` — pending audit/migration
+- [ ] `src/components/features/SponsoredPostCard.tsx` — pending audit/migration
+- [ ] `src/components/features/StartSpaceDialog.tsx` — pending audit/migration
+- [ ] `src/components/features/StoriesStrip.tsx` — pending audit/migration
+- [ ] `src/components/features/StoryAdSlide.tsx` — pending audit/migration
+- [ ] `src/components/features/StoryHighlights.tsx` — pending audit/migration
+- [ ] `src/components/features/SuggestedPolls.tsx` — pending audit/migration
+- [ ] `src/components/features/SyndicatedNewsRail.tsx` — pending audit/migration
+- [ ] `src/components/features/TestagramAdSlot.tsx` — pending audit/migration
+- [ ] `src/components/features/TestagramLiveChannelCard.tsx` — pending audit/migration
+- [ ] `src/components/features/ThreadCard.tsx` — pending audit/migration
+- [ ] `src/components/features/TransactionRemindersTab.tsx` — pending audit/migration
+- [ ] `src/components/features/TrendingVideoRow.tsx` — pending audit/migration
+- [ ] `src/components/features/TrendingVideosSection.tsx` — pending audit/migration
+- [ ] `src/components/features/TvChannelPlayer.tsx` — pending audit/migration
+- [ ] `src/components/features/TvMeetupPanel.tsx` — pending audit/migration
+- [ ] `src/components/features/TvPageErrorBoundary.tsx` — pending audit/migration
+- [ ] `src/components/features/TvPostStream.tsx` — pending audit/migration
+- [ ] `src/components/features/UniversalVideoPlayer.tsx` — pending audit/migration
+- [ ] `src/components/features/UserAdCard.tsx` — pending audit/migration
+- [ ] `src/components/features/UserSuggestions.tsx` — pending audit/migration
+- [ ] `src/components/features/UserSuggestionsWidget.tsx` — pending audit/migration
+- [ ] `src/components/features/VideoAdPlayer.tsx` — pending audit/migration
+- [ ] `src/components/features/VideoAdSlide.tsx` — pending audit/migration
+- [ ] `src/components/features/VideoDuetRecorder.tsx` — pending audit/migration
+- [ ] `src/components/features/VideoMonetizationAd.tsx` — pending audit/migration
+- [ ] `src/components/features/VideoPlayer.tsx` — pending audit/migration
+- [ ] `src/components/features/WalletDashboard.tsx` — pending audit/migration
+- [ ] `src/components/features/WalletExtras.tsx` — pending audit/migration
+- [ ] `src/components/features/WalletPhoneIdentityCard.tsx` — pending audit/migration
+- [ ] `src/components/features/WalletSavingsCard.tsx` — pending audit/migration
+### src/components/marketplace/
+
+- [ ] `src/components/marketplace/MarketplaceDeliveryTracker.tsx` — pending audit/migration
+### src/hooks/
+
+- [ ] `src/hooks/use-mobile.tsx` — pending audit/migration
+- [ ] `src/hooks/use-toast.ts` — pending audit/migration
+- [ ] `src/hooks/useAuth.ts` — pending audit/migration
+- [ ] `src/hooks/useCreatorTierAlert.ts` — pending audit/migration
+- [ ] `src/hooks/useFeatureUnlock.ts` — pending audit/migration
+- [ ] `src/hooks/useFederatedInfiniteFeed.ts` — pending audit/migration
+- [ ] `src/hooks/useFediversePolling.ts` — pending audit/migration
+- [ ] `src/hooks/useFollow.ts` — pending audit/migration
+- [ ] `src/hooks/useInfiniteScroll.ts` — pending audit/migration
+- [ ] `src/hooks/useNotificationSound.ts` — pending audit/migration
+- [ ] `src/hooks/usePageBanner.ts` — pending audit/migration
+- [ ] `src/hooks/usePayment.ts` — pending audit/migration
+- [ ] `src/hooks/usePlatformFeature.ts` — pending audit/migration
+- [ ] `src/hooks/usePremium.ts` — pending audit/migration
+- [ ] `src/hooks/useSEO.ts` — pending audit/migration
+- [ ] `src/hooks/useWallet.ts` — pending audit/migration
+### src/lib/
+
+- [ ] `src/lib/admob.ts` — pending audit/migration
+- [ ] `src/lib/analytics-stub.ts` — pending audit/migration
+- [ ] `src/lib/appwrite.ts` — pending audit/migration
+- [ ] `src/lib/auth.ts` — pending audit/migration
+- [ ] `src/lib/canonicalSchemaContract.ts` — pending audit/migration
+- [ ] `src/lib/governance.ts` — pending audit/migration
+- [ ] `src/lib/homeFeedCache.ts` — pending audit/migration
+- [ ] `src/lib/identitySignup.ts` — pending audit/migration
+- [ ] `src/lib/media.ts` — pending audit/migration
+- [ ] `src/lib/mediaUrl.ts` — pending audit/migration
+- [ ] `src/lib/offlineMediaCache.ts` — pending audit/migration
+- [ ] `src/lib/passwordRecovery.ts` — pending audit/migration
+- [ ] `src/lib/pingGoogle.ts` — pending audit/migration
+- [ ] `src/lib/posthog.ts` — pending audit/migration
+- [ ] `src/lib/profile/policies.ts` — pending audit/migration
+- [ ] `src/lib/profile/types.ts` — pending audit/migration
+- [ ] `src/lib/seo/testagramSeoEngine.ts` — pending audit/migration
+- [ ] `src/lib/seoValidation.ts` — pending audit/migration
+- [ ] `src/lib/sessionPolicy.ts` — pending audit/migration
+- [ ] `src/lib/studioAudio.ts` — pending audit/migration
+- [ ] `src/lib/testagram-analytics.ts` — pending audit/migration
+- [ ] `src/lib/testagramMedia.ts` — pending audit/migration
+- [ ] `src/lib/testagramTvCloudflare.ts` — pending audit/migration
+- [ ] `src/lib/testagramTvMedia.ts` — pending audit/migration
+- [ ] `src/lib/testagramTvYouTube.ts` — pending audit/migration
+- [ ] `src/lib/tvProduction.ts` — pending audit/migration
+- [ ] `src/lib/twemoji.ts` — pending audit/migration
+- [ ] `src/lib/utils.ts` — pending audit/migration
+### src/pages/
+
+- [ ] `src/pages/AIBotSetup.tsx` — pending audit/migration
+- [ ] `src/pages/AIPage.tsx` — pending audit/migration
+- [ ] `src/pages/AccountPrivacyPage.tsx` — pending audit/migration
+- [ ] `src/pages/ActiveSessionsPage.tsx` — pending audit/migration
+- [ ] `src/pages/AdAnalyticsPage.tsx` — pending audit/migration
+- [ ] `src/pages/AdConfigPage.tsx` — pending audit/migration
+- [ ] `src/pages/AdPerformanceComparison.tsx` — pending audit/migration
+- [ ] `src/pages/AdminAdsDashboard.tsx` — pending audit/migration
+- [ ] `src/pages/AdminGovernancePage.tsx` — pending audit/migration
+- [ ] `src/pages/AdminIdentityVerificationPage.tsx` — pending audit/migration
+- [ ] `src/pages/AdminPanel.tsx` — pending audit/migration
+- [ ] `src/pages/AdminRevenueDashboard.tsx` — pending audit/migration
+- [ ] `src/pages/AdminVerificationPage.tsx` — pending audit/migration
+- [ ] `src/pages/AnalyticsDashboard.tsx` — pending audit/migration
+- [ ] `src/pages/AppealsPage.tsx` — pending audit/migration
+- [ ] `src/pages/AuthPage.tsx` — pending audit/migration
+- [ ] `src/pages/BlockedUsersPage.tsx` — pending audit/migration
+- [ ] `src/pages/BookmarksPage.tsx` — pending audit/migration
+- [ ] `src/pages/BoostAnalyticsPage.tsx` — pending audit/migration
+- [ ] `src/pages/BoostCreatePage.tsx` — pending audit/migration
+- [ ] `src/pages/CallPage.tsx` — pending audit/migration
+- [ ] `src/pages/ChallengeLeaderboardPage.tsx` — pending audit/migration
+- [ ] `src/pages/ChannelProfilePage.tsx` — pending audit/migration
+- [x] `src/pages/CommunitiesPage.tsx` — migrated; verify backend contract and tests
+- [x] `src/pages/CommunityPage.tsx` — removed all direct Supabase access; community detail, posts, chat, events/RSVP, members, moderation, settings, shop, achievement badges, scheduling and reminders now call Backend APIs. Backend runtime/CI verification remains outstanding.
+- [ ] `src/pages/CompleteProfilePage.tsx` — pending audit/migration
+- [ ] `src/pages/ContentPolicyPage.tsx` — pending audit/migration
+- [ ] `src/pages/CreateAdPage.tsx` — pending audit/migration
+- [ ] `src/pages/CreateAdPageCanonical.tsx` — pending audit/migration
+- [ ] `src/pages/CreateThreadPage.tsx` — pending audit/migration
+- [ ] `src/pages/CreatorLeaderboardPage.tsx` — pending audit/migration
+- [ ] `src/pages/CreatorStudio.tsx` — pending audit/migration
+- [ ] `src/pages/CreditsPage.tsx` — pending audit/migration
+- [ ] `src/pages/DailyRewardsPage.tsx` — pending audit/migration
+- [ ] `src/pages/DiscoverPage.tsx` — pending audit/migration
+- [ ] `src/pages/ExplorePage.tsx` — partial: creator/post/hashtag discovery reads, post reactions and creator follow actions moved to native Backend APIs; story-view tracking, challenge CRUD, and story-to-message actions still require Backend-owned endpoints.
+- [ ] `src/pages/FastPixShortsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FederatedOrganicDiscoveryPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseAnalyticsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseDiscoverPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseFeedPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseIdentityPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseInboxPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseMastodonPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediversePage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseParityPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileAnalyticsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileFollowersPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileFollowingPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileGiftsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileLikesPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileMediaPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfilePage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfilePodcastsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfilePostsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileRepliesPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileSeriesPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileThreadsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileTipsPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseProfileVideosPage.tsx` — pending audit/migration
+- [ ] `src/pages/FediverseRelayPage.tsx` — pending audit/migration
+- [ ] `src/pages/FraudDetection.tsx` — pending audit/migration
+- [x] `src/pages/HashtagChallengePage.tsx` — challenge detail/list/create/entry, hashtag feed pagination and likes now use Backend APIs; no direct browser Supabase access.
+- [x] `src/pages/HashtagDiscoveryPage.tsx` — hashtag search/trending/follow, creator recommendations/follows, posts, videos and threads use native Backend discovery APIs; source data still requires migration into canonical tables
+- [x] `src/pages/HashtagPage.tsx` — hashtag resolution, local recent/top posts and follow state now use native Backend hashtag APIs; federation reads remain delegated to the Federation-owned discovery surface.
+- [ ] `src/pages/HelpPage.tsx` — pending audit/migration
+- [ ] `src/pages/HistoryPage.tsx` — pending audit/migration
+- [ ] `src/pages/HomeHubPage.tsx` — pending audit/migration
+- [ ] `src/pages/HomePage.tsx` — pending audit/migration
+- [ ] `src/pages/IdentityVerificationPage.tsx` — pending audit/migration
+- [ ] `src/pages/Index.tsx` — pending audit/migration
+- [ ] `src/pages/InterestOnboardingPage.tsx` — pending audit/migration
+- [ ] `src/pages/JobsPage.tsx` — pending audit/migration
+- [ ] `src/pages/LeaderboardPage.tsx` — pending audit/migration
+- [ ] `src/pages/ListDetailPage.tsx` — pending audit/migration
+- [ ] `src/pages/ListsPage.tsx` — pending audit/migration
+- [ ] `src/pages/LiveStreamPage.tsx` — pending audit/migration
+- [ ] `src/pages/MarketProductPage.tsx` — pending audit/migration
+- [ ] `src/pages/MarketplacePage.tsx` — pending audit/migration
+- [ ] `src/pages/MessagesPage.tsx` — pending audit/migration
+- [ ] `src/pages/MonetizationDashboard.tsx` — pending audit/migration
+- [ ] `src/pages/MyAdsPage.tsx` — pending audit/migration
+- [ ] `src/pages/NewsArticlePage.tsx` — pending audit/migration
+- [ ] `src/pages/NewsifyNewsPage.tsx` — pending audit/migration
+- [ ] `src/pages/NotFound.tsx` — pending audit/migration
+- [ ] `src/pages/NotFoundPage.tsx` — pending audit/migration
+- [ ] `src/pages/NotificationPreferencesPage.tsx` — pending audit/migration
+- [ ] `src/pages/NotificationsPage.tsx` — pending audit/migration
+- [ ] `src/pages/OrdersPage.tsx` — pending audit/migration
+- [ ] `src/pages/PayoutsPage.tsx` — pending audit/migration
+- [ ] `src/pages/PlatformControlPage.tsx` — pending audit/migration
+- [ ] `src/pages/PlatformInboxPage.tsx` — pending audit/migration
+- [ ] `src/pages/PlatformRevenueDashboard.tsx` — pending audit/migration
+- [ ] `src/pages/PodcastAnalyticsPage.tsx` — pending audit/migration
+- [ ] `src/pages/PodcastSearchPage.tsx` — pending audit/migration
+- [ ] `src/pages/PollsPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostAnalyticsDashboard.tsx` — pending audit/migration
+- [ ] `src/pages/PostInteractionPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostLikesPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostQuoteComposerPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostQuoteLikesPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostQuotesPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostRepliesPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostReplyChainPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostRepostsPage.tsx` — pending audit/migration
+- [ ] `src/pages/PostThreadPage.tsx` — pending audit/migration
+- [ ] `src/pages/PremiumPage.tsx` — pending audit/migration
+- [ ] `src/pages/PrivacyPolicyPage.tsx` — pending audit/migration
+- [ ] `src/pages/ProductsPage.tsx` — pending audit/migration
+- [ ] `src/pages/ProfileFeaturesPage.tsx` — pending audit/migration
+- [ ] `src/pages/ProfilePage.tsx` — pending audit/migration
+- [ ] `src/pages/ProfileSectionPage.tsx` — pending audit/migration
+- [ ] `src/pages/ReferralPage.tsx` — pending audit/migration
+- [ ] `src/pages/RegulatorPanel.tsx` — pending audit/migration
+- [ ] `src/pages/RevenueAnalytics.tsx` — pending audit/migration
+- [ ] `src/pages/RewardedAdHistory.tsx` — pending audit/migration
+- [ ] `src/pages/RidePage.tsx` — pending audit/migration
+- [ ] `src/pages/SEOAuditPage.tsx` — pending audit/migration
+- [ ] `src/pages/ScheduledPostsPage.tsx` — pending audit/migration
+- [ ] `src/pages/SearchPage.tsx` — pending audit/migration
+- [ ] `src/pages/SearchPageV2.tsx` — pending audit/migration
+- [ ] `src/pages/SearchPageV3.tsx` — pending audit/migration
+- [ ] `src/pages/SellerStorefrontPage.tsx` — pending audit/migration
+- [ ] `src/pages/SeriesPage.tsx` — pending audit/migration
+- [ ] `src/pages/SettingsPage.tsx` — pending audit/migration
+- [ ] `src/pages/ShoppingMallPage.tsx` — pending audit/migration
+- [ ] `src/pages/SpaceDetailPage.tsx` — pending audit/migration
+- [ ] `src/pages/SpaceRecordingViewerPage.tsx` — pending audit/migration
+- [ ] `src/pages/SpacesPage.tsx` — pending audit/migration
+- [ ] `src/pages/SportsHubPage.tsx` — pending audit/migration
+- [ ] `src/pages/StaffDashboardPage.tsx` — pending audit/migration
+- [ ] `src/pages/StaffRecruitmentPage.tsx` — pending audit/migration
+- [ ] `src/pages/StartStreamPage.tsx` — pending audit/migration
+- [ ] `src/pages/StoryAnalyticsDashboard.tsx` — pending audit/migration
+- [ ] `src/pages/TeamChatPage.tsx` — pending audit/migration
+- [ ] `src/pages/TermsOfServicePage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadDetailPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadInteractionPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadLikesPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadQuoteLikesPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadQuotesPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadRepliesPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadReplyLikesPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadRepostsPage.tsx` — pending audit/migration
+- [ ] `src/pages/ThreadsPage.tsx` — pending audit/migration
+- [ ] `src/pages/TikVTVPage.tsx` — pending audit/migration
+- [ ] `src/pages/TvChannelsPage.tsx` — pending audit/migration
+- [ ] `src/pages/TvGuestControlPage.tsx` — pending audit/migration
+- [ ] `src/pages/TvPublicLivePage.tsx` — pending audit/migration
+- [ ] `src/pages/TvStudioPage.tsx` — pending audit/migration
+- [ ] `src/pages/VerificationRequestPage.tsx` — pending audit/migration
+- [ ] `src/pages/VideoWatchLaterPage.tsx` — pending audit/migration
+- [ ] `src/pages/VideosPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletAnalyticsPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletConverterPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletHistoryPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletMpesaPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletPocketPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletReceivePage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletReferralsPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletRemindersPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletSavingsPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletScheduledPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletSecurityPage.tsx` — pending audit/migration
+- [ ] `src/pages/WalletSendPage.tsx` — pending audit/migration
+- [ ] `src/pages/WishlistPage.tsx` — pending audit/migration
+- [ ] `src/pages/admin/AdminAdsPage.tsx` — pending audit/migration
+- [ ] `src/pages/admin/AdminFraudPage.tsx` — pending audit/migration
+- [ ] `src/pages/admin/AdminOverviewPage.tsx` — pending audit/migration
+- [ ] `src/pages/admin/AdminUsersPage.tsx` — pending audit/migration
+- [ ] `src/pages/community/CommunityChatPage.tsx` — pending audit/migration
+- [ ] `src/pages/community/CommunityEventsPage.tsx` — pending audit/migration
+- [ ] `src/pages/community/CommunityMembersPage.tsx` — pending audit/migration
+- [ ] `src/pages/community/CommunityPostsPage.tsx` — pending audit/migration
+- [ ] `src/pages/community/CommunityShopPage.tsx` — pending audit/migration
+- [ ] `src/pages/creator/CreatorAnalyticsPage.tsx` — pending audit/migration
+- [ ] `src/pages/creator/CreatorEarningsPage.tsx` — pending audit/migration
+- [ ] `src/pages/creator/CreatorOverviewPage.tsx` — pending audit/migration
+- [ ] `src/pages/creator/CreatorRevenuePage.tsx` — pending audit/migration
+- [ ] `src/pages/creator/CreatorVideosPage.tsx` — pending audit/migration
+- [ ] `src/pages/discover/DiscoverFediversePage.tsx` — pending audit/migration
+- [ ] `src/pages/discover/DiscoverPopularPage.tsx` — pending audit/migration
+- [ ] `src/pages/discover/DiscoverSuggestedPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfileFollowersPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfileFollowingPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfileLikesPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfileMediaPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfilePostsPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfileRepliesPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfileThreadsPage.tsx` — pending audit/migration
+- [ ] `src/pages/profile/ProfileVideosPage.tsx` — pending audit/migration
+- [ ] `src/pages/settings/SettingsAccountPage.tsx` — pending audit/migration
+- [ ] `src/pages/settings/SettingsAppearancePage.tsx` — pending audit/migration
+- [ ] `src/pages/settings/SettingsConnectionsPage.tsx` — pending audit/migration
+- [ ] `src/pages/settings/SettingsNotificationsPage.tsx` — pending audit/migration
+- [ ] `src/pages/settings/SettingsPrivacyPage.tsx` — pending audit/migration
+### src/services/
+
+- [ ] `src/services/apiClient.ts` — pending audit/migration
+- [ ] `src/services/appwriteAuth.ts` — pending audit/migration
+- [ ] `src/services/backendClient.ts` — pending audit/migration
+- [ ] `src/services/communicationCrypto.ts` — pending audit/migration
+- [ ] `src/services/communicationService.ts` — pending audit/migration
+- [ ] `src/services/communityNotes.ts` — pending audit/migration
+- [ ] `src/services/feed.ts` — pending audit/migration
+- [ ] `src/services/freshMediaApi.ts` — pending audit/migration
+- [ ] `src/services/heartbeatClient.ts` — pending audit/migration
+- [ ] `src/services/matrixFederationService.ts` — pending audit/migration
+- [ ] `src/services/matrixTransport.ts` — pending audit/migration
+- [ ] `src/services/mediaClient.ts` — pending audit/migration
+- [ ] `src/services/megalodonGateway.ts` — pending audit/migration
+- [ ] `src/services/nativeFcmRegistration.ts` — pending audit/migration
+- [ ] `src/services/nativePushService.ts` — pending audit/migration
+- [ ] `src/services/notificationService.ts` — pending audit/migration
+- [ ] `src/services/payment/pesapal.ts` — pending audit/migration
+- [ ] `src/services/postInteractionService.ts` — pending audit/migration
+- [ ] `src/services/profileApi.ts` — pending audit/migration
+- [ ] `src/services/pushNotifications.ts` — pending audit/migration
+- [ ] `src/services/realtimeClient.ts` — pending audit/migration
+- [ ] `src/services/recommendations.ts` — pending audit/migration
+- [ ] `src/services/socialApiClient.ts` — pending audit/migration
+- [ ] `src/services/storyMediaUpload.ts` — pending audit/migration
+- [ ] `src/services/testagramCapabilityCatalog.ts` — pending audit/migration
+- [ ] `src/services/testagramCapabilityClient.ts` — pending audit/migration
+- [ ] `src/services/testagramCapabilityExamples.ts` — pending audit/migration
+- [ ] `src/services/tvCdn.ts` — pending audit/migration
+- [ ] `src/services/tvChannelCatalog.ts` — pending audit/migration
+- [ ] `src/services/tvChannelInteractionService.ts` — pending audit/migration
+- [ ] `src/services/tvChannelReplyService.ts` — pending audit/migration
+- [ ] `src/services/videoPreloadCoordinator.ts` — pending audit/migration
+- [ ] `src/services/virtualCdnCapacity.ts` — pending audit/migration
+- [ ] `src/services/virtualCdnLoader.ts` — pending audit/migration
+- [ ] `src/services/virtualCdnMetrics.ts` — pending audit/migration
+- [ ] `src/services/virtualCdnPeers.ts` — pending audit/migration
+- [ ] `src/services/walletApi.ts` — pending audit/migration
+- [ ] `src/services/walletPhoneAuthService.ts` — pending audit/migration
+
+## Migration rules
+
+1. No browser Supabase SDK, Supabase REST/PostgREST URL, RPC, Edge Function, auth, or storage access.
+2. All product operations go through typed XClone service adapters and the canonical Testagram Backend API.
+3. Appwrite owns browser identity; the Backend validates Appwrite-derived access tokens and enforces authorization.
+4. Federation, Algorithm, and Data Centre are reached only through Backend-owned authenticated contracts; never from browser credentials.
+5. Do not wire a capability until its server-side implementation and request/response schema are verified. Unsupported features fail closed rather than silently falling back.
+6. Every migrated family requires typecheck, lint, build, and focused contract tests before being marked complete.
+
+
+## CI-discovered legacy database references
+
+The client-only boundary gate on 2026-11-08 reported 269 violations across 142 unique source files. This is a verified baseline from the repository's own scanner; it is not a claim that these files have been migrated. They remain pinned below for feature-by-feature replacement with Backend API contracts.
+
+- [ ] `src/components/features/AdvertiserSurface.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/AudioRecorder.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/CommunitySpotlightStrip.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/ContentSuggestionsWidget.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/CreatorMonetizationHub.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/CreatorReelStudio.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/EmbedRenderer.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/FederatedOrganicDiscovery.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/GifPicker.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/InlineRssSuggestion.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/InterestOnboardingSheet.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/LiveNotificationBanner.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/OneClickBoost.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/OrganicSportsStories.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/PayPalTopUp.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/PesaPalTopUp.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/components/features/PollCard.tsx` — legacy poll RPC/table access replaced with Backend poll retrieval and vote endpoints
+- [ ] `src/components/features/ProductTagDialog.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/ProfileCreatorTools.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/ProfileMobileContactCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/ProfileRewardsRedemptionCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/QuotedPostPreview.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/RevenueAnalyticsWidget.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/RewardedAdBoost.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/SavingsGoalsTab.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/SpaceRecordingsPlaylist.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/StoriesStrip.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/StoryHighlights.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/SuggestedPolls.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/SyndicatedNewsRail.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/TestagramAdSlot.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/TestagramLiveChannelCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/ThreadCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/TransactionRemindersTab.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/TrendingVideoRow.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/TrendingVideosSection.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/TvMeetupPanel.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/TvPostStream.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/UserSuggestions.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/UserSuggestionsWidget.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/VideoAdPlayer.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/VideoMonetizationAd.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/features/VideoPlayer.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/layout/BottomNav.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/layout/RightSidebar.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/layout/Sidebar.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/marketplace/MarketplaceDeliveryTracker.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/components/platform/PlatformFeatureGate.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/features/threadReposts/threadRepostsService.ts` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AIBotSetup.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AIPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AccountPrivacyPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ActiveSessionsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdAnalyticsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdConfigPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdPerformanceComparison.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdminAdsDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdminIdentityVerificationPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdminPanel.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdminRevenueDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AdminVerificationPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AnalyticsDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/AppealsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/BoostAnalyticsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/BoostCreatePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ChallengeLeaderboardPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ChannelProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/CommunityPage.tsx` — baseline violation resolved; current source has no Supabase imports or operations.
+- [ ] `src/pages/CompleteProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/CreateAdPageCanonical.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/CreateThreadPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/CreatorLeaderboardPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/CreatorStudio.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/CreditsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/DailyRewardsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ExplorePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/FastPixShortsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/FediverseDiscoverPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/FediversePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/FediverseParityPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/FediverseProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/FraudDetection.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/HashtagChallengePage.tsx` — baseline violation resolved; no direct Supabase access remains.
+- [x] `src/pages/HashtagDiscoveryPage.tsx` — baseline direct Supabase access resolved; no browser Supabase client remains.
+- [x] `src/pages/HashtagPage.tsx` — baseline direct Supabase access removed; current page uses Backend APIs and no browser Supabase client.
+- [ ] `src/pages/HelpPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/HistoryPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/InterestOnboardingPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/JobsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/LeaderboardPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ListDetailPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/LiveStreamPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/MarketProductPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/MarketplacePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/MonetizationDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/MyAdsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/NewsArticlePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/NewsifyNewsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/OrdersPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PayoutsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PlatformControlPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PlatformInboxPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PlatformRevenueDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PodcastAnalyticsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PodcastSearchPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PollsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PostAnalyticsDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PostInteractionPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PostQuoteComposerPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PostReplyChainPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PostThreadPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/PremiumPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ProductsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ProfileFeaturesPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ProfileSectionPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ReferralPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/RegulatorPanel.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/RevenueAnalytics.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/RewardedAdHistory.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/RidePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/SEOAuditPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ScheduledPostsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/SellerStorefrontPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/SeriesPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/SettingsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ShoppingMallPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/SpaceRecordingViewerPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/SportsHubPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/StartStreamPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/StoryAnalyticsDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/TeamChatPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ThreadDetailPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ThreadInteractionPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/ThreadsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/TvChannelsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/TvGuestControlPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/TvPublicLivePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/TvStudioPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/VerificationRequestPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/VideoWatchLaterPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/VideosPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [ ] `src/pages/WishlistPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+
+
+## Community feature migration update — 2026-11-08
+
+- XClone CommunityPage.tsx now contains no direct Supabase imports or calls. Community page operations route through typed Backend API methods, including community detail, posts, members, chat, events, RSVPs, settings, role changes, moderation, shop, achievement badges, scheduled posts, and self-notifications.
+- `PollCard.tsx` now loads poll data and records votes through `/api/social/polls`; `PostCard.tsx` resolves a poll through `/api/social/posts/{post_id}/poll`. Poll creation is atomic with the community post through `/api/communities/{community_id}/polls`.
+- `HashtagPage.tsx` now resolves hashtags and reads local hashtag timelines through `/api/hashtags`; browser-side Supabase queries and realtime subscriptions are removed. Federated hashtag reads still require a Backend-to-Federation private read contract.
+- `HashtagDiscoveryPage.tsx` now uses Backend APIs for hashtag search/trending/follow, creator recommendations/follows, posts, videos and threads. Backend schema adds creator/verification metadata, video discovery metadata and canonical thread records.
+- Backend branch feat/central-api-contract-v1 now includes native community detail/admin/member/event/chat/post/shop/badge/scheduled-post handlers and migrations 20261108_community_core.sql through 20261114_community_admin.sql.
+- Community achievement badges are application-issued database badges, not blockchain NFTs. The page copy was changed to avoid claiming an on-chain mint.
+- Community marketplace listing reads the Backend-owned marketplace catalog. Product catalog population/management APIs remain a separate migration item.
+- These changes are committed but are not yet live-verified. Backend CI is configured to run on main/PR, not this feature branch; frontend production gates on the current branch have exposed many unrelated unresolved Supabase imports in other pages. Do not treat the full repository as migrated.
+
+
+## Hashtag and Explore follow-on — 2026-11-08
+
+- HashtagPage.tsx no longer imports or calls Supabase; hashtag resolution, recent/top post feeds and follow state use native Backend hashtag endpoints. Federation content remains owned by the Federation discovery surface.
+- ExplorePage.tsx now uses Backend endpoints for creator suggestions, mixed search (creators/hashtags/posts), trending hashtags and creator lists. Post reactions and creator follow/unfollow use the canonical social API, including server-side follow notifications.
+- ExplorePage.tsx remains incomplete: story-view tracking, hashtag challenge list/create, and story-to-direct-message actions still contain direct Supabase operations and need dedicated Backend/Federation contracts. Do not mark ExplorePage migrated yet.
+- Backend discovery endpoints were added for public creators and posts; they are committed on feat/central-api-contract-v1 but not yet deployment-verified.
+
+- Hashtag challenge creation, listing, detail, and idempotent entry are now Backend-owned on the central API branch, with a Neon migration and direct XClone client methods. CI/runtime verification remains pending.
+
+- HashtagDiscoveryPage.tsx now uses the Backend discovery endpoints for creators, posts, videos and threads, plus native hashtag/follow APIs. Discovery endpoint runtime validation and population checks remain outstanding.

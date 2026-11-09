@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { toast } from 'sonner';
 
 interface Milestone {
@@ -94,51 +94,23 @@ export function useCreatorTierAlert() {
     checkedRef.current = true;
 
     const check = async () => {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('follower_count')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      const followers = profile?.follower_count ?? 0;
-
-      for (const milestone of MILESTONES) {
-        if (followers < milestone.threshold) continue;
-
-        // Check if already alerted (server-side dedup)
-        const { data: existing } = await supabase
-          .from('creator_milestones')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('milestone_type', milestone.key)
-          .maybeSingle();
-
-        if (existing) continue;
-
-        // Insert milestone record
-        const { error: insertErr } = await supabase
-          .from('creator_milestones')
-          .insert({ user_id: user.id, milestone_type: milestone.key });
-
-        if (insertErr) continue; // already exists race condition
-
-        // Send platform inbox message
-        await supabase.from('platform_inbox').insert({
-          user_id: user.id,
-          subject: milestone.title,
-          body: milestone.body,
-          type: 'update',
-          icon_emoji: milestone.emoji,
-          cta_label: 'View Creator Hub',
-          cta_url: '/platform-inbox',
-        }).catch(() => {});
-
-        // Launch confetti + toast
-        launchConfetti(milestone.color);
-        toast.success(milestone.title, {
-          description: `You've reached ${milestone.threshold.toLocaleString()} followers!`,
-          duration: 8000,
-        });
+      try {
+        // The Backend owns follower thresholds, deduplication and inbox writes.
+        const result = await backendCapabilities.call<{ unlocked: Array<{ key: string }> }>(
+          'testagram.creator.milestones.check',
+          {},
+        );
+        const unlocked = new Set((result.unlocked ?? []).map((item) => item.key));
+        for (const milestone of MILESTONES) {
+          if (!unlocked.has(milestone.key)) continue;
+          launchConfetti(milestone.color);
+          toast.success(milestone.title, {
+            description: `You've reached ${milestone.threshold.toLocaleString()} followers!`,
+            duration: 8000,
+          });
+        }
+      } catch (error) {
+        console.debug('[creator milestones] Backend API unavailable', error);
       }
     };
 

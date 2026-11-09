@@ -1,62 +1,126 @@
-import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { requireAccessToken } from '@/services/backendClient';
+import { testagramApiRequest } from '@/services/apiClient';
 
-export type MediaCompleted = { media_id:string; object_key:string; mime_type:string; media_type:'image'|'video'|'audio'|'file'; status:string; media_url:string|null; etag?:string|null; size_bytes:number; public_url:string|null; };
+export type MediaCompleted = {
+  key: string;
+  media_id?: string;
+  object_key: string;
+  mime_type: string;
+  media_type: 'image' | 'video' | 'audio' | 'file';
+  status: string;
+  media_url: string | null;
+  etag?: string | null;
+  size_bytes: number;
+  public_url: string | null;
+};
+
 export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
 
-function friendlyMediaError(error:unknown){
-  const m=error instanceof Error?error.message:String(error??'');
-  if(/Failed to fetch|NetworkError|Load failed|network|connection/i.test(m)) return 'Connection interrupted while uploading. Please try again.';
-  if(/401|Authentication required|sign in again/i.test(m)) return 'Your session expired. Please sign in again.';
-  if(/413|20 MiB|too large|FILE_TOO_LARGE/i.test(m)) return 'That file is too large. Maximum size is 20 MiB.';
-  return m||'Media upload failed. Please try again.';
+// Media is served only by the configured canonical Backend API. Never use a
+// same-origin proxy or an implicit legacy storage endpoint.
+const mediaApiOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
+export function requireMediaApi(): string {
+  if (!mediaApiOrigin) throw new Error('VITE_TESTAGRAM_API_URL is required for media operations.');
+  return `${mediaApiOrigin}/api/media`;
 }
 
-async function uploadAttempt(file:File,postId?:string|null,threadId?:string|null,accessTokenOverride?:string){
-  const accessToken = accessTokenOverride ?? await requireAccessToken();
-  const form=new FormData();
-  form.append('file',file,file.name);
-  if(postId) form.append('post_id',postId);
-  if(threadId) form.append('thread_id',threadId);
-  const response=await fetch(supabaseUrl+'/functions/v1/post-media-upload',{
-    method:'POST',
-    headers:{Authorization:'Bearer '+accessToken,apikey:supabasePublishableKey},
-    body:form,
+function friendlyMediaError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  if (/Failed to fetch|NetworkError|Load failed|network|connection/i.test(message)) return 'Connection interrupted while uploading. Please try again.';
+  if (/401|Authentication required|sign in again/i.test(message)) return 'Your session expired. Please sign in again.';
+  if (/413|20 MiB|too large|FILE_TOO_LARGE/i.test(message)) return 'That file is too large. Maximum size is 20 MiB.';
+  return message || 'Media upload failed. Please try again.';
+}
+
+async function apiRequest<T>(path: string, token: string, method: 'POST', body: Record<string, unknown>): Promise<T> {
+  requireMediaApi();
+  return testagramApiRequest<T>(`/api/media${path}`, { method, body, accessToken: token });
+}
+
+async function sha256Hex(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function uploadAttempt(file: File, accessTokenOverride?: string): Promise<MediaCompleted> {
+  const token = accessTokenOverride ?? await requireAccessToken();
+  const contentType = file.type || 'application/octet-stream';
+  const intent = await apiRequest<{ key: string; url: string; public_url?: string }>(
+    '/upload-intent',
+    token,
+    'POST',
+    { name: file.name, content_type: contentType, visibility: 'public', size_bytes: file.size },
+  );
+  if (!intent.key || !intent.url) throw new Error('Backend returned an incomplete media upload intent.');
+
+  const upload = await fetch(intent.url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: file,
+    credentials: 'omit',
+    cache: 'no-store',
   });
-  const payload=await response.json().catch(()=>({}));
-  if(!response.ok) throw new Error(payload?.error||('Upload failed ('+response.status+')'));
-  return payload as MediaCompleted;
+  if (!upload.ok) throw new Error('Media upload failed (' + upload.status + ').');
+
+  const completed = await apiRequest<MediaCompleted>(
+    '/complete',
+    token,
+    'POST',
+    { key: intent.key, visibility: 'public', content_type: contentType, checksum_sha256: await sha256Hex(file) },
+  );
+  return {
+    ...completed,
+    media_id: completed.media_id ?? completed.key,
+    object_key: completed.object_key ?? completed.key,
+    mime_type: completed.mime_type ?? contentType,
+    media_url: completed.media_url ?? completed.public_url ?? intent.public_url ?? null,
+    size_bytes: Number(completed.size_bytes ?? file.size),
+    public_url: completed.public_url ?? intent.public_url ?? null,
+  };
 }
 
-export async function uploadTestagramMedia(file:File,postId?:string|null,threadId?:string|null,accessTokenOverride?:string):Promise<MediaCompleted>{
+export async function uploadTestagramMedia(file: File, _postId?: string | null, _threadId?: string | null, accessTokenOverride?: string): Promise<MediaCompleted> {
   try {
-    if(file.size<=0) throw new Error('The selected file is empty.');
-    if(file.size>MAX_TESTAGRAM_MEDIA_BYTES) throw new Error('That file is too large. Maximum size is 20 MiB.');
-    let last:unknown=null;
-    for(let attempt=0;attempt<3;attempt++){
-      try { return await uploadAttempt(file,postId,threadId,accessTokenOverride); }
-      catch(error){
-        last=error;
-        const message=error instanceof Error?error.message:String(error??'');
-        if(!/Failed to fetch|NetworkError|Load failed|network|connection/i.test(message) || attempt===2) throw error;
-        await new Promise(resolve=>setTimeout(resolve,750*(attempt+1)));
-      }
-    }
-    throw last instanceof Error?last:new Error('Media upload failed.');
-  } catch(error){ throw new Error(friendlyMediaError(error)); }
+    if (file.size <= 0) throw new Error('The selected file is empty.');
+    if (file.size > MAX_TESTAGRAM_MEDIA_BYTES) throw new Error('That file is too large. Maximum size is 20 MiB.');
+    return await uploadAttempt(file, accessTokenOverride);
+  } catch (error) {
+    throw new Error(friendlyMediaError(error));
+  }
 }
 
-export async function attachTestagramMedia(mediaId:string,postId:string,accessTokenOverride?:string):Promise<void>{
-  const accessToken = accessTokenOverride ?? await requireAccessToken();
-  const normalizedMediaId=String(mediaId??'').trim();
-  const normalizedPostId=String(postId??'').trim();
-  if(!normalizedMediaId||!normalizedPostId) throw new Error('Media attachment could not start because the media or post ID was missing.');
-  const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:normalizedMediaId,media_asset_id:normalizedMediaId,post_id:normalizedPostId})});
-  const payload=await response.json().catch(()=>({}));
-  if(!response.ok) throw new Error(payload?.error||('Media attach failed ('+response.status+')'));
+export async function attachTestagramMedia(mediaId: string, postId: string, accessTokenOverride?: string): Promise<void> {
+  const token = accessTokenOverride ?? await requireAccessToken();
+  const key = String(mediaId ?? '').trim();
+  const target = String(postId ?? '').trim();
+  if (!key || !target) throw new Error('Media attachment could not start because the media or post ID was missing.');
+  await apiRequest('/attach', token, 'POST', { key, media_id: key, post_id: target });
 }
-export async function deleteTestagramMedia(mediaId:string,accessTokenOverride?:string):Promise<void>{
-  let accessToken:string;
-  try { accessToken = accessTokenOverride ?? await requireAccessToken(); } catch { return; }
-  await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'delete',media_id:mediaId})}).catch(()=>undefined);
+
+export async function deleteTestagramMedia(mediaId: string, accessTokenOverride?: string): Promise<void> {
+  const key = String(mediaId ?? '').trim();
+  if (!key) return;
+  const token = accessTokenOverride ?? await requireAccessToken();
+  await apiRequest('/delete', token, 'POST', { key, media_id: key });
+}
+
+export type TestagramMediaLibraryItem = {
+  id: string;
+  name: string;
+  path: string;
+  url: string;
+  type: 'image' | 'video' | 'file';
+  size: number;
+  updatedAt: string;
+  visibility?: 'public' | 'private';
+  content_type?: string;
+};
+
+export async function listTestagramMedia(): Promise<TestagramMediaLibraryItem[]> {
+  requireMediaApi();
+  const result = await testagramApiRequest<{ items?: TestagramMediaLibraryItem[] }>('/api/media/list', {
+    method: 'POST',
+    body: {},
+  });
+  return Array.isArray(result.items) ? result.items : [];
 }

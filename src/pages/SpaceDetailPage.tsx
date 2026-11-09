@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useFeatureUnlock } from '@/hooks/useFeatureUnlock';
 import { Radio, Users, Mic, Headphones, Video, BadgeCheck, Clock, Hash, Play, Loader2, ArrowLeft, DollarSign, X, Check } from 'lucide-react';
@@ -38,37 +38,21 @@ export default function SpaceDetailPage() {
   const [sendingSuperChat, setSendingSuperChat] = useState(false);
   const [superChats, setSuperChats] = useState<any[]>([]);
 
-  const fetchSuperChats = async (spaceId: string) => {
-    const { data } = await supabase
-      .from('space_superchats')
-      .select('*, user_profiles:user_id(username, avatar_url)')
-      .eq('space_id', spaceId)
-      .gte('pinned_until', new Date().toISOString())
-      .order('amount', { ascending: false })
-      .limit(5);
-    setSuperChats(data ?? []);
-  };
+  const fetchSuperChats = async (_spaceId: string) => { setSuperChats([]); };
 
   const handleSuperChat = async () => {
     if (!user || !space || !superChatAmt || !superChatMsg.trim()) return;
     setSendingSuperChat(true);
-    const { error: superChatError } = await supabase.rpc('send_space_superchat', {
-      p_space_id: space.id,
-      p_amount: superChatAmt,
-      p_message: superChatMsg.trim(),
-    });
-    if (superChatError) {
-      const message = superChatError.message?.includes('INSUFFICIENT_FUNDS') ? 'Insufficient wallet balance' : superChatError.message || 'Unable to send Super Chat';
-      toast.error(message);
-      setSendingSuperChat(false);
-      return;
-    }
-    toast.success(`💬 SuperChat $${superChatAmt} sent!`);
-    setSuperChatMsg('');
-    setSuperChatAmt(null);
-    setShowSuperChat(false);
-    setSendingSuperChat(false);
-    fetchSuperChats(space.id);
+    try {
+      await backendCapabilities.sendAudioSpaceSuperchat(space.id, superChatMsg.trim(), superChatAmt);
+      toast.success(`💬 SuperChat ${superChatAmt} sent!`);
+      setSuperChatMsg('');
+      setSuperChatAmt(null);
+      setShowSuperChat(false);
+      await fetchSuperChats(space.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to send Super Chat');
+    } finally { setSendingSuperChat(false); }
   };
 
   const [space, setSpace] = useState<any>(null);
@@ -138,32 +122,27 @@ export default function SpaceDetailPage() {
   }, [id]);
 
   const fetchSpace = async () => {
-    const { data } = await supabase
-      .from('spaces')
-      .select('*, host:user_profiles!spaces_host_id_fkey(*)')
-      .eq('id', id!)
-      .single();
-    setSpace(data);
-    if (data?.id) { const { data: channel } = await supabase.from('channel_profiles').select('handle').eq('channel_key', 'audio:' + data.id).maybeSingle(); setChannelHandle(channel?.handle ?? null); }
-    setLoading(false);
+    if (!id) return;
+    try {
+      const result = await backendCapabilities.getAudioSpace(id);
+      const value = result?.space ?? result;
+      setSpace(value);
+      setParticipants(Array.isArray(value?.participants) ? value.participants : []);
+      setChannelHandle(null);
+    } catch (error) {
+      console.warn('[Spaces] Backend space detail unavailable', error);
+      setSpace(null);
+    } finally { setLoading(false); }
   };
 
-  const fetchRecordings = async () => {
-    const { data } = await supabase
-      .from('space_recordings')
-      .select('*')
-      .eq('space_id', id!)
-      .order('created_at', { ascending: false });
-    setRecordings(data ?? []);
-  };
-
+  const fetchRecordings = async () => { setRecordings([]); };
   const fetchParticipants = async () => {
-    const { data } = await supabase
-      .from('space_participants')
-      .select('*, profiles(id, username, avatar_url, verified_tier)')
-      .eq('space_id', id!)
-      .limit(20);
-    setParticipants(data ?? []);
+    if (!id) return;
+    try {
+      const result = await backendCapabilities.getAudioSpace(id);
+      const value = result?.space ?? result;
+      setParticipants(Array.isArray(value?.participants) ? value.participants : []);
+    } catch { setParticipants([]); }
   };
 
   const handleJoin = () => {

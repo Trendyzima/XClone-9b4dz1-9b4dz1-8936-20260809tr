@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { toast } from 'sonner';
 
 interface EditPostDialogProps {
@@ -30,15 +30,7 @@ export function EditPostDialog({ open, onOpenChange, post, onSuccess }: EditPost
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('posts')
-        .update({ 
-          content: content.trim()
-        })
-        .eq('id', post.id);
-
-      if (error) throw error;
-
+      await backendCapabilities.call('testagram.posts.update', { post_id: post.id, content });
       toast.success('Post updated successfully');
       onSuccess();
       onOpenChange(false);

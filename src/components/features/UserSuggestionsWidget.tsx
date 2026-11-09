@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
+import { backendCapabilities } from '@/services/backendClient';
 import { BadgeCheck, Check, Users, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -31,35 +32,29 @@ export function UserSuggestionsWidget() {
     const fetchSuggestions = async () => {
       setLoading(true);
       try {
-        const { data: followingData } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
-        const followingIds = new Set<string>((followingData ?? []).map((f: { following_id: string }) => f.following_id));
-        setFollowing(followingIds);
-        const directIds = Array.from(followingIds);
-
-        const mutualCounts = new Map<string, number>();
-        if (directIds.length) {
-          const { data: mutualRows } = await supabase.from('follows').select('following_id').in('follower_id', directIds).neq('following_id', user.id).limit(200);
-          for (const row of mutualRows ?? []) {
-            if (!followingIds.has(row.following_id)) mutualCounts.set(row.following_id, (mutualCounts.get(row.following_id) ?? 0) + 1);
+        const result = await backendCapabilities.listDiscoveryCreators(20);
+        const candidates = (result.items ?? []) as SuggestedUser[];
+        const eligible = candidates.filter(candidate => candidate.id && candidate.id !== user.id);
+        const states = await Promise.all(eligible.map(async candidate => {
+          try {
+            const state = await socialApi.getFollowState(candidate.id);
+            return { id: candidate.id, following: Boolean(state.following), requested: Boolean(state.requested) };
+          } catch {
+            return { id: candidate.id, following: false, requested: false };
           }
+        }));
+        const stateById = new Map(states.map(state => [state.id, state]));
+        const visible = eligible
+          .filter(candidate => !stateById.get(candidate.id)?.following && !stateById.get(candidate.id)?.requested)
+          .slice(0, 5)
+          .map(candidate => ({
+            ...candidate,
+            reason: candidate.is_creator ? 'Creator to discover' : candidate.bio || 'Suggested for you',
+          }));
+        if (!cancelled) {
+          setFollowing(new Set(states.filter(state => state.following).map(state => state.id)));
+          setSuggestions(visible);
         }
-
-        const mutualIds = Array.from(mutualCounts.keys()).slice(0, 30);
-        const { data: mutualProfiles } = mutualIds.length
-          ? await supabase.from('profiles').select('id,username,avatar_url,bio,verified,is_creator,follower_count').in('id', mutualIds)
-          : { data: [] as SuggestedUser[] };
-
-        const mutuals = (mutualProfiles ?? [])
-          .map((profile: SuggestedUser) => ({ ...profile, mutual_count: mutualCounts.get(profile.id) ?? 0, reason: 'Followed by people you follow' }))
-          .sort((a, b) => (b.mutual_count ?? 0) - (a.mutual_count ?? 0) || Number(b.follower_count ?? 0) - Number(a.follower_count ?? 0));
-
-        const excluded = new Set([user.id, ...directIds, ...mutuals.map(p => p.id)]);
-        const { data: popularProfiles } = await supabase.from('profiles').select('id,username,avatar_url,bio,verified,is_creator,follower_count').neq('id', user.id).order('follower_count', { ascending: false }).limit(40);
-        const popular = (popularProfiles ?? [])
-          .filter((profile: SuggestedUser) => !excluded.has(profile.id))
-          .map((profile: SuggestedUser) => ({ ...profile, reason: profile.is_creator ? 'Popular creator' : 'Popular on Testagram' }));
-
-        if (!cancelled) setSuggestions([...mutuals, ...popular].slice(0, 5));
       } catch (error) {
         console.error('[UserSuggestions] fetch error:', error);
         if (!cancelled) setSuggestions([]);
@@ -77,10 +72,9 @@ export function UserSuggestionsWidget() {
     const previous = following;
     setFollowing(new Set([...previous, userId]));
     try {
-      const { error } = await supabase.from('follows').insert({ follower_id: user.id, following_id: userId });
-      if (error) throw error;
+      // Backend persists the relationship and publishes its notification event atomically.
+      await socialApi.setFollow(userId, true);
       toast.success('Following!');
-      await supabase.from('notifications').insert({ recipient_id: userId, kind: 'follow', actor_id: user.id });
       setSuggestions(current => current.filter(item => item.id !== userId));
     } catch (error: any) {
       setFollowing(previous);

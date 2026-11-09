@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FilePlus2, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
-import { uploadTestagramMedia } from '@/services/mediaClient';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { uploadTestagramMedia, deleteTestagramMedia } from '@/services/mediaClient';
 import { requireAccessToken } from '@/services/backendClient';
 import { toast } from 'sonner';
 
@@ -36,38 +36,21 @@ export default function CreateThreadPage(){
     setPosting(true);
     try{
       const accessToken = await requireAccessToken();
-      const { data: tokenUser, error: tokenUserError } = await supabase.auth.getUser(accessToken);
-      if (tokenUserError || !tokenUser.user || tokenUser.user.id !== user.id) throw new Error('Authentication session changed. Please retry.');
-
-      const threadResponse = await fetch(supabaseUrl.replace(/\/$/, '') + '/rest/v1/threads?select=id', {
-        method: 'POST',
-        headers: { apikey: supabasePublishableKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json', Prefer: 'return=representation' },
-        body: JSON.stringify({owner_id:user.id,body:body.trim(),visibility:'public',media_urls:[]}),
-      });
-      const threadRaw = await threadResponse.text();
-      let threadRows:any = null; try { threadRows = threadRaw ? JSON.parse(threadRaw) : null; } catch { threadRows = null; }
-      if (!threadResponse.ok) {
-        const message = Array.isArray(threadRows) ? threadRows[0]?.message : threadRows?.message;
-        throw new Error(message || (threadResponse.status === 401 || threadResponse.status === 403 ? 'Authentication required' : 'Could not create thread'));
-      }
-      const data = Array.isArray(threadRows) ? threadRows[0] : threadRows;
-      if (!data?.id) throw new Error('Thread creation returned no id');
-      const mediaUrls:MediaAsset[]=[];
+      const thread = await backendCapabilities.createThread({ body: body.trim(), visibility: 'public' });
+      const uploadedKeys: string[] = [];
       try {
-        for(const file of files) {
-          const uploaded=await uploadTestagramMedia(file,null,data.id,accessToken);
-          mediaUrls.push({url:uploaded.public_url||'',name:file.name,type:file.type||'application/octet-stream',size:file.size});
+        for (const file of files) {
+          const uploaded = await uploadTestagramMedia(file, null, thread.id, accessToken);
+          uploadedKeys.push(uploaded.key);
+          await backendCapabilities.attachThreadMedia(thread.id, uploaded.key);
         }
-        if(mediaUrls.length) {
-          const updateResponse=await fetch(supabaseUrl.replace(/\/$/,'') + '/rest/v1/threads?id=eq.' + data.id + '&owner_id=eq.' + user.id,{method:'PATCH',headers:{apikey:supabasePublishableKey,Authorization:'Bearer '+accessToken,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({media_urls:mediaUrls})});
-          if(!updateResponse.ok){const raw=await updateResponse.text().catch(()=> '');throw new Error(raw||('Thread media update failed ('+updateResponse.status+')'));}
-        }
-      } catch(uploadError) {
-        await supabase.from('threads').update({deleted_at:new Date().toISOString()}).eq('id',data.id).eq('owner_id',user.id);
+      } catch (uploadError) {
+        await backendCapabilities.deleteThread(thread.id).catch(() => undefined);
+        await Promise.all(uploadedKeys.map(key => deleteTestagramMedia(key, accessToken).catch(() => undefined)));
         throw uploadError;
       }
       toast.success('Thread posted');
-      navigate(`/thread/${data.id}`);
+      navigate(`/thread/${thread.id}`);
     }catch(error:any){console.error(error);toast.error(error?.message||'Could not post thread');}
     finally{setPosting(false);}
   };

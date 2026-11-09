@@ -26,7 +26,7 @@ const ContentSuggestionsWidget = lazy(() => import('@/components/features/Conten
 const UserSuggestionsWidget = lazy(() => import('@/components/features/UserSuggestionsWidget').then(m => ({ default: m.UserSuggestionsWidget })));
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
-type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'|'publisher'; data:any };
+type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
 
 function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.MAX_SAFE_INTEGER): Item[] {
   const seen = new Set(existing.map(homeFeedItemIdentity).filter(Boolean));
@@ -120,6 +120,7 @@ const TABS: {id:Tab;label:string}[] = [
   {id:'shopping',label:'Shopping'},{id:'federated',label:'Federated'},
 ];
 const StoriesStrip = lazy(() => import('@/components/features/StoriesStrip').then(m => ({ default: m.StoriesStrip })));
+
 function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:Item;index:number;lastElementRef:((node:HTMLElement|null)=>void)|null;tab:Tab;onUpdate:()=>void;onNavigate:(path:string)=>void}) {
   const hostRef=useRef<HTMLDivElement|null>(null);
   const [mounted,setMounted]=useState(false);
@@ -154,9 +155,11 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
-  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined); 
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const [feedLoadError,setFeedLoadError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined); 
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
+
+  const cacheKey = `home:${user?.id ?? 'signed-out'}`;
 
   const tabCursorRef=useRef<string|null>(null);
   const tabHasMoreRef=useRef(false);
@@ -184,12 +187,15 @@ export default function HomeHubPage(){
         media_urls:media,
         image_url:post.image_url ?? media[0] ?? null,
         is_video:Boolean(post.is_video),
-        origin:'local',
+        origin:post.origin ?? 'local',
         feed_source:'backend-appwrite',
       },
     };
   });
 
+  // The home timeline is sourced exclusively from the authenticated Testagram
+  // Backend. The retired aggregator and direct-table fallback are
+  // intentionally not reachable from this component.
   const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
     if(target==='polls'){
       const page=await socialApi.listPolls(12,pageNum*12);
@@ -198,8 +204,8 @@ export default function HomeHubPage(){
       return (Array.isArray(page.items)?page.items:[]).map((poll:any)=>({type:'poll' as const,data:poll}));
     }
     if(target==='following'){
-      if(!user) throw new Error('Sign in to see posts from accounts you follow.');
-      const page=await socialApi.getHomeFeed(24,cursorOverride ?? tabCursorRef.current ?? undefined,{followingOnly:true});
+      if(!user?.id) throw new Error('Sign in to see posts from accounts you follow.');
+      const page=await socialApi.getHomeFeed(24,cursorOverride ?? tabCursorRef.current ?? undefined,true);
       tabCursorRef.current=page?.next_cursor || null;
       tabHasMoreRef.current=Boolean(page?.has_more)&&Array.isArray(page?.posts)&&page.posts.length>0;
       setHasMore(tabHasMoreRef.current);
@@ -208,44 +214,45 @@ export default function HomeHubPage(){
     if(target!=='all'){
       throw new Error(`The ${target} feed is not yet connected to a verified native Backend contract.`);
     }
-    const page = user
-      ? await socialApi.getHomeFeed(24,cursorOverride ?? undefined)
-      : await socialApi.getPublicHomeFeed(24,cursorOverride ?? undefined);
+    const page = user?.id
+      ? await socialApi.getHomeFeed(24, cursorOverride ?? undefined)
+      : await socialApi.getPublicHomeFeed(24, cursorOverride ?? undefined);
     const posts = Array.isArray(page?.posts) ? page.posts : [];
-    const next = page?.next_cursor || null;
-    setNextCursor(next);
-    nextCursorRef.current=next;
-    setHasMore(Boolean(page?.has_more) && posts.length>0);
+    const cursor = page?.next_cursor || null;
+    setNextCursor(cursor);
+    nextCursorRef.current = cursor;
+    setHasMore(Boolean(page?.has_more && cursor));
     return mapBackendPosts(posts);
-  },[user?.$id,user?.id]);
+  },[user?.id]);
 
   const persistBuffer=useCallback(async()=>{
     try{
-      await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:feedBufferRef.current[0]?.data?.id??null});
+      await writeHomeFeedCache({key:cacheKey,items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:feedBufferRef.current[0]?.data?.id??null},cacheKey);
     }catch(error){
       // Storage quota/private browsing must not break scrolling or pagination.
       console.warn('[home-hub] feed cache write skipped',error);
     }
-  },[]);
-
-
+  },[cacheKey]);
 
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
-      if(!background){setLoading(true);tabPageRef.current=0;tabCursorRef.current=null;setLoadMoreError(null);}
+      if(!background){setLoading(true);tabPageRef.current=0;tabCursorRef.current=null;tabHasMoreRef.current=false;setLoadMoreError(null);setFeedLoadError(null);}
       try{
         const next=await fetchTab(target,0);
         setItems(next);
-        if(target!=='federated'&&target!=='following'&&target!=='polls')setHasMore(next.length >= (target==='communities'||target==='shopping'?12:10));
-      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoadMoreError(e instanceof Error ? e.message : 'This section is temporarily unavailable.');}}
+        if(target==='following'||target==='polls')setHasMore(tabHasMoreRef.current);else if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='shopping'?12:10));
+        setFeedLoadError(null);
+      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setFeedLoadError(e instanceof Error?e.message:'This section is temporarily unavailable.');}}
       finally{if(!background)setLoading(false);}
       return;
     }
+    if(!background)setFeedLoadError(null);
     try{
       // Background refresh reads the newest page, but its cursor must not replace
       // the continuation cursor for the already-loaded older pages.
       const continuationCursor=nextCursorRef.current;
       const next=await fetchTab('all',0,null,true);
+      setFeedLoadError(null);
       if(background){
         nextCursorRef.current=continuationCursor;
         setNextCursor(continuationCursor);
@@ -272,31 +279,29 @@ export default function HomeHubPage(){
       setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
     }catch(e){console.error('[home-hub]',e);if(!background){
-      setItems([]);setHasMore(false);setLoadMoreError(e instanceof Error ? e.message : 'Feed unavailable.');
+      setFeedLoadError('The Testagram Backend feed is unavailable. Please try again shortly.');
+      const cached=await readHomeFeedCache(cacheKey).catch(()=>null);
+      if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; feedBufferOffsetRef.current=cached.items.length; setItems(cached.items); cacheCursorRef.current=cached.cursor; nextCursorRef.current=cached.cursor; setHasMore(Boolean(cached.cursor)); }
+      else {setItems([]);setHasMore(false);}
       setLoading(false);
     }}
-  },[fetchTab,persistBuffer]);
+  },[fetchTab,persistBuffer,cacheKey]);
 
   useEffect(()=>{
     let active=true;
     if(tab!=='all'){void load(tab);return()=>{active=false;};}
-    void readHomeFeedCache().then(cached=>{
+    void readHomeFeedCache(cacheKey).then(cached=>{
       if(!active)return;
-      if(cached?.items?.length){
-        // Keep cached federation entries across refreshes. The server-side
-        // federated-feed already applies its freshness/moderation window; the
-        // client must not independently discard valid remote posts just because
-        // they are older than 24h while a refresh is in flight.
+      // Never render a stale or unverified cache as if it were the live feed.
+      // Cache v4 is populated only by successful canonical Backend responses;
+      // old cache databases are intentionally not read after the cutover.
+      if(cached?.items?.length && isHomeFeedCacheUsable(cached)){
         const freshCached=cached.items;
         feedBufferRef.current=freshCached;
         feedBufferOffsetRef.current=freshCached.length;
         setItems(freshCached);
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
-        if(isHomeFeedCacheUsable(cached)){
-          setHasMore(Boolean(cached.cursor));
-        } else {
-          setHasMore(freshCached.length>6);
-        }
+        setHasMore(Boolean(cached.cursor));
         setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
       }else {
@@ -321,6 +326,8 @@ export default function HomeHubPage(){
         void load('all',true);
       },1500);
     };
+    // Backend polling is the temporary refresh transport until the dedicated
+    // Testagram realtime ticket channel is wired into this page.
     const fallback=window.setInterval(()=>{
       if(document.visibilityState!=='visible')return;
       const active=document.activeElement;
@@ -328,9 +335,9 @@ export default function HomeHubPage(){
       void load('all',true);
     },30000);
     return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);};
-  },[tab]);
+  },[tab,user?.id]);
 
-  useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab]);
+  useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab,user?.id,load]);
   useEffect(()=>{if(newCount>0&&window.scrollY<500)setNewCount(0);},[newCount]);
 
   const loadMore=useCallback(async()=>{
@@ -363,12 +370,17 @@ export default function HomeHubPage(){
             if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
             feedBufferOffsetRef.current=beforeLength+page.length;
             setItems(prev=>appendUniqueFeedItems(prev,page));
-            setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+            setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
             await persistBuffer();
             return true;
           }
         }
         cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);return false;
+      }
+      if(tab==='federated'){
+        const next=await fetchTab('federated',0,nextCursor);
+        if(next.length)setItems(prev=>appendUniqueFeedItems(prev,next));
+        return next.length>0;
       }
       const nextPage=tabPageRef.current+1;
       const next=await fetchTab(tab,nextPage,tab==='following'?tabCursorRef.current:null);
@@ -405,7 +417,7 @@ export default function HomeHubPage(){
     {!loading&&newCount>0&&<button onClick={()=>{window.scrollTo({top:0,behavior:'smooth'});setNewCount(0)}} className="w-full py-2 bg-primary/5 text-xs font-semibold text-primary">{newCount} new post{newCount===1?'':'s'} · Tap to view</button>}
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
     {loading?<div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
-      items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
+      items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">{feedLoadError?'Feed temporarily unavailable':'Nothing here yet'}</p><p className="text-sm mt-1">{feedLoadError??'Explore another section or be the first to add content.'}</p>{feedLoadError&&<button onClick={refresh} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">Retry</button>}</div>:
       <div className="tg-home-feed-list">{items.map((item,i)=>(
         <div className="tg-home-feed-row" key={item.type+'-'+(item.data?.id??i)}>
           <HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>

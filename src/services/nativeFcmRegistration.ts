@@ -1,47 +1,37 @@
-import { supabase } from "@/lib/supabase";
+import { appwriteAuth, APPWRITE_AUTH_CHANGED_EVENT } from '@/services/appwriteAuth';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
-const PLATFORM = "android";
-const PROVIDER = "fcm";
+const PLATFORM = 'android';
+const PROVIDER = 'fcm';
 
 async function saveToken(token: string) {
-  if (!token) return;
-  const { data: { user } } = await supabase.auth.getUser();
+  const normalized = token.trim();
+  if (!normalized) return;
+  const user = await appwriteAuth.getCurrentUser().catch(() => null);
   if (!user) return;
-  const { error } = await supabase
-    .from("app_push_tokens")
-    .upsert(
-      {
-        user_id: user.id,
-        token,
-        platform: PLATFORM,
-        provider: PROVIDER,
-        enabled: true,
-        last_seen_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,token" },
-    );
-  if (error) console.debug("[push] token registration failed", error);
+  await backendCapabilities.call('testagram.notifications.fcm.register', {
+    token: normalized,
+    platform: PLATFORM,
+    provider: PROVIDER,
+  });
 }
 
 export function installNativeFcmRegistration() {
-  if (typeof window === "undefined") return () => undefined;
-
+  if (typeof window === 'undefined') return () => undefined;
   const onToken = (event: Event) => {
     const detail = (event as CustomEvent<{ token?: string }>).detail;
-    if (detail?.token) void saveToken(detail.token);
+    if (detail?.token) void saveToken(detail.token).catch(error => console.warn('[push] Backend token registration failed', error));
   };
-
-  window.addEventListener("testagram:fcm-token", onToken);
+  const onAuth = () => {
+    const token = (window as Window & { __TESTAGRAM_FCM_TOKEN__?: string }).__TESTAGRAM_FCM_TOKEN__;
+    if (token) void saveToken(token).catch(error => console.warn('[push] Backend token registration failed', error));
+  };
+  window.addEventListener('testagram:fcm-token', onToken);
+  window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuth);
   const existing = (window as Window & { __TESTAGRAM_FCM_TOKEN__?: string }).__TESTAGRAM_FCM_TOKEN__;
-  if (existing) void saveToken(existing);
-
-  const authListener = supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.user && existing) void saveToken(existing);
-  });
-
+  if (existing) void saveToken(existing).catch(error => console.warn('[push] Backend token registration failed', error));
   return () => {
-    window.removeEventListener("testagram:fcm-token", onToken);
-    authListener.data.subscription.unsubscribe();
+    window.removeEventListener('testagram:fcm-token', onToken);
+    window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuth);
   };
 }
