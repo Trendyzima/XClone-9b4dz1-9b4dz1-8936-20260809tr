@@ -2844,7 +2844,7 @@
     "src/components/features/ComposePost.tsx": {
       "source_type": "client_source",
       "status": "in_progress",
-      "note": "Web post composer uses the canonical Backend post and media APIs; verify text, media attachment, community publishing, failure recovery and Flutter parity before marking complete."
+      "note": "Web text composer uses the native Appwrite-authenticated Backend post API. Community posting and media attachments remain blocked until their native Backend contracts and end-to-end tests are complete."
     }
   }
 }
