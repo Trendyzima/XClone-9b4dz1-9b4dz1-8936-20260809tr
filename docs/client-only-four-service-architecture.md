@@ -53,7 +53,7 @@ Only the Backend is the client-facing application API. XClone must not call priv
 | src/services/backendClient.ts | Imports Supabase SDK, reads Supabase session tokens and invokes Supabase Edge Functions; fresh mode rejects unported functions | Transport-only Backend API client using Appwrite JWT; replace each function with typed Backend route |
 | src/services/socialApiClient.ts | Selected fresh Backend routes exist, but legacy provider selection and /api/social remain | Appwrite-only auth and Backend-only routes for every social operation |
 | src/lib/auth.ts and src/services/appwriteAuth.ts | Appwrite login and Backend profile bootstrap are present | Retain; finish identity linking/lifecycle tests in Backend |
-| src/services/freshMediaApi.ts | Backend reservation/finalization/private URL; direct upload to signed provider URL | Retain this shape; prove B2/R2 selection, integrity, replica and private-download E2E |
+| src/services/freshMediaApi.ts | Backend reservation/finalization/private URL; direct upload to signed provider URL | Retain this shape; prove B2 integrity, lifecycle and Cloudflare private-download E2E |
 | src/api/federation.ts | Legacy Supabase Edge Function invocations for federation feeds/protocol operations | Replace local product operations with Backend facade routes; no Supabase invocation |
 | supabase/functions/** | Large legacy function inventory remains in XClone | Port capabilities to correct owner, verify parity, then remove old copies |
 | package.json | Still depends on @supabase/supabase-js | Remove only after zero runtime imports, types, tests and build overlays remain |
@@ -95,19 +95,19 @@ Do not infer endpoint availability from a frontend method name. Maintain OpenAPI
 ### Gate B — private service integrations
 - Federation uses its dedicated Neon database and private Backend identity/outbox contracts.
 - Algorithm is reachable only from Backend over a private authenticated service network.
-- Data Centre B2/R2 lifecycle and Cloudflare private-media Worker pass upload, checksum, replica, repair, deletion and private retrieval tests.
+- Data Centre B2 lifecycle and Cloudflare private-media delivery pass upload, checksum, repair, deletion and private retrieval tests.
 - Federation inbox processing, outbox polling, fan-out and interoperability gates pass before public ActivityPub activation.
 
 ### Gate C — XClone client only
 - Every UI feature uses Backend public API, except Appwrite user-facing auth SDK and direct PUT/GET to a short-lived signed media URL returned by Backend.
-- No Supabase SDK calls, Supabase REST/RPC URLs, Edge Function invocations, PostgREST builders or Supabase environment variables remain.
+- No Supabase SDK, Supabase REST/RPC URL, Supabase Realtime/Storage/Edge Function invocation, PostgREST builder, Supabase environment variable, or build-time Supabase injection remains.
 - No browser/mobile/desktop code contains private service URLs or internal service credentials.
 - No XClone source directory deploys server-side product functions.
 
 ### Gate D — integration proof
 - CI covers login, logout, refresh, verification, recovery, identity linking and profile bootstrap.
 - API contract tests cover every UI capability and authorization boundary.
-- E2E covers feed hydration + ranking + visibility recheck; local/remote federation; B2 upload + R2 replica + integrity + private delivery; payments and idempotent ledger posting.
+- E2E covers feed hydration + ranking + visibility recheck; local/remote federation; B2 upload + integrity + private delivery; payments and idempotent ledger posting.
 - Production probes verify API readiness and WebFinger/ActivityPub routes after deployment.
 - All five repositories' required CI and cross-service integration checks pass on the same release candidate.
 
@@ -116,11 +116,11 @@ Only after Gates A-D pass: remove Supabase SDK/dependencies, environment variabl
 
 ## Current audit status
 
-- The five repositories already describe the intended ownership split and have partial Appwrite, Neon, federation, ranking and B2/R2 foundations.
-- XClone still has the legacy Supabase SDK boundary, primary/secondary data-plane abstraction and a large Edge Function directory.
-- Backend README still describes /api/capability forwarding to Supabase capability_dispatch_v2; this must be replaced before XClone can remove the legacy capability client.
+- The five repositories describe the intended ownership split and have partial Appwrite, Neon, federation, ranking and Backblaze B2 foundations.
+- XClone still has direct Supabase usage across numerous React pages/components and the Flutter client, plus legacy build/workflow/documentation references. The IPTV build overlay and browser sitemap Edge Function call have been addressed on the migration branch; broad feature parity and full removal are not complete.
+- Backend capability dispatch has native handlers for the implemented social, media, wallet and communication slices and returns 501 for unmigrated capabilities rather than forwarding to Supabase. Backend README and legacy identity-link documentation still need cleanup.
 - Federation README lists incomplete inbox processing, Backend outbox polling, follower fan-out and cross-repository interoperability. Keep public federation activation gated.
 - Algorithm documents the correct private ranking-only boundary: Backend supplies authorized candidates and reapplies visibility checks.
-- Data Centre documents B2/R2 and Cloudflare private-media delivery; keep fresh media disabled until replica/integrity/private-delivery is verified.
+- Data Centre documents durable media lifecycle and Cloudflare private-media delivery; keep fresh media disabled until B2 integrity and private-delivery are verified.
 
 This document defines target boundaries and acceptance criteria. It does not claim production cutover or every feature port is complete.
