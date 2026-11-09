@@ -218,10 +218,56 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
  listHashtagPosts(hashtagId:string,n=20,offset=0,sort:"recent"|"top"="recent"){const query=new URLSearchParams({limit:String(limit(n)),offset:String(Math.max(0,Math.floor(offset))),sort});return testagramApiRequest<CapabilityPage<any>>("/api/hashtags/"+encodeURIComponent(hashtagId)+"/posts?"+query.toString())}
  listCommunityBadges(communityId:string){return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/badges')}
  claimCommunityBadge(communityId:string){return testagramApiRequest<{id:string;badge_tier:string;contribution_score:number;issued:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/badges/claim',{method:'POST',body:{}})}
- listCommunityEvents(communityId:string){return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/events')}
- createCommunityEvent(communityId:string,input:{title:string;description?:string;starts_at:string}){return testagramApiRequest<{id:string;community_id:string;title:string;starts_at:string}>('/api/communities/'+encodeURIComponent(communityId)+'/events',{method:'POST',body:input})}
- setCommunityEventRSVP(eventId:string,active:boolean){return testagramApiRequest<{event_id:string;attending:boolean}>('/api/community-events/'+encodeURIComponent(eventId)+'/rsvp',{method:active?'POST':'DELETE',...(active?{body:{}}:{})})}
- listCommunities(n=20,filters:Record<string,unknown>={}){const query=new URLSearchParams({limit:String(limit(n))});for(const key of ['q','category','tab','sort','page'] as const){const value=filters[key];if(value!==undefined&&value!==null&&String(value)!=='')query.set(key,String(value));}if(filters.exclude_joined===true)query.set('exclude_joined','true');return testagramApiRequest<CapabilityPage<any>>('/api/communities?'+query.toString())} createCommunity(name:string,options:Record<string,unknown>={}){return testagramApiRequest<{community:unknown}>('/api/communities',{method:'POST',body:{name:String(options.display_name??name),slug:name,description:String(options.description??''),visibility:options.is_private===true?'private':'public',icon_url:String(options.icon_url??''),banner_url:String(options.banner_url??''),rules:Array.isArray(options.rules)?options.rules:[]}})} joinCommunity(communityId:string){return testagramApiRequest<{community_id:string;joined:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/join',{method:'POST',body:{}})} leaveCommunity(communityId:string){return testagramApiRequest<{community_id:string;left:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/leave',{method:'DELETE'})}
+  listCommunityEvents(communityId: string) {
+    return testagramApiRequest<CapabilityPage<any>>('/api/communities/' + encodeURIComponent(communityId) + '/events');
+  }
+  createCommunityEvent(communityId: string, input: { title: string; description?: string; starts_at: string }) {
+    return testagramApiRequest<{ id: string; community_id: string; title: string; starts_at: string }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/events',
+      { method: 'POST', body: input },
+    );
+  }
+  setCommunityEventRSVP(eventId: string, active: boolean) {
+    return testagramApiRequest<{ event_id: string; attending: boolean }>(
+      '/api/community-events/' + encodeURIComponent(eventId) + '/rsvp',
+      { method: active ? 'POST' : 'DELETE', ...(active ? { body: {} } : {}) },
+    );
+  }
+  listCommunities(n = 20, filters: Record<string, unknown> = {}) {
+    const query = new URLSearchParams({ limit: String(limit(n)) });
+    for (const key of ['q', 'category', 'tab', 'sort', 'page'] as const) {
+      const value = filters[key];
+      if (value !== undefined && value !== null && String(value) !== '') query.set(key, String(value));
+    }
+    if (filters.exclude_joined === true) query.set('exclude_joined', 'true');
+    return testagramApiRequest<CapabilityPage<any>>('/api/communities?' + query.toString());
+  }
+  createCommunity(name: string, options: Record<string, unknown> = {}) {
+    return testagramApiRequest<{ community: unknown }>('/api/communities', {
+      method: 'POST',
+      body: {
+        name: String(options.display_name ?? name),
+        slug: name,
+        description: String(options.description ?? ''),
+        visibility: options.is_private === true ? 'private' : 'public',
+        icon_url: String(options.icon_url ?? ''),
+        banner_url: String(options.banner_url ?? ''),
+        rules: Array.isArray(options.rules) ? options.rules : [],
+      },
+    });
+  }
+  joinCommunity(communityId: string) {
+    return testagramApiRequest<{ community_id: string; joined: boolean }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/join',
+      { method: 'POST', body: {} },
+    );
+  }
+  leaveCommunity(communityId: string) {
+    return testagramApiRequest<{ community_id: string; left: boolean }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/leave',
+      { method: 'DELETE' },
+    );
+  }
  getFederationStatus(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.federation.status",{limit:limit(n),...cursor(c)})} getWallet(n=20,c?:string,currency='KES'){return Promise.all([this.call<{id:string;user_id:string;balance:string;currency:string;status:string}>("testagram.wallet.balance",{currency}),this.call<{items:unknown[]}>("testagram.wallet.transactions.list",{limit:limit(n),...cursor(c)})]).then(([wallet,history])=>({wallet,transactions:history.items??[],next_cursor:null as string|null}))}
  getWalletTransactions(n=20,c?:string){return this.call<{items:unknown[]}>("testagram.wallet.transactions.list",{limit:limit(n),...cursor(c)}).then(x=>({items:x.items,next_cursor:null as string|null}))}
  transferWallet(recipientId:string,amount:number,note='',idempotencyKey=rid()){return this.call<{transfer_id:string;status:string;duplicate:boolean;amount:string;currency:string}>("testagram.wallet.transfer",{recipient_id:recipientId,amount,note,idempotency_key:idempotencyKey})}
