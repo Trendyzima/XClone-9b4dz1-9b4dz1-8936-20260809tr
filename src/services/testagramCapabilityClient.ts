@@ -203,21 +203,84 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
  toggleCommunityChatReaction(communityId:string,messageId:string,emoji:string){return testagramApiRequest<{message_id:string;emoji:string;active:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/chat/'+encodeURIComponent(messageId)+'/reactions',{method:'POST',body:{emoji}})}
  toggleCommunityChatPin(communityId:string,messageId:string){return testagramApiRequest<{message_id:string;pinned:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/chat/'+encodeURIComponent(messageId)+'/pin',{method:'POST',body:{}})}
  listCommunityMembers(communityId:string,n=20){const query=new URLSearchParams({limit:String(limit(n))});return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/members?'+query.toString())}
- createCommunityPoll(communityId:string,input:{question:string;options:string[];duration_minutes:number;description?:string}){return testagramApiRequest<{post_id:string;poll:any}>('/api/communities/'+encodeURIComponent(communityId)+'/polls',{method:'POST',body:input})}
- getPost(postId:string){return testagramApiRequest<any>('/api/social/posts/'+encodeURIComponent(postId))}
- getPoll(pollId:string){return testagramApiRequest<any>('/api/social/polls/'+encodeURIComponent(pollId))} getPollByPost(postId:string){return testagramApiRequest<any>('/api/social/posts/'+encodeURIComponent(postId)+'/poll')}
- listCommunityPosts(communityId:string,n=30,page=0){const query=new URLSearchParams({limit:String(limit(n)),page:String(Math.max(0,Math.floor(page)))});return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/posts?'+query.toString())}
- createCommunityPost(communityId:string,input:{text:string;media_ids?:string[];language?:string}){return testagramApiRequest<{id:string;community_id:string;author_id:string;text:string;content:string}>('/api/communities/'+encodeURIComponent(communityId)+'/posts',{method:'POST',body:input})}
-
- createSelfNotification(input:{kind:string;payload:Record<string,unknown>;event_key:string}){return testagramApiRequest<{id:string;created:boolean}>('/api/social/notifications',{method:'POST',body:input})} scheduleCommunityPost(input:{content:string;scheduled_for:string;community_id:string}){return testagramApiRequest<{scheduled_post_id:string;community_id:string;scheduled_for:string;status:string}>('/api/scheduled-posts',{method:'POST',body:input})}
- updateCommunity(communityId:string,input:Record<string,unknown>){return testagramApiRequest<{updated:boolean;community_id:string}>('/api/communities/'+encodeURIComponent(communityId),{method:'PATCH',body:input})}
- moderateCommunityPost(communityId:string,postId:string){return testagramApiRequest<{post_id:string;moderated:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/posts/'+encodeURIComponent(postId)+'/moderate',{method:'POST',body:{}})}
- updateCommunityMemberRole(communityId:string,userId:string,role:'member'|'moderator'){return testagramApiRequest<{user_id:string;role:string}>('/api/communities/'+encodeURIComponent(communityId)+'/members/'+encodeURIComponent(userId)+'/role',{method:'POST',body:{role}})}
- removeCommunityMember(communityId:string,userId:string){return testagramApiRequest<{user_id:string;removed:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/members/'+encodeURIComponent(userId),{method:'DELETE'})}
- listCommunityShop(communityId:string){return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/shop')}
- listHashtagPosts(hashtagId:string,n=20,offset=0,sort:"recent"|"top"="recent"){const query=new URLSearchParams({limit:String(limit(n)),offset:String(Math.max(0,Math.floor(offset))),sort});return testagramApiRequest<CapabilityPage<any>>("/api/hashtags/"+encodeURIComponent(hashtagId)+"/posts?"+query.toString())}
- listCommunityBadges(communityId:string){return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/badges')}
- claimCommunityBadge(communityId:string){return testagramApiRequest<{id:string;badge_tier:string;contribution_score:number;issued:boolean}>('/api/communities/'+encodeURIComponent(communityId)+'/badges/claim',{method:'POST',body:{}})}
+ createCommunityPoll(communityId: string, input: { question: string; options: string[]; duration_minutes: number; description?: string }) {
+    return testagramApiRequest<{ post_id: string; poll: any }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/polls',
+      { method: 'POST', body: input },
+    );
+  }
+  getPost(postId: string) {
+    return testagramApiRequest<any>('/api/social/posts/' + encodeURIComponent(postId));
+  }
+  getPoll(pollId: string) {
+    return testagramApiRequest<any>('/api/social/polls/' + encodeURIComponent(pollId));
+  }
+  getPollByPost(postId: string) {
+    return testagramApiRequest<any>('/api/social/posts/' + encodeURIComponent(postId) + '/poll');
+  }
+  listCommunityPosts(communityId: string, n = 30, page = 0) {
+    const query = new URLSearchParams({ limit: String(limit(n)), page: String(Math.max(0, Math.floor(page))) });
+    return testagramApiRequest<CapabilityPage<any>>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/posts?' + query.toString(),
+    );
+  }
+  createCommunityPost(communityId: string, input: { text: string; media_ids?: string[]; language?: string }) {
+    return testagramApiRequest<{ id: string; community_id: string; author_id: string; text: string; content: string }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/posts',
+      { method: 'POST', body: input },
+    );
+  }
+  createSelfNotification(input: { kind: string; payload: Record<string, unknown>; event_key: string }) {
+    return testagramApiRequest<{ id: string; created: boolean }>('/api/social/notifications', { method: 'POST', body: input });
+  }
+  scheduleCommunityPost(input: { content: string; scheduled_for: string; community_id: string }) {
+    return testagramApiRequest<{ scheduled_post_id: string; community_id: string; scheduled_for: string; status: string }>(
+      '/api/scheduled-posts',
+      { method: 'POST', body: input },
+    );
+  }
+  updateCommunity(communityId: string, input: Record<string, unknown>) {
+    return testagramApiRequest<{ updated: boolean; community_id: string }>(
+      '/api/communities/' + encodeURIComponent(communityId),
+      { method: 'PATCH', body: input },
+    );
+  }
+  moderateCommunityPost(communityId: string, postId: string) {
+    return testagramApiRequest<{ post_id: string; moderated: boolean }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/posts/' + encodeURIComponent(postId) + '/moderate',
+      { method: 'POST', body: {} },
+    );
+  }
+  updateCommunityMemberRole(communityId: string, userId: string, role: 'member' | 'moderator') {
+    return testagramApiRequest<{ user_id: string; role: string }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/members/' + encodeURIComponent(userId) + '/role',
+      { method: 'POST', body: { role } },
+    );
+  }
+  removeCommunityMember(communityId: string, userId: string) {
+    return testagramApiRequest<{ user_id: string; removed: boolean }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/members/' + encodeURIComponent(userId),
+      { method: 'DELETE' },
+    );
+  }
+  listCommunityShop(communityId: string) {
+    return testagramApiRequest<CapabilityPage<any>>('/api/communities/' + encodeURIComponent(communityId) + '/shop');
+  }
+  listHashtagPosts(hashtagId: string, n = 20, offset = 0, sort: 'recent' | 'top' = 'recent') {
+    const query = new URLSearchParams({ limit: String(limit(n)), offset: String(Math.max(0, Math.floor(offset))), sort });
+    return testagramApiRequest<CapabilityPage<any>>(
+      '/api/hashtags/' + encodeURIComponent(hashtagId) + '/posts?' + query.toString(),
+    );
+  }
+  listCommunityBadges(communityId: string) {
+    return testagramApiRequest<CapabilityPage<any>>('/api/communities/' + encodeURIComponent(communityId) + '/badges');
+  }
+  claimCommunityBadge(communityId: string) {
+    return testagramApiRequest<{ id: string; badge_tier: string; contribution_score: number; issued: boolean }>(
+      '/api/communities/' + encodeURIComponent(communityId) + '/badges/claim',
+      { method: 'POST', body: {} },
+    );
+  }
   listCommunityEvents(communityId: string) {
     return testagramApiRequest<CapabilityPage<any>>('/api/communities/' + encodeURIComponent(communityId) + '/events');
   }
