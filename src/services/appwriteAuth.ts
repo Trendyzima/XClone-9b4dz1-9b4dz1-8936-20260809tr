@@ -111,7 +111,7 @@ export const appwriteAuth = {
 
   async completeMfaChallenge(challengeId: string, otp: string): Promise<void> {
     assertAppwriteAuthConfigured();
-    if (!challengeId.trim() || !/^\\d{6,10}$/.test(otp.trim())) {
+    if (!challengeId.trim() || !/^\d{6,10}$/.test(otp.trim())) {
       throw new Error('Enter the verification code from your authenticator or recovery method.');
     }
     await appwriteAccount.updateMfaChallenge({ challengeId, otp: otp.trim() });
