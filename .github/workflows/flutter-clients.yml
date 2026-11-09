@@ -147,6 +147,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+          VITE_APPWRITE_ENDPOINT: ${{ vars.VITE_APPWRITE_ENDPOINT }}
+          VITE_APPWRITE_PROJECT_ID: ${{ vars.VITE_APPWRITE_PROJECT_ID }}
+          VITE_TESTAGRAM_API_URL: ${{ vars.VITE_TESTAGRAM_API_URL }}
         run: >-
           flutter build apk --debug
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
