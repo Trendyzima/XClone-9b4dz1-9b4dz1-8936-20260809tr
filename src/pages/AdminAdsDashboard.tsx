@@ -164,7 +164,7 @@ export default function AdminAdsDashboard() {
     setMfaBusy(true);
     try {
       if (!mfaChallengeId) {
-        const challenge = await appwriteAuth.createMfaChallenge(mfaFactor);
+        const challenge = await appwriteAuth.createMfaChallenge(mfaFactor as import('appwrite').AuthenticationFactor);
         setMfaChallengeId((challenge as any).$id ?? (challenge as any).id ?? '');
         toast.success(mfaFactor === 'totp' ? 'Enter the code from your authenticator app.' : 'A verification code has been sent.');
         return;
