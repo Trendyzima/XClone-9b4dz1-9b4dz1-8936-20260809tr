@@ -271,6 +271,11 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "}",
   ].join('\\n');
   fs.writeFileSync(socialServicePath, socialServiceSource, 'utf8');
+  if (/@supabase\\//i.test(supabaseSource + socialServiceSource) ||
+      /createClient\\s*\\(/.test(supabaseSource + socialServiceSource) ||
+      /VITE_SUPABASE|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|rest\\/v1\\/|functions\\/v1\\//i.test(supabaseSource + socialServiceSource)) {
+    throw new Error('[TikVTV/Testagram API] Legacy hosted data client injection is forbidden');
+  }
   fs.writeFileSync(reactionHookPath, "import { useState, useCallback, useEffect } from 'react';\nimport { iptvSocial } from '@/lib/testagramSocial';\n\nexport function useReactions(channelId: string, userId?: string) {\n  const [liked, setLiked] = useState(false);\n  const [likeCount, setLikeCount] = useState(0);\n  const [loading, setLoading] = useState(false);\n\n  useEffect(() => {\n    let mounted = true;\n    iptvSocial<{liked:boolean;likeCount:number}>('reactions_state', { channelId })\n      .then(r => { if (mounted) { setLiked(!!r.liked); setLikeCount(r.likeCount || 0); } })\n      .catch(() => {});\n    return () => { mounted = false; };\n  }, [channelId, userId]);\n\n  const toggleLike = useCallback(async (): Promise<boolean> => {\n    if (!userId || loading) return false;\n    setLoading(true);\n    try {\n      const r = await iptvSocial<{liked:boolean}>('reaction_toggle', { channelId });\n      setLiked(!!r.liked);\n      setLikeCount(n => Math.max(0, n + (r.liked ? 1 : -1)));\n      return true;\n    } catch { return false; }\n    finally { setLoading(false); }\n  }, [channelId, userId, loading]);\n\n  return { liked, likeCount, loading, toggleLike };\n}\n", 'utf8');
   fs.writeFileSync(commentsHookPath, [
     "import { useState, useCallback, useEffect } from 'react';",
