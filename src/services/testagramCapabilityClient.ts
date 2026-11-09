@@ -205,7 +205,7 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
  listCommunityMembers(communityId:string,n=20){const query=new URLSearchParams({limit:String(limit(n))});return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/members?'+query.toString())}
  createCommunityPoll(communityId:string,input:{question:string;options:string[];duration_minutes:number;description?:string}){return testagramApiRequest<{post_id:string;poll:any}>('/api/communities/'+encodeURIComponent(communityId)+'/polls',{method:'POST',body:input})}
  getPost(postId:string){return testagramApiRequest<any>('/api/social/posts/'+encodeURIComponent(postId))}
- getPoll(pollId:string){return testagramApiRequest<{poll:any}>('/api/social/polls/'+encodeURIComponent(pollId))} getPollByPost(postId:string){return testagramApiRequest<{poll:any}>('/api/social/posts/'+encodeURIComponent(postId)+'/poll')}
+ getPoll(pollId:string){return testagramApiRequest<any>('/api/social/polls/'+encodeURIComponent(pollId))} getPollByPost(postId:string){return testagramApiRequest<any>('/api/social/posts/'+encodeURIComponent(postId)+'/poll')}
  listCommunityPosts(communityId:string,n=30,page=0){const query=new URLSearchParams({limit:String(limit(n)),page:String(Math.max(0,Math.floor(page)))});return testagramApiRequest<CapabilityPage<any>>('/api/communities/'+encodeURIComponent(communityId)+'/posts?'+query.toString())}
  createCommunityPost(communityId:string,input:{text:string;media_ids?:string[];language?:string}){return testagramApiRequest<{id:string;community_id:string;author_id:string;text:string;content:string}>('/api/communities/'+encodeURIComponent(communityId)+'/posts',{method:'POST',body:input})}
 
