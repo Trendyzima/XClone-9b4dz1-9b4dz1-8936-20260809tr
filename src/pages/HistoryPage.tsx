@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, History, Trash2 } from 'lucide-react';
@@ -35,23 +35,13 @@ export default function HistoryPage() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('browsing_history')
-        .select('id, entity_type, entity_id, metadata, created_at')
-        .eq('user_id', user.id)
-        .eq('entity_type', 'post')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      setHistory(data || []);
-      const postIds = (data || []).map((item: any) => item.entity_id).filter(Boolean);
-      if (postIds.length) {
-        const { data: viewedPosts } = await supabase.from('posts').select('*, profiles(*)').in('id', postIds).is('deleted_at', null);
-        const byId = new Map((viewedPosts || []).map((post: any) => [post.id, post]));
-        setPosts(postIds.map((id: string) => byId.get(id)).filter(Boolean) as Post[]);
-      } else setPosts([]);
+      const result = await backendCapabilities.listBrowsingHistory();
+      const entries = (result.items || []).filter((item) => item.entity_type === 'post');
+      setHistory(entries);
+      const viewedPosts = await Promise.all(entries.map((item) =>
+        backendCapabilities.getPost(item.entity_id).catch(() => null),
+      ));
+      setPosts(viewedPosts.filter(Boolean).map((item: any) => item.post ?? item) as Post[]);
     } catch (error) {
       console.error('Error fetching history:', error);
     } finally {
@@ -65,12 +55,7 @@ export default function HistoryPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('browsing_history')
-        .delete()
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
+      await backendCapabilities.clearBrowsingHistory();
 
       setHistory([]);
       setPosts([]);
