@@ -37,7 +37,8 @@ export function CreatorMediaStudio({ onUseInComposer, onUseInReelStudio }: Props
     try {
       const found = await listTestagramMedia();
       setAssets(found
-        .filter((item): item is CreatorMediaAsset => item.type === 'image' || item.type === 'video')
+        .filter(item => item.type === 'image' || item.type === 'video')
+        .map(item => ({ ...item, type: item.type as 'image' | 'video' }))
         .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')));
     } catch (err: any) {
       setError(err?.message ?? 'Could not load your media library.');
