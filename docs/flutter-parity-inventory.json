@@ -85,13 +85,14 @@
     {
       "id": "advertising_and_monetization",
       "scope": "Internal ad campaigns, external ad provider adapters, ExoClick/VAST, sponsored labels, pacing, frequency caps, analytics, creator earnings, payout flows",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Native Appwrite MFA-gated ad-review APIs and Flutter review client are implemented; campaign data import and production payment integration remain to be verified"
       ]
     },
     {
