@@ -107,8 +107,8 @@ export function identifyAnalyticsUser(user: Models.User<Models.Preferences> | nu
       return;
     }
 
-    const metadata = user.prefs ?? {};
-    client.identify(user.id, safeProperties({
+    const metadata = (user.prefs ?? {}) as Record<string, unknown>;
+    client.identify(user.$id, safeProperties({
       username: metadata.username ?? user.name,
       email_domain: user.email?.split('@')[1],
       auth_method: user.phone ? 'phone' : 'email',

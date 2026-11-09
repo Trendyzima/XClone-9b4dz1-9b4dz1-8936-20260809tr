@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { walletApi } from '@/services/walletApi';
-import { walletApi } from '@/services/walletApi';
 import { toast } from 'sonner';
 import {
   Shield, X, Loader2, CheckCircle2, Smartphone,

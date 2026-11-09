@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { requireAccessToken } from '@/services/backendClient';
+import { listTestagramMedia } from '@/services/mediaClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Image as ImageIcon, Loader2, PlaySquare, RefreshCw, Search, Send, Video, Clapperboard } from 'lucide-react';
 
@@ -35,16 +35,11 @@ export function CreatorMediaStudio({ onUseInComposer, onUseInReelStudio }: Props
     setRefreshing(true);
     setError(null);
     try {
-      const token = await requireAccessToken();
-      const response = await fetch('/api/media', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list' }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Could not load your media library.');
-      const found = (payload.items ?? []) as CreatorMediaAsset[];
-      setAssets(found.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')));
+      const found = await listTestagramMedia();
+      setAssets(found
+        .filter(item => item.type === 'image' || item.type === 'video')
+        .map(item => ({ ...item, type: item.type as 'image' | 'video' }))
+        .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')));
     } catch (err: any) {
       setError(err?.message ?? 'Could not load your media library.');
     } finally {
