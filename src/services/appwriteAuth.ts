@@ -1,4 +1,4 @@
-import { ID, type Models } from 'appwrite';
+import { AuthenticationFactor, ID, type Models } from 'appwrite';
 import {
   appwriteAccount,
   assertAppwriteAuthConfigured,
@@ -104,9 +104,9 @@ export const appwriteAuth = {
     return appwriteAccount.listMfaFactors();
   },
 
-  async createMfaChallenge(factorId: string) {
+  async createMfaChallenge(factor: AuthenticationFactor) {
     assertAppwriteAuthConfigured();
-    return appwriteAccount.createMfaChallenge({ factorId });
+    return appwriteAccount.createMfaChallenge({ factor });
   },
 
   async completeMfaChallenge(challengeId: string, otp: string): Promise<void> {
