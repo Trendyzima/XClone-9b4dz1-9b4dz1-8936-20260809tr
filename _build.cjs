@@ -106,6 +106,8 @@ function readNormalizedUtf8(filePath) {
 
 function patchTikVTVForTestagramAuth(vendorRoot) {
   const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
+  const authServicePath = path.join(vendorRoot, 'src', 'lib', 'authService.ts');
+  const authHookPath = path.join(vendorRoot, 'src', 'hooks', 'useAuth.ts');
   const vendorPackagePath = path.join(vendorRoot, 'package.json');
   const vendorLockPath = path.join(vendorRoot, 'package-lock.json');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
@@ -139,12 +141,14 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   export const supabasePublishableKey = '';
   `;
 
-  if (!fs.existsSync(supabasePath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
+  if (!fs.existsSync(supabasePath) || !fs.existsSync(authServicePath) || !fs.existsSync(authHookPath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
     throw new Error('[TikVTV/Testagram Auth] Expected upstream auth/branding files are missing');
   }
 
   const original = new Map([
     [supabasePath, readNormalizedUtf8(supabasePath)],
+    [authServicePath, readNormalizedUtf8(authServicePath)],
+    [authHookPath, readNormalizedUtf8(authHookPath)],
     [vendorPackagePath, readNormalizedUtf8(vendorPackagePath)],
     ...(fs.existsSync(vendorLockPath) ? [[vendorLockPath, readNormalizedUtf8(vendorLockPath)]] : []),
     [profilePath, readNormalizedUtf8(profilePath)],
@@ -255,6 +259,44 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   }
 
   fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
+  fs.writeFileSync(authServicePath, [
+    "import type { AuthUser } from '@/types';",
+    "import { iptvSocial } from '@/lib/testagramSocial';",
+    "export function mapSupabaseUser(user: any): AuthUser {",
+    "  const id = String(user?.id || user?.$id || '');",
+    "  const email = String(user?.email || '');",
+    "  return { id, email, username: String(user?.username || user?.prefs?.username || user?.name || email.split('@')[0] || 'viewer'), avatar: user?.avatar || user?.prefs?.avatar_url };",
+    "}",
+    "const goToHostAuth = () => { if (window.top) window.top.location.assign('/auth?returnTo=/iptv-app/entry.html'); };",
+    "export const authService = {",
+    "  async sendOtp() { goToHostAuth(); },",
+    "  async verifyOtpAndRegister() { goToHostAuth(); throw new Error('Complete registration in Testagram.'); },",
+    "  async signInWithPassword() { goToHostAuth(); throw new Error('Sign in through Testagram.'); },",
+    "  async signOut() { await iptvSocial('sign_out'); },",
+    "};",
+  ].join('\\n'), 'utf8');
+  fs.writeFileSync(authHookPath, [
+    "import { useEffect } from 'react';",
+    "import { iptvSocial } from '@/lib/testagramSocial';",
+    "import { useAuthStore } from '@/stores/authStore';",
+    "import type { AuthUser } from '@/types';",
+    "export function useAuth() {",
+    "  const { user, loading, login, logout, setLoading } = useAuthStore();",
+    "  useEffect(() => {",
+    "    let mounted = true;",
+    "    const load = async () => {",
+    "      try { const result = await iptvSocial<{user:AuthUser|null}>('session_info'); if (!mounted) return; if (result.user) login(result.user); else logout(); }",
+    "      catch { if (mounted) logout(); }",
+    "      finally { if (mounted) setLoading(false); }",
+    "    };",
+    "    void load();",
+    "    const onAuthChanged = (event: MessageEvent) => { if (event.source === window.parent && event.origin === window.location.origin && event.data?.type === 'testagram:auth-changed') void load(); };",
+    "    window.addEventListener('message', onAuthChanged);",
+    "    return () => { mounted = false; window.removeEventListener('message', onAuthChanged); };",
+    "  }, []);",
+    "  return { user, loading, login, logout };",
+    "}",
+  ].join('\\n'), 'utf8');
   const socialServiceSource = [
     "const REQUEST_TYPE = 'testagram:iptv-social:request';",
     "const RESPONSE_TYPE = 'testagram:iptv-social:response';",
