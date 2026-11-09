@@ -473,6 +473,30 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
       'testagram.audio_spaces.superchat', { space_id: spaceId, message, amount, idempotency_key: idempotencyKey },
     );
   }
+  createThread(input: { body: string; visibility?: 'public' | 'unlisted' | 'private' }) {
+    return testagramApiRequest<{ id: string; owner_id: string; body: string; visibility: string; media_urls: any[] }>(
+      '/api/threads', { method: 'POST', body: input },
+    );
+  }
+  attachThreadMedia(threadId: string, key: string) {
+    return testagramApiRequest<{ thread_id: string; attached: boolean; media: any }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/media', { method: 'POST', body: { key } },
+    );
+  }
+  deleteThread(threadId: string) {
+    return testagramApiRequest<{ id: string; deleted: boolean }>(
+      '/api/threads/' + encodeURIComponent(threadId), { method: 'DELETE' },
+    );
+  }
+  listBrowsingHistory() {
+    return testagramApiRequest<{ items: Array<{ entity_type: string; entity_id: string; metadata: Record<string, unknown>; created_at: string }> }>('/api/social/history');
+  }
+  recordBrowsingHistory(input: { entity_type: 'post' | 'thread' | 'video'; entity_id: string; metadata?: Record<string, unknown> }) {
+    return testagramApiRequest<{ recorded: boolean }>('/api/social/history', { method: 'POST', body: input });
+  }
+  clearBrowsingHistory() {
+    return testagramApiRequest<{ deleted: number }>('/api/social/history', { method: 'DELETE' });
+  }
   listPolls(n = 20, offset = 0) {
     return testagramApiRequest<{ items: any[]; next_offset: number; has_more: boolean }>(
       '/api/social/polls?limit=' + limit(n) + '&offset=' + Math.max(0, Math.trunc(offset)),
