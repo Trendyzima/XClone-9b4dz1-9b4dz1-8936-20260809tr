@@ -23,7 +23,7 @@ async function fetchProfileSectionPage(profile: any, section: Section, offset: n
   if (section === 'posts' || section === 'videos') {
     const result = await profileApi.listPosts(profileId);
     const source = (result.items ?? []).filter((row: any) =>
-      section === 'posts' || row.is_video || row.video_url || row.media_urls?.some((url: string) => /\\.(mp4|m3u8|webm)(?:$|\\?)/i.test(url)),
+      section === 'posts' || row.is_video || row.video_url,
     );
     const page = pageFrom(source);
     return { ...page, rows: page.rows.map((row: any) => ({ ...row, author_id: row.author_id ?? row.user_id, profiles: row.profiles ?? row.user_profiles ?? profile })) };
