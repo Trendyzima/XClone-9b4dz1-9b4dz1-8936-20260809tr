@@ -24,9 +24,9 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
  const [text,setText]=useState(''); const [sending,setSending]=useState(false); const [retry,setRetry]=useState(0);
  const meta=META[kind]; const Icon=meta.icon;
 
- const load=useCallback(async()=>{
+ const load=useCallback(async(silent=false)=>{
   if(!postId)return;
-  setLoading(true); setError(null);
+  if(!silent)setLoading(true); setError(null);
   try{
    let next:any[]=[];
    if(/^https:\/\//i.test(postId)){
@@ -69,14 +69,14 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
    console.error('[post-interaction]',kind,e);
    setError(e instanceof Error?e.message:'Unable to load interaction');
    setItems([]);
-  }finally{setLoading(false)}
+  }finally{if(!silent)setLoading(false)}
  },[postId,kind,retry]);
 
  useEffect(()=>{void load()},[load]);
 
  useEffect(()=>{
   if(!postId || /^https:\/\//i.test(postId))return;
-  const refresh=()=>{ if(document.visibilityState==='visible') void load(); };
+  const refresh=()=>{ if(document.visibilityState==='visible') void load(true); };
   const timer=window.setInterval(refresh,15000);
   document.addEventListener('visibilitychange',refresh);
   return()=>{window.clearInterval(timer);document.removeEventListener('visibilitychange',refresh)};
