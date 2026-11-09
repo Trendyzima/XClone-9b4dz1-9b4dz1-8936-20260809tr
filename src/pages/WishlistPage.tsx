@@ -66,7 +66,7 @@ export default function WishlistPage() {
   const fetchProducts = async (ids: string[]) => {
     setLoading(true);
     try {
-      const result = await backendCapabilities.listMarketplaceProducts(100);
+      const result = await backendCapabilities.getMarketplaceProductsByIds(ids);
       const enriched = (result.items ?? []).map((p: any) => ({
         ...p,
         user_id: p.owner_id ?? p.user_id,
