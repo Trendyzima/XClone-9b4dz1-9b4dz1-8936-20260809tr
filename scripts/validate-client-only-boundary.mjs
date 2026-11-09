@@ -39,6 +39,14 @@ async function walk(dir) {
 }
 for (const dir of sourceRoots) await walk(path.join(root, dir));
 
+const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+const directDependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+for (const dependency of Object.keys(directDependencies)) {
+  if (/^(?:@upstash\\/(?:redis|ratelimit|qstash)|ioredis|redis)$/.test(dependency)) {
+    failures.push(`Forbidden Redis/Upstash dependency remains in package.json: ${dependency}`);
+  }
+}
+
 const capabilityClient = await readFile(path.join(root, 'src/services/testagramCapabilityClient.ts'), 'utf8').catch(() => '');
 if (!capabilityClient.includes('BACKEND_API_URL_REQUIRED') || !capabilityClient.includes('VITE_TESTAGRAM_API_URL')) {
   failures.push('Capability client must require an explicit VITE_TESTAGRAM_API_URL and fail closed.');
