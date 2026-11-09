@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { backendCapabilities } from '@/services/backendClient';
+import { buildPersonalizedFeed } from '@/services/recommendations';
+import { socialApi } from '@/services/socialApiClient';
 import { buildPersonalizedFeed } from '@/services/recommendations';
 import { TrendingUp, Loader2, BadgeCheck, Flame, Sparkles, Clock, Users, Search } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
@@ -19,7 +20,7 @@ export function ContentSuggestionsWidget() {
   const navigate = useNavigate();
   const [suggestions, setSuggestions] = useState<SuggestionPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'for-you' | 'trending' | 'new' | 'creators'>('for-you');
+  const [activeTab, setActiveTab] = useState<'for-you' | 'new'>('for-you');
 
   useEffect(() => {
     let cancelled = false;
@@ -30,29 +31,13 @@ export function ContentSuggestionsWidget() {
         let posts: SuggestionPost[] = [];
 
         if (activeTab === 'for-you' && user) {
-          // Use the same interest/social/recency engine as the main recommendation path.
-          // This prevents the sidebar from becoming a separate, less-intelligent ranking system.
           const ranked = await buildPersonalizedFeed(user.id, 18);
-          posts = ranked.map(item => ({
-            ...item.post,
-            _reason: item.reason,
-          }));
-        }
-
-        if (activeTab === 'trending' || (activeTab === 'for-you' && posts.length < 5)) {
-          const page = await backendCapabilities.listDiscoveryPosts(18, '', 'top');
-          posts = [...posts, ...(page.items ?? []).map((p: any) => ({ ...p, _reason: 'trending now' }))];
-        }
-        if (activeTab === 'new') {
-          const page = await backendCapabilities.listDiscoveryPosts(18, '', 'recent', since);
-          posts = (page.items ?? []).map((p: any) => ({ ...p, _reason: 'fresh on Testagram' }));
-        }
-        if (activeTab === 'creators') {
-          const creators = await backendCapabilities.listDiscoveryCreators(12);
-          const timelines = await Promise.all((creators.items ?? []).slice(0, 8).map((creator: any) =>
-            backendCapabilities.getProfileTimeline(String(creator.id ?? creator.user_id), 4).catch(() => ({ items: [] })),
-          ));
-          posts = timelines.flatMap((page: any) => page.items ?? []).map((p: any) => ({ ...p, _reason: 'creator content' }));
+          posts = ranked.map(item => ({ ...item.post, _reason: item.reason }));
+        } else if (activeTab === 'new') {
+          const page = user
+            ? await socialApi.getHomeFeed(50)
+            : await socialApi.getPublicHomeFeed(50);
+          posts = page.posts.slice(0, 18).map((post: any) => ({ ...post, _reason: 'latest from Testagram' }));
         }
 
         const seen = new Set<string>();
@@ -72,9 +57,7 @@ export function ContentSuggestionsWidget() {
 
   const tabs = [
     ['for-you', 'For you', Sparkles],
-    ['trending', 'Trending', Flame],
     ['new', 'Latest', Clock],
-    ['creators', 'Creators', Users],
   ] as const;
 
   return (
