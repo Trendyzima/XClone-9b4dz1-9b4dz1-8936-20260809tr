@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserRound, LogIn, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePremium } from '@/hooks/usePremium';
+import { testagramApiRequest } from '@/services/apiClient';
 
 type IptvAdWindow = Window & {
   google?: any;
@@ -552,6 +553,44 @@ export default function TikVTVPage() {
     const removeAds = isPremium ? undefined : installIptvChannelAds(frame);
     return () => { removeAds?.(); removeRigidScroll(); };
   }, [ready, isPremium, handlePullRefresh]);
+
+  // The IPTV vendor is an isolated same-origin iframe. It never receives an
+  // Appwrite JWT or storage credential: authenticated requests are brokered by
+  // this parent and sent to the canonical Backend API.
+  useEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame) return;
+    const publicActions = new Set(['trending', 'comments_list', 'comments_count', 'reactions_state']);
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
+      const message = event.data as Record<string, unknown> | null;
+      if (!message || typeof message !== 'object') return;
+      if (message.type === 'testagram:iptv-auth-state-request' && typeof message.requestId === 'string') {
+        frame.contentWindow?.postMessage({
+          type: 'testagram:iptv-auth-state-response',
+          requestId: message.requestId,
+          user: user ? { id: user.id, email: user.email, username: user.username } : null,
+        }, window.location.origin);
+        return;
+      }
+      if (message.type !== 'testagram:iptv-social-request' || typeof message.requestId !== 'string' || typeof message.action !== 'string') return;
+      const payload = message.payload && typeof message.payload === 'object' && !Array.isArray(message.payload)
+        ? message.payload as Record<string, unknown> : {};
+      const requestId = message.requestId;
+      void testagramApiRequest<unknown>('/api/iptv/social', {
+        method: 'POST',
+        body: { action: message.action, payload },
+        anonymous: publicActions.has(message.action) && !user,
+      }).then((data) => {
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-social-response', requestId, ok: true, data }, window.location.origin);
+      }).catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : 'IPTV request failed';
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-social-response', requestId, ok: false, error: reason }, window.location.origin);
+      });
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [user?.id, user?.email, user?.username]);
 
   return (
     <div className="fixed inset-0 z-[60] bg-black" data-testid="iptv-page">
