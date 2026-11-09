@@ -4,7 +4,8 @@ import { Bookmark, Check, Eye, Heart, Image as ImageIcon, Loader2, MessageCircle
 import { formatDistanceToNow } from 'date-fns';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
@@ -28,8 +29,8 @@ type MixedItem =
   | { kind:'fed'; data:any };
 const TABS:Tab[]=['For you','Following','Saved'];
 const THREADS_CACHE_TTL=45_000;
-const threadsCache=new Map<string,{at:number,threads:Thread[],mixed:MixedItem[],cursor:string|null,hasMore:boolean}>();
-const readThreadsCache=(key:string)=>{try{const raw=sessionStorage.getItem(`threads-cache:${key}`);if(!raw)return null;const v=JSON.parse(raw);return v&&Date.now()-v.at<THREADS_CACHE_TTL?v:null}catch{return null}};
+const threadsCache=new Map<string,{at:number,threads:Thread[],mixed:MixedItem[],cursor:string|null,hasMore:boolean,postCursor:string|null}>();
+const readThreadsCache=(key:string)=>{try{const raw=sessionStorage.getItem(`threads-cache:v2:${key}`);if(!raw)return null;const v=JSON.parse(raw);return v&&Date.now()-v.at<THREADS_CACHE_TTL?v:null}catch{return null}};
 const writeThreadsCache=(key:string,value:any)=>{try{sessionStorage.setItem(`threads-cache:${key}`,JSON.stringify({at:Date.now(),...value}));}catch{}};
 
 
@@ -94,107 +95,88 @@ export default function ThreadsPage() {
   const {user}=useAuth(); const navigate=useNavigate();
   const [tab,setTab]=useState<Tab>('For you'); const [threads,setThreads]=useState<Thread[]>([]); const [mixedItems,setMixedItems]=useState<MixedItem[]>([]);
   const [liked,setLiked]=useState<Set<string>>(new Set()); const [reposted,setReposted]=useState<Set<string>>(new Set()); const [bookmarked,setBookmarked]=useState<Set<string>>(new Set());
-  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [loadingMore,setLoadingMore]=useState(false); const [feedError,setFeedError]=useState<string|null>(null); const [hasMore,setHasMore]=useState(true); const [cursor,setCursor]=useState<string|null>(null); const [search,setSearch]=useState(''); const loadMoreRef=useRef<HTMLDivElement|null>(null);
+  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [loadingMore,setLoadingMore]=useState(false); const [feedError,setFeedError]=useState<string|null>(null); const [hasMore,setHasMore]=useState(true); const [cursor,setCursor]=useState<string|null>(null); const [postCursor,setPostCursor]=useState<string|null>(null); const [search,setSearch]=useState(''); const loadMoreRef=useRef<HTMLDivElement|null>(null);
 
   useSEO({title:'Threads — Testagram',description:'Join conversations on Testagram. Share thoughts, reply, repost and discover people you follow.',url:'/threads',type:'website',keywords:'threads, conversations, social, Testagram'});
 
   const loadThreads=useCallback(async(reset=true)=>{
-    const cacheKey=`${tab}:${user?.id??'anon'}`;
-    if(reset){setRefreshing(true);setFeedError(null);setLoading(true);setCursor(null);setHasMore(true); const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey); if(cached){setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);setHasMore(cached.hasMore!==false); setLoading(false); setRefreshing(false);}}
-    else {if(loadingMore||!hasMore)return;setLoadingMore(true);}
-    try{
-      let ids:string[]|null=null;
-      if(tab==='Following'){
-        if(!user){setThreads([]);setMixedItems([]);return;}
-        const {data}=await supabase.from('follows').select('following_id').eq('follower_id',user.id).limit(500);
-        ids=(data??[]).map((r:any)=>r.following_id).filter(Boolean);
-        if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
+    const cacheKey=tab+':'+(user?.id??'anon');
+    if(reset){
+      setRefreshing(true);setFeedError(null);setLoading(true);setCursor(null);setPostCursor(null);setHasMore(true);
+      const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey);
+      if(cached){
+        setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);
+        setPostCursor(cached.postCursor??null);
+        setHasMore(cached.hasMore!==false);setLoading(false);setRefreshing(false);
       }
-      if(tab==='Saved'){
-        if(!user){setThreads([]);setMixedItems([]);setHasMore(false);return;}
-        const {data}=await supabase.from('thread_bookmarks').select('thread_id').eq('user_id',user.id).order('created_at',{ascending:false}).limit(100);
-        ids=(data??[]).map((r:any)=>r.thread_id).filter(Boolean);
-        if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
+    }else{
+      if(loadingMore||!hasMore)return;
+      setLoadingMore(true);
+    }
+    try{
+      if((tab==='Following'||tab==='Saved')&&!user){
+        setThreads([]);setMixedItems([]);setHasMore(false);return;
       }
 
       const pageSize=6;
-      // For the default For-you surface, start independent network reads together.
-      // Following/Saved still need their user-specific ID lists before querying.
-      const parallelNetworkPromise = tab === 'For you'
-        ? Promise.all([
-            supabase.from('posts')
-              .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-              .is('community_id',null).is('deleted_at',null).order('created_at',{ascending:false}).limit(8),
-            federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}}))
-          ])
-        : null;
-      let query=supabase.from('threads').select('id, owner_id, body, visibility, created_at, likes_count, reposts_count, quotes_count, replies_count, views_count, media_urls')
-        .eq('visibility','public').is('deleted_at',null).order('created_at',{ascending:false}).limit(pageSize);
-      if(cursor&&!reset) query=query.lt('created_at',cursor);
-      if(tab==='Following'&&ids)query=query.in('owner_id',ids);
-      if(tab==='Saved'&&ids)query=query.in('id',ids);
-      const {data,error}=await query; if(error)throw error;
-      const rows=(data??[]) as Thread[];
-      const ownerIds=[...new Set(rows.map(r=>r.owner_id))];
-      const profiles:Profile[]=ownerIds.length?(((await supabase.from('profiles').select('id, username, avatar_url, verified, display_name').in('id',ownerIds)).data ?? []) as Profile[]):[];
-      const byId=new Map(profiles.map((p:any)=>[p.id,p]));
-      const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)}));
-      // Render the first thread slice immediately. Posts/Fediverse are secondary
-      // discovery sources and must not block the primary Threads surface.
-      const initialThreadItems:MixedItem[]=normalizedThreads.map(data=>({kind:'thread' as const,data}));
-      if(reset){
-        setThreads(normalizedThreads);
-        setMixedItems(initialThreadItems);
-        setLoading(false);
-      }else{
-        setThreads(prev=>[...prev,...normalizedThreads]);
-        setMixedItems(prev=>[...prev,...initialThreadItems.filter(next=>!prev.some(old=>old.kind==='thread'&&old.data.id===next.data.id))]);
-      }
-
-      const postQueryBase=supabase.from('posts')
-        .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,verified_tier)')
-        .is('community_id',null).is('deleted_at',null).order('created_at',{ascending:false}).limit(8);
-      const postQuery=tab==='Following'&&ids?postQueryBase.in('user_id',ids):postQueryBase;
       const shouldMixNetwork=tab!=='Saved';
-      const [postRes,fedRes]=parallelNetworkPromise
-        ? await parallelNetworkPromise
-        : await Promise.all([
-            shouldMixNetwork ? postQuery : Promise.resolve({data:[]}),
-            shouldMixNetwork ? federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}})) : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}})
-          ]);
-      const postItems=(postRes.data??[]).map((p:any)=>({kind:'post' as const,data:{...p,_source_label:'Testagram'}}));
-      const fedItems=(fedRes.items??[]).map((p:any)=>{const account=p.remote_account??p.actor??p.account??{};return {kind:'fed' as const,data:{...p,id:p.id??p.uri??p.url??crypto.randomUUID(),user_id:p.user_id??account.id??`remote-${p.id??p.uri??'account'}`,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),likes_count:Number(p.likes_count??p.favourites_count??p.favorite_count??0),reposts_count:Number(p.reposts_count??p.reblogs_count??p.boosts_count??0),replies_count:Number(p.replies_count??0),views_count:Number(p.views_count??0),user_profiles:{id:account.id??p.user_id??'',username:account.username??account.preferredUsername??'fediverse-user',display_name:account.display_name??account.name??account.username??'Fediverse user',avatar_url:account.avatar_url??account.avatar??account.icon?.url??null,verified_tier:account.verified_tier??null,verified:Boolean(account.verified),follower_count:Number(account.follower_count??account.followers_count??0),following_count:Number(account.following_count??account.following_count??0)},remote_status_uri:p.uri??p.url,is_federated:true,_source_label:'Fediverse'}};});
+      const postFeedPromise=shouldMixNetwork
+        ? user
+          ? socialApi.getHomeFeed(8,reset?undefined:postCursor,tab==='Following')
+          : socialApi.getPublicHomeFeed(8,reset?undefined:postCursor)
+        : Promise.resolve({posts:[],next_cursor:null,has_more:false,ranking_mode:'chronological' as const});
+      const fedPromise=shouldMixNetwork
+        ? federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}}))
+        : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}});
+      const [threadPage,postRes,fedRes]=await Promise.all([
+        backendCapabilities.listThreads(tab==='For you'?'for-you':tab==='Following'?'following':'saved',pageSize,reset?undefined:cursor),
+        postFeedPromise,
+        fedPromise,
+      ]);
+      const rows=(threadPage.items??[]) as Thread[];
+      const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[]}));
+      const postItems=(postRes.posts??[]).map((p:any)=>({kind:'post' as const,data:{...p,user_profiles:p.author,_source_label:'Testagram'}}));
+      const fedItems=(fedRes.items??[]).map((p:any)=>{
+        const account=p.remote_account??p.actor??p.account??{};
+        return {kind:'fed' as const,data:{...p,id:p.id??p.uri??p.url??crypto.randomUUID(),user_id:p.user_id??account.id??('remote-'+(p.id??p.uri??'account')),content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),likes_count:Number(p.likes_count??p.favourites_count??p.favorite_count??0),reposts_count:Number(p.reposts_count??p.reblogs_count??p.boosts_count??0),replies_count:Number(p.replies_count??0),views_count:Number(p.views_count??0),user_profiles:{id:account.id??p.user_id??'',username:account.username??account.preferredUsername??'fediverse-user',display_name:account.display_name??account.name??account.username??'Fediverse user',avatar_url:account.avatar_url??account.avatar??account.icon?.url??null,verified_tier:account.verified_tier??null,verified:Boolean(account.verified),follower_count:Number(account.follower_count??account.followers_count??0),following_count:Number(account.following_count??account.following_count??0)},remote_status_uri:p.uri??p.url,is_federated:true,_source_label:'Fediverse'}};
+      });
       const base:MixedItem[]=[...normalizedThreads.map(data=>({kind:'thread' as const,data})),...postItems,...fedItems]
         .sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
-
-      const mixed:MixedItem[]=[]; const pending=[...base];
+      const mixed:MixedItem[]=[];const pending=[...base];
       while(pending.length){
-        let pick=0; const lastKinds=mixed.slice(-2).map(x=>x.kind);
+        let pick=0;const lastKinds=mixed.slice(-2).map(x=>x.kind);
         if(lastKinds.length===2&&lastKinds[0]===lastKinds[1]){const alt=pending.findIndex(x=>x.kind!==lastKinds[0]);if(alt>0)pick=alt;}
         mixed.push(pending.splice(pick,1)[0]);
       }
 
       setThreads(prev=>reset?normalizedThreads:[...prev,...normalizedThreads]);
       setMixedItems(prev=>reset?mixed:[...prev,...mixed.filter(next=>!prev.some(old=>old.kind===next.kind&&old.data.id===next.data.id))]);
-      const nextCursor=rows.at(-1)?.created_at??null;
-      setCursor(nextCursor);
-      setHasMore(rows.length>=pageSize || Boolean(fedRes.pagination?.hasMore) || postItems.length>=8);
-      const cacheValue={threads:reset?normalizedThreads:[...normalizedThreads],mixed,cursor:nextCursor,hasMore:rows.length>=pageSize||Boolean(fedRes.pagination?.hasMore)||postItems.length>=8}; threadsCache.set(cacheKey,{at:Date.now(),...cacheValue}); writeThreadsCache(cacheKey,cacheValue);
+      const nextCursor=threadPage.next_cursor??null;
+      const nextPostCursor=postRes.next_cursor??null;
+      const more=Boolean(threadPage.has_more)||Boolean(fedRes.pagination?.hasMore)||Boolean(postRes.has_more);
+      setCursor(nextCursor);setPostCursor(nextPostCursor);setHasMore(more);
+      const cacheValue={threads:reset?normalizedThreads:[...normalizedThreads],mixed,cursor:nextCursor,hasMore:more ,postCursor:nextPostCursor};
+      threadsCache.set(cacheKey,{at:Date.now(),...cacheValue});writeThreadsCache(cacheKey,cacheValue);
 
       if(user&&rows.length){
         const ids2=rows.map(r=>r.id);
         const [l,rr,b]=await Promise.all([
           getThreadLikeStates(ids2,user.id),
           getThreadRepostStates(ids2,user.id),
-          supabase.from('thread_bookmarks').select('thread_id').eq('user_id',user.id).in('thread_id',ids2)
+          backendCapabilities.getThreadBookmarkStates(ids2)
         ]);
         setLiked(prev=>{const n=new Set(reset?[]:prev);l.forEach((id)=>n.add(id));return n;});
         setReposted(prev=>{const n=new Set(reset?[]:prev);rr.forEach((id)=>n.add(id));return n;});
-        setBookmarked(prev=>{const n=new Set(reset?[]:prev);(b.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
+        setBookmarked(prev=>{const n=new Set(reset?[]:prev);b.forEach((id:string)=>n.add(id));return n;});
       }
-    }catch(error){console.error('[Threads] feed request failed',error);setFeedError('Could not load this section. Check your connection and retry.');toast.error('Could not load Threads');}
-    finally{setLoading(false);setRefreshing(false);setLoadingMore(false);}
-  },[tab,user?.id,cursor,loadingMore,hasMore]);
+    }catch(error){
+      console.error('[Threads] feed request failed',error);
+      setFeedError('Could not load this section. Check your connection and retry.');
+      toast.error('Could not load Threads');
+    }finally{
+      setLoading(false);setRefreshing(false);setLoadingMore(false);
+    }
+  },[tab,user?.id,cursor,postCursor,loadingMore,hasMore]);
   useEffect(()=>{void loadThreads(true);},[tab,user?.id]);
 
   useEffect(()=>{
@@ -208,7 +190,7 @@ export default function ThreadsPage() {
   const toggleRepost=async(thread:Thread)=>{if(!user){navigate('/auth');return;}try{const active=await toggleThreadRepost(thread.id,user.id);mutate(setReposted,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t));}catch(e:any){toast.error(e?.message||'Repost failed');}};
   const shareThread=async(thread:Thread)=>{try{const url=window.location.origin+'/thread/'+thread.id;if(navigator.share)await navigator.share({title:'Testagram thread',text:thread.body.slice(0,120),url});else{await navigator.clipboard.writeText(url);toast.success('Thread link copied');}}catch(error){if(error instanceof DOMException&&error.name==='AbortError')return;toast.error('Could not share thread');}};
 
-  const toggleBookmark=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!bookmarked.has(thread.id);mutate(setBookmarked,thread.id,active);const res=active?await supabase.from('thread_bookmarks').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_bookmarks').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setBookmarked,thread.id,!active);toast.error('Bookmark failed');}else toast.success(active?'Saved to your reading list':'Removed from saved');};
+  const toggleBookmark=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const previous=bookmarked.has(thread.id);mutate(setBookmarked,thread.id,!previous);try{const active=await backendCapabilities.toggleThreadBookmark(thread.id);mutate(setBookmarked,thread.id,active);toast.success(active?'Saved to your reading list':'Removed from saved');}catch(e:any){mutate(setBookmarked,thread.id,previous);toast.error(e?.message||'Bookmark failed');}};
 
   const visible=useMemo(()=>{
     const q=search.trim().toLowerCase();

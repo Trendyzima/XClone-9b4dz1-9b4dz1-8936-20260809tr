@@ -1,0 +1,204 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/* ─── Surgical Vite-chunk patcher ─────────────────────────────────────────── */
+function fixSource(src) {
+  if (!src.includes('code??')) return src;
+  let o = src;
+  o = o.split('code??"", ').join('code, ');
+  o = o.split("code??'', ").join('code, ');
+  o = o.split('code??"",').join('code,');
+  o = o.split("code??'',").join('code,');
+  o = o.split('code??""').join('code');
+  o = o.split("code??''").join('code');
+  return o;
+}
+
+function patchViteChunks() {
+  const dir = path.join(__dirname, 'node_modules', 'vite', 'dist', 'node', 'chunks');
+  if (!fs.existsSync(dir)) return;
+  let files;
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.js')); } catch (_) { return; }
+  for (const f of files) {
+    const fp = path.join(dir, f);
+    try {
+      try { fs.chmodSync(fp, 0o644); } catch (_) {}
+      const src = fs.readFileSync(fp, 'utf8');
+      if (!src.includes('code??')) { try { fs.chmodSync(fp, 0o444); } catch (_) {} continue; }
+      const out = fixSource(src);
+      if (out === src) { try { fs.chmodSync(fp, 0o444); } catch (_) {} continue; }
+      fs.writeFileSync(fp, out, 'utf8');
+      try { fs.chmodSync(fp, 0o444); } catch (_) {}
+    } catch (_) {}
+  }
+}
+
+patchViteChunks();
+
+/* ─── Vite config ──────────────────────────────────────────────────────────── */
+const reactPlugin = react();
+
+const root = __dirname;
+const src  = path.join(root, 'src');
+
+/* ─── Helper: resolve extensionless path to a real file ───────────────────── */
+const TS_EXTS = ['.tsx', '.ts', '.jsx', '.js'];
+
+function resolveWithExts(base) {
+  for (const ext of TS_EXTS) {
+    const full = base + ext;
+    if (fs.existsSync(full)) return full;
+  }
+  for (const ext of TS_EXTS) {
+    const full = path.join(base, 'index' + ext);
+    if (fs.existsSync(full)) return full;
+  }
+  return null;
+}
+
+/* ─── Plugin: resolve & load extensionless TypeScript imports ─────────────── *
+ * Two hooks work together:
+ *   resolveId — fires before alias expansion for @/ paths
+ *   load      — safety-net: catches absolute paths that slipped through
+ *               without an extension (after alias expansion by Vite internals)
+ */
+const resolveTypescriptExtensions = {
+  name: 'resolve-ts-extensions',
+  enforce: 'pre',
+
+  resolveId(source, importer) {
+    if (source.startsWith('\0')) return null;
+    if (/\.[jt]sx?(\?.*)?$/.test(source)) return null;
+
+    let base = null;
+
+    if (source.startsWith('@/')) {
+      base = path.join(src, source.slice(2));
+    } else if (source.startsWith('/')) {
+      base = source;
+    } else if (source.startsWith('.') && importer) {
+      const dir = path.dirname(importer.replace(/\?.*$/, ''));
+      base = path.join(dir, source);
+    } else {
+      return null;
+    }
+
+    const resolved = resolveWithExts(base);
+    return resolved || null;
+  },
+
+  load(id) {
+    if (!id || id.startsWith('\0')) return null;
+    if (/\.[jt]sx?(\?.*)?$/.test(id)) return null;
+    if (!path.isAbsolute(id)) return null;
+
+    const resolved = resolveWithExts(id);
+    if (!resolved) return null;
+
+    try {
+      const code = fs.readFileSync(resolved, 'utf8');
+      return { code, map: null };
+    } catch (_) {
+      return null;
+    }
+  },
+};
+
+/* ─── Explicit aliases for every layout + feature component in App.tsx ───── */
+function a(rel) { return path.join(src, rel); }
+
+const layoutAliases = {
+  '@/components/layout/AuthProvider':       a('components/layout/AuthProvider.tsx'),
+  '@/components/layout/Sidebar':            a('components/layout/Sidebar.tsx'),
+  '@/components/layout/RightSidebar':       a('components/layout/RightSidebar.tsx'),
+  '@/components/layout/BottomNav':          a('components/layout/BottomNav.tsx'),
+  '@/components/layout/FloatingActionButton': a('components/layout/FloatingActionButton.tsx'),
+  '@/components/layout/TopBar':             a('components/layout/TopBar.tsx'),
+  '@/components/layout/ThemeToggle':        a('components/layout/ThemeToggle.tsx'),
+  '@/components/layout/MobileSidebarDrawer': a('components/layout/MobileSidebarDrawer.tsx'),
+  '@/components/features/LiveSpaceBanner':  a('components/features/LiveSpaceBanner.tsx'),
+  '@/components/features/LiveNotificationBanner': a('components/features/LiveNotificationBanner.tsx'),
+  '@/hooks/useCreatorTierAlert':            a('hooks/useCreatorTierAlert.ts'),
+  '@/lib/auth':                             a('lib/auth.ts'),
+  '@/lib/utils':                            a('lib/utils.ts'),
+  '@/stores/authStore':                     a('stores/authStore.ts'),
+  '@/hooks/useAuth':                        a('hooks/useAuth.ts'),
+  '@/hooks/useSEO':                         a('hooks/useSEO.ts'),
+  '@/hooks/usePremium':                     a('hooks/usePremium.ts'),
+  '@/hooks/useWallet':                      a('hooks/useWallet.ts'),
+  '@/hooks/useFollow':                      a('hooks/useFollow.ts'),
+};
+
+export default defineConfig({
+  server: {
+    host: '::',
+    port: 8080,
+  },
+
+  plugins: reactPlugin
+    ? [reactPlugin, resolveTypescriptExtensions]
+    : [resolveTypescriptExtensions],
+
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
+
+  resolve: {
+    extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      '@vercel/analytics/react':                  a('lib/analytics-stub.ts'),
+      ...layoutAliases,
+      '@': src,
+    },
+  },
+
+  build: {
+    commonjsOptions: { transformMixedEsModules: true },
+    rollupOptions: {
+      external: (id) =>
+        /\.test\.[jt]sx?$/.test(id) || /\.spec\.[jt]sx?$/.test(id),
+      plugins: [
+        {
+          name: 'vite-chunk-repatch',
+          buildStart() { patchViteChunks(); },
+          transform(code, id) {
+            if (id.includes('/vite/dist/node/') && code.includes('code??')) {
+              const fixed = fixSource(code);
+              if (fixed !== code) return { code: fixed, map: null };
+            }
+            return null;
+          },
+        },
+      ],
+      output: {
+        interop: 'auto',
+        manualChunks(id) {
+          if (!id.includes('/node_modules/')) return undefined;
+          if (/\/node_modules\/(d3-[^/]+|victory-vendor)\//.test(id)) return 'vendor-chart-engine';
+          if (id.includes('/node_modules/recharts/')) return 'vendor-recharts';
+          if (id.includes('/node_modules/@react-three/') || id.includes('/node_modules/three/')) return 'vendor-3d';
+          if (id.includes('/node_modules/framer-motion/')) return 'vendor-motion';
+        },
+        // Keep the SPA code-split in production. The previous monolithic build
+        // hid stale-chunk failures by shipping the entire application as one
+        // JavaScript payload, which made the homepage unnecessarily huge.
+        // Vite's dynamic-import preload handling plus vite:preloadError recovery
+        // below keeps route chunks resilient without sacrificing performance.
+      },
+      onwarn(warning, warn) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
+        // Never hide missing exports: they can become runtime failures in lazy
+        // route chunks even when typecheck succeeds for generated/vendor code.
+        warn(warning);
+      },
+    },
+  },
+});

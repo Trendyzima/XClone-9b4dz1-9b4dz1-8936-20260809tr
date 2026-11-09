@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useGovernance } from '@/lib/governance';
 
@@ -57,16 +57,9 @@ export function useFeatureUnlock(featureKey: FeatureKey): boolean {
     if (!user) { setIsLocked(false); return; }
     // Regulator always has access to everything
     if (isReg) { setIsLocked(false); return; }
-    supabase
-      .from('user_feature_unlocks')
-      .select('is_locked')
-      .eq('user_id', user.id)
-      .eq('feature_key', featureKey)
-      .maybeSingle()
-      .then(({ data }) => {
-        // Locked only when record explicitly has is_locked = true
-        setIsLocked(data?.is_locked === true);
-      });
+    backendCapabilities.call<{ is_locked?: boolean }>('testagram.features.unlock.read', { feature_key: featureKey })
+      .then(data => setIsLocked(data?.is_locked === true))
+      .catch(() => setIsLocked(false));
   }, [user?.id, featureKey, isReg]);
 
   return !isLocked; // true = unlocked (feature available)
@@ -80,14 +73,9 @@ export function useLockedFeatures(): FeatureKey[] {
 
   useEffect(() => {
     if (!user || isReg) { setLockedFeatures([]); return; }
-    supabase
-      .from('user_feature_unlocks')
-      .select('feature_key')
-      .eq('user_id', user.id)
-      .eq('is_locked', true)
-      .then(({ data }) => {
-        setLockedFeatures((data ?? []).map((r: any) => r.feature_key as FeatureKey));
-      });
+    backendCapabilities.call<{ items?: Array<{ feature_key: FeatureKey }> }>('testagram.features.unlock.list')
+      .then(data => setLockedFeatures((data.items ?? []).map(row => row.feature_key)))
+      .catch(() => setLockedFeatures([]));
   }, [user?.id, isReg]);
 
   return lockedFeatures;

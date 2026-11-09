@@ -1,4 +1,0 @@
-# Intentionally no edge container in zero-cost virtual-CDN mode.
-# IPTV is delivered from each channel's original URL. The browser-side
-# virtual CDN lives in src/services/virtualCdnLoader.ts and needs no daemon.
-services: {}

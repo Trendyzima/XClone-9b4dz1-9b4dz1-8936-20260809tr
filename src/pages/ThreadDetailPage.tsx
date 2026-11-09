@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
 import { toast } from 'sonner';
@@ -26,11 +26,11 @@ function Media({items}:{items:MediaAsset[]}){if(!items.length)return null;return
 export default function ThreadDetailPage(){
  const {id}=useParams(); const {user}=useAuth(); const navigate=useNavigate(); const [thread,setThread]=useState<Thread|null>(null); const [liked,setLiked]=useState(false); const [reposted,setReposted]=useState(false); const [loading,setLoading]=useState(true);
  useSEO({title:thread?.body?.slice(0,60)||'Thread',description:'Thread on Testagram',url:id?'/thread/'+id:undefined,type:'article'});
- useEffect(()=>{if(!id)return;void (async()=>{try{const {data,error}=await supabase.from('threads').select('id,owner_id,body,visibility,created_at,likes_count,reposts_count,quotes_count,replies_count,views_count,media_urls').eq('id',id).is('deleted_at',null).single();if(error)throw error;const owner=await supabase.from('profiles').select('id,username,avatar_url,display_name').eq('id',data.owner_id).maybeSingle();setThread({...data,media_urls:normalizeMedia(data.media_urls),profiles:owner.data??undefined});if(user){setLiked(await getThreadLikeState(id,user.id));setReposted(await getThreadRepostState(id,user.id));}}catch(e){console.error('[ThreadDetail]',e);toast.error('Thread not found');navigate('/threads');}finally{setLoading(false);}})();},[id,user?.id,navigate]);
+ useEffect(()=>{if(!id)return;void (async()=>{try{const data=await backendCapabilities.getThread(id);setThread({...data,media_urls:normalizeMedia(data.media_urls)});if(user){void backendCapabilities.recordBrowsingHistory({entity_type:'thread',entity_id:id,metadata:{surface:'thread-detail'}}).catch((historyError)=>console.warn('[history] Could not record thread view',historyError));setLiked(await getThreadLikeState(id,user.id));setReposted(await getThreadRepostState(id,user.id));}}catch(e){console.error('[ThreadDetail]',e);toast.error('Thread not found');navigate('/threads');}finally{setLoading(false);}})();},[id,user?.id,navigate]);
  const requireAuth=()=>{if(!user){navigate('/auth');return false;}return true};
  const like=async()=>{if(!thread||!requireAuth())return;try{const active=await toggleThreadLike(thread.id,user!.id);setLiked(active);setThread(t=>t?{...t,likes_count:Math.max(0,t.likes_count+(active?1:-1))}:t);}catch(e:any){toast.error(e?.message||'Like failed');}};
  const repost=async()=>{if(!thread||!requireAuth())return;try{const active=await toggleThreadRepost(thread.id,user!.id);setReposted(active);setThread(t=>t?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t);}catch(e:any){toast.error(e?.message||'Repost failed');}};
- const remove=async()=>{if(!thread||!user||thread.owner_id!==user.id)return;if(!window.confirm('Delete this thread?'))return;const {error}=await supabase.from('threads').update({deleted_at:new Date().toISOString()}).eq('id',thread.id).eq('owner_id',user.id);if(error)toast.error('Could not delete thread');else navigate('/threads');};
+ const remove=async()=>{if(!thread||!user||thread.owner_id!==user.id)return;if(!window.confirm('Delete this thread?'))return;try{await backendCapabilities.deleteThread(thread.id);toast.success('Thread deleted');navigate('/threads');}catch(e:any){toast.error(e?.message||'Could not delete thread');}};
  if(loading)return <div className="min-h-screen bg-background"><TopBar title="Thread" showBack/><div className="flex justify-center py-24"><Loader2 className="h-7 w-7 animate-spin text-primary"/></div></div>;
  if(!thread)return null;
  return <div className="min-h-screen bg-background pb-20 md:pb-0"><TopBar title="Thread" showBack/><main>

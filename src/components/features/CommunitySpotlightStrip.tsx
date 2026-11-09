@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Users, Loader2 } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
@@ -27,15 +27,26 @@ export function CommunitySpotlightStrip({ initialCommunities }: { initialCommuni
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const joinRes = user ? await supabase.from('community_members').select('community_id').eq('user_id', user.id) : { data: [] as any[] };
-      if (initialCommunities === undefined) {
-        const { data } = await supabase.from('communities').select('id, name, display_name, description, icon_url, banner_url, member_count, post_count, is_private').eq('is_private', false).order('member_count', { ascending: false }).limit(8);
-        setCommunities(data || []);
-      } else setCommunities(initialCommunities);
-      setJoinedIds(new Set((joinRes.data || []).map((r: any) => r.community_id)));
-      setLoading(false);
+      let rows: Community[] = initialCommunities ?? [];
+      try {
+        if (initialCommunities === undefined) {
+          const result = await backendCapabilities.listCommunities(8, { public_only: true, sort: 'popular' });
+          rows = Array.isArray(result.items) ? result.items as Community[] : [];
+        }
+        if (!cancelled) {
+          setCommunities(rows);
+          setJoinedIds(new Set(rows.filter(c => (c as any).is_member).map(c => c.id)));
+        }
+      } catch (error) {
+        console.error('[community-spotlight] backend request failed', error);
+        if (!cancelled && initialCommunities === undefined) setCommunities([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, [user?.id, initialCommunities]);
 
   const handleJoin = async (e: React.MouseEvent, community: Community) => {
@@ -48,19 +59,11 @@ export function CommunitySpotlightStrip({ initialCommunities }: { initialCommuni
 
     try {
       if (isJoined) {
-        await supabase
-          .from('community_members')
-          .delete()
-          .eq('community_id', community.id)
-          .eq('user_id', user.id);
+        await backendCapabilities.leaveCommunity(community.id);
         setJoinedIds(prev => { const s = new Set(prev); s.delete(community.id); return s; });
         toast.success(`Left ${community.display_name}`);
       } else {
-        await supabase.from('community_members').insert({
-          community_id: community.id,
-          user_id: user.id,
-          role: 'member',
-        });
+        await backendCapabilities.joinCommunity(community.id);
         setJoinedIds(prev => new Set([...prev, community.id]));
         toast.success(`Joined ${community.display_name}!`);
       }

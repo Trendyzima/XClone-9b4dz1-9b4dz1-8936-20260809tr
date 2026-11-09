@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Quote, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { parseContent } from '@/lib/utils';
 
 type QuotedPost = {
@@ -34,21 +34,18 @@ export function QuotedPostPreview({ quotedPostId }: { quotedPostId?: string | nu
     }
 
     setLoading(true);
-    void supabase
-      .from('posts')
-      .select('id,content,created_at,author_id,user_id,image_url,video_url,profiles!posts_author_id_fkey(id,username,display_name,avatar_url)')
-      .eq('id', quotedPostId)
-      .is('deleted_at', null)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    void backendCapabilities.getPost(quotedPostId)
+      .then((data) => {
         if (cancelled) return;
-        if (error) {
-          console.warn('[quote-origin] unable to resolve origin', error);
-          setPost(null);
-        } else {
-          setPost((data as QuotedPost | null) ?? null);
-        }
-        setLoading(false);
+        setPost((data as QuotedPost | null) ?? null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn('[quote-origin] unable to resolve origin', error);
+        setPost(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
 
     return () => { cancelled = true; };

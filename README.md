@@ -51,6 +51,13 @@ This is the responsive web experience—not a native iOS app. This repository cu
 ### Desktop
 
 Use [XClone in your browser](https://testagram.site/) for the web experience. For desktop installers, open the [desktop OS preview releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop). The workflow builds Windows MSI/EXE, macOS DMG and Linux DEB/AppImage packages; only formats actually attached to the newest release are available. These are preview builds and may trigger OS security warnings because they are not yet distributed through a signed commercial installer channel. Developers can follow the [Tauri desktop instructions](desktop/README.md) or inspect the [desktop release workflow](.github/workflows/platform-apps-release.yml).
+
+## Repository architecture and API boundary
+
+XClone is the client-only presentation repository in the five-repository Testagram architecture. It does not host backend handlers, database access, federation workers, ranking logic, payment settlement, or media infrastructure. It authenticates users with the Appwrite client SDK and calls the separately deployed Testagram Backend using a short-lived Backend JWT. Federation, ranking, and durable media storage remain owned by their respective services.
+
+See the [client-only boundary and integration contract](docs/architecture/client-only-boundary.md) for repository ownership, API configuration, security rules, and acceptance checks.
+
 ## What can you do with XClone?
 
 XClone brings social networking, short videos, live experiences, communities, creator tools, discovery, and commerce into one connected product. Feature availability may depend on account permissions, configuration, integrations, and rollout status.
@@ -127,25 +134,33 @@ Open [testagram.site](https://testagram.site/) in Safari. The site includes web-
 ## Product architecture
 
 ```text
-Web browser / Android WebView / Android TV WebView
-                    |
-             React + TypeScript
-                    |
-      Routes, social UI, media and feature surfaces
-                    |
-       Supabase Auth / PostgreSQL / Storage
-             / Realtime / Edge Functions
-                    |
-     Media and IPTV delivery / live experiences
-        / publisher and Fediverse integrations
-          / payment and monetization services
+Browser / Android / Desktop clients
+                |
+        XClone UI (client only)
+                |
+     HTTPS + Appwrite session JWT
+                |
+       Public Testagram Backend API
+                |
+       +--------+---------+------------------+
+       |                  |                  |
+   Neon primary      Private service     Media control
+ social records       integrations        and lifecycle
+ transactions         |                  |
+       |          +----+----+        Data Centre
+       |          |         |        B2 / R2
+       |       Federation  Algorithm   Cloudflare Worker
+       |       Neon state  ranking     private delivery
+       +----------+---------+------------------+
+                  |
+          Authorized API response
+                  |
+             XClone renders
 ```
 
-The repository contains a React + TypeScript application using Vite, Tailwind CSS, route-level lazy loading and Supabase. It also contains a separate Android TV project, the existing Android project, a Flutter mobile foundation, a Tauri desktop client, and first-party media/backend services.
+XClone is the presentation and interaction client. It authenticates users with Appwrite, obtains a short-lived Appwrite JWT, and sends application requests only to the public Testagram Backend API. The Backend owns authorization and orchestrates Neon, Federation, Algorithm and Data Centre integrations. XClone must never connect directly to Neon, private service APIs, internal queues, Appwrite server APIs, or storage credentials.
 
-The checked-in repository and deployed configuration are authoritative for the exact production service topology. Some feature screens integrate with external providers and may require separate service configuration.
-
-The diagram above describes the legacy Supabase-backed application surfaces. The separate fresh Appwrite runtime is an explicit migration path; it must not silently fall back between identity providers. When a surface is configured for the fresh path, XClone calls the public Testagram Backend API and never calls private Federation, Algorithm or Data Centre services directly.
+This repository also contains mobile/desktop shells and legacy compatibility code. Their presence does not change the client-only boundary. Some legacy Supabase modules and Edge Function source remain during migration; they are not the target runtime and must be removed only after each capability has a verified replacement.
 
 ## Five-repository Testagram runtime architecture
 

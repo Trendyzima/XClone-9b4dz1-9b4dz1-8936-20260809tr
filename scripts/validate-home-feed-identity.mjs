@@ -37,7 +37,7 @@ requireText(home, /socialApi\.getPublicHomeFeed\(24, cursorOverride \?\? undefin
 requireText(socialApi, /\/api\/feed\/home[\s\S]*\/api\/feed\/public/,
   'Both authenticated and anonymous home feeds must use the canonical Go Backend routes.');
 if (/supabase\.|SUPABASE_URL|FEDERATED_FUNCTION_BASE/i.test(home)) failures.push('Home timeline must not contain legacy Supabase reads or Supabase Edge Function calls.');
-requireText(cache, /testagram-feed-cache-v3/,
+requireText(cache, /testagram-feed-cache-v4/,
   'Home feed cache version must invalidate rows previously fetched from Supabase.');
 requireText(aggregator, /LEGACY_FEED_RETIRED[\s\S]*status: 410|status: 410[\s\S]*LEGACY_FEED_RETIRED/,
   'Legacy /api/home-feed must be permanently retired with HTTP 410.');

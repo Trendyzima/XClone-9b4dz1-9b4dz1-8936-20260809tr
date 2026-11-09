@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 
 // Keep public uploads aligned with the Go backend's current 20 MiB public-media gate.
 // Raise this only after the backend, proxy limits, and storage policy are upgraded together.
@@ -93,12 +93,12 @@ export class MediaApiError extends Error {
 async function selfHostedMediaRequest(path: string, body: Record<string, unknown>) {
   const base = selfHostedMediaBase();
   if (!base) throw new Error('Self-hosted Testagram API URL is not configured.');
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new MediaApiError('Authentication required', 401, 'AUTH_REQUIRED');
+  const accessToken = await appwriteAuth.createBackendJWT().catch(() => null);
+  if (!accessToken) throw new MediaApiError('Authentication required', 401, 'AUTH_REQUIRED');
   const response = await fetch(base + path, {
     method: 'POST',
     headers: {
-      Authorization: 'Bearer ' + session.access_token,
+      Authorization: 'Bearer ' + accessToken,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -159,12 +159,12 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
   // The self-hosted API contract requires its bounded gateway endpoint.
   const uploadURL = resolveSelfHostedUploadURL(intent.url, String(intent.key));
   const checksum = await sha256Hex(file);
-  const { data: { session: uploadSession } } = await supabase.auth.getSession();
-  if (!uploadSession?.access_token) throw new Error('Authentication required');
+  const uploadToken = await appwriteAuth.createBackendJWT().catch(() => null);
+  if (!uploadToken) throw new Error('Authentication required');
   const upload = await fetch(uploadURL.toString(), {
     method: 'PUT',
     headers: {
-      Authorization: 'Bearer ' + uploadSession.access_token,
+      Authorization: 'Bearer ' + uploadToken,
       'Content-Type': mime,
     },
     body: file,
@@ -220,11 +220,11 @@ async function uploadMediaToSelfHosted(file: File, postId?: string | null): Prom
 }
 
 async function mediaFunction(action: string, body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('Authentication required');
+  const accessToken = await appwriteAuth.createBackendJWT().catch(() => null);
+  if (!accessToken) throw new Error('Authentication required');
   const response = await fetch('/api/media', {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...body }),
   });
   const data = await response.json().catch(() => ({} as any));
@@ -245,14 +245,14 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
   validateMedia(file);
   const initialized = await mediaFunction('init', { name:file.name, mime_type:file.type.toLowerCase() || 'application/octet-stream', size_bytes:file.size, post_id:postId ?? null });
   const checksum = await sha256Hex(file);
-  const { data: { session: uploadSession } } = await supabase.auth.getSession();
-  if (!uploadSession?.access_token) throw new Error('Authentication required');
+  const uploadToken = await appwriteAuth.createBackendJWT().catch(() => null);
+  if (!uploadToken) throw new Error('Authentication required');
   const uploadURL = String(initialized.upload_url);
   const uploadHeaders: Record<string, string> = {
     'Content-Type': file.type.toLowerCase() || 'application/octet-stream',
   };
   if (new URL(uploadURL, window.location.origin).pathname === '/api/media/upload') {
-    uploadHeaders.Authorization = 'Bearer ' + uploadSession.access_token;
+    uploadHeaders.Authorization = 'Bearer ' + uploadToken;
   }
   const response = await fetch(uploadURL, {
     method: 'PUT',

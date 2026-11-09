@@ -3,7 +3,6 @@ import type { MutableRefObject } from 'react';
 import { Phone, PhoneCall, PhoneOff, ShieldCheck, Video } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
 import { communicationService } from '@/services/communicationService';
 
 type IncomingCall = {
@@ -57,41 +56,48 @@ export function IncomingCallOverlay() {
       return;
     }
 
-    const channel = supabase
-      .channel('incoming-calls:' + user.id, { config: { private: true, broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls' }, payload => {
-        const row = payload.new as Record<string, unknown>;
-        if (String(row.created_by ?? '') === user.id || String(row.status ?? '') !== 'ringing') return;
-        const metadata = row.metadata && typeof row.metadata === 'object'
-          ? row.metadata as Record<string, unknown>
-          : {};
-        const conversationId = String(row.conversation_id ?? '');
-        const callId = String(row.id ?? row.call_id ?? '');
-        if (!conversationId || !callId) return;
-        const kind = row.kind === 'voice' ? 'voice' : 'video';
-        setIncoming({
-          callId,
-          conversationId,
-          kind,
-          callerId: String(row.created_by ?? ''),
-          name: String(metadata.caller_display_name ?? 'Testagram user'),
-          username: metadata.caller_username ? String(metadata.caller_username) : null,
-          avatarUrl: metadata.caller_avatar_url ? String(metadata.caller_avatar_url) : null,
-          phone: metadata.caller_phone ? String(metadata.caller_phone) : null,
-          phoneVerified: metadata.caller_phone_verified === true && Boolean(metadata.caller_phone),
+    let disposed = false;
+    const unsubscribers: Array<() => void> = [];
+
+    // Incoming calls belong to one of the signed-in user's conversations.
+    // Subscribe through the Backend call-session API; never open a database
+    // realtime channel from the client.
+    void communicationService.listConversations().then(({ items }) => {
+      if (disposed) return;
+      for (const conversation of items ?? []) {
+        const unsubscribe = communicationService.subscribeToCallSessions(conversation.id, change => {
+          const session = change.session;
+          const callId = session.call_id;
+          if (!callId) return;
+          if (change.operation === 'DELETE' || session.status === 'ended' || session.status === 'failed') {
+            setIncoming(current => current?.callId === callId ? null : current);
+            return;
+          }
+          if (session.status !== 'ringing' || session.created_by === user.id) return;
+          const conversationId = session.conversation_id ?? conversation.id;
+          setIncoming({
+            callId,
+            conversationId,
+            kind: session.kind === 'voice' ? 'voice' : 'video',
+            callerId: session.created_by ?? '',
+            name: session.caller_display_name || session.caller_username || 'Testagram user',
+            username: session.caller_username ?? null,
+            avatarUrl: session.caller_avatar_url ?? null,
+            phone: session.caller_phone ?? null,
+            phoneVerified: Boolean(session.caller_phone_verified),
+          });
         });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls' }, payload => {
-        const row = payload.new as Record<string, unknown>;
-        const callId = String(row.id ?? row.call_id ?? '');
-        if (incoming?.callId === callId && String(row.status ?? '') !== 'ringing') setIncoming(null);
-      })
-      .subscribe();
+        unsubscribers.push(unsubscribe);
+      }
+    }).catch(error => {
+      console.warn('[calls] incoming call subscriptions could not be initialized', error);
+    });
 
     return () => {
-      void supabase.removeChannel(channel);
+      disposed = true;
+      for (const unsubscribe of unsubscribers) unsubscribe();
     };
-  }, [user?.id, incoming?.callId]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!incoming || location.pathname.startsWith('/call/')) return;

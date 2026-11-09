@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { profileApi } from '@/services/profileApi';
+import { socialApi } from '@/services/socialApiClient';
+import { backendCapabilities } from '@/services/backendClient';
 import { UserSuggestion as UserSuggestionType } from '@/types/app-types';
 import { Button } from '@/components/ui/button';
-import {  } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function UserSuggestions() {
@@ -25,22 +26,29 @@ export function UserSuggestions() {
 
     setLoading(true);
     try {
-      // Generate suggestions server-side
-      await supabase.rpc('generate_user_suggestions', { target_user_id: user.id });
-
-      // Fetch top 5 suggestions with related user profiles
-      const { data, error } = await supabase
-        .from('user_suggestions')
-        .select(`
-          *,
-          suggested_user:user_profiles!user_suggestions_suggested_user_id_fkey(*)
-        `)
-        .eq('user_id', user.id)
-        .order('score', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      setSuggestions(data || []);
+      const result = await backendCapabilities.listDiscoveryCreators(20);
+      const candidates = (result.items ?? []).filter((profile: any) => profile.id && profile.id !== user.id);
+      const states = await Promise.all(candidates.map(async (profile: any) => {
+        try {
+          const state = await socialApi.getFollowState(profile.id);
+          return { id: profile.id, following: Boolean(state.following), requested: Boolean(state.requested) };
+        } catch {
+          return { id: profile.id, following: false, requested: false };
+        }
+      }));
+      const stateById = new Map(states.map(state => [state.id, state]));
+      setFollowingIds(new Set(states.filter(state => state.following).map(state => state.id)));
+      setSuggestions(candidates
+        .filter((profile: any) => !stateById.get(profile.id)?.following && !stateById.get(profile.id)?.requested)
+        .slice(0, 5)
+        .map((profile: any, index: number) => ({
+          id: profile.id,
+          user_id: user.id,
+          suggested_user_id: profile.id,
+          score: Number(profile.discovery_score ?? 0) - index,
+          reason: profile.is_creator ? 'Creator to discover' : 'Suggested for you',
+          suggested_user: profile,
+        })) as UserSuggestionType[]);
     } catch (err) {
       console.error('Error fetching suggestions:', err);
     } finally {
@@ -52,28 +60,17 @@ export function UserSuggestions() {
     if (!user) return;
 
     try {
-      // Insert follow
-      await supabase.from('follows').insert({
-        follower_id: user.id,
-        following_id: userId,
-      });
-
-      // Insert notification for the followed user
-      await supabase.from('notifications').insert({ recipient_id: userId, kind: 'follow', actor_id: user.id,
-       });
+      // The canonical Backend owns follow state and emits its own notification/outbox event.
+      await socialApi.setFollow(userId, true);
 
       // Send push notification
       const { sendActivityNotification } = await import('@/components/layout/AuthProvider');
-      const myProfile = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', user.id)
-        .single();
+      const { profile } = await profileApi.getById(user.id);
       sendActivityNotification({
         recipientUserId: userId,
         title: 'New Follower',
-        body: `${myProfile.data?.username || 'Someone'} followed you`,
-        data: { route: `/profile/${myProfile.data?.username}`, type: 'follow' }
+        body: `${profile?.username || 'Someone'} followed you`,
+        data: { route: `/profile/${profile?.username || ''}`, type: 'follow' }
       });
 
       // Update state

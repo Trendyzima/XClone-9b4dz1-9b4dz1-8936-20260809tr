@@ -4,7 +4,6 @@ import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
 import { Post } from '@/types/app-types';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -65,13 +64,8 @@ export default function HashtagPage() {
     let cancelled = false;
     void fetchHashtagAndPosts();
     void fetchRelatedSuggestions(tag);
-    const normalized = String(tag).replace(/^#/,'').trim().toLowerCase();
-    const channel = supabase.channel(`hashtag-live:${normalized}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'post_hashtags'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'federated_hashtag_mentions'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'federated_objects'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
-      .subscribe();
-    return () => { cancelled=true; void supabase.removeChannel(channel); };
+    const refresh = window.setInterval(() => { if (!cancelled) void fetchHashtagAndPosts(); }, 20000);
+    return () => { cancelled=true; window.clearInterval(refresh); };
   }, [tag]);
 
   // Follow state is the only part of this page that depends on auth.
@@ -82,61 +76,31 @@ export default function HashtagPage() {
 
   const fetchRelatedSuggestions = useCallback(async (tagName: string) => {
     // Related live spaces: search title for the hashtag keyword
-    const { data: spaces } = await supabase
-      .from('spaces')
-      .select('id, title, listener_count, category, host:user_profiles!spaces_host_id_fkey(username, avatar_url, verified)')
-      .eq('is_live', true)
-      .ilike('title', `%${tagName}%`)
-      .limit(3);
+    const [spaceResult, communityResult] = await Promise.allSettled([
+      backendCapabilities.listLiveAudioSpaces(),
+      backendCapabilities.listCommunities(50),
+    ]);
+    const liveSpaces = spaceResult.status === 'fulfilled' ? (spaceResult.value.items ?? []) : [];
+    const matchingSpaces = liveSpaces.filter((space: any) =>
+      String(space.title ?? '').toLowerCase().includes(tagName.toLowerCase())
+    );
+    setRelatedSpaces((matchingSpaces.length ? matchingSpaces : liveSpaces)
+      .sort((a: any, b: any) => Number(b.listener_count ?? 0) - Number(a.listener_count ?? 0))
+      .slice(0, 3));
 
-    if (spaces && spaces.length > 0) {
-      setRelatedSpaces(spaces);
-    } else {
-      // Fallback: popular live spaces
-      const { data: popular } = await supabase
-        .from('spaces')
-        .select('id, title, listener_count, category, host:user_profiles!spaces_host_id_fkey(username, avatar_url, verified)')
-        .eq('is_live', true)
-        .order('listener_count', { ascending: false })
-        .limit(3);
-      setRelatedSpaces(popular ?? []);
-    }
-
-    // Related communities: search name for the hashtag keyword
-    const { data: comms } = await supabase
-      .from('communities')
-      .select('id, name, display_name, description, icon_url, member_count')
-      .or(`name.ilike.%${tagName}%,display_name.ilike.%${tagName}%,description.ilike.%${tagName}%`)
-      .order('member_count', { ascending: false })
-      .limit(3);
-
-    if (comms && comms.length > 0) {
-      setRelatedCommunities(comms);
-    } else {
-      // Fallback: top communities
-      const { data: popular } = await supabase
-        .from('communities')
-        .select('id, name, display_name, description, icon_url, member_count')
-        .order('member_count', { ascending: false })
-        .limit(3);
-      setRelatedCommunities(popular ?? []);
-    }
+    const communities = communityResult.status === 'fulfilled' ? (communityResult.value.items ?? []) : [];
+    const matchingCommunities = communities.filter((community: any) =>
+      [community.name, community.display_name, community.description]
+        .some((value: any) => String(value ?? '').toLowerCase().includes(tagName.toLowerCase()))
+    );
+    setRelatedCommunities((matchingCommunities.length ? matchingCommunities : communities)
+      .sort((a: any, b: any) => Number(b.member_count ?? 0) - Number(a.member_count ?? 0))
+      .slice(0, 3));
   }, []);
 
   const fetchTopPosts = async (hashtagId: string) => {
-    const { data } = await supabase
-      .from('post_hashtags')
-      .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-      .eq('hashtag_id', hashtagId)
-      .limit(30);
-    if (!data) return;
-    const allPosts = data.map((item: any) => item.posts).filter(Boolean).slice(0, 30);
-    const sorted = [...allPosts].sort((a, b) => {
-      const scoreA = (a.likes_count || 0) + (a.reposts_count || 0) + (a.replies_count || 0);
-      const scoreB = (b.likes_count || 0) + (b.reposts_count || 0) + (b.replies_count || 0);
-      return scoreB - scoreA;
-    });
-    setTopPosts(sorted);
+    const result = await backendCapabilities.listHashtagPosts(hashtagId, 30, 0, 'top');
+    setTopPosts(result.items ?? []);
   };
 
   const fetchHashtagAndPosts = async () => {
@@ -147,93 +111,24 @@ export default function HashtagPage() {
       const normalizedTag = String(tag ?? '').replace(/^#/, '').trim().toLowerCase();
       if (!normalizedTag) throw new Error('HASHTAG_NOT_FOUND');
 
-      const { data: directHashtag, error: hashtagError } = await supabase
-        .from('hashtags')
-        .select('id, tag, usage_count, post_count, follower_count, last_used_at, created_at, federated_post_count')
-        .ilike('tag', normalizedTag)
-        .maybeSingle();
-      if (hashtagError) throw hashtagError;
-
-      // Fall back to the authenticated capability search only if the direct
-      // canonical lookup misses. This preserves the existing gateway path for
-      // unusual/migrating hashtag records without making it a hard dependency.
-      let hashtagData = directHashtag as any;
-      if (!hashtagData) {
-        const hashtagResult = await backendCapabilities.searchHashtags(normalizedTag, 20);
-        hashtagData = hashtagResult.items?.find((item: any) =>
-          String(item?.tag ?? '').replace(/^#/, '').trim().toLowerCase() === normalizedTag
-        );
-      }
-      if (!hashtagData) throw new Error('HASHTAG_NOT_FOUND');
+      const hashtagData = await backendCapabilities.resolveHashtag(normalizedTag);
+      if (!hashtagData?.id) throw new Error('HASHTAG_NOT_FOUND');
       setHashtag(hashtagData);
 
-      const { count: fCount } = await supabase
-        .from('hashtag_follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('hashtag_id', hashtagData.id);
-      setFollowerCount(fCount ?? 0);
+      setFollowerCount(Number(hashtagData.follower_count ?? 0));
 
-      // post_hashtags has no created_at column in production. Order by the
-      // joined post timestamp after hydration instead of issuing an invalid
-      // PostgREST order against the junction table.
       postsOffsetRef.current = 0;
       setHasMoreLocalPosts(false);
-      const { data: postsData, error: postsError } = await supabase
-        .from('post_hashtags')
-        .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-        .eq('hashtag_id', hashtagData.id)
-        .order('created_at', { referencedTable: 'posts', ascending: false })
-        .range(0, 19);
-      if (postsError) throw postsError;
-      const formattedPosts = (postsData || [])
-        .map((item: any) => item.posts)
-        .filter(Boolean)
-        .sort((a: any, b: any) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
+      const postsResult = await backendCapabilities.listHashtagPosts(hashtagData.id, 20, 0, 'recent');
+      const formattedPosts = postsResult.items ?? [];
       setPosts(formattedPosts);
-      postsOffsetRef.current = postsData?.length ?? formattedPosts.length;
-      setHasMoreLocalPosts((postsData?.length ?? 0) === 20);
-      // Query the indexed relationship through a database function rather than
-      // relying on PostgREST's nested FK embedding. This makes the hashtag page
-      // deterministic even when relationship metadata/cache differs between
-      // environments, while preserving the same public-read visibility rules.
-      let remoteRows: any[] = [];
-      const { data: remoteJson, error: remotePostsError } = await supabase
-        .rpc('get_federated_posts_for_hashtag_json', { p_hashtag_id: hashtagData.id, p_limit: 30 });
-      if (remotePostsError) {
-        console.warn('Federated hashtag RPC unavailable; trying direct indexed fallback:', remotePostsError);
-        const { data: mentions, error: mentionError } = await supabase
-          .from('federated_hashtag_mentions')
-          .select('object_id')
-          .eq('hashtag_id', hashtagData.id)
-          .limit(30);
-        if (!mentionError && mentions?.length) {
-          const ids = mentions.map((m: any) => m.object_id).filter(Boolean);
-          const { data: objects, error: objectError } = await supabase
-            .from('federated_objects')
-            .select('*')
-            .in('id', ids)
-            .is('deleted_at', null)
-            .eq('tombstone', false);
-          if (!objectError) remoteRows = objects ?? [];
-        }
-      } else {
-        try {
-          remoteRows = Array.isArray(remoteJson) ? remoteJson : [];
-        } catch {
-          remoteRows = [];
-        }
-      }
+      postsOffsetRef.current = formattedPosts.length;
+      setHasMoreLocalPosts(formattedPosts.length === 20);
 
-      // A non-zero indexed count with an empty response is a retrieval failure,
-      // not an empty hashtag. Keep the page truthful and surface a diagnostic.
-      if (remoteRows.length === 0 && Number(hashtagData.federated_post_count ?? 0) > 0) {
-        console.warn('Federated hashtag count/rows mismatch', {
-          tag: normalizedTag,
-          hashtagId: hashtagData.id,
-          expected: hashtagData.federated_post_count,
-        });
-      }
-
+      // Remote hashtag timelines are owned by the Federation service. Until
+      // its private read contract is exposed through Backend, do not fall back
+      // to browser-side Supabase federation tables or RPCs.
+      const remoteRows: any[] = [];
       setFederatedPosts(remoteRows.map((p: any) => ({
         ...p,
         id: p.id ?? p.uri,
@@ -261,20 +156,14 @@ export default function HashtagPage() {
     setLoadingMoreLocalPosts(true);
     try {
       const start = postsOffsetRef.current;
-      const { data, error } = await supabase.from('post_hashtags')
-        .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-        .eq('hashtag_id', hashtag.id)
-        .order('created_at', { referencedTable: 'posts', ascending: false })
-        .range(start, start + 19);
-      if (error) throw error;
-      const rows = data ?? [];
-      const page = rows.map((item: any) => item.posts).filter(Boolean);
+      const result = await backendCapabilities.listHashtagPosts(hashtag.id, 20, start, 'recent');
+      const page = result.items ?? [];
       setPosts((previous) => {
         const seen = new Set(previous.map((post: any) => String(post.id)));
         return [...previous, ...page.filter((post: any) => !seen.has(String(post.id)))];
       });
-      postsOffsetRef.current = start + rows.length;
-      setHasMoreLocalPosts(rows.length === 20);
+      postsOffsetRef.current = start + page.length;
+      setHasMoreLocalPosts(page.length === 20);
     } catch (error) {
       console.error('Could not load more hashtag posts', error);
     } finally {
@@ -295,10 +184,8 @@ export default function HashtagPage() {
 
   const checkFollowStatus = async () => {
     if (!user || !hashtag) return;
-    const { data } = await supabase
-      .from('hashtag_follows').select('id')
-      .eq('user_id', user.id).eq('hashtag_id', hashtag.id).maybeSingle();
-    setIsFollowing(!!data);
+    const result = await backendCapabilities.getHashtagFollowState(hashtag.id);
+    setIsFollowing(Boolean(result.following));
   };
 
   useEffect(() => {
@@ -309,18 +196,18 @@ export default function HashtagPage() {
     if (!user) { navigate('/auth'); return; }
     if (!hashtag) return;
     setFollowLoading(true);
-    if (isFollowing) {
-      await supabase.from('hashtag_follows').delete().eq('user_id', user.id).eq('hashtag_id', hashtag.id);
-      setIsFollowing(false);
-      setFollowerCount(c => Math.max(0, c - 1));
-      toast.success(`Unfollowed #${tag}`);
-    } else {
-      await supabase.from('hashtag_follows').insert({ user_id: user.id, hashtag_id: hashtag.id });
-      setIsFollowing(true);
-      setFollowerCount(c => c + 1);
-      toast.success(`Following #${tag} — posts will appear in your feed`);
+    try {
+      const result = await backendCapabilities.setHashtagFollow(hashtag.id, !isFollowing);
+      setIsFollowing(Boolean(result.following));
+      setFollowerCount(count => Math.max(0, count + (result.following ? 1 : -1)));
+      toast.success(result.following
+        ? `Following #${tag} — posts will appear in your feed`
+        : `Unfollowed #${tag}`);
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Could not update hashtag follow');
+    } finally {
+      setFollowLoading(false);
     }
-    setFollowLoading(false);
   };
 
   if (loading) {

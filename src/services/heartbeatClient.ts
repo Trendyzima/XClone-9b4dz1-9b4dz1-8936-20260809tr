@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { APPWRITE_AUTH_CHANGED_EVENT, appwriteAuth } from "@/services/appwriteAuth";
 
 const HEARTBEAT_URL = "https://heartbeat.testagram.site";
 
@@ -123,27 +123,32 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
     }
   };
 
-  const onAuthStateChange = (event: string, session: { access_token?: string } | null) => {
-    if (!session?.access_token) {
-      accessToken = null;
-      authenticated = false;
-      lastActivityAt = 0;
-      lastSentAt = 0;
-      backoffUntil = 0;
-      clearTimer();
-      return;
-    }
+  const clearAuthentication = () => {
+    accessToken = null;
+    authenticated = false;
+    lastActivityAt = 0;
+    lastSentAt = 0;
+    backoffUntil = 0;
+    clearTimer();
+  };
 
-    accessToken = session.access_token;
-    authenticated = true;
+  const onAuthChanged = () => {
+    // Appwrite sign-out dispatches this event. Hydration below handles the
+    // initial signed-in session; no Supabase auth listener is used.
+    clearAuthentication();
+  };
 
-    // Token refreshes keep the session valid but do not prove user activity.
-    // Only a newly established session gets an immediate activity heartbeat.
-    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+  const hydrateAppwriteSession = async () => {
+    try {
+      const user = await appwriteAuth.getCurrentUser();
+      if (stopped || !user) return;
+      accessToken = await appwriteAuth.createBackendJWT();
+      if (stopped) return;
+      authenticated = true;
       lastActivityAt = Date.now();
-      lastSentAt = 0;
-      backoffUntil = 0;
       void maybeSend();
+    } catch (error) {
+      if (!stopped) console.warn('[Heartbeat] Appwrite session hydration failed (non-fatal):', error);
     }
   };
 
@@ -160,21 +165,8 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   }
   document.addEventListener("visibilitychange", onVisibility);
 
-  const { data: authSubscription } = supabase.auth.onAuthStateChange(onAuthStateChange);
-
-  void supabase.auth.getSession()
-    .then(({ data }) => {
-      if (stopped || !data.session) return;
-      accessToken = data.session.access_token;
-      authenticated = true;
-      lastActivityAt = Date.now();
-      void maybeSend();
-    })
-    .catch((error) => {
-      // Heartbeat is advisory; auth hydration/network failures must never
-      // become unhandled rejections or affect application startup.
-      if (!stopped) console.warn('[Heartbeat] initial auth hydration failed (non-fatal):', error);
-    });
+  window.addEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChanged);
+  void hydrateAppwriteSession();
 
   cleanup = () => {
     stopped = true;
@@ -186,7 +178,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
       window.removeEventListener(event, markActivity);
     }
     document.removeEventListener("visibilitychange", onVisibility);
-    authSubscription.subscription.unsubscribe();
+    window.removeEventListener(APPWRITE_AUTH_CHANGED_EVENT, onAuthChanged);
     cleanup = undefined;
   };
 

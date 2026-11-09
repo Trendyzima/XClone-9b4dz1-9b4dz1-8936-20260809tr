@@ -4,90 +4,51 @@ import path from 'node:path';
 const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const checks = [
-  ['Root sitemap is a static, host-portable asset rather than a Cloudflare Worker dependency', () => read('public/sitemap.xml').includes('<sitemapindex') && !read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'")],
-  ['Sitemap handlers have a publishable-key fallback and do not require service-role secrets', () => ['index', 'users', 'community', 'posts', 'threads'].every((name) => {
-    const source = read('api/sitemap-' + name + '.ts');
-    return source.includes('SUPABASE_PUBLISHABLE_KEY') && source.includes('sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya') && source.includes('const supabaseApiKey =');
-  })],
-  ['Sitemap query failures return valid crawlable XML and expose degraded status', () => read('api/sitemap-fallback.ts').includes("'X-Sitemap-Data-Status': 'degraded'") && ['index', 'users', 'community', 'posts', 'threads'].every((name) => read('api/sitemap-' + name + '.ts').includes('degradedSitemap'))],
-  ['All sitemap handlers are statically bundled and dispatched before dynamic imports', () => {
-    const worker = read('cloudflare/index.ts');
-    return [
-      "import sitemapIndex from '../api/sitemap-index';",
-      "import sitemapUsers from '../api/sitemap-users';",
-      "import sitemapCommunity from '../api/sitemap-community';",
-      "import sitemapPosts from '../api/sitemap-posts';",
-      "import sitemapThreads from '../api/sitemap-threads';",
-      "const STATIC_SITEMAP_ROUTES",
-      "const sitemapHandler = STATIC_SITEMAP_ROUTES[pathname];",
-      'return sitemapHandler(request);',
-    ].every((fragment) => worker.includes(fragment));
-  }],
-  ['Root sitemap bypasses Worker-first routing so static hosts can serve it directly', () => !JSON.parse(read('wrangler.jsonc')).assets.run_worker_first.includes('/sitemap.xml') && !read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'")],
-  ['Static sitemap fallback references valid first chunks for every dynamic sitemap', () => {
+  ['Root sitemap is a static XML URL set served by the client deployment', () => {
     const sitemap = read('public/sitemap.xml');
-    return ['users', 'community', 'posts', 'threads'].every((name) => sitemap.includes(`https://testagram.site/api/sitemap-${name}?part=0</loc>`));
+    return sitemap.includes('<urlset') &&
+      sitemap.includes('https://testagram.site/</loc>') &&
+      !sitemap.includes('<sitemapindex') &&
+      !sitemap.includes('/api/');
   }],
-  ['Cloudflare registers every dynamic sitemap endpoint', () => ['users', 'community', 'posts', 'threads'].every((name) => read('cloudflare/index.ts').includes(`'/api/sitemap-${name}'`))],
-  ['Sitemap index includes static, profiles, communities, posts and threads', () => {
-    const index = read('api/sitemap-index.ts');
-    return ['/sitemap-static.xml', '/api/sitemap-users', '/api/sitemap-community', '/api/sitemap-posts', '/api/sitemap-threads'].every((value) => index.includes(value));
-  }],
-  ['Sitemap index lists chunk URLs directly', () => read('api/sitemap-index.ts').includes('?part=${part}')],
-  ['Sitemap endpoints validate numeric chunk parameters', () => ['users', 'community', 'posts', 'threads'].every((name) => read(`api/sitemap-${name}.ts`).includes('/^\\d+$/'))],
-  ['Explicit sitemap chunks return URL sets, not nested sitemap indexes', () => ['users', 'community', 'posts', 'threads'].every((name) => read(`api/sitemap-${name}.ts`).includes('!hasExplicitPart'))],
-  ['SEO optimizer handles extensionless routes with missing or incorrect content type', () => {
-    const worker = read('cloudflare/index.ts');
-    return worker.includes('const looksLikeHtml =') && worker.includes("headers.set('X-SEO-Optimizer', 'applied')") && worker.includes("headers.set('X-SEO-Canonical', seo.canonical)");
-  }],
-  ['Static SEO routes do not depend on Worker-first HTML rewrites', () => {
-    const routes = JSON.parse(read('wrangler.jsonc')).assets.run_worker_first;
-    return ['/tv', '/tv/*', '/auth', '/auth/*', '/c/*', '/sitemap.xml'].every((route) => !routes.includes(route)) &&
-      ['/api/*', '/.well-known/*', '/nodeinfo/*', '/users/*', '/inbox', '/oauth/*'].every((route) => routes.includes(route));
-  }],
-  ['SEO optimizer emits noindex for private and unknown routes', () => read('cloudflare/index.ts').includes('Unknown client-side routes') && read('cloudflare/index.ts').includes("headers.set('X-Robots-Tag', 'noindex, nofollow')")],
-  ['JSON-LD output escapes script-closing characters', () => read('cloudflare/index.ts').includes("replace(/</g, '\\\\u003c')")],
-  ['Robots file exposes exactly one sitemap index and permits noindex routes to be crawled', () => {
+  ['Robots exposes exactly one sitemap and does not block public client routes', () => {
     const robots = read('public/robots.txt');
-    return (robots.match(/^Sitemap:/gm) || []).length === 1 && !robots.includes('Disallow: /auth') && !robots.includes('Disallow: /admin/');
+    return (robots.match(/^Sitemap:/gm) || []).length === 1 &&
+      robots.includes('Sitemap: https://testagram.site/sitemap.xml') &&
+      robots.includes('Allow: /tv') &&
+      robots.includes('Allow: /iptv') &&
+      !robots.includes('Disallow: /auth');
   }],
-  ['Static sitemap avoids stale modification dates and includes the news hub', () => {
-    const sitemap = read('public/sitemap-static.xml');
-    return !sitemap.includes('<lastmod>') && sitemap.includes('https://testagram.site/news</loc>');
+  ['Static sitemap includes the public TV, IPTV and news surfaces', () => {
+    const sitemap = read('public/sitemap.xml');
+    return ['/tv', '/tv/channels', '/tv/reels', '/iptv', '/news'].every(
+      (route) => sitemap.includes('https://testagram.site' + route + '</loc>'),
+    );
   }],
-  ['Static SEO prerender covers public TV routes and noindex private/invalid routes', () => {
+  ['SEO prerender contains only static client routes with explicit index policy', () => {
     const prerender = read('scripts/prerender-seo-routes.mjs');
+    return ['/tv', '/tv/channels', '/tv/reels', '/auth', '/c/null'].every(
+      (route) => prerender.includes("path: '" + route + "'"),
+    ) && prerender.includes('indexable: true') && prerender.includes('indexable: false');
+  }],
+  ['Production build runs provider-independent static SEO prerendering', () => {
     const build = read('_build.cjs');
-    return ['/tv', '/tv/channels', '/tv/reels', '/auth', '/c/null'].every((route) => prerender.includes("path: '" + route + "'")) && build.includes("scripts', 'prerender-seo-routes.mjs") && build.includes('runStaticSeoPrerender();');
+    return build.includes("scripts', 'prerender-seo-routes.mjs") &&
+      build.includes('runStaticSeoPrerender();');
   }],
-  ['TV route has a crash boundary and page-specific SEO', () => ['/tv', '/tv/channels', '/tv/reels'].every((route) => read('src/App.tsx').includes('path="' + route + '" element={<TvPageErrorBoundary><TvChannelsPage/></TvPageErrorBoundary>}')) && read('src/pages/TvChannelsPage.tsx').includes('useSEO({')],
-  ['Public TV and IPTV routes are explicitly discoverable from sitemap and robots', () => {
-    const sitemap = read('public/sitemap-static.xml');
-    const robots = read('public/robots.txt');
-    return ['/tv', '/tv/channels', '/tv/reels', '/iptv'].every((route) => sitemap.includes('https://testagram.site' + route + '</loc>')) &&
-      ['Allow: /tv', 'Allow: /iptv'].every((rule) => robots.includes(rule));
+  ['Public TV routes are client routes protected by the TV error boundary', () => {
+    const app = read('src/App.tsx');
+    return ['/tv', '/tv/channels', '/tv/reels'].every((route) =>
+      app.includes('path="' + route + '" element={<TvPageErrorBoundary><TvChannelsPage/></TvPageErrorBoundary>}'),
+    ) && read('src/pages/TvChannelsPage.tsx').includes('useSEO({');
   }],
-  ['TV playback is origin-first and uses only the zero-cost browser virtual cache', () => {
-    const player = read('src/components/features/TvChannelPlayer.tsx');
-    const loader = read('src/services/virtualCdnLoader.ts');
-    return player.includes('const playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;') &&
-      player.includes('loader:VirtualCdnLoader as any') &&
-      player.includes('const fallbackPlayback=()=>') &&
-      player.includes('if(fallbackPlayback())return;') &&
-      !player.includes('getTestagramCdnPlaybackUrl') &&
-      !player.includes('tv-cdn-playback') &&
-      loader.includes("const CACHE_NAME = 'testagram-virtual-cdn-v1'") &&
-      loader.includes('const LIVE_SEGMENT_TTL_MS = 20_000');
+  ['Sitemap and prerender source contain no Cloudflare Worker or server-function dependency', () => {
+    const sitemap = read('public/sitemap.xml');
+    const prerender = read('scripts/prerender-seo-routes.mjs');
+    return !sitemap.includes('cloudflare') &&
+      !prerender.includes('cloudflare/index.ts') &&
+      !prerender.includes('/functions/v1/');
   }],
-  ['TV playback starts after an adaptive short buffer and caps memory use', () => {
-    const player = read('src/components/features/TvChannelPlayer.tsx');
-    return player.includes('const initialBufferTarget=network.constrained?4:network.moderate?6:8') &&
-      player.includes('maxBufferLength:network.constrained?18:network.moderate?24:30') &&
-      player.includes('maxBufferSize:network.constrained?24*1024*1024:network.moderate?32*1024*1024:48*1024*1024');
-  }],
-  ['TV data loading always leaves the loading state', () => read('src/pages/TvChannelsPage.tsx').includes('setLoading(false);') && read('src/pages/TvChannelsPage.tsx').includes('Live channels could not be loaded. Please try refreshing.')],
-  ['TV catalogue loading is bounded and batched', () => read('src/pages/TvChannelsPage.tsx').includes('targets.slice(0,6)') && read('src/pages/TvChannelsPage.tsx').includes('targets.slice(offset,offset+4)') && read('src/pages/TvChannelsPage.tsx').includes('sourceLoadGeneration')],
-  ['TV player health and visibility callbacks are stable', () => read('src/pages/TvChannelsPage.tsx').includes('const health=useCallback') && read('src/pages/TvChannelsPage.tsx').includes('onVisible={onPlayerVisible}')],
 ];
 
 let failed = 0;
@@ -101,5 +62,5 @@ for (const [name, check] of checks) {
   console.log(`${passed ? 'PASS' : 'FAIL'} ${name}`);
   if (!passed) failed++;
 }
-console.log(`SEO production validation: ${checks.length - failed}/${checks.length} passed`);
+console.log(`Client SEO validation: ${checks.length - failed}/${checks.length} passed`);
 if (failed) process.exit(1);

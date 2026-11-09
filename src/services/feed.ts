@@ -1,6 +1,4 @@
-import { backendCapabilities } from '@/services/backendClient';
 import { socialApi } from '@/services/socialApiClient';
-import * as federation from '@/api/federation';
 
 export type Post = {
   id: string;
@@ -12,8 +10,6 @@ export type Post = {
   visibility?: string;
   [k: string]: any;
 };
-
-type MergedCursor = { local: string | null; fed: string | null };
 
 function normalizeMediaUrls(row: any): string[] {
   const raw = row?.media_urls ?? row?.mediaUrls ?? row?.attachments ?? [];
@@ -43,98 +39,16 @@ function normalizeLocal(row: any): Post {
   };
 }
 
-function normalizeFederated(item: any): Post {
-  const mediaUrls = normalizeMediaUrls(item);
-  const remoteAccount = item.user_profiles ?? item.remote_account ?? item.account ?? item.author;
-  return {
-    ...item,
-    id: `fed:${item.id ?? item.federation_id}`,
-    content: item.content ?? item.html ?? '',
-    created_at: item.created_at ?? item.published ?? new Date().toISOString(),
-    author: item.author ?? remoteAccount,
-    user_profiles: remoteAccount,
-    image_url: item.image_url ?? (!item.is_video ? mediaUrls[0] : undefined),
-    video_url: item.video_url ?? (item.is_video ? mediaUrls[0] : undefined),
-    media_urls: mediaUrls,
-    media_count: Number(item.media_count ?? mediaUrls.length),
-    is_video: Boolean(item.is_video || item.video_url),
-    origin: 'federated',
-    federation_id: item.id ?? item.federation_id,
-  };
-}
-
-function decodeMergedCursor(value?: string): MergedCursor {
-  if (!value) return { local: null, fed: null };
-  try {
-    const decoded = JSON.parse(atob(value.replace(/-/g, '+').replace(/_/g, '/')));
-    if (decoded && typeof decoded === 'object') {
-      return {
-        local: typeof decoded.local === 'string' ? decoded.local : null,
-        fed: typeof decoded.fed === 'string' ? decoded.fed : null,
-      };
-    }
-  } catch {
-    // Accept an older local-only cursor during the rollout.
-  }
-  return { local: value, fed: null };
-}
-
-function encodeMergedCursor(cursor: MergedCursor): string | undefined {
-  if (!cursor.local && !cursor.fed) return undefined;
-  return btoa(JSON.stringify(cursor)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
 export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: number; before?: string } = {}) {
   const size = Math.min(Math.max(Math.floor(limit), 1), 50);
-  const cursor = decodeMergedCursor(before);
-
-  const freshAppwriteMode = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' || (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase() === 'appwrite';
-  const unifiedFeedEnabled = freshAppwriteMode || String(import.meta.env.VITE_TESTAGRAM_UNIFIED_FEED_ENABLED ?? 'false').trim().toLowerCase() === 'true';
-  const [localResult, federatedResult] = await Promise.all([
-    unifiedFeedEnabled
-      ? socialApi.getHomeFeed(size, cursor.local ?? undefined)
-      : backendCapabilities.listPosts(size, cursor.local, 'following'),
-    freshAppwriteMode
-      ? Promise.resolve({ items: [], pagination: { nextCursor: null } })
-      : federation.getFederatedTimelinePage({ limit: size, before: cursor.fed ?? undefined }),
-  ]);
-
-  const localItems = unifiedFeedEnabled
-    ? (Array.isArray((localResult as any)?.posts) ? (localResult as any).posts : [])
-    : (Array.isArray((localResult as any)?.items) ? (localResult as any).items : []);
-  const federatedItems = Array.isArray(federatedResult?.items) ? federatedResult.items : [];
-
-  const localPosts = localItems.map(normalizeLocal);
-  const fedPosts = federatedItems.map(normalizeFederated);
-
-  const map = new Map<string, Post>();
-  [...localPosts, ...fedPosts].forEach((post) => {
-    const key = post.federation_id ?? post.id;
-    if (!map.has(key) || new Date(post.created_at) > new Date(map.get(key)!.created_at)) {
-      map.set(key, post);
-    }
-  });
-
-  const posts = Array.from(map.values());
-  if (unifiedFeedEnabled && (localResult as any)?.ranking_mode === 'algorithm') {
-    const now = Date.now();
-    posts.forEach((post) => {
-      if (post.origin === 'federated') {
-        const ageHours = Math.max(0, (now - new Date(post.created_at).getTime()) / 3_600_000);
-        post.ranking_score = 0.30 * Math.exp(-Math.LN2 * ageHours / 24);
-        post.ranking_reasons = ['federated-recent'];
-      }
-    });
-    posts.sort((a, b) => Number(b.ranking_score ?? 0) - Number(a.ranking_score ?? 0));
-  } else {
-    posts.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-  }
-  posts.splice(size);
-
-  const next_cursor = encodeMergedCursor({
-    local: unifiedFeedEnabled ? ((localResult as any)?.next_cursor ?? null) : (localResult?.next_cursor ?? null),
-    fed: federatedResult?.pagination?.nextCursor ?? null,
-  });
-
-  return { posts, next_cursor };
+  // XClone talks only to the canonical Backend API. Federation is composed by
+  // Backend after its own authorization and is never queried from the browser.
+  const result = await socialApi.getHomeFeed(size, before);
+  const posts = (Array.isArray(result?.posts) ? result.posts : []).map(normalizeLocal);
+  return {
+    posts,
+    next_cursor: result?.next_cursor ?? undefined,
+    has_more: Boolean(result?.has_more),
+    ranking_mode: result?.ranking_mode ?? 'chronological',
+  };
 }

@@ -8,7 +8,7 @@ import { Post } from '@/types/app-types';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { useToast } from '@/hooks/use-toast';
 import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
@@ -248,20 +248,7 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     if (viewTrackedRef.current) return; // already tracked this session
     viewTrackedRef.current = true;
     try {
-      // Deduplicate: only insert if this user hasn't viewed this post in the last 24h
-      const since24h = new Date(Date.now() - 24 * 3600000).toISOString();
-      if (user?.id) {
-        const { count } = await supabase
-          .from('browsing_history')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('post_id', post.id)
-          .gte('created_at', since24h);
-        if ((count ?? 0) > 0) return; // already viewed today — do not increment
-        await supabase.from('browsing_history').insert({ user_id: user.id, post_id: post.id, view_type: 'post' }).catch(() => {});
-      }
-      // Increment the view counter in posts table (always, anonymous users included)
-      await supabase.rpc('increment_post_view', { post_id_param: post.id });
+      await backendCapabilities.recordPostView(post.id).catch(() => undefined);
     } catch (_) {}
   };
 

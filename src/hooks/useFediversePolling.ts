@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
 import * as federation from '@/api/federation';
 
 export interface FediverseNotif {
@@ -33,19 +32,10 @@ export function useFediversePolling(userId: string | undefined | null) {
         ? res
         : res?.notifications ?? res?.data ?? [];
       setNotifs(items);
-    } catch {
-      // 2. Fallback: local activitypub_inbox table
-      try {
-        const { data } = await supabase
-          .from('activitypub_inbox')
-          .select('*')
-          .eq('local_user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        setNotifs((data ?? []) as FediverseNotif[]);
-      } catch {
-        // silently ignore
-      }
+    } catch (error) {
+      // Federation owns this feed. Never fall back to browser database access.
+      console.warn('[fediverse] Federation API unavailable', error);
+      setNotifs([]);
     } finally {
       setLoading(false);
       setLastPolled(new Date());

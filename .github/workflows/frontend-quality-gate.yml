@@ -53,6 +53,9 @@ jobs:
           done
           exit 1
 
+      - name: Enforce client-only repository boundary
+        run: npm run validate:client-only
+
       - name: Typecheck
         run: npm run typecheck
 

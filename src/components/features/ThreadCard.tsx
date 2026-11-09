@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Heart, MessageCircle, Repeat2, Share2, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { profileApi } from '@/services/profileApi';
 import { InlineTvSuggestion } from './InlineTvSuggestion';
 import { InlineRssSuggestion } from './InlineRssSuggestion';
 
@@ -17,11 +17,9 @@ export function ThreadCard({ thread }: ThreadCardProps) {
   useEffect(() => {
     let cancelled = false;
     if (profile || !thread.owner_id) return;
-    supabase.from('profiles')
-      .select('id,username,display_name,avatar_url,verified_tier')
-      .eq('id', thread.owner_id)
-      .maybeSingle()
-      .then(({ data }) => { if (!cancelled && data) setProfile(data); });
+    profileApi.getById(String(thread.owner_id))
+      .then(({ profile: data }) => { if (!cancelled && data) setProfile(data); })
+      .catch((error) => { console.error('[thread-card] Backend profile lookup failed', error); });
     return () => { cancelled = true; };
   }, [thread.owner_id, profile]);
 

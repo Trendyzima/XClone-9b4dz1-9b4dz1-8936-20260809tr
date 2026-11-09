@@ -9,25 +9,23 @@ import { PostCard } from '@/components/features/PostCard';
 import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities, CapabilityClientError } from '@/services/testagramCapabilityClient';
 import { toast } from 'sonner';
-import { TestagramCapabilityClient, CapabilityClientError, type SearchDiscoveryPage } from '@/services/testagramCapabilityClient';
+import type { SearchDiscoveryPage } from '@/services/testagramCapabilityClient';
 import * as federation from '@/api/federation';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { FediverseRichText } from '@/components/features/FediverseRichText';
-import { megalodonGatewayService } from '@/services/megalodonGateway';
 import { OrganicSportsStories } from '@/components/features/OrganicSportsStories';
 
 const TABS=['Top','Latest','People','Media','Hashtags','Replies','Threads','Communities','Fediverse','Instances'];
 const KEYWORDS=['technology','artificial intelligence','football','music','Kenya','Nairobi','business','gaming','science','creator economy','travel','news'];
-const endpoint=(name:string)=>`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`;
 function remotePersonHost(person:any){const actor=String(person?.actor_uri??person?.actor_url??person?.url??'');try{if(actor.startsWith('http')){const host=new URL(actor).hostname.toLowerCase();return host.startsWith('www.')?host.slice(4):host}}catch{}const acct=String(person?.acct??'');if(acct.includes('@'))return acct.split('@').pop()!.toLowerCase();const domain=String(person?.domain??'').toLowerCase();return domain.startsWith('www.')?domain.slice(4):domain}
 function searchPersonIdentity(person:any){const username=String(person?.username??person?.preferredUsername??'').replace(/^@/,'').toLowerCase();const host=remotePersonHost(person);if((person?.origin==='fediverse'||person?.actor_uri||person?.actor_url||person?.is_federated)&&username&&host)return `remote:${username}@${host}`;const rawActor=String(person?.actor_uri??person?.actor_url??'').toLowerCase();const actor=rawActor.endsWith('/')?rawActor.slice(0,-1):rawActor;if(actor)return `actor:${actor}`;const id=String(person?.id??'');return id?`local:${id}`:`local:${username}`}
 function followerSummary(person:any){const raw=person?.followers_count??person?.follower_count??person?.raw_actor?.followers_count??person?.raw_actor?.followersCount;if(raw===null||raw===undefined||raw==='')return 'Follower count unavailable';const count=Number(raw);return Number.isFinite(count)&&count>=0?`${formatNumber(count)} followers`:'Follower count unavailable'}
 
 function normalizeSearchHashtag(raw:unknown){return String(raw??'').trim().replace(/^#+/,'').toLowerCase()}
 function openSearchHashtag(navigate:any,raw:unknown){const tag=normalizeSearchHashtag(raw);if(tag)navigate('/hashtag/'+encodeURIComponent(tag))}
-function client(){return new TestagramCapabilityClient({endpoint:endpoint('capability-gateway'),getAccessToken:async()=>{const {data}=await supabase.auth.getSession();return data.session?.access_token??null},clientName:'testagram-search',clientVersion:'3',timeoutMs:12000});}
+const client=()=>backendCapabilities;
 
 export default function SearchPageV3(){
  const {user}=useAuth(); const navigate=useNavigate(); const [params,setParams]=useSearchParams();
@@ -141,12 +139,8 @@ const run=async(q=query,nextTab=tab,append=false,sortMode=sort)=>{if(!q.trim())r
   const loadTrendingHashtags=async()=>{
    setBrowseHashtagsLoading(true);setBrowseHashtagsError(null);
    try{
-    const {data,error}=await supabase.from('hashtags')
-     .select('id,tag,usage_count,post_count,federated_post_count,follower_count,last_used_at')
-     .order('last_used_at',{ascending:false,nullsFirst:false})
-     .limit(60);
-    if(error)throw error;
-    const rows=(data??[]).filter((h:any)=>/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(String(h.tag??'').replace(/^#/,'')));
+    const result=await api.listTrendingHashtags(60);
+    const rows=(result.items??[]).filter((h:any)=>/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(String(h.tag??'').replace(/^#/,'')));
     if(!cancelled)setBrowseHashtags(rows);
    }catch(err){
     console.error('[hashtags-browse]',err);
@@ -163,26 +157,18 @@ const run=async(q=query,nextTab=tab,append=false,sortMode=sort)=>{if(!q.trim())r
   const loadBrowse=async()=>{
    setBrowseLoading(true);setBrowseError(null);setBrowseRows([]);
    try{
-    let result:any;
+    let rows:any[]=[];
     if(tab==='Top'||tab==='Latest'||tab==='Media'){
-     let request=supabase.from('posts').select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,verified,verified_tier)').is('deleted_at',null).order('created_at',{ascending:false}).limit(30);
-     if(tab==='Media')request=request.or('image_url.not.is.null,video_url.not.is.null,is_video.eq.true');
-     result=await request;
+     const result=await api.listPosts(30,undefined,'global');
+     rows=result.items??[];
+     if(tab==='Media')rows=rows.filter((post:any)=>post.image_url||post.video_url||post.media_type==='video'||post.is_video);
     }else if(tab==='People'){
-     result=await supabase.from('profiles').select('id,username,display_name,avatar_url,bio,verified,verified_tier,follower_count,protected_account,account_status').eq('account_status','active').eq('discoverable_by_username',true).order('follower_count',{ascending:false}).limit(40);
-    }else if(tab==='Threads'){
-     result=await supabase.from('threads').select('*, profiles:profiles!threads_owner_id_fkey(id,username,display_name,avatar_url,verified)').is('deleted_at',null).order('created_at',{ascending:false}).limit(30);
-    }else if(tab==='Communities'){
-     result=await supabase.from('communities').select('id,name,slug,description,avatar_url,display_name,member_count,post_count,visibility,is_private').eq('is_private',false).order('member_count',{ascending:false}).limit(30);
-    }else if(tab==='Instances'){
-     result=await supabase.from('federated_instances').select('id,domain,software,last_success_at,public_timeline_available,consecutive_failures').order('last_success_at',{ascending:false,nullsFirst:false}).limit(40);
-    }else if(tab==='Fediverse'){
-     result=await supabase.from('federated_actors').select('id,actor_uri,username,domain,display_name,bio,avatar_url,fetched_at').order('fetched_at',{ascending:false}).limit(30);
-    }else if(tab==='Replies'){
-     result=await supabase.from('federated_objects').select('id,uri,actor_uri,content,summary,published_at,attachments,tags,in_reply_to_uri,object_type').not('in_reply_to_uri','is',null).is('deleted_at',null).order('published_at',{ascending:false,nullsFirst:false}).limit(30);
-    }else result={data:[],error:null};
-    if(result?.error)throw result.error;
-    let rows=Array.isArray(result?.data)?result.data:[];
+     const result=await api.searchUsers('',40); rows=result.items??[];
+    }else {
+     const kind=tab==='Threads'?'threads':tab==='Communities'?'communities':tab==='Instances'?'instances':tab==='Fediverse'?'fediverse':'replies';
+     const result=await api.searchUnified('',kind as any);
+     rows=tab==='Threads'?(result as any).threads??[]:tab==='Replies'?(result as any).replies??[]:tab==='Communities'?result.communities??[]:tab==='Instances'?result.instances??[]:(result as any).users??[];
+    }
     if(tab==='Replies')rows=rows.map((r:any)=>({...r,id:r.id??r.uri,content:r.content??r.summary??'',created_at:r.published_at,origin:'fediverse',user_profiles:{username:String(r.actor_uri??'').split('/').filter(Boolean).pop()||'remote-user'}}));
     if(tab==='Fediverse')rows=rows.map((a:any)=>({...a,actor_url:a.actor_uri,origin:'fediverse',followers_count:null}));
     if(!cancelled)setBrowseRows(rows);
