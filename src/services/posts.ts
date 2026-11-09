@@ -27,7 +27,7 @@ export type CreatedPost = {
 export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
   const body = input.body.trim();
   if (!body) throw new Error('Write something before publishing.');
-  if (body.length > MAX_POST_BODY_LENGTH) throw new Error(`Post text must be ${MAX_POST_BODY_LENGTH} characters or fewer.`);
+  if (Array.from(body).length > MAX_POST_BODY_LENGTH) throw new Error(`Post text must be ${MAX_POST_BODY_LENGTH} characters or fewer.`);
   if (input.media?.length) {
     throw new Error('Media publishing is temporarily unavailable while the native Backend media-attachment contract is completed.');
   }
