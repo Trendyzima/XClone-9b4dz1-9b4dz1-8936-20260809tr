@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
+import { useAuth } from '@/hooks/useAuth';
 import { Play, Eye, Flame, TrendingUp, ChevronRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '@/lib/utils';
@@ -27,10 +28,17 @@ export function TrendingVideosSection({ variant = 'compact' }: Props) {
   const [videos, setVideos] = useState<VideoPost[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
     let active = true;
-    void backendCapabilities.listDiscoveryVideos(variant === 'compact' ? 8 : 10)
+    void (user ? socialApi.getHomeFeed(50) : socialApi.getPublicHomeFeed(50)).then((page) => {
+        if (!active) return;
+        setVideos(normalizeVideoPosts(page.posts.filter((post: any) => post.is_video || post.video_url || post.media_urls?.some((url: string) => /\\.(mp4|m3u8|webm)(?:$|\\?)/i.test(url))).slice(0, variant === 'compact' ? 8 : 10).map((post: any) => ({
+          ...post, video_url: post.video_url ?? post.media_urls?.find((url: string) => /\\.(mp4|m3u8|webm)(?:$|\\?)/i.test(url)),
+          image_url: post.image_url ?? post.media_urls?.[0], user_profiles: post.user_profiles ?? post.profiles,
+        })))));
+      })
       .then((page) => { if (active) setVideos(normalizeVideoPosts(page.items as any[])); })
       .catch((error) => { console.warn('[TrendingVideosSection] Backend unavailable', error); if (active) setVideos([]); })
       .finally(() => { if (active) setLoading(false); });
