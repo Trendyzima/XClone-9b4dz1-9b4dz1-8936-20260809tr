@@ -8,7 +8,6 @@ import { Post } from '@/types/app-types';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/backendClient';
 import { useToast } from '@/hooks/use-toast';
 import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
@@ -249,17 +248,7 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     if (viewTrackedRef.current) return; // already tracked this session
     viewTrackedRef.current = true;
     try {
-      // History is private per-account data and is recorded only through the canonical API.
-      if (user?.id) {
-        await backendCapabilities.recordBrowsingHistory({
-          entity_type: 'video',
-          entity_id: post.id,
-          metadata: { surface: 'video-player' },
-        }).catch(() => undefined);
-      }
-      // View-counter migration is a separate analytics capability; do not write
-      // browsing history through the legacy browser database client.
-      await supabase.rpc('increment_post_view', { post_id_param: post.id });
+      await backendCapabilities.recordPostView(post.id).catch(() => undefined);
     } catch (_) {}
   };
 
