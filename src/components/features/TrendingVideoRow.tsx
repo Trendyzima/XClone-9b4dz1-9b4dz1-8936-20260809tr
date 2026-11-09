@@ -20,11 +20,10 @@ export function TrendingVideoRow() {
           image_url: post.image_url ?? post.media_urls?.[0], user_profiles: post.user_profiles ?? post.profiles,
         })));
       })
-      .then((page) => { if (active) setVideos(page.items ?? []); })
       .catch((error) => { console.warn('[TrendingVideoRow] Backend unavailable', error); if (active) setVideos([]); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [user?.id]);
 
   if (loading) {
     return (
