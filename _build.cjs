@@ -300,7 +300,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  }, []);",
     "  return { user, loading, login, logout };",
     "}",
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   fs.writeFileSync(notificationsHookPath, [
     "import { useState, useEffect, useCallback, useRef } from 'react';",
     "import { iptvSocial } from '@/lib/testagramSocial';",
@@ -334,7 +334,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  useEffect(() => { if (!user) return; void refresh(); intervalRef.current=window.setInterval(()=>void refresh(),POLL_MS); return ()=>{ if(intervalRef.current) window.clearInterval(intervalRef.current); }; },[user,refresh]);",
     "  return {notifications,unread,markAllRead,clearAll,refresh};",
     "}",
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   fs.writeFileSync(clipsHookPath, [
     "import { useCallback } from 'react';",
     "import type { AuthUser, ChannelClip, IPTVChannel } from '@/types';",
@@ -345,7 +345,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  const stopRecording=useCallback(()=>{},[]);",
     "  return {recording:false,scheduleRecording,stopRecording};",
     "}",
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   fs.writeFileSync(reactionHookPath, "import { useState, useCallback, useEffect } from 'react';\nimport { iptvSocial } from '@/lib/testagramSocial';\n\nexport function useReactions(channelId: string, userId?: string) {\n  const [liked, setLiked] = useState(false);\n  const [likeCount, setLikeCount] = useState(0);\n  const [loading, setLoading] = useState(false);\n\n  useEffect(() => {\n    let mounted = true;\n    iptvSocial<{liked:boolean;likeCount:number}>('reactions_state', { channelId })\n      .then(r => { if (mounted) { setLiked(!!r.liked); setLikeCount(r.likeCount || 0); } })\n      .catch(() => {});\n    return () => { mounted = false; };\n  }, [channelId, userId]);\n\n  const toggleLike = useCallback(async (): Promise<boolean> => {\n    if (!userId || loading) return false;\n    setLoading(true);\n    try {\n      const r = await iptvSocial<{liked:boolean}>('reaction_toggle', { channelId });\n      setLiked(!!r.liked);\n      setLikeCount(n => Math.max(0, n + (r.liked ? 1 : -1)));\n      return true;\n    } catch { return false; }\n    finally { setLoading(false); }\n  }, [channelId, userId, loading]);\n\n  return { liked, likeCount, loading, toggleLike };\n}\n", 'utf8');
   fs.writeFileSync(commentsHookPath, [
     "import { useState, useCallback, useEffect } from 'react';",
