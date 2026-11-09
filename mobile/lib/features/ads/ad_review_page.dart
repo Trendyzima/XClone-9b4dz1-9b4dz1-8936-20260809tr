@@ -58,6 +58,7 @@ class _AdReviewPageState extends State<AdReviewPage> {
       }
     } on AppwriteAdminException catch (error) {
       if (error.code == 'user_more_factors_required') {
+        _signedIn = true;
         await _prepareMfa();
       } else {
         _error = error.message;
