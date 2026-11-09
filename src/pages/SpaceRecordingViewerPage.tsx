@@ -49,12 +49,7 @@ export default function SpaceRecordingViewerPage() {
         body: { recording_id: recording.id },
       });
       if (error) {
-        const { FunctionsHttpError } = await import('@supabase/supabase-js');
-        if (error instanceof FunctionsHttpError) {
-          const txt = await error.context?.text?.() ?? error.message;
-          throw new Error(txt);
-        }
-        throw error;
+        throw new Error(error.message || 'Transcription request failed');
       }
       const transcript = data?.transcript ?? '';
       setTranscriptText(transcript);
