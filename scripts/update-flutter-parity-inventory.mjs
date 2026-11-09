@@ -7,6 +7,7 @@ const output = path.join(root, 'docs', 'flutter-parity-inventory.json');
 const roots = ['src', 'android/app/src/main', 'android/scripts'];
 const existing = fs.existsSync(output) ? JSON.parse(fs.readFileSync(output, 'utf8')) : { sources: {} };
 const sources = { ...(existing.sources ?? {}) };
+// Remove entries for deleted/moved source files so the generated inventory cannot drift stale.
 
 function walk(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -22,7 +23,10 @@ function walk(dir) {
   });
 }
 
-for (const file of roots.flatMap(walk).sort()) {
+const actualFiles = new Set(roots.flatMap(walk));
+for (const file of Object.keys(sources)) if (!actualFiles.has(file)) delete sources[file];
+
+for (const file of [...actualFiles].sort()) {
   const sourceType = file.startsWith('src/') ? 'client_source' : file.startsWith('android/') ? 'legacy_android_reference' : 'backend_contract_reference';
   sources[file] ??= {
     source_type: sourceType,
