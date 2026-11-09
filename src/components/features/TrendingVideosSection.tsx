@@ -43,7 +43,7 @@ export function TrendingVideosSection({ variant = 'compact' }: Props) {
       .catch((error) => { console.warn('[TrendingVideosSection] Backend unavailable', error); if (active) setVideos([]); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [user?.id]);
 
   if (loading) {
     return (
