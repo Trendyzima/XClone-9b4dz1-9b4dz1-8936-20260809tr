@@ -1,4 +1,3 @@
-import { isFreshAppwriteMode, supabase } from '@/lib/supabase';
 import { appwriteAuth } from '@/services/appwriteAuth';
 
 type SocialEnvelope<T> = {
@@ -28,50 +27,34 @@ const configuredOrigin = (import.meta.env.VITE_TESTAGRAM_API_URL ?? import.meta.
 const apiBase = configuredOrigin ? `${configuredOrigin}/api/social` : '/api/social';
 const freshApiOrigin = (import.meta.env.VITE_TESTAGRAM_FRESH_API_URL ?? import.meta.env.VITE_TESTAGRAM_API_URL ?? '').trim().replace(/\/+$/, '');
 const freshApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/home` : '/api/feed/home';
-const publicApiFeedPath = freshApiOrigin ? `${freshApiOrigin}/api/feed/public` : '/api/feed/public';
-
-function assertSocialAPIAvailable(allowFreshRoute = false): void {
-  if (isFreshAppwriteMode && !allowFreshRoute) {
-    throw new SocialApiError(
-      'This social feature has not yet been connected to the fresh Appwrite API.',
-      503,
-      'FRESH_API_FEATURE_NOT_PORTED',
-    );
-  }
-}
 
 async function getSessionToken(): Promise<string> {
   const configuredProvider = (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER ?? '').trim().toLowerCase();
-  const provider = configuredProvider || (isFreshAppwriteMode ? 'appwrite' : 'supabase');
-  if (provider === 'appwrite') {
-    // Explicit provider selection: never fall back to a Supabase token. The
-    // fresh Go API verifies this Appwrite JWT directly; it does not link legacy
-    // Supabase identities or read legacy identity mappings.
-    try {
-      return await appwriteAuth.createBackendJWT();
-    } catch {
-      throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED');
+  if (configuredProvider && configuredProvider !== 'appwrite') {
+    throw new SocialApiError('Only Appwrite authentication is supported by the native Backend client.', 503, 'AUTH_PROVIDER_UNSUPPORTED');
+  }
+  try {
+    const token = await appwriteAuth.createBackendJWT();
+    if (!token || /[\\r\\n]/.test(token)) {
+      throw new Error('Appwrite did not return a valid Backend JWT.');
     }
+    return token;
+  } catch {
+    throw new SocialApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED');
   }
-  if (provider !== 'supabase') {
-    throw new SocialApiError('Unsupported Testagram authentication provider.', 503, 'AUTH_PROVIDER_UNSUPPORTED');
-  }
-  let token = (await supabase.auth.getSession()).data.session?.access_token;
-  if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
-  if (!token) throw new SocialApiError('Please sign in again to continue.', 401, 'AUTH_REQUIRED');
-  return token;
 }
 
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
   return requestAt<T>(`${apiBase}${path}`, method, body);
 }
 
-async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, allowFreshRoute = false, extraHeaders: Record<string, string> = {}): Promise<T> {
-  assertSocialAPIAvailable(allowFreshRoute);
+async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: Record<string, unknown>, extraHeaders: Record<string, string> = {}): Promise<T> {
   const token = await getSessionToken();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/json',
+    'X-Request-ID': globalThis.crypto?.randomUUID?.() ?? `xclone-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    'X-Testagram-API-Version': '1',
     ...extraHeaders,
   };
   if (body) headers['Content-Type'] = 'application/json';
@@ -109,9 +92,11 @@ async function requestAt<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELET
   return payload.data;
 }
 
-async function requestPublicAt<T>(url: string): Promise<T> {
-  const controller = new AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), 10000);
+export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
+export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
+
+
+async function requestPublicFeed(url: string): Promise<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -119,62 +104,59 @@ async function requestPublicAt<T>(url: string): Promise<T> {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
       cache: 'no-store',
-      signal: controller.signal,
+      signal: AbortSignal.timeout(12000),
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new SocialApiError('Public feed timed out. Please retry.', 0, 'TIMEOUT');
+      throw new SocialApiError('Feed request timed out. Please retry.', 0, 'TIMEOUT');
     }
-    throw new SocialApiError('Testagram public feed is unreachable.', 0, 'NETWORK_ERROR');
-  } finally {
-    globalThis.clearTimeout(timer);
+    throw new SocialApiError('Testagram feed service is unreachable.', 0, 'NETWORK_ERROR');
   }
-  const payload = await response.json().catch(() => null) as SocialEnvelope<T> | null;
+  const payload = await response.json().catch(() => null) as SocialEnvelope<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }> | null;
   if (!response.ok || !payload?.ok || payload.data == null) {
-    throw new SocialApiError(
-      payload?.error?.message || `Public feed request failed (${response.status}).`,
-      response.status,
-      payload?.error?.code || 'SOCIAL_API_ERROR',
-      payload?.request_id || null,
-    );
+    throw new SocialApiError(payload?.error?.message || `Public feed request failed (${response.status}).`, response.status, payload?.error?.code || 'SOCIAL_API_ERROR', payload?.request_id || null);
   }
   return payload.data;
 }
 
-export type SocialLikeState = { liked: boolean; likes_count: number; removed?: boolean };
-export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
-
 export const socialApi = {
-  getHomeFeed(limit = 20, before?: string) {
+  getHomeFeed(limit = 20, before?: string, options: { followingOnly?: boolean } = {}) {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
     if (before) query.set('before', before);
+    if (options.followingOnly) query.set('following_only', 'true');
     return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
-      `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
+      `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined,
     );
+  },
+  listPolls(limit = 12, offset = 0) {
+    const query = new URLSearchParams({
+      limit: String(Math.min(50, Math.max(1, Math.floor(limit)))),
+      offset: String(Math.min(10000, Math.max(0, Math.floor(offset)))),
+    });
+    return request<{ items: any[]; next_offset: number; has_more: boolean }>(`/polls?${query.toString()}`, 'GET');
   },
   getPublicHomeFeed(limit = 20, before?: string) {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
     if (before) query.set('before', before);
-    return requestPublicAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
-      `${publicApiFeedPath}?${query.toString()}`,
-    );
+    const base = freshApiOrigin ? `${freshApiOrigin}/api/feed/public` : '/api/feed/public';
+    return requestPublicFeed(`${base}?${query.toString()}`);
   },
   createPost(content: string, visibility: 'public' | 'followers' | 'private' = 'public', sensitive = false, idempotencyKey?: string) {
     const key = idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `post-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return requestAt<{ $id: string; author_id: string; body: string; visibility: string; status: string; created_at: string }>(
-      `${freshApiOrigin}/v1/posts`, 'POST', { content, visibility, sensitive }, true, { 'Idempotency-Key': key },
+      `${freshApiOrigin}/v1/posts`, 'POST', { content, visibility, sensitive }, { 'Idempotency-Key': key },
     );
   },
   moderateContent(content: string) {
     return requestAt<{ overall_score: number; categories: Record<string, number>; action: 'pass' | 'flag' | 'auto_ban'; reason: string }>(
-      `${freshApiOrigin}/v1/moderation/check`, 'POST', { content }, true,
+      `${freshApiOrigin}/v1/moderation/check`, 'POST', { content },
     );
   },
   getFederationPreference() {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'GET', undefined, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/api/me/federation`, 'GET');
   },
   setFederationPreference(enabled: boolean) {
-    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/v1/me/federation`, 'PUT', { enabled }, true);
+    return requestAt<{ enabled: boolean }>(`${freshApiOrigin}/api/me/federation`, 'PUT', { enabled });
   },
   getFollowState(userId: string) {
     return request<{ following: boolean; requested: boolean; status: string }>(`/follows/${encodeURIComponent(userId)}`, 'GET');
