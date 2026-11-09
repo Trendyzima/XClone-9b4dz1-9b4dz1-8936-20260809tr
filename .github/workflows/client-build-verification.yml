@@ -27,7 +27,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install frontend dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: TypeScript validation
         run: npm run typecheck
       - name: Production build
