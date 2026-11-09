@@ -17,15 +17,6 @@ export async function pingGoogleSitemap(): Promise<void> {
   } catch {
     // ignore
   }
-  try {
-    const backendBase = import.meta.env.VITE_SUPABASE_URL?.replace('/rest/v1', '').replace('/v1', '') ?? '';
-    if (backendBase) {
-      fetch(`${backendBase}/functions/v1/sitemap-refresh`, {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' },
-      }).catch(() => {});
-    }
-  } catch {
-    // ignore
-  }
+  // Sitemap refresh is owned by the Backend/Data Centre scheduled ingestion pipeline.
+  // The browser never calls a legacy Edge Function.
 }
