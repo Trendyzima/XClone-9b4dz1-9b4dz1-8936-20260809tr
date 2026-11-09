@@ -142,8 +142,14 @@ export const socialApi = {
   },
   listReplies(postId: string, limit = 50) {
     const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
-    return request<{ items: Array<{ id: string; content: string; created_at: string; user_profiles: { username: string; avatar_url: string | null } | null }> }>(
-      `/posts/${encodeURIComponent(postId)}/replies?${query.toString()}`, 'GET',
+    return request<{ items: Array<{ id: string; content: string; created_at: string; updated_at?: string; user_profiles: { username: string; avatar_url: string | null } | null; profile?: unknown }> }>(
+      `/social/posts/${encodeURIComponent(postId)}/replies?${query.toString()}`, 'GET',
+    );
+  },
+  getReplyChain(replyId: string, limit = 200) {
+    const query = new URLSearchParams({ limit: String(Math.min(500, Math.max(1, Math.floor(limit)))) });
+    return request<{ items: any[] }>(
+      `/social/replies/${encodeURIComponent(replyId)}/chain?${query.toString()}`, 'GET',
     );
   },
   setBookmark(postId: string, active: boolean) {
