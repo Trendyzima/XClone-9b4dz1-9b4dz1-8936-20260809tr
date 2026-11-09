@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { TopBar } from '@/components/layout/TopBar';
 import { useSEO } from '@/hooks/useSEO';
 import { formatNumber } from '@/lib/utils';
@@ -49,25 +49,28 @@ export default function ChallengeLeaderboardPage() {
   const fetchChallenges = useCallback(async (q: string, sort: ChallengeSortKey, p: number) => {
     if (p === 0) setLoading(true); else setLoadingMore(true);
     try {
-      let builder = supabase
-        .from('hashtag_challenges')
-        .select('*, hashtags(id, tag, usage_count), user_profiles!created_by(username, avatar_url, verified)')
-        .eq('is_active', true)
-        .order(sort, { ascending: sort === 'end_date' })
-        .range(p * CHALLENGES_PER_PAGE, (p + 1) * CHALLENGES_PER_PAGE - 1);
-
-      if (q.trim()) builder = builder.ilike('title', `%${q.trim()}%`);
-
-      const { data, error } = await builder;
-      if (error) throw error;
-
-      const list = data ?? [];
-      if (p === 0) setChallenges(list);
-      else setChallenges(prev => [...prev, ...list]);
-      setHasMore(list.length === CHALLENGES_PER_PAGE);
+      const result = await backendCapabilities.listHashtagChallenges(100);
+      const normalizedQuery = q.trim().toLowerCase();
+      const filtered = (result.items ?? []).filter((challenge: any) => {
+        if (!challenge.is_active) return false;
+        if (!normalizedQuery) return true;
+        const tag = typeof challenge.hashtags === 'object' ? challenge.hashtags?.tag : challenge.hashtag;
+        return String(challenge.title ?? '').toLowerCase().includes(normalizedQuery)
+          || String(challenge.description ?? '').toLowerCase().includes(normalizedQuery)
+          || String(tag ?? '').toLowerCase().includes(normalizedQuery);
+      });
+      const sorted = [...filtered].sort((left: any, right: any) => {
+        if (sort === 'entry_count') return Number(right.entry_count ?? 0) - Number(left.entry_count ?? 0);
+        if (sort === 'end_date') return new Date(left.end_date).getTime() - new Date(right.end_date).getTime();
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+      });
+      const start = p * CHALLENGES_PER_PAGE;
+      const pageItems = sorted.slice(start, start + CHALLENGES_PER_PAGE);
+      setChallenges(previous => p === 0 ? pageItems : [...previous, ...pageItems]);
+      setHasMore(start + CHALLENGES_PER_PAGE < sorted.length);
       setPage(p);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load challenges');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load challenges');
     } finally {
       if (p === 0) setLoading(false); else setLoadingMore(false);
     }
