@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
+import { useAuth } from '@/hooks/useAuth';
 import { Play, Eye, Flame, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '@/lib/utils';
@@ -8,33 +9,21 @@ export function TrendingVideoRow() {
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    (async () => {
-      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-      const { data: recent } = await supabase
-        .from('posts')
-        .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
-        .eq('is_video', true)
-        .gte('created_at', since)
-        .order('views_count', { ascending: false })
-        .limit(8);
-
-      if (recent && recent.length >= 3) {
-        setVideos(recent);
-      } else {
-        // Fallback: all-time top videos
-        const { data: allTime } = await supabase
-          .from('posts')
-          .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
-          .eq('is_video', true)
-          .order('views_count', { ascending: false })
-          .limit(8);
-        setVideos(allTime || []);
-      }
-      setLoading(false);
-    })();
-  }, []);
+    let active = true;
+    void (user ? socialApi.getHomeFeed(50) : socialApi.getPublicHomeFeed(50)).then((page) => {
+        if (!active) return;
+        setVideos(page.posts.filter((post: any) => post.is_video || post.video_url || post.media_urls?.some((url: string) => /\.(mp4|m3u8|webm)(?:$|\?)/i.test(url))).slice(0, 8).map((post: any) => ({
+          ...post, video_url: post.video_url ?? post.media_urls?.find((url: string) => /\.(mp4|m3u8|webm)(?:$|\?)/i.test(url)),
+          image_url: post.image_url ?? post.media_urls?.[0], user_profiles: post.user_profiles ?? post.profiles,
+        })));
+      })
+      .catch((error) => { console.warn('[TrendingVideoRow] Backend unavailable', error); if (active) setVideos([]); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [user?.id]);
 
   if (loading) {
     return (

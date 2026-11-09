@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
+import { useAuth } from '@/hooks/useAuth';
 import { Play, Eye, Flame, TrendingUp, ChevronRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '@/lib/utils';
@@ -27,33 +28,36 @@ export function TrendingVideosSection({ variant = 'compact' }: Props) {
   const [videos, setVideos] = useState<VideoPost[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    (async () => {
-      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-      const { data: recent } = await supabase
-        .from('posts')
-        .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
-        .eq('is_video', true)
-        .gte('created_at', since)
-        .order('views_count', { ascending: false })
-        .limit(10);
-
-      if (recent && recent.length >= 3) {
-        setVideos(normalizeVideoPosts(recent));
-      } else {
-        // Fallback: all-time top videos
-        const { data: allTime } = await supabase
-          .from('posts')
-          .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
-          .eq('is_video', true)
-          .order('views_count', { ascending: false })
-          .limit(10);
-        setVideos(normalizeVideoPosts(allTime));
+    let active = true;
+    const load = async () => {
+      try {
+        const page = user
+          ? await socialApi.getHomeFeed(50)
+          : await socialApi.getPublicHomeFeed(50);
+        if (!active) return;
+        const videos = (page.posts ?? [])
+          .filter((post: any) => post.is_video || post.video_url || post.media_urls?.length)
+          .slice(0, variant === 'compact' ? 8 : 10)
+          .map((post: any) => ({
+            ...post,
+            video_url: post.video_url ?? (post.is_video ? post.media_urls?.[0] : undefined),
+            image_url: post.image_url ?? (!post.is_video ? post.media_urls?.[0] : undefined),
+            user_profiles: post.user_profiles ?? post.profiles ?? post.author,
+          }));
+        setVideos(normalizeVideoPosts(videos));
+      } catch (error) {
+        console.warn('[TrendingVideosSection] Backend unavailable', error);
+        if (active) setVideos([]);
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
-    })();
-  }, []);
+    };
+    void load();
+    return () => { active = false; };
+  }, [user?.id]);
 
   if (loading) {
     return (

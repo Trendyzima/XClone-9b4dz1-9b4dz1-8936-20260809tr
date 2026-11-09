@@ -67,6 +67,12 @@ export const socialApi = {
       `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
     );
   },
+  getPost(postId: string) {
+    return requestAt<any>(
+      `${freshApiOrigin}/api/social/posts/${encodeURIComponent(postId)}`,
+      'GET', undefined, true,
+    );
+  },
   getPublicHomeFeed(limit = 20, before?: string) {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
     if (before) query.set('before', before);
@@ -112,6 +118,13 @@ export const socialApi = {
     return request<{ status: string; accepted: boolean }>(
       `/follow-requests/${encodeURIComponent(followerId)}/${action}`,
       'POST',
+    );
+  },
+  listPostInteractions(postId: string, kind: 'likes' | 'reposts' | 'quotes' | 'quote-likes', limit = 50) {
+    const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
+    return request<{ items: any[]; has_more: boolean }>(
+      `/posts/${encodeURIComponent(postId)}/interactions/${kind}?${query.toString()}`,
+      'GET',
     );
   },
   getInteractionSummary(postId: string) {

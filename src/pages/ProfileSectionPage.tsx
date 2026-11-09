@@ -1,7 +1,7 @@
 /* Production hook-order verification checkpoint. */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { profileApi } from '@/services/profileApi';
 import { PostCard } from '@/components/features/PostCard';
 import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
@@ -16,54 +16,35 @@ const PAGE_SIZE = 20;
 
 async function fetchProfileSectionPage(profile: any, section: Section, offset: number) {
   const profileId = String(profile.id);
+  const pageFrom = (items: any[]) => {
+    const rows = items.slice(offset, offset + PAGE_SIZE);
+    return { rows, hasMore: items.length > offset + PAGE_SIZE };
+  };
   if (section === 'posts' || section === 'videos') {
-    let query = supabase.from('posts').select('*')
-      .or(`author_id.eq.${profileId},user_id.eq.${profileId}`)
-      .is('deleted_at', null);
-    if (section === 'videos') query = query.eq('is_video', true).not('video_url', 'is', null);
-    const { data, error } = await query.order('created_at', { ascending: false })
-      .order('id', { ascending: false }).range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
-    const source = data ?? [];
-    return { rows: source.map((row: any) => ({ ...row, author_id: row.author_id ?? row.user_id, profiles: profile })), hasMore: source.length === PAGE_SIZE };
+    const result = await profileApi.listPosts(profileId);
+    const source = (result.items ?? []).filter((row: any) =>
+      section === 'posts' || row.is_video || row.video_url,
+    );
+    const page = pageFrom(source);
+    return { ...page, rows: page.rows.map((row: any) => ({ ...row, author_id: row.author_id ?? row.user_id, profiles: row.profiles ?? row.user_profiles ?? profile })) };
   }
   if (section === 'likes') {
     const rows = await listProfileLikes(profileId, PAGE_SIZE, offset);
     return { rows, hasMore: rows.length === PAGE_SIZE };
   }
   if (section === 'threads') {
-    const { data, error } = await supabase.from('threads').select('*')
-      .eq('owner_id', profileId).is('deleted_at', null)
-      .order('created_at', { ascending: false }).order('id', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
-    const rows = data ?? [];
-    return { rows, hasMore: rows.length === PAGE_SIZE };
+    const result = await profileApi.listThreads(profileId);
+    return pageFrom(result.items ?? []);
   }
   if (section === 'media') {
-    const { data, error } = await supabase.from('posts').select('*')
-      .or(`author_id.eq.${profileId},user_id.eq.${profileId}`)
-      .is('deleted_at', null)
-      .or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0')
-      .order('created_at', { ascending: false }).order('id', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
-    const rows = data ?? [];
-    return { rows: rows.map((row: any) => ({ ...row, author_id: row.author_id ?? row.user_id, profiles: profile })), hasMore: rows.length === PAGE_SIZE };
+    const result = await profileApi.listMedia(profileId);
+    return pageFrom(result.items ?? []);
   }
   if (section === 'followers' || section === 'following') {
-    let query = supabase.from('follows').select(section === 'followers' ? 'follower_id' : 'following_id')
-      .eq(section === 'followers' ? 'following_id' : 'follower_id', profileId)
-      .eq('status', 'accepted');
-    const { data, error } = await query.order('created_at', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
-    const ids = (data ?? []).map((row: any) => section === 'followers' ? row.follower_id : row.following_id).filter(Boolean);
-    if (!ids.length) return { rows: [], hasMore: false };
-    const { data: profiles, error: profileError } = await supabase.from('profiles').select('*').in('id', ids);
-    if (profileError) throw profileError;
-    const byId = new Map((profiles ?? []).map((row: any) => [String(row.id), row]));
-    return { rows: ids.map((id: string) => byId.get(String(id))).filter(Boolean), hasMore: (data ?? []).length === PAGE_SIZE };
+    const result = section === 'followers'
+      ? await profileApi.listFollowers(profileId)
+      : await profileApi.listFollowing(profileId);
+    return pageFrom(result.items ?? []);
   }
   return { rows: [], hasMore: false };
 }
@@ -78,18 +59,18 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
 
   useEffect(()=>{let cancelled=false; (async()=>{
     setLoading(true);setError(null);
-    const p=await supabase.from('profiles').select('*').eq('username',username??'').maybeSingle();
+    const result=await profileApi.getByUsername(username??'');
     if(cancelled)return;
-    if(p.error||!p.data){setError('Profile not found');setLoading(false);return;}
-    setProfile(p.data);
+    if(!result.profile){setError('Profile not found');setLoading(false);return;}
+    setProfile(result.profile);
     try{
       let rows:any[]=[];
       let hasMoreRows=false;
       if(section==='posts'||section==='videos'||section==='threads'||section==='media'||section==='followers'||section==='following'||section==='likes'){
-        const page=await fetchProfileSectionPage(p.data,section,0);
+        const page=await fetchProfileSectionPage(result.profile,section,0);
         rows=page.rows;hasMoreRows=page.hasMore;
       } else if(section==='replies'){
-        const first=await listProfileRepliesPage(p.data.id,PAGE_SIZE);rows=first.items;setNextCursor(first.next_cursor);
+        const first=await listProfileRepliesPage(result.profile.id,PAGE_SIZE);rows=first.items;setNextCursor(first.next_cursor);
       }
       if(!cancelled){setItems(rows);setHasMoreItems(hasMoreRows);itemsOffsetRef.current=rows.length;setLoading(false);}
     }catch(e){if(!cancelled){setError(e instanceof Error?e.message:'Unable to load this section');setItems([]);setLoading(false);}}

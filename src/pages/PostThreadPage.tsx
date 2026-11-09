@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
-import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/backendClient';
 import { Post } from '@/types/app-types';
 import { Loader2, Twitter, Facebook, Link2, MessageCircle, Send, Heart, Repeat2, Quote } from 'lucide-react';
@@ -11,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 import * as federation from '@/api/federation';
-import { listReplies, createReply, type ReplyItem } from '@/features/replies/repliesService';
-import { getInteractionCounts } from '@/services/postInteractionService';
+import { type ReplyItem } from '@/features/replies/repliesService';
+import { socialApi } from '@/services/socialApiClient';
 import { ReplyActions } from '@/components/features/ReplyActions';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -97,26 +96,11 @@ export default function PostThreadPage() {
         return;
       }
 
-      const { data: postData, error: postError } = await supabase
-        .from('posts')
-        .select('*, profiles!posts_author_id_fkey(*)')
-        .eq('id', postId)
-        .single();
-      if (postError) throw postError;
-      const normalizedLocalPost = { ...postData, user_profiles: postData.profiles ?? postData.user_profiles ?? null };
+      const postData = await socialApi.getPost(postId);
+      const normalizedLocalPost = { ...postData, user_profiles: postData.user_profiles ?? postData.profiles ?? postData.author ?? null };
       setPost(normalizedLocalPost);
-      if (user?.id) {
-        void backendCapabilities.recordBrowsingHistory({
-          entity_type: 'post',
-          entity_id: postId,
-          metadata: { surface: 'post-detail' },
-        }).catch((historyError) => console.warn('[history] Could not record post view', historyError));
-      }
-
-      void supabase
-        .from('posts')
-        .update({ views_count: (postData.views_count || 0) + 1 })
-        .eq('id', postId);
+      void backendCapabilities.recordPostView(postId)
+        .catch((historyError) => console.warn('[history] Could not record post view', historyError));
     } catch (err) {
       console.error('Error fetching post:', err);
       toast({ title: 'Error', description: 'Failed to load post', variant: 'destructive' });
@@ -133,10 +117,13 @@ export default function PostThreadPage() {
     if (!postId) return;
     setReplyLoading(true);
     try {
-      const [result, liveCounts] = await Promise.all([
-        listReplies(postId, 20),
-        getInteractionCounts(postId),
-      ]);
+      const isRemote = /^https:\/\//i.test(postId);
+      const [result, liveCounts] = isRemote
+        ? [{ items: [] as ReplyItem[] }, Promise.resolve({ likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0 })]
+        : await Promise.all([
+            backendCapabilities.listReplies(postId, 20),
+            socialApi.getInteractionSummary(postId),
+          ]);
       const nextReplies = result.items ?? [];
       // The immediate post page is a preview surface, so it must use the same
       // canonical reply collection as the standalone Replies page. For remote
@@ -189,7 +176,7 @@ export default function PostThreadPage() {
     if (!postId || !user || !replyText.trim()) return;
     setReplySending(true);
     try {
-      await createReply(postId, replyText.trim(), replyingTo);
+      await backendCapabilities.createReply(postId, replyText.trim(), replyingTo);
       setReplyingTo(undefined);
       setReplyText('');
       await loadReplies();

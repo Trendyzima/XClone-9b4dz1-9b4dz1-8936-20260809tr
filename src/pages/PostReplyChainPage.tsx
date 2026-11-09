@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Send } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { getReplyChain, createReply, type ReplyItem } from '@/features/replies/repliesService';
+import { socialApi } from '@/services/socialApiClient';
+import { listReplies, createReply, type ReplyItem } from '@/features/replies/repliesService';
 import { getInteractionCounts } from '@/services/postInteractionService';
 import { ReplyActions } from '@/components/features/ReplyActions';
 import { useAuth } from '@/hooks/useAuth';
@@ -94,13 +94,37 @@ export default function PostReplyChainPage(){
 
      return;
    }
-   const [p,r,c]=await Promise.all([
-     supabase.from('posts').select('id,content,created_at,user_id,author_id,profiles!posts_author_id_fkey(id,username,display_name,avatar_url,cover_url,bio,website_url,location,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at)').eq('id',postId).maybeSingle(),
-     getInteractionCounts(postId)
+   const [localPost, counts, replyPage] = await Promise.all([
+     socialApi.getPost(postId),
+     getInteractionCounts(postId),
+     listReplies(postId,100),
    ]);
-   if(p.error)throw p.error;
-   const localPost = p.data ? { ...p.data, user_profiles: p.data.profiles ?? null } : null;
-   setPost(localPost); setCounts(c); const chainItems=await getReplyChain(replyId,200); if(!chainItems.some(item=>item.id===replyId))throw new Error('Reply not found or no longer visible'); setReplies(chainItems);
+   const normalizedPost = { ...localPost, user_profiles: localPost.user_profiles ?? localPost.profiles ?? localPost.author ?? null };
+   setPost(normalizedPost);
+   setCounts(counts);
+   const allReplies = replyPage.items ?? [];
+   const byId = new Map(allReplies.map(item => [item.id, item]));
+   const selectedReply = byId.get(replyId);
+   if (!selectedReply) throw new Error('Reply not found or no longer visible');
+   const chainIds = new Set<string>([replyId]);
+   let cursor = selectedReply;
+   for (let depth = 0; depth < 50 && cursor.parent_reply_id; depth++) {
+     const parent = byId.get(cursor.parent_reply_id);
+     if (!parent || chainIds.has(parent.id)) break;
+     chainIds.add(parent.id);
+     cursor = parent;
+   }
+   let changed = true;
+   while (changed) {
+     changed = false;
+     for (const item of allReplies) {
+       if (item.parent_reply_id && chainIds.has(item.parent_reply_id) && !chainIds.has(item.id)) {
+         chainIds.add(item.id);
+         changed = true;
+       }
+     }
+   }
+   setReplies(allReplies.filter(item => chainIds.has(item.id)).sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
  }catch(e){console.error('[reply-chain]',e);setError(e instanceof Error?e.message:'Unable to load reply chain');setReplies([]);}finally{setLoading(false)}};
  useEffect(()=>{void load()},[postId,replyId]);
  const selected=replies.find(r=>r.id===replyId)||replies[0]; const selectedProfile=selected?.profile; const profileUsername=String(selectedProfile?.username||'').replace(/^@/,''); const profileName=String(selectedProfile?.display_name||selectedProfile?.full_name||selectedProfile?.username||'Profile'); const openProfile=()=>profileUsername&&navigate('/profile/'+profileUsername);

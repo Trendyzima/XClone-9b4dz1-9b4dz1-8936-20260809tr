@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Bell, User, Flame, UserSearch, Inbox, ShieldCheck, MessageSquare, HelpCircle, Tv } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { toast } from 'sonner';
@@ -48,89 +48,37 @@ export function BottomNav() {
     } catch { /* browser may block audio without prior user gesture */ }
   };
 
-  // Notification badge must use the same canonical capability contract as
-  // NotificationsPage. The legacy direct query used user_id/read while the
-  // canonical notifications API uses recipient_id/read_at, which could make
-  // the bottom badge non-zero while /notifications was empty.
+  // Poll canonical Backend notification and conversation summaries. No
+  // browser database subscriptions or direct table reads are used here.
   useEffect(() => {
-    if (!user) { setUnreadNotifs(0); setUnreadMessages(0); prevNotifs.current = -1; return; }
+    if (!user) {
+      setUnreadNotifs(0); setUnreadMessages(0);
+      prevNotifs.current = -1; prevMessages.current = -1;
+      return;
+    }
     let mounted = true;
-    let notifChannel: ReturnType<typeof supabase.channel> | null = null;
-
     const fetchCounts = async () => {
-      if (!mounted) return;
       try {
-        const result = await backendCapabilities.getUnreadNotificationCount();
-        if (mounted) {
-          const nc = Math.max(0, Number(result.count) || 0);
-          if (prevNotifs.current >= 0 && nc > prevNotifs.current) playBeep();
-          prevNotifs.current = nc;
-          setUnreadNotifs(nc);
-        }
+        const [notifications, conversations] = await Promise.all([
+          socialApi.listNotifications(100),
+          backendCapabilities.listConversations(100),
+        ]);
+        if (!mounted) return;
+        const notificationCount = (notifications.items ?? []).filter((item: any) => !item.read_at).length;
+        const messageCount = (conversations.items ?? []).reduce((total: number, item: any) => total + Math.max(0, Number(item.unread_count) || 0), 0);
+        if (prevNotifs.current >= 0 && notificationCount > prevNotifs.current) playBeep();
+        if (prevMessages.current >= 0 && messageCount > prevMessages.current) playBeep();
+        prevNotifs.current = notificationCount;
+        prevMessages.current = messageCount;
+        setUnreadNotifs(notificationCount);
+        setUnreadMessages(messageCount);
       } catch (error) {
-        console.debug('[bottom-nav] canonical notification count unavailable', error);
-      }
-
-      const { data: convData } = await supabase
-        .from('conversations')
-        .select('id')
-        .or(`participant_1.eq.${user.id},participant_2.eq.${user.id}`);
-      const convIds = convData?.map((c: any) => c.id) ?? [];
-      if (convIds.length > 0) {
-        const { count: dmCount } = await supabase
-          .from('direct_messages')
-          .select('*', { count: 'exact', head: true })
-          .in('conversation_id', convIds)
-          .eq('read', false)
-          .neq('sender_id', user.id);
-        if (mounted) {
-          const dc = dmCount ?? 0;
-          if (prevMessages.current >= 0 && dc > prevMessages.current) playBeep();
-          prevMessages.current = dc;
-          setUnreadMessages(dc);
-        }
-      } else if (mounted) {
-        prevMessages.current = 0;
-        setUnreadMessages(0);
+        console.debug('[bottom-nav] Backend badge refresh unavailable', error);
       }
     };
-
     void fetchCounts();
-    const iv = setInterval(() => void fetchCounts(), 15_000);
-
-    // Subscribe using the canonical notification capability's realtime contract
-    // (recipient_id=eq.<user>) rather than the obsolete user_id filter.
-    void backendCapabilities.getNotificationSubscription().then((contract) => {
-      if (!mounted || !contract.authenticated || contract.table !== 'notifications') return;
-      if (contract.filter !== `recipient_id=eq.${user.id}`) return;
-      notifChannel = supabase
-        .channel(`bottomnav-notifs-${user.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: contract.filter,
-        }, () => { void fetchCounts(); })
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR') console.debug('[bottom-nav] notification realtime unavailable; polling remains active');
-        });
-    }).catch((error) => console.debug('[bottom-nav] notification realtime contract unavailable', error));
-
-    const sub = supabase
-      .channel(`bottomnav-messages-${user.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'direct_messages',
-      }, () => { if (mounted) void fetchCounts(); })
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      clearInterval(iv);
-      if (notifChannel) void supabase.removeChannel(notifChannel);
-      void supabase.removeChannel(sub);
-    };
+    const interval = window.setInterval(() => void fetchCounts(), 15000);
+    return () => { mounted = false; window.clearInterval(interval); };
   }, [user?.id]);
 
   // Clear notification badge when visiting relevant pages
@@ -140,87 +88,22 @@ export function BottomNav() {
     if (location.pathname === '/platform-inbox') setUnreadInbox(0);
   }, [location.pathname]);
 
-  // Fetch pending appeals count for regulators
+  // Platform inbox, moderation appeals, daily rewards and scheduled-post
+  // badges do not yet have verified owner-service read contracts. Keep these
+  // counters at zero rather than silently querying legacy Supabase tables.
   useEffect(() => {
-    if (!user || !isReg) { setPendingAppeals(0); return; }
-    const fetchAppeals = async () => {
-      const { count } = await supabase
-        .from('moderation_appeals')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      setPendingAppeals(count ?? 0);
-    };
-    fetchAppeals();
-    const iv = setInterval(fetchAppeals, 30000);
-    return () => clearInterval(iv);
+    if (!user) {
+      setPendingAppeals(0); setStreakDay(0); setHasNewSuggestions(false);
+      setUnreadInbox(0); setScheduledBadge(0); setUnreadHelpReplies(0);
+      return;
+    }
+    setPendingAppeals(0);
+    setStreakDay(0);
+    setHasNewSuggestions(false);
+    setUnreadInbox(0);
+    setScheduledBadge(0);
+    setUnreadHelpReplies(0);
   }, [user?.id, isReg]);
-
-  // Fetch current streak on mount and after auth changes
-  useEffect(() => {
-    if (!user) { setStreakDay(0); setHasNewSuggestions(false); return; }
-    supabase
-      .from('daily_rewards')
-      .select('streak_day')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => setStreakDay(data?.streak_day ?? 0));
-
-    // Check for unread user suggestions (score > 0)
-    supabase
-      .from('user_suggestions')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gt('score', 0)
-      .then(({ count }) => setHasNewSuggestions((count ?? 0) > 0));
-    // Check platform inbox unread count
-    supabase
-      .from('platform_inbox')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('read', false)
-      .then(({ count }) => setUnreadInbox(count ?? 0));
-    // Scheduled posts pending count
-    supabase
-      .from('scheduled_posts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .then(({ count }) => setScheduledBadge(count ?? 0));
-
-    // Help support ticket reply badge — unread inbox items with [Support] subject that are read=true (team viewed them)
-    // We show a green dot on Help nav when the user has pending (unread by user) support reply messages
-    supabase
-      .from('platform_inbox')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .like('subject', '[Support]%')
-      .eq('read', false)
-      .then(({ count }) => setUnreadHelpReplies(count ?? 0));
-
-    // Real-time subscription for new inbox messages → instant badge + toast
-    const inboxSub = supabase
-      .channel(`inbox-realtime-${user.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'platform_inbox',
-        filter: `user_id=eq.${user.id}`,
-      }, (payload: any) => {
-        setUnreadInbox(prev => prev + 1);
-        // Show in-app toast for the new message
-        const msg = payload.new;
-        if (msg?.subject) {
-          toast(msg.icon_emoji ? `${msg.icon_emoji} ${msg.subject}` : msg.subject, {
-            description: msg.body?.slice(0, 100),
-            action: msg.cta_url ? { label: msg.cta_label ?? 'View', onClick: () => window.location.href = msg.cta_url } : undefined,
-            duration: 6000,
-          });
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(inboxSub); };
-  }, [user?.id]);
 
   useEffect(() => {
     const handleScroll = () => {
