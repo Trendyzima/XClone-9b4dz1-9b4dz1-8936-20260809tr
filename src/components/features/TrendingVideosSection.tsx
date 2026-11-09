@@ -32,16 +32,30 @@ export function TrendingVideosSection({ variant = 'compact' }: Props) {
 
   useEffect(() => {
     let active = true;
-    void (user ? socialApi.getHomeFeed(50) : socialApi.getPublicHomeFeed(50)).then((page) => {
+    const load = async () => {
+      try {
+        const page = user
+          ? await socialApi.getHomeFeed(50)
+          : await socialApi.getPublicHomeFeed(50);
         if (!active) return;
-        setVideos(normalizeVideoPosts(page.posts.filter((post: any) => post.is_video || post.video_url || post.media_urls?.some((url: string) => /\.(mp4|m3u8|webm)(?:$|\?)/i.test(url))).slice(0, variant === 'compact' ? 8 : 10).map((post: any) => ({
-          ...post, video_url: post.video_url ?? post.media_urls?.find((url: string) => /\.(mp4|m3u8|webm)(?:$|\?)/i.test(url)),
-          image_url: post.image_url ?? post.media_urls?.[0], user_profiles: post.user_profiles ?? post.profiles,
-        })))));
-      })
-      .then((page) => { if (active) setVideos(normalizeVideoPosts(page.items as any[])); })
-      .catch((error) => { console.warn('[TrendingVideosSection] Backend unavailable', error); if (active) setVideos([]); })
-      .finally(() => { if (active) setLoading(false); });
+        const videos = (page.posts ?? [])
+          .filter((post: any) => post.is_video || post.video_url || post.media_urls?.length)
+          .slice(0, variant === 'compact' ? 8 : 10)
+          .map((post: any) => ({
+            ...post,
+            video_url: post.video_url ?? (post.is_video ? post.media_urls?.[0] : undefined),
+            image_url: post.image_url ?? (!post.is_video ? post.media_urls?.[0] : undefined),
+            user_profiles: post.user_profiles ?? post.profiles ?? post.author,
+          }));
+        setVideos(normalizeVideoPosts(videos));
+      } catch (error) {
+        console.warn('[TrendingVideosSection] Backend unavailable', error);
+        if (active) setVideos([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
     return () => { active = false; };
   }, [user?.id]);
 
