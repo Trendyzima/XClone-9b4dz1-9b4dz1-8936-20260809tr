@@ -22,11 +22,22 @@ class AppConfig {
     return _validUrl(appwriteEndpoint) &&
         endpoint!.path.replaceFirst(RegExp(r'/+
 
-  static bool get isTestagramApiConfigured => _validUrl(testagramApiUrl);
+  static bool get isTestagramApiConfigured => _validSecureUrl(testagramApiUrl);
 
   static bool _validUrl(String value) {
     final uri = Uri.tryParse(value);
     return uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
+  }
+
+  static bool _validSecureUrl(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.host.isEmpty || uri.userInfo.isNotEmpty ||
+        uri.hasQuery || uri.hasFragment) {
+      return false;
+    }
+    final localHttp = uri.scheme == 'http' &&
+        const {'localhost', '127.0.0.1', '[::1]'}.contains(uri.host);
+    return uri.scheme == 'https' || localHttp;
   }
 }
 ), '').endsWith('/v1') &&
