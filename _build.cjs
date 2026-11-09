@@ -671,13 +671,13 @@ export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
 
   // Fail closed if any active IPTV source file still tries to call the removed
   // browser database client. The compatibility shim is not an implementation.
-  const forbiddenLegacyDataCall = /@supabase\\/supabase-js|\\bsupabase\\.(?:from|rpc|functions|storage|channel|auth)\\b/i;
+  const forbiddenLegacyDataCall = /@supabase\/supabase-js|\bsupabase\.(?:from|rpc|functions|storage|channel|auth)\b/i;
   const sourceFiles = [];
   const walkSource = (directory) => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) walkSource(fullPath);
-      else if (/\\.(?:ts|tsx|js|jsx)$/.test(entry.name) && fullPath !== supabasePath) sourceFiles.push(fullPath);
+      else if (/.\.(?:ts|tsx|js|jsx)$/.test(entry.name) && fullPath !== supabasePath) sourceFiles.push(fullPath);
     }
   };
   walkSource(path.join(vendorRoot, 'src'));
