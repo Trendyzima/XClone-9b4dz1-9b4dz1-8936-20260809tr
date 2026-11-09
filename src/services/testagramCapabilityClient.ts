@@ -473,6 +473,24 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
       'testagram.audio_spaces.superchat', { space_id: spaceId, message, amount, idempotency_key: idempotencyKey },
     );
   }
+  listThreads(tab: 'for-you' | 'following' | 'saved' = 'for-you', n = 6, cursor?: string | null) {
+    const query = new URLSearchParams({ tab, limit: String(limit(n)) });
+    if (cursor) query.set('cursor', cursor);
+    return testagramApiRequest<{ items: any[]; next_cursor: string | null; has_more: boolean }>(
+      '/api/threads?' + query.toString(),
+    );
+  }
+  getThreadBookmarkStates(threadIds: string[]) {
+    return testagramApiRequest<{ thread_ids: string[] }>('/api/threads/bookmarks/states', {
+      method: 'POST', body: { thread_ids: threadIds.slice(0, 100) },
+    }).then(result => new Set(result.thread_ids ?? []));
+  }
+  toggleThreadBookmark(threadId: string) {
+    return testagramApiRequest<{ thread_id: string; bookmarked: boolean }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/bookmarks/toggle',
+      { method: 'POST', body: {} },
+    ).then(result => Boolean(result.bookmarked));
+  }
   getThread(threadId: string) {
     return testagramApiRequest<any>('/api/threads/' + encodeURIComponent(threadId));
   }
