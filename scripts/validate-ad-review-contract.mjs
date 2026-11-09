@@ -5,7 +5,11 @@ const page = read('mobile/lib/features/ads/ad_review_page.dart');
 const session = read('mobile/lib/core/auth/appwrite_admin_session.dart');
 const config = read('mobile/lib/core/config/app_config.dart');
 const contract = read('docs/contracts/ad-review-v1.md');
-const backendRequest = session.match(/Future<Map<String, dynamic>> _backendRequest\\([\\s\\S]*?\\n  }/m)?.[0] ?? '';
+const backendRequestStart = session.indexOf('Future<Map<String, dynamic>> _backendRequest(');
+const backendRequestEnd = session.indexOf('\n  Map<String, dynamic> _decodeResponse', backendRequestStart);
+const backendRequest = backendRequestStart >= 0 && backendRequestEnd > backendRequestStart
+  ? session.slice(backendRequestStart, backendRequestEnd)
+  : '';
 
 const required = [
   ['mobile review page uses the Appwrite admin session', /AppwriteAdminSession/.test(page)],
