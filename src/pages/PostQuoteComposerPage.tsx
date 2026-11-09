@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Quote, Send } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import * as federation from '@/api/federation';
 import { federatedObjectToPost } from '@/features/federation/federatedPostAdapter';
 import { quotePost } from '@/features/quotes/quotesService';
@@ -33,9 +33,9 @@ export default function PostQuoteComposerPage() {
           const normalized = await federatedObjectToPost(object, federation.getFederatedObject);
           if (!cancelled) setPost(normalized);
         } else {
-          const { data, error: fetchError } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('id', postId).single();
-          if (fetchError) throw fetchError;
-          if (!cancelled) setPost({ ...data, user_profiles: data.profiles ?? data.user_profiles ?? null });
+          const data = await backendCapabilities.getPost(postId);
+          if (!data?.id) throw new Error('Post could not be loaded or is no longer visible.');
+          if (!cancelled) setPost({ ...data, user_profiles: data.user_profiles ?? data.profiles ?? null });
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Unable to load post');
