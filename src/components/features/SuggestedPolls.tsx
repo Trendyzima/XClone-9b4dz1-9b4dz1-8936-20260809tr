@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BarChart3, ChevronRight, Sparkles } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { PollCard } from '@/components/features/PollCard';
@@ -28,15 +28,27 @@ export function SuggestedPolls({ compact = false, initialPolls }: { compact?: bo
     if (initialPolls !== undefined) { setPolls(initialPolls); setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
-    supabase.rpc('suggest_polls_for_user', { p_limit: compact ? 2 : 3 })
-      .then(({ data, error }) => {
+    backendCapabilities.listPolls(compact ? 12 : 20, 0)
+      .then(result => {
         if (cancelled) return;
-        if (error) {
-          console.warn('[poll-suggestions] failed', error);
-          setPolls([]);
-        } else {
-          setPolls((data ?? []) as SuggestedPoll[]);
-        }
+        const now = Date.now();
+        const suggestions = (result.items ?? [])
+          .filter((poll: any) => poll.post_id && poll.question && (!poll.ends_at || new Date(poll.ends_at).getTime() > now))
+          .slice(0, compact ? 2 : 3)
+          .map((poll: any) => ({
+            poll_id: poll.id ?? poll.poll_id,
+            post_id: poll.post_id,
+            question: poll.question,
+            description: poll.description ?? null,
+            ends_at: poll.ends_at ?? null,
+            community_display_name: poll.community_display_name ?? poll.community?.name ?? null,
+          }));
+        setPolls(suggestions);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        console.warn('[poll-suggestions] Backend request failed', error);
+        setPolls([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
