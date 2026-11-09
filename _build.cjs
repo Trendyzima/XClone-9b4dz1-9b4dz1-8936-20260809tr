@@ -273,26 +273,42 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   }
 
   fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
-  const socialServiceSource = [
-    "import { createClient } from '@supabase/supabase-js';",
-    "import { supabase } from '@/lib/supabase';",
-    "const FRESH_APPWRITE_MODE = import.meta.env.VITE_TESTAGRAM_FRESH_MODE === 'true' || (import.meta.env.VITE_TESTAGRAM_AUTH_PROVIDER || '').trim().toLowerCase() === 'appwrite';",
-    "const DISABLED_URL = 'http://127.0.0.1:9';",
-    "const SECONDARY_URL = FRESH_APPWRITE_MODE ? DISABLED_URL : (import.meta.env.VITE_SUPABASE_SECONDARY_URL || DISABLED_URL);",
-    "const SECONDARY_PUBLISHABLE_KEY = FRESH_APPWRITE_MODE ? 'fresh-appwrite-disabled' : (import.meta.env.VITE_SUPABASE_SECONDARY_PUBLISHABLE_KEY || 'fresh-appwrite-disabled');",
-    "const SECONDARY_FUNCTION_URL = FRESH_APPWRITE_MODE ? DISABLED_URL + '/functions/v1/iptv-social' : (import.meta.env.VITE_TESTAGRAM_IPTV_SOCIAL_URL || SECONDARY_URL + '/functions/v1/iptv-social');",
-    "export const secondaryRealtime = createClient(SECONDARY_URL, SECONDARY_PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });",
-    "export async function iptvSocial<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {",
-    "  const { data } = await supabase.auth.getSession();",
-    "  const headers: Record<string, string> = { apikey: SECONDARY_PUBLISHABLE_KEY, 'Content-Type': 'application/json' };",
-    "  if (data.session?.access_token) headers.Authorization = 'Bearer ' + data.session.access_token;",
-    "  const response = await fetch(SECONDARY_FUNCTION_URL, { method: 'POST', headers, body: JSON.stringify({ action, ...payload }) });",
-    "  const body = await response.json().catch(() => ({}));",
-    "  if (!response.ok) throw new Error(body?.error || 'IPTV social request failed');",
-    "  return body as T;",
-    "}",
-  ].join('\n');
+  const socialServiceSource = `type IptvSocialResponse<T> = { type: 'testagram:iptv-social-response'; requestId: string; ok: boolean; data?: T; error?: string };
+export async function iptvSocial<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  if (window.parent === window) throw new Error('IPTV social requests require the authenticated Testagram host');
+  const requestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => { window.clearTimeout(timer); window.removeEventListener('message', onMessage); };
+    const timer = window.setTimeout(() => { cleanup(); reject(new Error('Testagram Backend request timed out')); }, 15000);
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return;
+      const message = event.data as IptvSocialResponse<T> | null;
+      if (!message || message.type !== 'testagram:iptv-social-response' || message.requestId !== requestId) return;
+      cleanup();
+      if (!message.ok) reject(new Error(message.error || 'IPTV social request failed'));
+      else resolve(message.data as T);
+    };
+    window.addEventListener('message', onMessage);
+    window.parent.postMessage({ type: 'testagram:iptv-social-request', requestId, action, payload }, window.location.origin);
+  });
+}
+`;
   fs.writeFileSync(socialServicePath, socialServiceSource, 'utf8');
+  // Backend owns IPTV social data and Appwrite session verification. The
+  // vendor iframe asks its parent to broker requests; it never creates a
+  // Supabase client, calls an Edge Function, or receives a provider key.
+  let commentsSource = fs.readFileSync(commentsHookPath, 'utf8')
+    .replace("import { iptvSocial, secondaryRealtime } from '@/lib/testagramSocial';", "import { iptvSocial } from '@/lib/testagramSocial';");
+  const realtimeStart = commentsSource.indexOf("  useEffect(() => {\\n    if (!channelId) return;\\n    const channel = secondaryRealtime.channel");
+  const realtimeEnd = realtimeStart < 0 ? -1 : commentsSource.indexOf("  }, [channelId]);", realtimeStart);
+  if (realtimeStart >= 0 && realtimeEnd >= 0) {
+    commentsSource = commentsSource.slice(0, realtimeStart) +
+      "  useEffect(() => {\\n    if (!channelId) return;\\n    void fetchComments();\\n    const timer = window.setInterval(() => { void fetchComments(); }, 15000);\\n    return () => window.clearInterval(timer);\\n  }, [channelId, fetchComments]);\\n\\n" +
+      commentsSource.slice(realtimeEnd + "  }, [channelId]);".length);
+  } else {
+    throw new Error('[IPTV Backend API] Expected Supabase realtime comments subscription was not found');
+  }
+  fs.writeFileSync(commentsHookPath, commentsSource, 'utf8');
   fs.writeFileSync(reactionHookPath, "import { useState, useCallback, useEffect } from 'react';\nimport { iptvSocial } from '@/lib/testagramSocial';\n\nexport function useReactions(channelId: string, userId?: string) {\n  const [liked, setLiked] = useState(false);\n  const [likeCount, setLikeCount] = useState(0);\n  const [loading, setLoading] = useState(false);\n\n  useEffect(() => {\n    let mounted = true;\n    iptvSocial<{liked:boolean;likeCount:number}>('reactions_state', { channelId })\n      .then(r => { if (mounted) { setLiked(!!r.liked); setLikeCount(r.likeCount || 0); } })\n      .catch(() => {});\n    return () => { mounted = false; };\n  }, [channelId, userId]);\n\n  const toggleLike = useCallback(async (): Promise<boolean> => {\n    if (!userId || loading) return false;\n    setLoading(true);\n    try {\n      const r = await iptvSocial<{liked:boolean}>('reaction_toggle', { channelId });\n      setLiked(!!r.liked);\n      setLikeCount(n => Math.max(0, n + (r.liked ? 1 : -1)));\n      return true;\n    } catch { return false; }\n    finally { setLoading(false); }\n  }, [channelId, userId, loading]);\n\n  return { liked, likeCount, loading, toggleLike };\n}\n", 'utf8');
   fs.writeFileSync(commentsHookPath, "import { useState, useCallback, useEffect } from 'react';\nimport { iptvSocial, secondaryRealtime } from '@/lib/testagramSocial';\nimport type { Comment } from '@/types';\nimport { toast } from 'sonner';\n\nfunction mapComment(c: any): Comment {\n  return { ...c, user_profiles: { username: c.username || 'user' } };\n}\n\nexport function useComments(channelId: string) {\n  const [comments, setComments] = useState<Comment[]>([]);\n  const [loading, setLoading] = useState(false);\n  const [count, setCount] = useState(0);\n\n  const fetchComments = useCallback(async () => {\n    if (!channelId) return;\n    setLoading(true);\n    try {\n      const r = await iptvSocial<{comments:any[]}>('comments_list', { channelId });\n      const active = (r.comments || []).filter(c => new Date(c.expires_at).getTime() > Date.now());\n      setComments(active.map(mapComment));\n      setCount(active.length);\n    } catch (e) { console.error('[Comments] Fetch error:', e); }\n    finally { setLoading(false); }\n  }, [channelId]);\n\n  const fetchCount = useCallback(async () => {\n    try {\n      const r = await iptvSocial<{count:number}>('comments_count', { channelId });\n      setCount(r.count || 0);\n    } catch {}\n  }, [channelId]);\n\n  const addComment = useCallback(async (content: string, userId: string) => {\n    const trimmed = content.trim().slice(0, 280);\n    if (!trimmed || !userId) return;\n    try {\n      const r = await iptvSocial<{comment:any}>('comment_add', { channelId, content: trimmed });\n      if (r.comment) {\n        const mapped = mapComment(r.comment);\n        setComments(prev => [mapped, ...prev.filter(c => c.id !== mapped.id)].slice(0, 100));\n        setCount(n => n + 1);\n      }\n    } catch (e) { toast.error('Failed to post comment'); console.error('[Comments] Insert error:', e); }\n  }, [channelId]);\n\n  const deleteComment = useCallback(async (commentId: string) => {\n    try {\n      await iptvSocial('comment_delete', { id: commentId });\n      setComments(prev => prev.filter(c => c.id !== commentId));\n      setCount(n => Math.max(0, n - 1));\n    } catch {}\n  }, []);\n\n  useEffect(() => {\n    if (!channelId) return;\n    const channel = secondaryRealtime.channel('iptv:channel:' + channelId + ':comments');\n    channel.on('broadcast', { event: 'comment_created' }, payload => {\n      const c = payload.payload;\n      if (!c?.id || new Date(c.expires_at).getTime() <= Date.now()) return;\n      const mapped = mapComment(c);\n      setComments(prev => [mapped, ...prev.filter(x => x.id !== mapped.id)].slice(0, 100));\n      setCount(n => n + 1);\n    });\n    channel.on('broadcast', { event: 'comment_deleted' }, payload => {\n      const id = payload.payload?.id;\n      if (!id) return;\n      setComments(prev => prev.filter(c => c.id !== id));\n      setCount(n => Math.max(0, n - 1));\n    });\n    channel.subscribe();\n    return () => { secondaryRealtime.removeChannel(channel); };\n  }, [channelId]);\n\n  return { comments, loading, count, fetchComments, fetchCount, addComment, deleteComment };\n}\n", 'utf8');
   fs.writeFileSync(favoritesHookPath, "import { useState, useEffect, useCallback } from 'react';\nimport { iptvSocial } from '@/lib/testagramSocial';\nimport type { IPTVChannel, Favorite } from '@/types';\nimport { toast } from 'sonner';\n\nexport function useFavorites(userId?: string) {\n  const [favorites, setFavorites] = useState<Favorite[]>([]);\n  const [favIds, setFavIds] = useState<Set<string>>(new Set());\n  const [loading, setLoading] = useState(false);\n\n  useEffect(() => {\n    if (!userId) { setFavorites([]); setFavIds(new Set()); return; }\n    setLoading(true);\n    iptvSocial<{bookmarks:any[]}>('bookmark_list')\n      .then(r => {\n        const items = (r.bookmarks || []).map((f:any) => ({\n          id: f.channel_id + ':' + f.created_at,\n          user_id: userId,\n          channel_id: f.channel_id,\n          channel_data: f.channel_data,\n          created_at: f.created_at,\n        })) as Favorite[];\n        setFavorites(items.filter(x => !!x.channel_data));\n        setFavIds(new Set(items.map(x => x.channel_id)));\n      })\n      .catch(() => {})\n      .finally(() => setLoading(false));\n  }, [userId]);\n\n  const isFavorite = useCallback((channelId: string) => favIds.has(channelId), [favIds]);\n\n  const toggleFavorite = useCallback(async (channel: IPTVChannel) => {\n    if (!userId) return;\n    try {\n      const r = await iptvSocial<{bookmarked:boolean}>('bookmark_toggle', { channelId: channel.id, channel });\n      if (r.bookmarked) {\n        setFavorites(prev => [{ id: channel.id + ':' + Date.now(), user_id: userId, channel_id: channel.id, channel_data: channel, created_at: new Date().toISOString() }, ...prev]);\n        setFavIds(prev => new Set([...prev, channel.id]));\n        toast.success('Saved to favorites ✨');\n      } else {\n        setFavorites(prev => prev.filter(f => f.channel_id !== channel.id));\n        setFavIds(prev => { const s = new Set(prev); s.delete(channel.id); return s; });\n        toast.success('Removed from favorites');\n      }\n    } catch { toast.error('Could not update saved channel'); }\n  }, [userId]);\n  return { favorites, loading, isFavorite, toggleFavorite };\n}\n", 'utf8');
