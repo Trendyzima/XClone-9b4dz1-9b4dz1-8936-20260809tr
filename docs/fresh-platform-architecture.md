@@ -52,7 +52,7 @@ Use opaque server-generated object keys. Keep buckets private and credentials se
 - Cloudflare media delivery is deployed with the approved B2 origin, signed/authorized access, exact frontend origins, TLS and private no-store policy. Public-media caching requires a separate explicit authorization/cache policy.
 - Load, security, observability and disaster recovery pass before production.
 
-No Supabase migration, no legacy import/linking, no automatic federation activation, and no production-readiness claim based only on compilation.
+No runtime dependency on the legacy platform. Any approved historical data import is performed offline with reconciliation and audit evidence; no automatic email-based identity linking, no automatic federation activation, and no production-readiness claim based only on compilation.
 
 ## Current fresh frontend boundary
 
