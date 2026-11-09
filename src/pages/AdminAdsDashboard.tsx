@@ -164,7 +164,7 @@ export default function AdminAdsDashboard() {
     try {
       if (!mfaChallengeId) {
         const challenge = await appwriteAuth.createMfaChallenge(mfaFactor);
-        setMfaChallengeId(challenge.$id);
+        setMfaChallengeId((challenge as any).$id ?? (challenge as any).id ?? '');
         toast.success(mfaFactor === 'totp' ? 'Enter the code from your authenticator app.' : 'A verification code has been sent.');
         return;
       }
@@ -207,7 +207,11 @@ export default function AdminAdsDashboard() {
       toast.success(decision === 'approved' ? 'Campaign approved. It will activate only after funding.' : 'Campaign rejected.');
       await fetchAds();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Campaign review failed.');
+      if (error instanceof TestagramApiError && error.code === 'ADMIN_MFA_REQUIRED') {
+        await fetchAds();
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Campaign review failed.');
+      }
     } finally {
       setProcessingId(null);
     }
@@ -220,7 +224,11 @@ export default function AdminAdsDashboard() {
       toast.success(status === 'paused' ? 'Campaign paused.' : 'Campaign resumed.');
       await fetchAds();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Campaign status update failed.');
+      if (error instanceof TestagramApiError && error.code === 'ADMIN_MFA_REQUIRED') {
+        await fetchAds();
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Campaign status update failed.');
+      }
     } finally {
       setProcessingId(null);
     }
