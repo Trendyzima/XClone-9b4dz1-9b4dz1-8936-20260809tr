@@ -9,6 +9,7 @@ import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { useToast } from '@/hooks/use-toast';
 import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
@@ -130,47 +131,31 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
   const [captionExpanded, setCaptionExpanded]   = useState(false);
   const [shellReady, setShellReady]             = useState(false);
 
-  /* ── Load initial like / repost / follow state ──────────────────────── */
+  /* ── Load interaction state from the canonical Backend API ───────── */
   useEffect(() => {
-    if (!user) return;
-    const uid = user.id;
-    // Check like
-    supabase.from('likes').select('id').eq('user_id', uid).eq('post_id', post.id).maybeSingle()
-      .then(({ data }) => { if (data) setIsLiked(true); });
-    // Check repost
-    supabase.from('reposts').select('id').eq('user_id', uid).eq('post_id', post.id).maybeSingle()
-      .then(({ data }) => { if (data) setIsReposted(true); });
-    // Check bookmark
-    supabase.from('bookmarks').select('id').eq('user_id', uid).eq('post_id', post.id).maybeSingle()
-      .then(({ data }) => { if (data) setIsBookmarked(true); });
-    // Check follow (skip own posts)
-    if (post.user_id !== uid) {
-      supabase.from('follows').select('id').eq('follower_id', uid).eq('following_id', post.user_id).maybeSingle()
-        .then(({ data }) => { if (data) setIsFollowing(true); });
+    let active = true;
+    if (!user) {
+      setIsLiked(false); setIsReposted(false); setIsBookmarked(false); setIsFollowing(false);
+      return () => { active = false; };
     }
+    void Promise.all([
+      socialApi.getInteractionSummary(post.id),
+      post.user_id !== user.id ? socialApi.getFollowState(post.user_id) : Promise.resolve({ following: false, requested: false, status: 'none' }),
+    ]).then(([summary, follow]) => {
+      if (!active) return;
+      setIsLiked(Boolean(summary.is_liked));
+      setIsReposted(Boolean(summary.is_reposted));
+      setIsBookmarked(Boolean(summary.is_bookmarked));
+      setLikesCount(Number(summary.likes ?? post.likes_count ?? 0));
+      setRepostsCount(Number(summary.reposts ?? post.reposts_count ?? 0));
+      setRepliesCount(Number(summary.replies ?? post.replies_count ?? 0));
+      setIsFollowing(Boolean(follow.following));
+    }).catch(() => {});
+    return () => { active = false; };
   }, [user?.id, post.id, post.user_id]);
 
-  /* ── Author premium cache ────────────────────────────────────────────── */
-  useEffect(() => {
-    const uid = post.user_id;
-    if (authorPremiumCache.has(uid)) {
-      setIsAuthorPremium(authorPremiumCache.get(uid)!);
-      return;
-    }
-    supabase
-      .from('premium_subscriptions')
-      .select('id')
-      .eq('user_id', uid)
-      .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle()
-      .then(({ data }) => {
-        const has = !!data;
-        authorPremiumCache.set(uid, has);
-        setIsAuthorPremium(has);
-      });
-  }, [post.user_id]);
-
+  // Premium badges require a Backend-verified public entitlement. Until that
+  // contract exists, do not query a legacy subscription table.
   useEffect(() => {
     if (!isActive || !shellRef.current) return;
     const raf = requestAnimationFrame(() => setShellReady(true));
@@ -286,72 +271,53 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     return () => document.removeEventListener('fullscreenchange', onFullscreen);
   }, []);
 
-  /* ── Like — one-time only (no unlike) ───────────────────────────────── */
+  /* ── Like / follow / repost use canonical Backend API contracts ───── */
   const triggerLike = useCallback(async () => {
     if (!user) { navigate('/auth'); return; }
-    if (isLiked) return; // already liked — prevent duplicate
-    const newCount = likesCount + 1;
+    if (isLiked) return;
     setIsLiked(true);
-    setLikesCount(newCount);
+    setLikesCount(count => count + 1);
     try {
-      await supabase.from('likes').insert({ user_id: user.id, post_id: post.id });
-      await supabase.from('posts').update({ likes_count: newCount }).eq('id', post.id);
-      if (post.user_id !== user.id) {
-        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'like', actor_id: user.id, post_id: post.id,
-         });
-      }
+      const result = await socialApi.setLike(post.id, true);
+      setLikesCount(result.likes_count);
       onUpdate?.();
-    } catch (_) {
+    } catch {
       setIsLiked(false);
-      setLikesCount(likesCount);
+      setLikesCount(count => Math.max(0, count - 1));
+      toast({ title: 'Like could not be saved', variant: 'destructive' });
     }
-  }, [user, isLiked, likesCount, post.id, post.user_id]);
+  }, [user, isLiked, post.id, navigate, onUpdate, toast]);
 
-  /* ── Follow / Unfollow ──────────────────────────────────────────────── */
   const handleFollow = async () => {
     if (!user) { navigate('/auth'); return; }
-    if (post.user_id === user.id) return; // can't follow self
+    if (post.user_id === user.id) return;
     setFollowLoading(true);
-    const nowFollowing = !isFollowing;
-    setIsFollowing(nowFollowing);
+    const next = !isFollowing;
+    setIsFollowing(next);
     try {
-      if (nowFollowing) {
-        await supabase.from('follows').insert({ follower_id: user.id, following_id: post.user_id });
-        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'follow', actor_id: user.id  });
-      } else {
-        await supabase.from('follows').delete().match({ follower_id: user.id, following_id: post.user_id });
-      }
-    } catch (_) {
-      setIsFollowing(!nowFollowing);
-    } finally {
-      setFollowLoading(false);
-    }
+      const result = await socialApi.setFollow(post.user_id, next);
+      setIsFollowing(next && ('status' in result ? result.status === 'accepted' : true));
+    } catch {
+      setIsFollowing(!next);
+      toast({ title: 'Follow update failed', variant: 'destructive' });
+    } finally { setFollowLoading(false); }
   };
 
-  /* ── Repost ──────────────────────────────────────────────────────────── */
   const handleRepost = async () => {
     if (!user) { navigate('/auth'); return; }
     setShowRepostSheet(false);
-    const nowReposted = !isReposted;
-    const newCount    = nowReposted ? repostsCount + 1 : Math.max(0, repostsCount - 1);
-    setIsReposted(nowReposted);
-    setRepostsCount(newCount);
+    const next = !isReposted;
+    setIsReposted(next);
+    setRepostsCount(count => Math.max(0, count + (next ? 1 : -1)));
     try {
-      if (nowReposted) {
-        await supabase.from('reposts').insert({ user_id: user.id, post_id: post.id });
-        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', post.id);
-        if (post.user_id !== user.id)
-          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'repost', actor_id: user.id, post_id: post.id  });
-        toast({ title: 'Reposted' });
-      } else {
-        await supabase.from('reposts').delete().match({ user_id: user.id, post_id: post.id });
-        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', post.id);
-        toast({ title: 'Repost removed' });
-      }
+      const result = await socialApi.setRepost(post.id, next);
+      setRepostsCount(result.reposts_count);
+      toast({ title: next ? 'Reposted' : 'Repost removed' });
       onUpdate?.();
-    } catch (_) {
-      setIsReposted(!nowReposted);
-      setRepostsCount(repostsCount);
+    } catch {
+      setIsReposted(!next);
+      setRepostsCount(count => Math.max(0, count + (next ? -1 : 1)));
+      toast({ title: 'Repost update failed', variant: 'destructive' });
     }
   };
 
@@ -443,56 +409,52 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
   const handleProgressTouchMove  = (e: React.TouchEvent) => { if (isDragging) seekTo(e); };
   const handleProgressTouchEnd   = () => setIsDragging(false);
 
-  /* ── Comments ────────────────────────────────────────────────────────── */
+  /* ── Comments and bookmarks use canonical Backend API contracts ──── */
   const openComments = async () => {
     setShowComments(true);
     if (comments.length > 0) return;
     setCommentsLoading(true);
-    const { data } = await supabase
-      .from('replies')
-      .select('id, content, created_at, profiles(username, avatar_url)')
-      .eq('post_id', post.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    setComments(normalizeVideoReplies(data));
-    setCommentsLoading(false);
+    try {
+      const result = await backendCapabilities.listReplies(post.id, 50);
+      setComments(normalizeVideoReplies(result.items as any[]));
+    } catch {
+      toast({ title: 'Comments are temporarily unavailable', variant: 'destructive' });
+    } finally { setCommentsLoading(false); }
   };
 
   const submitComment = async () => {
     if (!user) { navigate('/auth'); return; }
-    if (!newComment.trim()) return;
-    setPosting(true);
     const text = newComment.trim();
-    setNewComment('');
-    const { data: inserted } = await supabase
-      .from('replies')
-      .insert({ post_id: post.id, user_id: user.id, content: text })
-      .select('id, content, created_at, profiles(username, avatar_url)')
-      .single();
-    if (inserted) {
-      setComments(prev => [normalizeVideoReplies([inserted])[0], ...prev]);
-      setRepliesCount(c => c + 1);
-    }
-    setPosting(false);
+    if (!text) return;
+    setPosting(true);
+    try {
+      const inserted = await backendCapabilities.createReply(post.id, text);
+      setComments(prev => [{
+        id: String((inserted as any).reply_id ?? (inserted as any).id),
+        content: text,
+        created_at: new Date().toISOString(),
+        user_profiles: { username: user.name || user.email?.split('@')[0] || 'you', avatar_url: null },
+      }, ...prev]);
+      setRepliesCount(count => count + 1);
+      setNewComment('');
+      onUpdate?.();
+    } catch {
+      toast({ title: 'Comment could not be posted', variant: 'destructive' });
+    } finally { setPosting(false); }
   };
 
-  /* ── Bookmark ────────────────────────────────────────────────────────── */
   const handleBookmark = useCallback(async () => {
     if (!user) { navigate('/auth'); return; }
-    const nowBookmarked = !isBookmarked;
-    setIsBookmarked(nowBookmarked);
+    const next = !isBookmarked;
+    setIsBookmarked(next);
     try {
-      if (nowBookmarked) {
-        await supabase.from('bookmarks').insert({ user_id: user.id, post_id: post.id });
-        toast({ title: 'Saved to bookmarks' });
-      } else {
-        await supabase.from('bookmarks').delete().match({ user_id: user.id, post_id: post.id });
-        toast({ title: 'Removed from bookmarks' });
-      }
-    } catch (_) {
-      setIsBookmarked(!nowBookmarked);
+      await socialApi.setBookmark(post.id, next);
+      toast({ title: next ? 'Saved to bookmarks' : 'Removed from bookmarks' });
+    } catch {
+      setIsBookmarked(!next);
+      toast({ title: 'Bookmark update failed', variant: 'destructive' });
     }
-  }, [user, isBookmarked, post.id]);
+  }, [user, isBookmarked, post.id, navigate, toast]);
 
   /* ── Caption renderer — parses #hashtags and @mentions ──────────────── */
   const renderCaption = (content: string) => {
