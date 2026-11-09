@@ -140,6 +140,12 @@ export const socialApi = {
       { content, ...(parentReplyId ? { parent_reply_id: parentReplyId } : {}) },
     );
   },
+  listReplies(postId: string, limit = 50) {
+    const query = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, Math.floor(limit)))) });
+    return request<{ items: Array<{ id: string; content: string; created_at: string; user_profiles: { username: string; avatar_url: string | null } | null }> }>(
+      `/posts/${encodeURIComponent(postId)}/replies?${query.toString()}`, 'GET',
+    );
+  },
   setBookmark(postId: string, active: boolean) {
     return request<{ bookmarked: boolean }>(
       `/posts/${encodeURIComponent(postId)}/bookmarks`,
