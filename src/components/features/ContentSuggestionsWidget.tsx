@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { buildPersonalizedFeed } from '@/services/recommendations';
 import { TrendingUp, Loader2, BadgeCheck, Flame, Sparkles, Clock, Users, Search } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
@@ -40,16 +40,19 @@ export function ContentSuggestionsWidget() {
         }
 
         if (activeTab === 'trending' || (activeTab === 'for-you' && posts.length < 5)) {
-          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles(username,avatar_url,verified_tier,is_creator,verified)').is('community_id', null).gt('likes_count', 0).order('likes_count', { ascending: false }).limit(18);
-          posts = [...posts, ...(data ?? []).map(p => ({ ...p, _reason: 'trending now' }))];
+          const page = await backendCapabilities.listDiscoveryPosts(18, '', 'top');
+          posts = [...posts, ...(page.items ?? []).map((p: any) => ({ ...p, _reason: 'trending now' }))];
         }
         if (activeTab === 'new') {
-          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles(username,avatar_url,verified_tier,is_creator,verified)').is('community_id', null).gte('created_at', since).order('created_at', { ascending: false }).limit(18);
-          posts = (data ?? []).map(p => ({ ...p, _reason: 'fresh on Testagram' }));
+          const page = await backendCapabilities.listDiscoveryPosts(18, '', 'recent', since);
+          posts = (page.items ?? []).map((p: any) => ({ ...p, _reason: 'fresh on Testagram' }));
         }
         if (activeTab === 'creators') {
-          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles!inner(username,avatar_url,verified_tier,is_creator,verified)').is('community_id', null).eq('profiles.is_creator', true).order('views_count', { ascending: false }).limit(18);
-          posts = (data ?? []).map(p => ({ ...p, _reason: 'creator content' }));
+          const creators = await backendCapabilities.listDiscoveryCreators(12);
+          const timelines = await Promise.all((creators.items ?? []).slice(0, 8).map((creator: any) =>
+            backendCapabilities.getProfileTimeline(String(creator.id ?? creator.user_id), 4).catch(() => ({ items: [] })),
+          ));
+          posts = timelines.flatMap((page: any) => page.items ?? []).map((p: any) => ({ ...p, _reason: 'creator content' }));
         }
 
         const seen = new Set<string>();
