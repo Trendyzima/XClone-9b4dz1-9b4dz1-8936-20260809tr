@@ -55,7 +55,12 @@ export function ComposePost({ communityId, onSuccess }: ComposePostProps) {
       setBody('');
       setFiles([]);
       toast.success('Your post has been published.');
-      await onSuccess?.();
+      try {
+        await onSuccess?.();
+      } catch {
+        // Publishing succeeded; a feed refresh failure must not report a failed post.
+        toast.info('Your post is live. Refresh the feed to see the latest updates.');
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not publish your post.');
     } finally {
