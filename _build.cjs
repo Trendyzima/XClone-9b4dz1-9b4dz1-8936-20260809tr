@@ -301,10 +301,13 @@ export function useAuth() {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== window.parent) return;
       const message = event.data as { type?: string; requestId?: string; user?: AuthUser | null } | null;
-      if (!message || message.type !== 'testagram:iptv-auth-state-response' || message.requestId !== requestId || !mounted) return;
-      if (message.user) login(message.user);
-      else logout();
-      setLoading(false);
+      if (!message || !mounted) return;
+      if (message.type === 'testagram:iptv-auth-state-change' ||
+          (message.type === 'testagram:iptv-auth-state-response' && message.requestId === requestId)) {
+        if (message.user) login(message.user);
+        else logout();
+        setLoading(false);
+      }
     };
     window.addEventListener('message', onMessage);
     if (window.parent === window) setLoading(false);
