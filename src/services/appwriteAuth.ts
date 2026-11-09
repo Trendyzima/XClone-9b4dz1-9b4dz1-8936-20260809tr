@@ -109,6 +109,14 @@ export const appwriteAuth = {
     }
   },
 
+  async updatePreferences(prefs: Models.Preferences): Promise<Models.User<Models.Preferences>> {
+    assertAppwriteAuthConfigured();
+    const user = await appwriteAccount.updatePrefs({ prefs });
+    clearBackendJWT();
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+    return user;
+  },
+
   async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
     assertAppwriteAuthConfigured();
     try {
