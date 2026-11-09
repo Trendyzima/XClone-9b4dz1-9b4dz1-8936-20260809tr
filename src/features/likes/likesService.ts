@@ -1,4 +1,5 @@
 import { socialApi } from '@/services/socialApiClient';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { togglePostLike } from '@/services/postInteractionService';
 import { socialApi } from '@/services/socialApiClient';
 export type LikeItem={id:string;user_id:string;post_id:string;created_at:string;profile:any};
