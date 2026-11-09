@@ -274,7 +274,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  async signInWithPassword() { goToHostAuth(); throw new Error('Sign in through Testagram.'); },",
     "  async signOut() { await iptvSocial('sign_out'); },",
     "};",
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   fs.writeFileSync(authHookPath, [
     "import { useEffect } from 'react';",
     "import { iptvSocial } from '@/lib/testagramSocial';",
@@ -296,7 +296,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  }, []);",
     "  return { user, loading, login, logout };",
     "}",
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   const socialServiceSource = [
     "const REQUEST_TYPE = 'testagram:iptv-social:request';",
     "const RESPONSE_TYPE = 'testagram:iptv-social:response';",
