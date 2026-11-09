@@ -39,8 +39,8 @@ export function LiveSpaceBanner() {
     try {
       const result = await backendCapabilities.listLiveAudioSpaces();
       const dismissedIds = getDismissedIds();
-      const next = (result.items ?? []).find((space: any) => !dismissedIds.has(space.id)) ?? null;
-      setLiveSpace(next);
+      const visible = (result.items ?? []).filter((space: any) => !dismissedIds.has(String(space.id)));
+      setLiveSpace(visible[0] ?? null);
     } catch {
       // silently fail — banner is non-critical
     }
