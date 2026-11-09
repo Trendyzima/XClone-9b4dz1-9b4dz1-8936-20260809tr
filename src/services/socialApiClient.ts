@@ -67,6 +67,12 @@ export const socialApi = {
       `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
     );
   },
+  getPost(postId: string) {
+    return requestAt<any>(
+      `${freshApiOrigin}/api/social/posts/${encodeURIComponent(postId)}`,
+      'GET', undefined, true,
+    );
+  },
   getPublicHomeFeed(limit = 20, before?: string) {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
     if (before) query.set('before', before);
