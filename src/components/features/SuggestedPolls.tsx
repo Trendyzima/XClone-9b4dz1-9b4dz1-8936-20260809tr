@@ -70,7 +70,7 @@ export function SuggestedPolls({ compact = false, initialPolls }: { compact?: bo
             <Sparkles className="w-3.5 h-3.5 text-primary" />
           </div>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Questions from communities and people relevant to you.
+            Popular open questions from across Testagram.
           </p>
         </div>
         <button
