@@ -29,7 +29,7 @@ type MixedItem =
   | { kind:'fed'; data:any };
 const TABS:Tab[]=['For you','Following','Saved'];
 const THREADS_CACHE_TTL=45_000;
-const threadsCache=new Map<string,{at:number,threads:Thread[],mixed:MixedItem[],cursor:string|null,hasMore:boolean,postCursor:string|null,postHasMore:boolean}>();
+const threadsCache=new Map<string,{at:number,threads:Thread[],mixed:MixedItem[],cursor:string|null,hasMore:boolean,postCursor:string|null}>();
 const readThreadsCache=(key:string)=>{try{const raw=sessionStorage.getItem(`threads-cache:v2:${key}`);if(!raw)return null;const v=JSON.parse(raw);return v&&Date.now()-v.at<THREADS_CACHE_TTL?v:null}catch{return null}};
 const writeThreadsCache=(key:string,value:any)=>{try{sessionStorage.setItem(`threads-cache:${key}`,JSON.stringify({at:Date.now(),...value}));}catch{}};
 
@@ -95,18 +95,18 @@ export default function ThreadsPage() {
   const {user}=useAuth(); const navigate=useNavigate();
   const [tab,setTab]=useState<Tab>('For you'); const [threads,setThreads]=useState<Thread[]>([]); const [mixedItems,setMixedItems]=useState<MixedItem[]>([]);
   const [liked,setLiked]=useState<Set<string>>(new Set()); const [reposted,setReposted]=useState<Set<string>>(new Set()); const [bookmarked,setBookmarked]=useState<Set<string>>(new Set());
-  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [loadingMore,setLoadingMore]=useState(false); const [feedError,setFeedError]=useState<string|null>(null); const [hasMore,setHasMore]=useState(true); const [cursor,setCursor]=useState<string|null>(null); const [postCursor,setPostCursor]=useState<string|null>(null); const [postHasMore,setPostHasMore]=useState(true); const [search,setSearch]=useState(''); const loadMoreRef=useRef<HTMLDivElement|null>(null);
+  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [loadingMore,setLoadingMore]=useState(false); const [feedError,setFeedError]=useState<string|null>(null); const [hasMore,setHasMore]=useState(true); const [cursor,setCursor]=useState<string|null>(null); const [postCursor,setPostCursor]=useState<string|null>(null); const [search,setSearch]=useState(''); const loadMoreRef=useRef<HTMLDivElement|null>(null);
 
   useSEO({title:'Threads — Testagram',description:'Join conversations on Testagram. Share thoughts, reply, repost and discover people you follow.',url:'/threads',type:'website',keywords:'threads, conversations, social, Testagram'});
 
   const loadThreads=useCallback(async(reset=true)=>{
     const cacheKey=tab+':'+(user?.id??'anon');
     if(reset){
-      setRefreshing(true);setFeedError(null);setLoading(true);setCursor(null);setPostCursor(null);setPostHasMore(true);setHasMore(true);
+      setRefreshing(true);setFeedError(null);setLoading(true);setCursor(null);setPostCursor(null);setHasMore(true);
       const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey);
       if(cached){
         setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);
-        setPostCursor(cached.postCursor??null);setPostHasMore(cached.postHasMore!==false);
+        setPostCursor(cached.postCursor??null);
         setHasMore(cached.hasMore!==false);setLoading(false);setRefreshing(false);
       }
     }else{
@@ -115,7 +115,7 @@ export default function ThreadsPage() {
     }
     try{
       if((tab==='Following'||tab==='Saved')&&!user){
-        setThreads([]);setMixedItems([]);setHasMore(false);setPostHasMore(false);return;
+        setThreads([]);setMixedItems([]);setHasMore(false);return;
       }
 
       const pageSize=6;
@@ -154,8 +154,8 @@ export default function ThreadsPage() {
       const nextCursor=threadPage.next_cursor??null;
       const nextPostCursor=postRes.next_cursor??null;
       const more=Boolean(threadPage.has_more)||Boolean(fedRes.pagination?.hasMore)||Boolean(postRes.has_more);
-      setCursor(nextCursor);setPostCursor(nextPostCursor);setPostHasMore(Boolean(postRes.has_more));setHasMore(more);
-      const cacheValue={threads:reset?normalizedThreads:[...normalizedThreads],mixed,cursor:nextCursor,hasMore:more,postCursor:nextPostCursor,postHasMore:Boolean(postRes.has_more)};
+      setCursor(nextCursor);setPostCursor(nextPostCursor);setHasMore(more);
+      const cacheValue={threads:reset?normalizedThreads:[...normalizedThreads],mixed,cursor:nextCursor,hasMore:more ,postCursor:nextPostCursor};
       threadsCache.set(cacheKey,{at:Date.now(),...cacheValue});writeThreadsCache(cacheKey,cacheValue);
 
       if(user&&rows.length){
