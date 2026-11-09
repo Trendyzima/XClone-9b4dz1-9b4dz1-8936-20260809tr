@@ -45,7 +45,7 @@ const foundation = {
   'src/pages/HomePage.tsx': ['foundation', 'Native feed shell is started; full feed ranking, ads, replies, reposts and moderation parity still required.'],
   'src/pages/ExplorePage.tsx': ['foundation', 'Native profile/post search and follow toggle are started; discovery parity still required.'],
   'src/pages/NotificationsPage.tsx': ['foundation', 'Native notification list/read actions are started; capability API, push and category parity still required.'],
-  'src/components/features/ComposePost.tsx': ['foundation', 'Flutter feed supports text/photo/video compose and Supabase Storage upload; edit flows, full media parity and backend contract tests remain.'],
+  'src/components/features/ComposePost.tsx': ['foundation', 'Web text composer uses the native Appwrite-authenticated Backend post API. Community posting and media attachments remain blocked until their native Backend contracts and end-to-end tests are complete.'],
   'src/pages/MessagesPage.tsx': ['blocked_on_capability_port', 'Encrypted messaging must use the existing capability plane; never write plaintext directly to messages.'],
   'src/pages/CreatorStudio.tsx': ['in_progress', 'Flutter Creator Studio now covers content, earnings, video monetization and a separate creator preferences contract; full analytics and payout parity remain.'],
   'src/pages/TvStudioPage.tsx': ['in_progress', 'Flutter TV Studio prepares broadcast metadata only; camera composition, audio, guest WebRTC, encoder hand-off and verified on-air lifecycle remain blocked on media transport parity.'],
