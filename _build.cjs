@@ -108,6 +108,8 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
   const authServicePath = path.join(vendorRoot, 'src', 'lib', 'authService.ts');
   const authHookPath = path.join(vendorRoot, 'src', 'hooks', 'useAuth.ts');
+  const notificationsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useNotifications.ts');
+  const clipsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useClips.ts');
   const vendorPackagePath = path.join(vendorRoot, 'package.json');
   const vendorLockPath = path.join(vendorRoot, 'package-lock.json');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
@@ -141,7 +143,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   export const supabasePublishableKey = '';
   `;
 
-  if (!fs.existsSync(supabasePath) || !fs.existsSync(authServicePath) || !fs.existsSync(authHookPath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
+  if (!fs.existsSync(supabasePath) || !fs.existsSync(authServicePath) || !fs.existsSync(authHookPath) || !fs.existsSync(notificationsHookPath) || !fs.existsSync(clipsHookPath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
     throw new Error('[TikVTV/Testagram Auth] Expected upstream auth/branding files are missing');
   }
 
@@ -149,6 +151,8 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     [supabasePath, readNormalizedUtf8(supabasePath)],
     [authServicePath, readNormalizedUtf8(authServicePath)],
     [authHookPath, readNormalizedUtf8(authHookPath)],
+    [notificationsHookPath, readNormalizedUtf8(notificationsHookPath)],
+    [clipsHookPath, readNormalizedUtf8(clipsHookPath)],
     [vendorPackagePath, readNormalizedUtf8(vendorPackagePath)],
     ...(fs.existsSync(vendorLockPath) ? [[vendorLockPath, readNormalizedUtf8(vendorLockPath)]] : []),
     [profilePath, readNormalizedUtf8(profilePath)],
@@ -296,32 +300,52 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  }, []);",
     "  return { user, loading, login, logout };",
     "}",
-  ].join('\n'), 'utf8');
-  const socialServiceSource = [
-    "const REQUEST_TYPE = 'testagram:iptv-social:request';",
-    "const RESPONSE_TYPE = 'testagram:iptv-social:response';",
-    "export const secondaryRealtime = { channel() { return { on() { return this; }, subscribe() { return this; } }; }, removeChannel() {} };",
-    "export async function iptvSocial<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {",
-    "  if (window.parent === window) throw new Error('IPTV social bridge is unavailable outside the Testagram app shell.');",
-    "  const requestId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);",
-    "  return new Promise<T>((resolve, reject) => {",
-    "    const timeout = window.setTimeout(() => { window.removeEventListener('message', onMessage); reject(new Error('IPTV social request timed out.')); }, 12000);",
-    "    const onMessage = (event: MessageEvent) => {",
-    "      if (event.source !== window.parent || event.origin !== window.location.origin || event.data?.type !== RESPONSE_TYPE || event.data?.requestId !== requestId) return;",
-    "      window.clearTimeout(timeout); window.removeEventListener('message', onMessage);",
-    "      if (event.data.ok) resolve(event.data.data as T); else reject(new Error(event.data.error || 'IPTV social request failed.'));",
-    "    };",
-    "    window.addEventListener('message', onMessage);",
-    "    window.parent.postMessage({ type: REQUEST_TYPE, requestId, action, payload }, window.location.origin);",
-    "  });",
+  ].join('\\n'), 'utf8');
+  fs.writeFileSync(notificationsHookPath, [
+    "import { useState, useEffect, useCallback, useRef } from 'react';",
+    "import { iptvSocial } from '@/lib/testagramSocial';",
+    "import type { AppNotification, AuthUser } from '@/types';",
+    "const NOTIF_KEY = 'testagram_iptv_notifications_v1';",
+    "const LAST_KEY = 'testagram_iptv_notif_last_v1';",
+    "const POLL_MS = 60000;",
+    "function readNotifs(): AppNotification[] { try { return JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]'); } catch { return []; } }",
+    "function saveNotifs(items: AppNotification[]) { try { localStorage.setItem(NOTIF_KEY, JSON.stringify(items.slice(0, 50))); } catch {} }",
+    "export function useNotifications(user: AuthUser | null) {",
+    "  const [notifications,setNotifications] = useState<AppNotification[]>(readNotifs);",
+    "  const [unread,setUnread] = useState(0);",
+    "  const intervalRef = useRef<ReturnType<typeof setInterval>>();",
+    "  const refresh = useCallback(async () => {",
+    "    if (!user) return;",
+    "    const lastCheck = localStorage.getItem(LAST_KEY) || new Date(Date.now()-3600000).toISOString();",
+    "    try {",
+    "      const result = await iptvSocial<{reacts:{channel_id:string}[];comms:{channel_id:string}[]}>('notifications',{lastCheck});",
+    "      localStorage.setItem(LAST_KEY,new Date().toISOString());",
+    "      const reactMap = new Map<string,number>(); for (const item of result.reacts || []) reactMap.set(item.channel_id,(reactMap.get(item.channel_id)||0)+1);",
+    "      const commMap = new Map<string,number>(); for (const item of result.comms || []) commMap.set(item.channel_id,(commMap.get(item.channel_id)||0)+1);",
+    "      const now = Date.now(); const fresh:AppNotification[] = [];",
+    "      for (const [channelId,count] of reactMap) fresh.push({id:'r-'+channelId+'-'+now,channelId,channelName:channelId,type:'reaction',count});",
+    "      for (const [channelId,count] of commMap) fresh.push({id:'c-'+channelId+'-'+now,channelId,channelName:channelId,type:'comment',count});",
+    "      if (fresh.length) setNotifications(prev => { const next=[...fresh,...prev].slice(0,50); saveNotifs(next); return next; });",
+    "    } catch (error) { console.warn('[IPTV notifications] Backend unavailable',error); }",
+    "  },[user]);",
+    "  const markAllRead = useCallback(() => { const next=notifications.map(item=>({...item,readAt:new Date().toISOString()})); setNotifications(next); saveNotifs(next); setUnread(0); },[notifications]);",
+    "  const clearAll = useCallback(() => { setNotifications([]); saveNotifs([]); setUnread(0); },[]);",
+    "  useEffect(() => { setUnread(notifications.filter(item=>!item.readAt).length); },[notifications]);",
+    "  useEffect(() => { if (!user) return; void refresh(); intervalRef.current=window.setInterval(()=>void refresh(),POLL_MS); return ()=>{ if(intervalRef.current) window.clearInterval(intervalRef.current); }; },[user,refresh]);",
+    "  return {notifications,unread,markAllRead,clearAll,refresh};",
     "}",
-  ].join('\n');
-  fs.writeFileSync(socialServicePath, socialServiceSource, 'utf8');
-  if (/@supabase\//i.test(supabaseSource + socialServiceSource) ||
-      /createClient\s*\(/.test(supabaseSource + socialServiceSource) ||
-      /VITE_SUPABASE|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|rest\/v1\/|functions\/v1\//i.test(supabaseSource + socialServiceSource)) {
-    throw new Error('[TikVTV/Testagram API] Legacy hosted data client injection is forbidden');
-  }
+  ].join('\\n'), 'utf8');
+  fs.writeFileSync(clipsHookPath, [
+    "import { useCallback } from 'react';",
+    "import type { AuthUser, ChannelClip, IPTVChannel } from '@/types';",
+    "export async function fetchClipForChannel(_channelId:string):Promise<ChannelClip|null>{return null;}",
+    "export async function fetchRecentClips(_limit=20):Promise<ChannelClip[]>{return [];}",
+    "export function useClipRecorder(_channel:IPTVChannel,_user:AuthUser|null){",
+    "  const scheduleRecording=useCallback((_videoElement:HTMLVideoElement)=>{},[]);",
+    "  const stopRecording=useCallback(()=>{},[]);",
+    "  return {recording:false,scheduleRecording,stopRecording};",
+    "}",
+  ].join('\\n'), 'utf8');
   fs.writeFileSync(reactionHookPath, "import { useState, useCallback, useEffect } from 'react';\nimport { iptvSocial } from '@/lib/testagramSocial';\n\nexport function useReactions(channelId: string, userId?: string) {\n  const [liked, setLiked] = useState(false);\n  const [likeCount, setLikeCount] = useState(0);\n  const [loading, setLoading] = useState(false);\n\n  useEffect(() => {\n    let mounted = true;\n    iptvSocial<{liked:boolean;likeCount:number}>('reactions_state', { channelId })\n      .then(r => { if (mounted) { setLiked(!!r.liked); setLikeCount(r.likeCount || 0); } })\n      .catch(() => {});\n    return () => { mounted = false; };\n  }, [channelId, userId]);\n\n  const toggleLike = useCallback(async (): Promise<boolean> => {\n    if (!userId || loading) return false;\n    setLoading(true);\n    try {\n      const r = await iptvSocial<{liked:boolean}>('reaction_toggle', { channelId });\n      setLiked(!!r.liked);\n      setLikeCount(n => Math.max(0, n + (r.liked ? 1 : -1)));\n      return true;\n    } catch { return false; }\n    finally { setLoading(false); }\n  }, [channelId, userId, loading]);\n\n  return { liked, likeCount, loading, toggleLike };\n}\n", 'utf8');
   fs.writeFileSync(commentsHookPath, [
     "import { useState, useCallback, useEffect } from 'react';",
