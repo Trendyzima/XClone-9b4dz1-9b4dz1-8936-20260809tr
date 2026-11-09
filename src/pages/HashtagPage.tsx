@@ -162,7 +162,7 @@ export default function HashtagPage() {
         const seen = new Set(previous.map((post: any) => String(post.id)));
         return [...previous, ...page.filter((post: any) => !seen.has(String(post.id)))];
       });
-      postsOffsetRef.current = start + rows.length;
+      postsOffsetRef.current = start + page.length;
       setHasMoreLocalPosts(page.length === 20);
     } catch (error) {
       console.error('Could not load more hashtag posts', error);
