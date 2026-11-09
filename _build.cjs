@@ -105,7 +105,12 @@ function readNormalizedUtf8(filePath) {
 }
 
 function patchTikVTVForTestagramAuth(vendorRoot) {
-  const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
+  const authHookPath = path.join(vendorRoot, 'src', 'hooks', 'useAuth.ts');
+  const authServicePath = path.join(vendorRoot, 'src', 'lib', 'authService.ts');
+  const clipsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useClips.ts');
+  const notificationsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useNotifications.ts');
+  const clipGalleryPath = path.join(vendorRoot, 'src', 'pages', 'ClipGallery.tsx');
+  const streamHealthPath = path.join(vendorRoot, 'src', 'pages', 'StreamHealth.tsx');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
   const headerPath = path.join(vendorRoot, 'src', 'components', 'layout', 'Header.tsx');
   const feedPath = path.join(vendorRoot, 'src', 'pages', 'Feed.tsx');
@@ -126,45 +131,17 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   const channelsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useChannels.ts');
   const prefetchPath = path.join(vendorRoot, 'src', 'lib', 'streamPrefetch.ts');
   let prefetchSource = "type WarmChannel = { id: string; streamUrl: string };\ntype WarmResult = { channelId: string; outcome: 'warmed' | 'skipped' | 'failed'; reason?: string };\nconst MAX_MANIFEST = 512 * 1024;\nconst TIMEOUT_MS = 2200;\nconst COOLDOWN_MS = 90_000;\nconst warmed = new Map<string, number>();\nconst inFlight = new Set<string>();\nconst signedKey = /token|signature|expires|authorization|hdnts|hdnea|jwt|credential|x-amz-/i;\nfunction signed(url: URL) { return Array.from(url.searchParams.keys()).some(key => signedKey.test(key)); }\nfunction resolveHttps(value: string, base: URL): URL | null {\n  try { const url = new URL(value, base); return url.protocol === 'https:' ? url : null; } catch { return null; }\n}\nasync function readBounded(response: Response): Promise<string> {\n  const reader = response.body?.getReader();\n  if (!reader) throw new Error('empty manifest');\n  const decoder = new TextDecoder();\n  let text = '';\n  try {\n    while (text.length <= MAX_MANIFEST) {\n      const { done, value } = await reader.read();\n      if (done) break;\n      text += decoder.decode(value, { stream: true });\n      if (text.length > MAX_MANIFEST) { await reader.cancel(); throw new Error('manifest too large'); }\n    }\n  } finally { try { reader.releaseLock(); } catch {} }\n  if (!/^\\s*#EXTM3U\\b/.test(text)) throw new Error('invalid HLS manifest');\n  return text;\n}\nasync function getManifest(url: URL, signal: AbortSignal): Promise<string> {\n  const response = await fetch(url.toString(), {\n    mode: 'cors', credentials: 'omit', cache: 'no-store', signal,\n    headers: { Accept: 'application/vnd.apple.mpegurl, text/plain;q=0.9, */*;q=0.5' },\n  });\n  if (!response.ok) throw new Error('manifest HTTP ' + response.status);\n  return readBounded(response);\n}\nfunction chooseVariant(text: string, base: URL): URL | null {\n  const lines = text.split(/\\r?\\n/).map(line => line.trim());\n  const variants: Array<{ url: URL; bandwidth: number }> = [];\n  for (let i = 0; i < lines.length; i++) {\n    if (!lines[i].startsWith('#EXT-X-STREAM-INF:')) continue;\n    const bandwidth = Number(lines[i].match(/BANDWIDTH=(\\d+)/i)?.[1] || 0);\n    const uri = lines.slice(i + 1).find(line => line && !line.startsWith('#'));\n    const url = uri ? resolveHttps(uri, base) : null;\n    if (url) variants.push({ url, bandwidth });\n  }\n  variants.sort((a, b) => a.bandwidth - b.bandwidth);\n  return variants[0]?.url || null;\n}\nfunction chooseSegment(text: string, base: URL): URL | null {\n  const lines = text.split(/\\r?\\n/).map(line => line.trim());\n  const segments = lines.filter(line => line && !line.startsWith('#'))\n    .map(line => resolveHttps(line, base)).filter((url): url is URL => Boolean(url));\n  if (!segments.length) {\n    const map = text.match(/#EXT-X-MAP:[^\\n]*URI=\"([^\"]+)\"/i)?.[1];\n    return map ? resolveHttps(map, base) : null;\n  }\n  return text.includes('#EXT-X-ENDLIST') ? segments[0] : segments[segments.length - 1];\n}\nasync function warmSegment(url: URL, signal: AbortSignal) {\n  if (signed(url)) return;\n  try {\n    const response = await fetch(url.toString(), {\n      mode: 'cors', credentials: 'omit', cache: 'no-store', signal, headers: { Accept: '*/*' },\n    });\n    if (!response.ok || response.status !== 200) return;\n    const length = Number(response.headers.get('content-length') || 0);\n    if (length > MAX_PREFETCH_SEGMENT_BYTES) { await response.body?.cancel(); return; }\n    const reader = response.body?.getReader();\n    if (!reader) return;\n    const chunks: Uint8Array[] = []; let total = 0;\n    try {\n      while (true) { const part = await reader.read(); if (part.done) break; total += part.value.byteLength; if (total > MAX_PREFETCH_SEGMENT_BYTES) { await reader.cancel(); return; } chunks.push(part.value); }\n    } finally { try { reader.releaseLock(); } catch {} }\n    const bytes = new Uint8Array(total); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }\n    await saveSegmentCache(url.toString(), bytes.buffer, response.headers.get('content-type') || 'application/octet-stream');\n  } catch {\n    // CORS-disabled broadcasters remain playable; warming is best-effort only.\n  }\n}\nasync function warmOne(channel: WarmChannel, parent: AbortSignal): Promise<WarmResult> {\n  let source: URL;\n  try { source = new URL(channel.streamUrl); } catch {\n    return { channelId: channel.id, outcome: 'skipped', reason: 'invalid-url' };\n  }\n  if (source.protocol !== 'https:' || !/\\.m3u8$/i.test(source.pathname)) {\n    return { channelId: channel.id, outcome: 'skipped', reason: 'not-HLS' };\n  }\n  if (signed(source)) return { channelId: channel.id, outcome: 'skipped', reason: 'signed-url' };\n  if (inFlight.has(channel.id) || Date.now() - (warmed.get(channel.id) || 0) < COOLDOWN_MS) {\n    return { channelId: channel.id, outcome: 'skipped', reason: 'recently-warmed' };\n  }\n  inFlight.add(channel.id);\n  const controller = new AbortController();\n  const abort = () => controller.abort();\n  if (parent.aborted) controller.abort(); else parent.addEventListener('abort', abort, { once: true });\n  const timer = setTimeout(abort, TIMEOUT_MS);\n  try {\n    let playlistUrl = source;\n    let text = await getManifest(source, controller.signal);\n    const variant = chooseVariant(text, source);\n    if (variant) { playlistUrl = variant; text = await getManifest(variant, controller.signal); }\n    const segment = chooseSegment(text, playlistUrl);\n    if (segment) await warmSegment(segment, controller.signal);\n    warmed.set(channel.id, Date.now());\n    return { channelId: channel.id, outcome: 'warmed' };\n  } catch (error) {\n    return { channelId: channel.id, outcome: 'failed', reason: error instanceof Error ? error.message : 'network-failure' };\n  } finally {\n    clearTimeout(timer);\n    parent.removeEventListener('abort', abort);\n    inFlight.delete(channel.id);\n  }\n}\nexport async function warmChannelBatch(channels: WarmChannel[], signal: AbortSignal) {\n  const results: WarmResult[] = [];\n  for (const channel of channels.slice(0, 4)) {\n    if (signal.aborted) break;\n    results.push(await warmOne(channel, signal));\n  }\n  if (results.length) window.dispatchEvent(new CustomEvent('testagram:iptv-prefetch', { detail: results }));\n  return results;\n}\n";
-  // TikVTV still has legacy Supabase-backed feature adapters. In fresh Appwrite
-  // mode those adapters must remain inert until ported; never copy old hosted
-  // Supabase URLs or keys into the vendor build. Legacy non-fresh builds may use
-  // explicit environment configuration, but no hardcoded project fallback.
-  const freshAppwriteMode = process.env.VITE_TESTAGRAM_FRESH_MODE === 'true' ||
-    (process.env.VITE_TESTAGRAM_AUTH_PROVIDER || '').trim().toLowerCase() === 'appwrite';
-  const supabaseUrl = freshAppwriteMode
-    ? 'http://127.0.0.1:9'
-    : (process.env.VITE_SUPABASE_URL || '').trim();
-  const supabasePublishableKey = freshAppwriteMode
-    ? 'fresh-appwrite-disabled'
-    : (process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
-  if (!supabaseUrl || !supabasePublishableKey) {
-    throw new Error('[TikVTV/Testagram Auth] Explicit Supabase build configuration is required outside fresh Appwrite mode');
-  }
-
-  const supabaseSource = `import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = ${JSON.stringify(supabaseUrl)};
-const supabasePublishableKey = ${JSON.stringify(supabasePublishableKey)};
-
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    storageKey: 'testagram-auth',
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-  },
-});
-`;
-
-  if (!fs.existsSync(supabasePath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
+  if (!fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath) || !fs.existsSync(authHookPath) || !fs.existsSync(authServicePath) || !fs.existsSync(clipsHookPath) || !fs.existsSync(notificationsHookPath) || !fs.existsSync(clipGalleryPath) || !fs.existsSync(streamHealthPath)) {
     throw new Error('[TikVTV/Testagram Auth] Expected upstream auth/branding files are missing');
   }
 
   const original = new Map([
-    [supabasePath, readNormalizedUtf8(supabasePath)],
+    [authHookPath, readNormalizedUtf8(authHookPath)],
+    [authServicePath, readNormalizedUtf8(authServicePath)],
+    [clipsHookPath, readNormalizedUtf8(clipsHookPath)],
+    [notificationsHookPath, readNormalizedUtf8(notificationsHookPath)],
+    [clipGalleryPath, readNormalizedUtf8(clipGalleryPath)],
+    [streamHealthPath, readNormalizedUtf8(streamHealthPath)],
     [profilePath, readNormalizedUtf8(profilePath)],
     [headerPath, readNormalizedUtf8(headerPath)],
     [feedPath, readNormalizedUtf8(feedPath)],
@@ -272,7 +249,6 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     fs.writeFileSync(indexCssPath, repairedVendorCss, 'utf8');
   }
 
-  fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
   const socialServiceSource = `type IptvSocialResponse<T> = { type: 'testagram:iptv-social-response'; requestId: string; ok: boolean; data?: T; error?: string };
 export async function iptvSocial<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   if (window.parent === window) throw new Error('IPTV social requests require the authenticated Testagram host');
@@ -294,6 +270,129 @@ export async function iptvSocial<T = any>(action: string, payload: Record<string
 }
 `;
   fs.writeFileSync(socialServicePath, socialServiceSource, 'utf8');
+  const authHookSource = `import { useEffect } from 'react';
+import { useAuthStore } from '@/stores/authStore';
+import type { AuthUser } from '@/types';
+
+export function useAuth() {
+  const { user, loading, login, logout, setLoading } = useAuthStore();
+  useEffect(() => {
+    let mounted = true;
+    const requestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return;
+      const message = event.data as { type?: string; requestId?: string; user?: AuthUser | null } | null;
+      if (!message || message.type !== 'testagram:iptv-auth-state-response' || message.requestId !== requestId || !mounted) return;
+      if (message.user) login(message.user);
+      else logout();
+      setLoading(false);
+    };
+    window.addEventListener('message', onMessage);
+    if (window.parent === window) setLoading(false);
+    else window.parent.postMessage({ type: 'testagram:iptv-auth-state-request', requestId }, window.location.origin);
+    return () => { mounted = false; window.removeEventListener('message', onMessage); };
+  }, []);
+  return { user, loading, login, logout };
+}
+`;
+  const authServiceSource = `import type { AuthUser } from '@/types';
+
+export function mapSupabaseUser(user: any): AuthUser {
+  return {
+    id: String(user?.id || ''),
+    email: String(user?.email || ''),
+    username: String(user?.username || user?.user_metadata?.username || user?.email?.split('@')[0] || 'viewer'),
+    avatar: user?.avatar || user?.user_metadata?.avatar_url || undefined,
+  };
+}
+
+function handoffToHostAuth(): never {
+  if (window.top && window.top !== window) {
+    window.top.location.assign('/auth?returnTo=/iptv');
+    throw new Error('Continue authentication in Testagram.');
+  }
+  window.location.assign('/auth?returnTo=/iptv');
+  throw new Error('Continue authentication in Testagram.');
+}
+
+export const authService = {
+  async sendOtp(_email: string): Promise<void> { handoffToHostAuth(); },
+  async verifyOtpAndRegister(_email: string, _token: string, _password: string, _username: string): Promise<AuthUser> { handoffToHostAuth(); },
+  async signInWithPassword(_email: string, _password: string): Promise<AuthUser> { handoffToHostAuth(); },
+  async signOut(): Promise<void> { handoffToHostAuth(); },
+};
+`;
+  const clipsHookSource = `import { useCallback, useState } from 'react';
+import type { AuthUser, ChannelClip, IPTVChannel } from '@/types';
+
+// Clip capture is deliberately fail-closed until the Backend's B2-backed clip
+// upload and moderation contract is deployed. No browser storage provider is
+// contacted and no fake clip metadata is returned.
+export async function fetchClipForChannel(_channelId: string): Promise<ChannelClip | null> { return null; }
+export async function fetchRecentClips(_limit = 20): Promise<ChannelClip[]> { return []; }
+export function useClipRecorder(_channel: IPTVChannel, _user: AuthUser | null) {
+  const [recording] = useState(false);
+  const scheduleRecording = useCallback((_videoElement: HTMLVideoElement) => {}, []);
+  const stopRecording = useCallback(() => {}, []);
+  return { recording, scheduleRecording, stopRecording };
+}
+`;
+  const notificationsHookSource = `import { useState, useEffect, useCallback, useRef } from 'react';
+import { iptvSocial } from '@/lib/testagramSocial';
+import type { AppNotification, AuthUser } from '@/types';
+
+const NOTIF_KEY = 'tikvtv_notifications_v1';
+const LAST_KEY = 'tikvtv_notif_last_v1';
+const POLL_MS = 60000;
+function readNotifs(): AppNotification[] { try { return JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]'); } catch { return []; } }
+function saveNotifs(items: AppNotification[]) { try { localStorage.setItem(NOTIF_KEY, JSON.stringify(items.slice(0, 50))); } catch {} }
+
+export function useNotifications(user: AuthUser | null) {
+  const [notifications, setNotifications] = useState<AppNotification[]>(readNotifs);
+  const [unread, setUnread] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    const lastCheck = localStorage.getItem(LAST_KEY) || new Date(Date.now() - 3600000).toISOString();
+    const result = await iptvSocial<{reacts: Array<{channel_id:string}>; comms: Array<{channel_id:string}>}>('notifications', { lastCheck });
+    localStorage.setItem(LAST_KEY, new Date().toISOString());
+    const next: AppNotification[] = [
+      ...result.reacts.map((row, index) => ({ id: 'r-' + row.channel_id + '-' + Date.now() + '-' + index, channelId: row.channel_id, channelName: row.channel_id, type: 'reaction' as const, count: 1 })),
+      ...result.comms.map((row, index) => ({ id: 'c-' + row.channel_id + '-' + Date.now() + '-' + index, channelId: row.channel_id, channelName: row.channel_id, type: 'comment' as const, count: 1 })),
+    ];
+    if (next.length) setNotifications(previous => { const merged = [...next, ...previous].slice(0, 50); saveNotifs(merged); return merged; });
+  }, [user?.id]);
+  const markAllRead = useCallback(() => { const next = notifications.map(item => ({ ...item, readAt: new Date().toISOString() })); setNotifications(next); saveNotifs(next); setUnread(0); }, [notifications]);
+  const clearAll = useCallback(() => { setNotifications([]); saveNotifs([]); setUnread(0); }, []);
+  useEffect(() => { setUnread(notifications.filter(item => !item.readAt).length); }, [notifications]);
+  useEffect(() => { if (!user) return; void refresh().catch(() => {}); intervalRef.current = setInterval(() => { void refresh().catch(() => {}); }, POLL_MS); return () => clearInterval(intervalRef.current); }, [user?.id, refresh]);
+  return { notifications, unread, markAllRead, clearAll, refresh };
+}
+`;
+  const placeholderPage = (title, detail) => `export default function ${title.replace(/[^A-Za-z0-9]/g, '')}() {
+  return <main className="min-h-screen bg-black text-white grid place-items-center p-6">
+    <section className="max-w-md text-center space-y-3">
+      <h1 className="text-xl font-semibold">${title}</h1>
+      <p className="text-sm text-white/65">${detail}</p>
+      <button className="rounded-full bg-white/10 px-4 py-2 text-sm" onClick={() => { window.top?.location.assign('/iptv'); }}>Back to IPTV</button>
+    </section>
+  </main>;
+}
+`;
+  fs.writeFileSync(authHookPath, authHookSource, 'utf8');
+  fs.writeFileSync(authServicePath, authServiceSource, 'utf8');
+  fs.writeFileSync(clipsHookPath, clipsHookSource, 'utf8');
+  fs.writeFileSync(notificationsHookPath, notificationsHookSource, 'utf8');
+  fs.writeFileSync(clipGalleryPath, placeholderPage('Clips are being migrated', 'Clip capture and playback will return after the Backend B2 media contract is deployed. No legacy storage service is contacted.'), 'utf8');
+  fs.writeFileSync(streamHealthPath, placeholderPage('Stream diagnostics unavailable', 'Stream health reporting is not yet exposed by the canonical Backend API.'), 'utf8');
+  fs.writeFileSync(profilePath, `import { useAuth } from '@/hooks/useAuth';
+export default function Profile() {
+  const { user } = useAuth();
+  const target = user?.username ? '/profile/' + encodeURIComponent(user.username) : '/auth?returnTo=/iptv';
+  return <main className="min-h-screen bg-black text-white grid place-items-center p-6"><section className="text-center space-y-3"><h1 className="text-xl font-semibold">Manage your Testagram profile</h1><p className="text-sm text-white/65">Profile identity and media are managed by the main Testagram application.</p><button className="rounded-full bg-white/10 px-4 py-2 text-sm" onClick={() => { window.top?.location.assign(target); }}>Open profile</button></section></main>;
+}
+`, 'utf8');
+
   // Backend owns IPTV social data and Appwrite session verification. The
   // vendor iframe asks its parent to broker requests; it never creates a
   // Supabase client, calls an Edge Function, or receives a provider key.
