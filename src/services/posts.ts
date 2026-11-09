@@ -20,48 +20,68 @@ export type CreatedPost = {
 };
 
 /**
- * Creates posts through the canonical Testagram Backend API.
- * Appwrite supplies the signed-in identity; media.ts uploads and attaches
- * media through the Backend media API. No browser database client is used.
+ * Publishes through the canonical Backend API.
+ *
+ * The current public post route supports text posts, then owner-checked media
+ * attachment. Community posts have a dedicated route accepting verified media
+ * IDs, so those objects are uploaded before the community post is created.
+ * The browser never writes relational records directly.
  */
 export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
   const body = input.body.trim();
-  if (!body && !(input.media?.length)) throw new Error('Post cannot be empty.');
+  const files = input.media ?? [];
+  const communityId = input.communityId?.trim() || null;
+  if (!body && files.length === 0) throw new Error('Post cannot be empty.');
   if (body.length > MAX_POST_BODY_LENGTH) throw new Error(`Post text must be ${MAX_POST_BODY_LENGTH} characters or fewer.`);
 
   const user = await appwriteAuth.getCurrentUser();
   if (!user) throw new Error('Authentication required');
 
-  const files = input.media ?? [];
-  const postResult = await backendCapabilities.createPost({
-    content: body,
-    communityId: input.communityId ?? undefined,
-  });
-  const postId = String(postResult?.post_id ?? '');
-  if (!postId) throw new Error('Post was created but the backend did not return its post ID.');
-
-  const post = { id: postId, author_id: user.$id, body, content: body };
   const uploaded: MediaUploadResult[] = [];
+  let postId = '';
 
   try {
-    for (const file of files) {
-      // uploadMedia performs the owner-checked Backend attachment operation
-      // when a post ID is supplied; do not write media metadata from the client.
-      uploaded.push(await uploadMedia(file, post.id));
+    if (communityId) {
+      // Community creation accepts media IDs in its own authenticated API
+      // contract. Upload first, then atomically create the community post.
+      for (const file of files) uploaded.push(await uploadMedia(file));
+      const result = await backendCapabilities.createCommunityPost(communityId, {
+        text: body,
+        media_ids: uploaded.map((media) => media.media_id),
+      });
+      postId = String(result?.id ?? '');
+      if (!postId) throw new Error('Backend did not return the community post ID.');
+    } else {
+      // The current /v1/posts route supports text-only creation. Media is
+      // attached only after upload completion via the owner-checked API.
+      const result = await backendCapabilities.createPost({
+        content: body,
+        visibility: 'public',
+        idempotencyKey: globalThis.crypto?.randomUUID?.(),
+      });
+      postId = String(result?.post_id ?? '');
+      if (!postId) throw new Error('Backend did not return the new post ID.');
+      for (const file of files) uploaded.push(await uploadMedia(file, postId));
     }
 
-    const result = { ...post, media: uploaded } as CreatedPost;
+    const result: CreatedPost = {
+      id: postId,
+      author_id: user.$id,
+      body,
+      content: body,
+      media: uploaded,
+    };
     trackTestagramEvent(TestagramEvent.POST_CREATED, {
-      post_id: post.id,
+      post_id: postId,
       media_count: uploaded.length,
       has_media: uploaded.length > 0,
-      community_id: input.communityId ?? null,
+      community_id: communityId,
     });
     return result;
   } catch (error) {
-    await Promise.allSettled(uploaded.map((media) => deleteMedia(media.media_id)));
-    // Post deletion is intentionally not attempted here: the current canonical
-    // public API does not expose a verified owner-scoped delete-post route.
+    // Only unattached uploads are safe to delete here. Attached media belongs
+    // to the created post and must not be deleted if a later step fails.
+    await Promise.allSettled(uploaded.filter((media) => !media.post_id).map((media) => deleteMedia(media.media_id)));
     throw error;
   }
 }
