@@ -51,8 +51,12 @@ export function installIptvSocialBridge() {
           user: user ? {
             id: user.$id,
             email: user.email,
-            username: user.prefs?.username || user.name || user.email.split('@')[0],
-            avatar: user.prefs?.avatar_url || undefined,
+            username: typeof (user.prefs as Record<string, unknown> | undefined)?.username === 'string'
+              ? String((user.prefs as Record<string, unknown>).username)
+              : user.name || user.email.split('@')[0],
+            avatar: typeof (user.prefs as Record<string, unknown> | undefined)?.avatar_url === 'string'
+              ? String((user.prefs as Record<string, unknown>).avatar_url)
+              : undefined,
           } : null,
         }, null);
       } catch (error) {
