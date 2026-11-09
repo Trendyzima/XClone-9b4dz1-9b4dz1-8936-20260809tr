@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { VideoPlayer } from '@/components/features/VideoPlayer';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { Post } from '@/types/app-types';
 import { Loader2, Gift, X, Zap, Play, Search, Bookmark, Share, MessageCircle, Eye, Heart, BadgeCheck, Send as SendIcon, Gauge } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
@@ -34,25 +35,25 @@ function VideoCommentDrawer({ post, onClose }: { post: Post; onClose: () => void
   const [posting, setPosting] = useState(false);
 
   useEffect(() => {
-    supabase.from('replies')
-      .select('*, profiles(id,username,avatar_url,verified)')
-      .eq('post_id', post.id)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => { setReplies(data ?? []); setLoading(false); });
+    backendCapabilities.listReplies(post.id, 50)
+      .then(({ items }) => { setReplies(items ?? []); })
+      .catch((error) => { console.warn('[VideoCommentDrawer] Backend unavailable', error); setReplies([]); })
+      .finally(() => setLoading(false));
   }, [post.id]);
 
   const postReply = async () => {
     if (!user) { navigate('/auth'); return; }
     if (!replyText.trim()) return;
     setPosting(true);
-    const { error } = await supabase.from('replies').insert({ post_id: post.id, user_id: user.id, content: replyText.trim() });
-    if (!error) {
-      setReplies(prev => [{ id: Date.now().toString(), content: replyText.trim(), created_at: new Date().toISOString(), user_profiles: { username: user.username, avatar_url: user.avatar, verified: false } }, ...prev]);
+    try {
+      const content = replyText.trim();
+      await backendCapabilities.createReply(post.id, content);
+      setReplies(prev => [{ id: crypto.randomUUID(), content, created_at: new Date().toISOString(), user_profiles: { username: user.name || user.email?.split('@')[0] || 'you', avatar_url: null, verified: false } }, ...prev]);
       setReplyText('');
       toast.success('Comment posted!');
-    }
-    setPosting(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Comment could not be posted');
+    } finally { setPosting(false); }
   };
 
   return (
@@ -247,8 +248,6 @@ export default function VideosPage() {
   // Fetch following IDs + watch later when user logs in
   useEffect(() => {
     if (!user) { setFollowingIds([]); setWatchLaterIds([]); return; }
-    supabase.from('follows').select('following_id').eq('follower_id', user.id)
-      .then(({ data }) => setFollowingIds((data ?? []).map((f: any) => f.following_id)));
     // Load watch-later from localStorage (persists across sessions)
     const wl = localStorage.getItem(`ts-watchlater-${user.id}`);
     if (wl) { try { setWatchLaterIds(JSON.parse(wl) ?? []); } catch { setWatchLaterIds([]); } }
@@ -275,9 +274,11 @@ export default function VideosPage() {
     if (!q.trim()) { setSearchResults([]); return; }
     searchDebounce.current = setTimeout(async () => {
       setSearchLoading(true);
-      const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
-        .eq('is_video', true).ilike('content', `%${q}%`).order('views_count', { ascending: false }).limit(20);
-      setSearchResults(data ?? []);
+      const page = await backendCapabilities.searchPosts(q, 20, undefined, { mediaOnly: true });
+      setSearchResults((page.items ?? []).map((post: any) => ({
+        ...post, video_url: post.video_url ?? post.media_urls?.[0],
+        user_profiles: post.user_profiles ?? post.profiles ?? post.author,
+      })));
       setSearchLoading(false);
     }, VIDEO_SEARCH_DEBOUNCE_MS);
   }, []);
@@ -290,14 +291,12 @@ export default function VideosPage() {
     if (activeTab !== 'duets') return;
     if (duetVideos.length > 0) return; // already fetched
     setDuetsLoading(true);
-    supabase
-      .from('posts')
-      .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
-      .eq('is_video', true)
-      .ilike('content', '%Duet with @%')
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => { setDuetVideos(data ?? []); setDuetsLoading(false); });
+    backendCapabilities.searchPosts('Duet with @', 50, undefined, { mediaOnly: true })
+      .then(({ items }) => setDuetVideos((items ?? []).filter((post: any) => String(post.content ?? '').includes('Duet with @')).map((post: any) => ({
+        ...post, video_url: post.video_url ?? post.media_urls?.[0], user_profiles: post.user_profiles ?? post.profiles ?? post.author,
+      }))))
+      .catch((error) => { console.warn('[VideosPage] Duet search unavailable', error); setDuetVideos([]); })
+      .finally(() => setDuetsLoading(false));
   }, [activeTab]);
 
   // Re-fetch when tab changes (skip watch-later + duets — they use separate data sources)
@@ -349,32 +348,21 @@ export default function VideosPage() {
 
   const fetchVideos = async (pageNum: number) => {
     try {
-      let query = supabase
-        .from('posts')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
-        .eq('is_video', true)
-        .order('created_at', { ascending: false })
-        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
-
-      // Following tab: filter to videos from followed users
-      if (activeTab === 'following') {
-        if (followingIds.length === 0) {
-          setLoading(false);
-          return;
-        }
-        query = supabase
-          .from('posts')
-          .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
-          .eq('is_video', true)
-          .in('user_id', followingIds)
-          .order('created_at', { ascending: false })
-          .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const newVideos = data || [];
+      const page = user
+        ? await socialApi.getHomeFeed(50)
+        : await socialApi.getPublicHomeFeed(50);
+      const mapped = (page.posts ?? [])
+        .filter((post: any) => post.is_video || post.video_url || post.media_urls?.length)
+        .map((post: any) => ({
+          ...post,
+          video_url: post.video_url ?? (post.is_video ? post.media_urls?.[0] : undefined),
+          image_url: post.image_url ?? (!post.is_video ? post.media_urls?.[0] : undefined),
+          user_profiles: post.user_profiles ?? post.profiles ?? post.author,
+        }));
+      const eligible = activeTab === 'following'
+        ? mapped.filter((post: any) => post.is_following)
+        : mapped;
+      const newVideos = eligible.slice(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE);
       // Persist the first five playable videos locally. Keep the downloads sequential
       // inside the cache helper so a feed refresh never opens a burst of large transfers.
       if (pageNum === 0) {
@@ -382,7 +370,7 @@ export default function VideosPage() {
         void writeOfflineVideoFeed(feedKey, newVideos);
         void warmOfflineVideos(newVideos.map((video: any) => video.video_url).filter(Boolean), 5);
       }
-      if (newVideos.length < PAGE_SIZE) setHasMore(false);
+      if (eligible.length <= (pageNum + 1) * PAGE_SIZE) setHasMore(false);
 
       if (pageNum === 0) {
         setVideos(newVideos);
@@ -648,23 +636,7 @@ export default function VideosPage() {
             <button
               onClick={async () => {
                 if (!user) { navigate('/auth'); return; }
-                const tag = `duet${Date.now().toString(36)}`;
-                const { data: htag } = await import('@/lib/supabase').then(m =>
-                  m.supabase.from('hashtags').upsert({ tag }, { onConflict: 'tag' }).select('id').single()
-                );
-                if (htag?.id) {
-                  await import('@/lib/supabase').then(m =>
-                    m.supabase.from('hashtag_challenges').insert({
-                      hashtag_id: htag.id,
-                      created_by: user.id,
-                      title: 'Duet Challenge',
-                      description: `Record your duet reaction to join! Tag #${tag} in your video.`,
-                      end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
-                      is_active: true,
-                    })
-                  );
-                }
-                toast.success(`🎭 Duet Challenge launched! #${tag}`);
+                toast.error('Duet challenges are not yet supported by the canonical Backend API.');
                 navigate(`/videos?duet_url=${encodeURIComponent(currentVideo.video_url ?? '')}&duet_meta=${encodeURIComponent('Duet Challenge 🎭')}`);
               }}
               className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-sky-500 hover:bg-sky-400 active:scale-95 transition-all rounded-xl text-white text-xs font-bold"
