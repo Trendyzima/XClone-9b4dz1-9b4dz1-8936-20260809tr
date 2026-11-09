@@ -15,8 +15,8 @@ export function TrendingVideoRow() {
     let active = true;
     void (user ? socialApi.getHomeFeed(50) : socialApi.getPublicHomeFeed(50)).then((page) => {
         if (!active) return;
-        setVideos(page.posts.filter((post: any) => post.is_video || post.video_url || post.media_urls?.some((url: string) => /\\.(mp4|m3u8|webm)(?:$|\\?)/i.test(url))).slice(0, 8).map((post: any) => ({
-          ...post, video_url: post.video_url ?? post.media_urls?.find((url: string) => /\\.(mp4|m3u8|webm)(?:$|\\?)/i.test(url)),
+        setVideos(page.posts.filter((post: any) => post.is_video || post.video_url || post.media_urls?.some((url: string) => /\.(mp4|m3u8|webm)(?:$|\?)/i.test(url))).slice(0, 8).map((post: any) => ({
+          ...post, video_url: post.video_url ?? post.media_urls?.find((url: string) => /\.(mp4|m3u8|webm)(?:$|\?)/i.test(url)),
           image_url: post.image_url ?? post.media_urls?.[0], user_profiles: post.user_profiles ?? post.profiles,
         })));
       })
