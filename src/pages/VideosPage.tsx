@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { VideoPlayer } from '@/components/features/VideoPlayer';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { socialApi } from '@/services/socialApiClient';
 import { Post } from '@/types/app-types';
 import { Loader2, Gift, X, Zap, Play, Search, Bookmark, Share, MessageCircle, Eye, Heart, BadgeCheck, Send as SendIcon, Gauge } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
@@ -36,7 +37,7 @@ function VideoCommentDrawer({ post, onClose }: { post: Post; onClose: () => void
   useEffect(() => {
     let active = true;
     setLoading(true);
-    backendCapabilities.listReplies(post.id, 50)
+    socialApi.listReplies(post.id, 50)
       .then(result => { if (active) setReplies(result.items ?? []); })
       .catch(error => {
         console.error('Video comments could not be loaded:', error);
@@ -52,7 +53,7 @@ function VideoCommentDrawer({ post, onClose }: { post: Post; onClose: () => void
     if (!content || posting) return;
     setPosting(true);
     try {
-      const created = await backendCapabilities.createReply(post.id, content);
+      const created = await socialApi.createReply(post.id, content);
       setReplies(prev => [{
         id: created.reply_id ?? Date.now().toString(),
         content,
