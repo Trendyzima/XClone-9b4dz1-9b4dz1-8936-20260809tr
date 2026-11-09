@@ -109,7 +109,7 @@ export default function ThreadsPage() {
         if(!user){setThreads([]);setMixedItems([]);return;}
         const {data}=await supabase.from('follows').select('following_id').eq('follower_id',user.id).limit(500);
         ids=(data??[]).map((r:any)=>r.following_id).filter(Boolean);
-        if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
+        // The canonical Backend still loads followed threads even when the legacy post-follow cache is empty.
       }
       if(tab==='Saved'&&!user){setThreads([]);setMixedItems([]);setHasMore(false);return;}
 
