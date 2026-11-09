@@ -47,6 +47,7 @@ export type TestagramApiRequest = {
   headers?: Record<string, string>;
   signal?: AbortSignal;
   anonymous?: boolean;
+  optionalAuth?: boolean;
   accessToken?: string;
   idempotencyKey?: string;
   timeoutMs?: number;
@@ -60,7 +61,10 @@ export async function testagramApiRequest<T>(path: string, options: TestagramApi
     try {
       token = await appwriteAuth.createBackendJWT();
     } catch {
-      throw new TestagramApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED', id);
+      if (!options.optionalAuth) {
+        throw new TestagramApiError('Your Appwrite session is unavailable. Please sign in again.', 401, 'AUTH_REQUIRED', id);
+      }
+      token = null;
     }
   }
 
