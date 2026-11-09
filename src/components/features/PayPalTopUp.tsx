@@ -8,13 +8,11 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useWallet } from '@/hooks/useWallet';
 import { toast } from 'sonner';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PesaPalTopUp } from '@/components/features/PesaPalTopUp';
 
 function errorMessage(error: unknown): string {
-  if (error instanceof FunctionsHttpError) return error.message || 'PayPal request failed';
   return error instanceof Error ? error.message : 'PayPal request failed';
 }
 
