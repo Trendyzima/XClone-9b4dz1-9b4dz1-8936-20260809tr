@@ -1,29 +1,27 @@
 /// Build-time configuration for the Testagram Flutter clients.
 ///
-/// Appwrite is the identity provider and the Testagram Backend is the
-/// application API. Never put privileged credentials in this file or in
-/// `--dart-define` values. The legacy Supabase fields remain temporarily
-/// available only while the remaining Flutter screens are migrated; they
-/// must not be used by new code and are not part of the target architecture.
+/// Appwrite is the target identity provider and the Testagram Backend is the
+/// target application API. Never put privileged credentials in this file or
+/// in `--dart-define` values. Legacy Supabase fields below are temporary
+/// compatibility only; new code must not depend on them.
 class AppConfig {
   const AppConfig._();
 
   static const appwriteEndpoint =
-      String.fromEnvironment('APPWRITE_ENDPOINT');
+      String.fromEnvironment('VITE_APPWRITE_ENDPOINT');
   static const appwriteProjectId =
-      String.fromEnvironment('APPWRITE_PROJECT_ID');
+      String.fromEnvironment('VITE_APPWRITE_PROJECT_ID');
   static const testagramApiUrl =
-      String.fromEnvironment('TESTAGRAM_API_URL');
+      String.fromEnvironment('VITE_TESTAGRAM_API_URL');
   static const siteUrl = String.fromEnvironment(
     'TESTAGRAM_SITE_URL',
     defaultValue: 'https://testagram.site',
   );
 
-  // Temporary migration compatibility. Remove after every Flutter feature
-  // has moved to Appwrite sessions and the authenticated Backend API.
-  @Deprecated('Use Appwrite authentication and TESTAGRAM_API_URL.')
+  // Temporary migration compatibility for screens not yet moved to Appwrite.
+  @Deprecated('Migrate this caller to Appwrite authentication.')
   static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  @Deprecated('Use Appwrite authentication and TESTAGRAM_API_URL.')
+  @Deprecated('Migrate this caller to Appwrite authentication.')
   static const supabasePublishableKey =
       String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 
@@ -39,10 +37,11 @@ class AppConfig {
   static bool get isTestagramApiConfigured =>
       _isSecureServiceUrl(testagramApiUrl);
 
-  /// Kept as a compatibility gate until legacy screens are migrated.
-  @Deprecated('Use isAppwriteConfigured and isTestagramApiConfigured.')
+  /// Transitional gate for the legacy application bootstrap. This remains
+  /// Supabase-based until main.dart and every dependent screen are migrated.
+  @Deprecated('Use Appwrite session bootstrap after the auth migration.')
   static bool get isConfigured =>
-      isAppwriteConfigured && isTestagramApiConfigured;
+      _isHttpUrl(supabaseUrl) && supabasePublishableKey.trim().isNotEmpty;
 
   static bool _isHttpUrl(String value) {
     final uri = Uri.tryParse(value.trim());
