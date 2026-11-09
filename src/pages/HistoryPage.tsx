@@ -36,7 +36,7 @@ export default function HistoryPage() {
 
     try {
       const result = await backendCapabilities.listBrowsingHistory();
-      const entries = (result.items || []).filter((item) => item.entity_type === 'post');
+      const entries = (result.items || []).filter((item) => item.entity_type === 'post' || item.entity_type === 'video');
       setHistory(entries);
       const viewedPosts = await Promise.all(entries.map((item) =>
         backendCapabilities.getPost(item.entity_id).catch(() => null),
