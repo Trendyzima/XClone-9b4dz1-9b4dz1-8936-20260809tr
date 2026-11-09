@@ -31,28 +31,12 @@ export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
   if (input.media?.length) {
     throw new Error('Media publishing is temporarily unavailable while the native Backend media-attachment contract is completed.');
   }
+  if (input.communityId?.trim()) {
+    throw new Error('Community publishing is temporarily unavailable while its native Backend post route is completed.');
+  }
+
   const user = await appwriteAuth.getCurrentUser();
   if (!user) throw new Error('Authentication required');
-
-  const communityId = input.communityId?.trim();
-  if (communityId) {
-    const result = await backendCapabilities.createCommunityPost(communityId, { text: body });
-    const postId = String(result?.id ?? '');
-    if (!postId) throw new Error('Backend did not return the new community post ID.');
-    trackTestagramEvent(TestagramEvent.POST_CREATED, {
-      post_id: postId,
-      media_count: 0,
-      has_media: false,
-      community_id: communityId,
-    });
-    return {
-      id: postId,
-      author_id: String(result.author_id ?? user.$id),
-      body: String(result.text ?? body),
-      content: String(result.content ?? result.text ?? body),
-      media: [],
-    };
-  }
 
   const result = await backendCapabilities.createPost({
     content: body,
