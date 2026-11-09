@@ -59,7 +59,7 @@ class AppwriteAdminSession {
         status: 503,
       );
     }
-    return Uri.parse('${AppConfig.testagramApiUrl.replaceFirst(RegExp(r'/+$'), '')}$path');
+    return Uri.parse(AppConfig.testagramApiUrl).resolve(path);
   }
 
   Future<void> restore() async {
