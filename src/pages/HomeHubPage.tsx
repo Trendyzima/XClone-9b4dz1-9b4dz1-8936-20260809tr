@@ -26,7 +26,7 @@ const ContentSuggestionsWidget = lazy(() => import('@/components/features/Conten
 const UserSuggestionsWidget = lazy(() => import('@/components/features/UserSuggestionsWidget').then(m => ({ default: m.UserSuggestionsWidget })));
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
-type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
+type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'|'publisher'; data:any };
 
 function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.MAX_SAFE_INTEGER): Item[] {
   const seen = new Set(existing.map(homeFeedItemIdentity).filter(Boolean));
@@ -120,7 +120,6 @@ const TABS: {id:Tab;label:string}[] = [
   {id:'shopping',label:'Shopping'},{id:'federated',label:'Federated'},
 ];
 const StoriesStrip = lazy(() => import('@/components/features/StoriesStrip').then(m => ({ default: m.StoriesStrip })));
-
 function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:Item;index:number;lastElementRef:((node:HTMLElement|null)=>void)|null;tab:Tab;onUpdate:()=>void;onNavigate:(path:string)=>void}) {
   const hostRef=useRef<HTMLDivElement|null>(null);
   const [mounted,setMounted]=useState(false);
@@ -159,54 +158,83 @@ export default function HomeHubPage(){
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
-  const cacheKey = `home:${user?.id ?? 'signed-out'}`;
+  const tabCursorRef=useRef<string|null>(null);
 
-  // The home timeline is sourced exclusively from the authenticated Testagram
-  // Backend. The legacy Supabase aggregator and direct-table fallback are
-  // intentionally not reachable from this component.
-  const fetchTab=useCallback(async(target:Tab,_pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
-    if (target !== 'all') {
-      // These secondary discovery tabs are being moved to Backend endpoints.
-      // Returning no legacy rows is safer than silently reintroducing Supabase.
-      return [];
-    }
-    const page = user?.id
-      ? await socialApi.getHomeFeed(24, cursorOverride ?? undefined)
-      : await socialApi.getPublicHomeFeed(24, cursorOverride ?? undefined);
-    const posts = Array.isArray(page?.posts) ? page.posts : [];
-    const cursor = page?.next_cursor || null;
-    setNextCursor(cursor);
-    nextCursorRef.current = cursor;
-    setHasMore(Boolean(page?.has_more && cursor));
-    return posts.map((post:any)=>({
-      type: 'post' as const,
-      data: {
+  const mapBackendPosts=(posts:any[]):Item[]=>posts.map((post:any)=> {
+    const author=post.author ?? post.user_profiles ?? {};
+    const media=Array.isArray(post.media_urls)?post.media_urls:[];
+    const profile={
+      id:author.id ?? post.user_id ?? post.author_id,
+      username:author.handle ?? author.username ?? 'testagram-user',
+      display_name:author.display_name ?? author.handle ?? author.username ?? 'Testagram user',
+      avatar_url:author.avatar_url ?? author.avatarUrl ?? null,
+      bio:author.bio ?? '',
+      verified_tier:author.verified_tier ?? null,
+    };
+    return {
+      type:'post' as const,
+      data:{
         ...post,
-        author: post.author ?? post.user_profiles ?? {},
-        user_profiles: post.user_profiles ?? post.author ?? {},
-        profile: post.profile ?? post.author ?? post.user_profiles ?? {},
-        origin: post.origin ?? 'local',
+        id:post.id,
+        author_id:post.user_id ?? post.author_id ?? profile.id,
+        content:post.content ?? post.body ?? '',
+        user_profiles:profile,
+        author:profile,
+        media_urls:media,
+        image_url:post.image_url ?? media[0] ?? null,
+        is_video:Boolean(post.is_video),
+        origin:'local',
+        feed_source:'backend-appwrite',
       },
-    }));
-  },[user?.id]);
+    };
+  });
+
+  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
+    if(target==='polls'){
+      const page=await socialApi.listPolls(12,pageNum*12);
+      setHasMore(Boolean(page.has_more));
+      return (Array.isArray(page.items)?page.items:[]).map((poll:any)=>({type:'poll' as const,data:poll}));
+    }
+    if(target==='following'){
+      if(!user) throw new Error('Sign in to see posts from accounts you follow.');
+      const page=await socialApi.getHomeFeed(24,cursorOverride ?? tabCursorRef.current ?? undefined,{followingOnly:true});
+      tabCursorRef.current=page?.next_cursor || null;
+      setHasMore(Boolean(page?.has_more)&&Array.isArray(page?.posts)&&page.posts.length>0);
+      return mapBackendPosts(Array.isArray(page?.posts)?page.posts:[]);
+    }
+    if(target!=='all'){
+      throw new Error(`The ${target} feed is not yet connected to a verified native Backend contract.`);
+    }
+    const page = user
+      ? await socialApi.getHomeFeed(24,cursorOverride ?? undefined)
+      : await socialApi.getPublicHomeFeed(24,cursorOverride ?? undefined);
+    const posts = Array.isArray(page?.posts) ? page.posts : [];
+    const next = page?.next_cursor || null;
+    setNextCursor(next);
+    nextCursorRef.current=next;
+    setHasMore(Boolean(page?.has_more) && posts.length>0);
+    return mapBackendPosts(posts);
+  },[user?.$id,user?.id]);
 
   const persistBuffer=useCallback(async()=>{
     try{
-      await writeHomeFeedCache({key:cacheKey,items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:feedBufferRef.current[0]?.data?.id??null},cacheKey);
+      await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:feedBufferRef.current[0]?.data?.id??null});
     }catch(error){
       // Storage quota/private browsing must not break scrolling or pagination.
       console.warn('[home-hub] feed cache write skipped',error);
     }
-  },[cacheKey]);
+  },[]);
+
+
 
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
-      if(!background){setLoading(true);tabPageRef.current=0;setLoadMoreError(null);}
+      if(!background){setLoading(true);tabPageRef.current=0;tabCursorRef.current=null;setLoadMoreError(null);}
       try{
         const next=await fetchTab(target,0);
         setItems(next);
-        if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='polls'||target==='shopping'?12:10));
-      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}
+        if(target!=='federated'&&target!=='following'&&target!=='polls')setHasMore(next.length >= (target==='communities'||target==='shopping'?12:10));
+      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoadMoreError(e instanceof Error ? e.message : 'This section is temporarily unavailable.');}}
       finally{if(!background)setLoading(false);}
       return;
     }
@@ -241,17 +269,15 @@ export default function HomeHubPage(){
       setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
     }catch(e){console.error('[home-hub]',e);if(!background){
-      const cached=await readHomeFeedCache(cacheKey).catch(()=>null);
-      if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; feedBufferOffsetRef.current=cached.items.length; setItems(cached.items); cacheCursorRef.current=cached.cursor; nextCursorRef.current=cached.cursor; setHasMore(Boolean(cached.cursor)); }
-      else {setItems([]);setHasMore(false);}
+      setItems([]);setHasMore(false);setLoadMoreError(e instanceof Error ? e.message : 'Feed unavailable.');
       setLoading(false);
     }}
-  },[fetchTab,persistBuffer,cacheKey]);
+  },[fetchTab,persistBuffer]);
 
   useEffect(()=>{
     let active=true;
     if(tab!=='all'){void load(tab);return()=>{active=false;};}
-    void readHomeFeedCache(cacheKey).then(cached=>{
+    void readHomeFeedCache().then(cached=>{
       if(!active)return;
       if(cached?.items?.length){
         // Keep cached federation entries across refreshes. The server-side
@@ -292,8 +318,6 @@ export default function HomeHubPage(){
         void load('all',true);
       },1500);
     };
-    // Backend polling is the temporary refresh transport until the dedicated
-    // Testagram realtime ticket channel is wired into this page.
     const fallback=window.setInterval(()=>{
       if(document.visibilityState!=='visible')return;
       const active=document.activeElement;
@@ -301,9 +325,9 @@ export default function HomeHubPage(){
       void load('all',true);
     },30000);
     return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);};
-  },[tab,user?.id]);
+  },[tab]);
 
-  useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab,user?.id,load]);
+  useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab]);
   useEffect(()=>{if(newCount>0&&window.scrollY<500)setNewCount(0);},[newCount]);
 
   const loadMore=useCallback(async()=>{
@@ -336,26 +360,22 @@ export default function HomeHubPage(){
             if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
             feedBufferOffsetRef.current=beforeLength+page.length;
             setItems(prev=>appendUniqueFeedItems(prev,page));
-            setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+            setHasMore(Boolean(nextCursorRef.current)||Boolean(federatedCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
             await persistBuffer();
             return true;
           }
         }
         cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);return false;
       }
-      if(tab==='federated'){
-        const next=await fetchTab('federated',0,nextCursor);
-        if(next.length)setItems(prev=>appendUniqueFeedItems(prev,next));
-        return next.length>0;
-      }
       const nextPage=tabPageRef.current+1;
-      const next=await fetchTab(tab,nextPage);
+      const next=await fetchTab(tab,nextPage,tab==='following'?tabCursorRef.current:null);
       if(next.length){
         tabPageRef.current=nextPage;
         setItems(prev=>appendUniqueFeedItems(prev,next));
       }
-      const pageSize=tab==='communities'||tab==='polls'||tab==='shopping'?12:10;
-      setHasMore(next.length>=pageSize);
+      const pageSize=tab==='communities'||tab==='shopping'?12:10;
+      if(tab==='following'||tab==='polls') setHasMore(tab==='following'?Boolean(tabCursorRef.current):next.length===12);
+      else setHasMore(next.length>=pageSize);
       return next.length>0;
     }catch(error){
       console.error('[home-hub] load more failed',error);
