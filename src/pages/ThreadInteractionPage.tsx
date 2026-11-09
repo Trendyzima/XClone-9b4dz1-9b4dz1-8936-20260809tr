@@ -5,7 +5,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { listThreadLikes, toggleThreadLike } from '@/features/threadLikes/threadLikesService';
 import { listThreadReposts, toggleThreadRepost } from '@/features/threadReposts/threadRepostsService';
 import { listThreadQuotes, createThreadQuote } from '@/features/threadQuotes/threadQuotesService';
@@ -22,7 +22,7 @@ export default function ThreadInteractionPage(){
  const mode=(window.location.pathname.includes('/quote-likes')?'quote-likes':window.location.pathname.includes('/reply-likes')?'reply-likes':window.location.pathname.split('/').includes('reposts')?'reposts':window.location.pathname.split('/').includes('quotes')?'quotes':window.location.pathname.split('/').includes('replies')?'replies':'likes') as Mode;
  const [thread,setThread]=useState<any>(null); const [items,setItems]=useState<any[]>([]); const [loading,setLoading]=useState(true); const [sending,setSending]=useState(false); const [text,setText]=useState('');
  const load=useCallback(async()=>{setLoading(true);try{
-   if(threadId){const {data,error}=await supabase.from('threads').select('id,owner_id,body,created_at,likes_count,reposts_count,quotes_count,replies_count').eq('id',threadId).is('deleted_at',null).single();if(error)throw error;setThread(data);}
+   if(threadId){const data=await backendCapabilities.getThread(threadId);setThread(data);}
    if(mode==='likes'&&threadId)setItems(await listThreadLikes(threadId));
    else if(mode==='reposts'&&threadId)setItems(await listThreadReposts(threadId));
    else if(mode==='quotes'&&threadId)setItems(await listThreadQuotes(threadId));
