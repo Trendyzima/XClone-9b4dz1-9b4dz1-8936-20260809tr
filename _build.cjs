@@ -105,7 +105,7 @@ function readNormalizedUtf8(filePath) {
 }
 
 function patchTikVTVForTestagramAuth(vendorRoot) {
-  const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
+  const legacyAdapterPath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
   const authServicePath = path.join(vendorRoot, 'src', 'lib', 'authService.ts');
   const authHookPath = path.join(vendorRoot, 'src', 'hooks', 'useAuth.ts');
   const notificationsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useNotifications.ts');
@@ -135,20 +135,15 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   // The vendor's historical import path is retained only as a fail-closed
   // compatibility shim. No SDK, URL, key, auth storage or realtime client is
   // generated. All supported IPTV social operations use the host Appwrite bridge.
-  const supabaseSource = `const unavailable = new Proxy({}, {
-    get() { throw new Error('This legacy data adapter has been removed. Use the Testagram Backend API.'); },
-  });
-  export const supabase = unavailable as any;
-  export const supabaseUrl = '';
-  export const supabasePublishableKey = '';
-  `;
+  // Remove the legacy vendor adapter from the actual build tree; no shim or client is generated.
 
-  if (!fs.existsSync(supabasePath) || !fs.existsSync(authServicePath) || !fs.existsSync(authHookPath) || !fs.existsSync(notificationsHookPath) || !fs.existsSync(clipsHookPath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
+
+  if (!fs.existsSync(legacyAdapterPath) || !fs.existsSync(authServicePath) || !fs.existsSync(authHookPath) || !fs.existsSync(notificationsHookPath) || !fs.existsSync(clipsHookPath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
     throw new Error('[TikVTV/Testagram Auth] Expected upstream auth/branding files are missing');
   }
 
   const original = new Map([
-    [supabasePath, readNormalizedUtf8(supabasePath)],
+    [legacyAdapterPath, readNormalizedUtf8(legacyAdapterPath)],
     [authServicePath, readNormalizedUtf8(authServicePath)],
     [authHookPath, readNormalizedUtf8(authHookPath)],
     [notificationsHookPath, readNormalizedUtf8(notificationsHookPath)],
@@ -262,11 +257,11 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     fs.writeFileSync(indexCssPath, repairedVendorCss, 'utf8');
   }
 
-  fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
+  fs.rmSync(legacyAdapterPath, { force: true });
   fs.writeFileSync(authServicePath, [
     "import type { AuthUser } from '@/types';",
     "import { iptvSocial } from '@/lib/testagramSocial';",
-    "export function mapSupabaseUser(user: any): AuthUser {",
+    "export function mapHostUser(user: any): AuthUser {",
     "  const id = String(user?.id || user?.$id || '');",
     "  const email = String(user?.email || '');",
     "  return { id, email, username: String(user?.username || user?.prefs?.username || user?.name || email.split('@')[0] || 'viewer'), avatar: user?.avatar || user?.prefs?.avatar_url };",
@@ -276,31 +271,33 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  async sendOtp(..._args: any[]) { goToHostAuth(); },",
     "  async verifyOtpAndRegister(..._args: any[]) { goToHostAuth(); throw new Error('Complete registration in Testagram.'); },",
     "  async signInWithPassword(..._args: any[]) { goToHostAuth(); throw new Error('Sign in through Testagram.'); },",
-    "  async signOut() { await iptvSocial('sign_out'); },",
+    "  async signOut() { window.parent.postMessage({ type: 'testagram:iptv-signout-request' }, window.location.origin); },",
     "};",
   ].join('\n'), 'utf8');
   fs.writeFileSync(authHookPath, [
     "import { useEffect } from 'react';",
-    "import { iptvSocial } from '@/lib/testagramSocial';",
     "import { useAuthStore } from '@/stores/authStore';",
     "import type { AuthUser } from '@/types';",
     "export function useAuth() {",
     "  const { user, loading, login, logout, setLoading } = useAuthStore();",
     "  useEffect(() => {",
     "    let mounted = true;",
-    "    const load = async () => {",
-    "      try { const result = await iptvSocial<{user:AuthUser|null}>('session_info'); if (!mounted) return; if (result.user) login(result.user); else logout(); }",
-    "      catch { if (mounted) logout(); }",
-    "      finally { if (mounted) setLoading(false); }",
+    "    const requestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());",
+    "    const onAuthState = (event: MessageEvent) => {",
+    "      if (event.source !== window.parent || event.origin !== window.location.origin || !mounted) return;",
+    "      const message = event.data as { type?: string; requestId?: string; user?: AuthUser | null } | null;",
+    "      if (!message || (message.type !== 'testagram:iptv-auth-state' && !(message.type === 'testagram:iptv-auth-state-response' && message.requestId === requestId))) return;",
+    "      if (message.user) login(message.user); else logout();",
+    "      setLoading(false);",
     "    };",
-    "    void load();",
-    "    const onAuthChanged = (event: MessageEvent) => { if (event.source === window.parent && event.origin === window.location.origin && event.data?.type === 'testagram:auth-changed') void load(); };",
-    "    window.addEventListener('message', onAuthChanged);",
-    "    return () => { mounted = false; window.removeEventListener('message', onAuthChanged); };",
+    "    window.addEventListener('message', onAuthState);",
+    "    if (window.parent === window) setLoading(false);",
+    "    else window.parent.postMessage({ type: 'testagram:iptv-auth-state-request', requestId }, window.location.origin);",
+    "    return () => { mounted = false; window.removeEventListener('message', onAuthState); };",
     "  }, []);",
     "  return { user, loading, login, logout };",
     "}",
-  ].join('\n'), 'utf8');
+  ].join('\\n'), 'utf8');
   fs.writeFileSync(notificationsHookPath, [
     "import { useState, useEffect, useCallback, useRef } from 'react';",
     "import { iptvSocial } from '@/lib/testagramSocial';",
@@ -672,13 +669,13 @@ export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
 
   // Fail closed if any active IPTV source file still tries to call the removed
   // browser database client. The compatibility shim is not an implementation.
-  const forbiddenLegacyDataCall = /@supabase\/supabase-js|\bsupabase\.(?:from|rpc|functions|storage|channel|auth)\b/i;
+  const forbiddenLegacyDataCall = /@supabase\/supabase-js|from\s*['"][^'"]*\/supabase(?:\.ts)?['"]|\bsupabase\.(?:from|rpc|functions|storage|channel|auth)\b/i;
   const sourceFiles = [];
   const walkSource = (directory) => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) walkSource(fullPath);
-      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name) && fullPath !== supabasePath) sourceFiles.push(fullPath);
+      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name) && true) sourceFiles.push(fullPath);
     }
   };
   walkSource(path.join(vendorRoot, 'src'));
