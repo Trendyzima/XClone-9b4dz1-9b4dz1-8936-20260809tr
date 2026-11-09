@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Heart, MessageCircle, Repeat2, Quote, Loader2, Send, RefreshCw } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { testagramApiRequest } from '@/services/apiClient';
 import { getInteractionCounts } from '@/services/postInteractionService';
 import { useAuth } from '@/hooks/useAuth';
 import { listLikes } from '@/features/likes/likesService';
@@ -24,9 +24,9 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
  const [text,setText]=useState(''); const [sending,setSending]=useState(false); const [retry,setRetry]=useState(0);
  const meta=META[kind]; const Icon=meta.icon;
 
- const load=useCallback(async()=>{
+ const load=useCallback(async(silent=false)=>{
   if(!postId)return;
-  setLoading(true); setError(null);
+  if(!silent)setLoading(true); setError(null);
   try{
    let next:any[]=[];
    if(/^https:\/\//i.test(postId)){
@@ -51,17 +51,10 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
     }
     return;
    }
-   const postResult=await supabase.from('posts').select('id,content,created_at,user_id,author_id,likes_count,replies_count,reposts_count,quoted_post_id,deleted_at').eq('id',postId).maybeSingle();
-   if(postResult.error)throw postResult.error;
-   if(!postResult.data){throw new Error('Post not found');}
-   const p=postResult.data;
+   const p=await testagramApiRequest<any>(`/api/social/posts/${encodeURIComponent(postId)}`);
+   if(!p?.id)throw new Error('Post not found');
    const authorId=p.author_id??p.user_id;
-   let profile:any=null;
-   if(authorId){
-    const profileResult=await supabase.from('profiles').select('id,username,display_name,full_name,avatar_url,verified').eq('id',authorId).maybeSingle();
-    if(profileResult.error)console.warn('[post-interaction] author enrichment failed',profileResult.error);
-    profile=profileResult.data??null;
-   }
+   const profile=p.profiles??null;
    const normalized={...p,author_id:authorId,profiles:profile,user_profiles:profile};
    const liveCounts=await getInteractionCounts(postId);
    setPost(normalized); setCounts(liveCounts);
@@ -76,19 +69,17 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
    console.error('[post-interaction]',kind,e);
    setError(e instanceof Error?e.message:'Unable to load interaction');
    setItems([]);
-  }finally{setLoading(false)}
+  }finally{if(!silent)setLoading(false)}
  },[postId,kind,retry]);
 
  useEffect(()=>{void load()},[load]);
 
  useEffect(()=>{
-  if(!postId)return;
-  const channel=supabase.channel('post-interactions-'+postId+'-'+kind)
-   .on('postgres_changes',{event:'*',schema:'public',table:'post_reactions',filter:'post_id=eq.'+postId},()=>void load())
-   .on('postgres_changes',{event:'*',schema:'public',table:'replies',filter:'post_id=eq.'+postId},()=>void load())
-   .on('postgres_changes',{event:'*',schema:'public',table:'reposts',filter:'post_id=eq.'+postId},()=>void load())
-   .subscribe();
-  return()=>{void supabase.removeChannel(channel)};
+  if(!postId || /^https:\/\//i.test(postId))return;
+  const refresh=()=>{ if(document.visibilityState==='visible') void load(true); };
+  const timer=window.setInterval(refresh,15000);
+  document.addEventListener('visibilitychange',refresh);
+  return()=>{window.clearInterval(timer);document.removeEventListener('visibilitychange',refresh)};
  },[postId,kind,load]);
 
  const sendReply=async()=>{
