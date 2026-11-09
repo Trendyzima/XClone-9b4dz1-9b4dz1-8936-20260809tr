@@ -30,7 +30,7 @@ type MixedItem =
 const TABS:Tab[]=['For you','Following','Saved'];
 const THREADS_CACHE_TTL=45_000;
 const threadsCache=new Map<string,{at:number,threads:Thread[],mixed:MixedItem[],cursor:string|null,hasMore:boolean}>();
-const readThreadsCache=(key:string)=>{try{const raw=sessionStorage.getItem(`threads-cache:${key}`);if(!raw)return null;const v=JSON.parse(raw);return v&&Date.now()-v.at<THREADS_CACHE_TTL?v:null}catch{return null}};
+const readThreadsCache=(key:string)=>{try{const raw=sessionStorage.getItem(`threads-cache:v2:${key}`);if(!raw)return null;const v=JSON.parse(raw);return v&&Date.now()-v.at<THREADS_CACHE_TTL?v:null}catch{return null}};
 const writeThreadsCache=(key:string,value:any)=>{try{sessionStorage.setItem(`threads-cache:${key}`,JSON.stringify({at:Date.now(),...value}));}catch{}};
 
 
