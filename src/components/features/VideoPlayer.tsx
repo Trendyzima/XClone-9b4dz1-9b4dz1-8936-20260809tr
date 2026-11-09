@@ -9,6 +9,7 @@ import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { useToast } from '@/hooks/use-toast';
 import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
@@ -248,19 +249,16 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     if (viewTrackedRef.current) return; // already tracked this session
     viewTrackedRef.current = true;
     try {
-      // Deduplicate: only insert if this user hasn't viewed this post in the last 24h
-      const since24h = new Date(Date.now() - 24 * 3600000).toISOString();
+      // History is private per-account data and is recorded only through the canonical API.
       if (user?.id) {
-        const { count } = await supabase
-          .from('browsing_history')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('post_id', post.id)
-          .gte('created_at', since24h);
-        if ((count ?? 0) > 0) return; // already viewed today — do not increment
-        await supabase.from('browsing_history').insert({ user_id: user.id, post_id: post.id, view_type: 'post' }).catch(() => {});
+        await backendCapabilities.recordBrowsingHistory({
+          entity_type: 'video',
+          entity_id: post.id,
+          metadata: { surface: 'video-player' },
+        }).catch(() => undefined);
       }
-      // Increment the view counter in posts table (always, anonymous users included)
+      // View-counter migration is a separate analytics capability; do not write
+      // browsing history through the legacy browser database client.
       await supabase.rpc('increment_post_view', { post_id_param: post.id });
     } catch (_) {}
   };
