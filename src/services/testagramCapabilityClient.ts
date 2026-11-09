@@ -476,6 +476,26 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
   getThread(threadId: string) {
     return testagramApiRequest<any>('/api/threads/' + encodeURIComponent(threadId));
   }
+  listThreadReposts(threadId: string, n = 50) {
+    return testagramApiRequest<{ items: any[] }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/reposts?limit=' + limit(n),
+    ).then(result => result.items ?? []);
+  }
+  getThreadRepostState(threadId: string) {
+    return testagramApiRequest<{ reposted: boolean }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/reposts/state',
+    ).then(result => Boolean(result.reposted));
+  }
+  toggleThreadRepost(threadId: string) {
+    return testagramApiRequest<{ thread_id: string; reposted: boolean }>(
+      '/api/threads/' + encodeURIComponent(threadId) + '/reposts/toggle',
+      { method: 'POST', body: {} },
+    ).then(result => Boolean(result.reposted));
+  }
+  getThreadRepostStates(threadIds: string[]) {
+    return Promise.all(threadIds.map(async id => (await this.getThreadRepostState(id)) ? id : null))
+      .then(ids => new Set(ids.filter((id): id is string => Boolean(id))));
+  }
   createThread(input: { body: string; visibility?: 'public' | 'unlisted' | 'private' }) {
     return testagramApiRequest<{ id: string; owner_id: string; body: string; visibility: string; media_urls: any[] }>(
       '/api/threads', { method: 'POST', body: input },
