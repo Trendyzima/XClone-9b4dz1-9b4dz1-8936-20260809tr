@@ -105,6 +105,9 @@ function readNormalizedUtf8(filePath) {
 }
 
 function patchTikVTVForTestagramAuth(vendorRoot) {
+  const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
+  const vendorPackagePath = path.join(vendorRoot, 'package.json');
+  const vendorLockPath = path.join(vendorRoot, 'package-lock.json');
   const authHookPath = path.join(vendorRoot, 'src', 'hooks', 'useAuth.ts');
   const authServicePath = path.join(vendorRoot, 'src', 'lib', 'authService.ts');
   const clipsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useClips.ts');
@@ -136,6 +139,9 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   }
 
   const original = new Map([
+    [supabasePath, readNormalizedUtf8(supabasePath)],
+    [vendorPackagePath, readNormalizedUtf8(vendorPackagePath)],
+    [vendorLockPath, readNormalizedUtf8(vendorLockPath)],
     [authHookPath, readNormalizedUtf8(authHookPath)],
     [authServicePath, readNormalizedUtf8(authServicePath)],
     [clipsHookPath, readNormalizedUtf8(clipsHookPath)],
@@ -160,6 +166,19 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     [iptvApiPath, readNormalizedUtf8(iptvApiPath)],
     [channelsHookPath, readNormalizedUtf8(channelsHookPath)],
   ]);
+
+  // Remove the upstream Supabase client module and package from the actual
+  // IPTV build inputs. The original submodule files are restored after build.
+  fs.rmSync(supabasePath, { force: true });
+  const vendorPackage = JSON.parse(original.get(vendorPackagePath));
+  delete vendorPackage.dependencies?.['@supabase/supabase-js'];
+  delete vendorPackage.devDependencies?.['@supabase/supabase-js'];
+  fs.writeFileSync(vendorPackagePath, JSON.stringify(vendorPackage, null, 2) + '\n', 'utf8');
+  const vendorLock = JSON.parse(original.get(vendorLockPath));
+  if (vendorLock.packages?.['']?.dependencies) delete vendorLock.packages[''].dependencies['@supabase/supabase-js'];
+  if (vendorLock.dependencies) delete vendorLock.dependencies['@supabase/supabase-js'];
+  delete vendorLock.packages?.['node_modules/@supabase/supabase-js'];
+  fs.writeFileSync(vendorLockPath, JSON.stringify(vendorLock, null, 2) + '\n', 'utf8');
 
   let profile = original.get(profilePath);
   profile = profile
@@ -385,6 +404,27 @@ export function useNotifications(user: AuthUser | null) {
   fs.writeFileSync(notificationsHookPath, notificationsHookSource, 'utf8');
   fs.writeFileSync(clipGalleryPath, placeholderPage('Clips are being migrated', 'Clip capture and playback will return after the Backend B2 media contract is deployed. No legacy storage service is contacted.'), 'utf8');
   fs.writeFileSync(streamHealthPath, placeholderPage('Stream diagnostics unavailable', 'Stream health reporting is not yet exposed by the canonical Backend API.'), 'utf8');
+
+  // Refuse to compile any remaining vendor source that can contact Supabase.
+  const sourceFiles = [];
+  const collectSourceFiles = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) collectSourceFiles(fullPath);
+      else if (/\\.(?:ts|tsx|js|jsx)$/.test(entry.name)) sourceFiles.push(fullPath);
+    }
+  };
+  collectSourceFiles(path.join(vendorRoot, 'src'));
+  const forbiddenVendorPatterns = [
+    /from\\s*['"]@supabase\\//,
+    /from\\s*['"][^'"]*\\/supabase(?:\\.ts)?['"]/i,
+    /\\bsupabase\\s*\\.\\s*(?:auth|from|rpc|functions|storage|channel)\\b/i,
+    /\\bSupabaseClient\\b/,
+  ];
+  const remainingVendorSupabase = sourceFiles.filter((file) => forbiddenVendorPatterns.some((pattern) => pattern.test(readNormalizedUtf8(file))));
+  if (remainingVendorSupabase.length) {
+    throw new Error('[TikVTV/Testagram API] Unmigrated Supabase source remains: ' + remainingVendorSupabase.map((file) => path.relative(vendorRoot, file)).join(', '));
+  }
   profile = `import { useAuth } from '@/hooks/useAuth';
 export default function Profile() {
   const { user } = useAuth();
