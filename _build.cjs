@@ -385,13 +385,13 @@ export function useNotifications(user: AuthUser | null) {
   fs.writeFileSync(notificationsHookPath, notificationsHookSource, 'utf8');
   fs.writeFileSync(clipGalleryPath, placeholderPage('Clips are being migrated', 'Clip capture and playback will return after the Backend B2 media contract is deployed. No legacy storage service is contacted.'), 'utf8');
   fs.writeFileSync(streamHealthPath, placeholderPage('Stream diagnostics unavailable', 'Stream health reporting is not yet exposed by the canonical Backend API.'), 'utf8');
-  fs.writeFileSync(profilePath, `import { useAuth } from '@/hooks/useAuth';
+  profile = `import { useAuth } from '@/hooks/useAuth';
 export default function Profile() {
   const { user } = useAuth();
   const target = user?.username ? '/profile/' + encodeURIComponent(user.username) : '/auth?returnTo=/iptv';
   return <main className="min-h-screen bg-black text-white grid place-items-center p-6"><section className="text-center space-y-3"><h1 className="text-xl font-semibold">Manage your Testagram profile</h1><p className="text-sm text-white/65">Profile identity and media are managed by the main Testagram application.</p><button className="rounded-full bg-white/10 px-4 py-2 text-sm" onClick={() => { window.top?.location.assign(target); }}>Open profile</button></section></main>;
 }
-`, 'utf8');
+`;
 
   // Backend owns IPTV social data and Appwrite session verification. The
   // vendor iframe asks its parent to broker requests; it never creates a
