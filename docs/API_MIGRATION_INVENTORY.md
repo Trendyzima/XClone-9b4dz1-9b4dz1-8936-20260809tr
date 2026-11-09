@@ -176,7 +176,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/AdAnalyticsPage.tsx` — pending audit/migration
 - [ ] `src/pages/AdConfigPage.tsx` — pending audit/migration
 - [ ] `src/pages/AdPerformanceComparison.tsx` — pending audit/migration
-- [ ] `src/pages/AdminAdsDashboard.tsx` — pending audit/migration
+- [x] `src/pages/AdminAdsDashboard.tsx` — migrated to Appwrite-authenticated, MFA-gated Backend ad-review APIs; legacy campaign data import pending
 - [ ] `src/pages/AdminGovernancePage.tsx` — pending audit/migration
 - [ ] `src/pages/AdminIdentityVerificationPage.tsx` — pending audit/migration
 - [ ] `src/pages/AdminPanel.tsx` — pending audit/migration
@@ -477,7 +477,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/AdAnalyticsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/AdConfigPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/AdPerformanceComparison.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/AdminAdsDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/AdminAdsDashboard.tsx` — direct Supabase access removed; review, status and audit operations use native Backend routes
 - [ ] `src/pages/AdminIdentityVerificationPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/AdminPanel.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/AdminRevenueDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
