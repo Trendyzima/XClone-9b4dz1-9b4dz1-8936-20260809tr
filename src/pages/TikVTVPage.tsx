@@ -589,8 +589,14 @@ export default function TikVTVPage() {
       });
     };
     window.addEventListener('message', onMessage);
+    if (ready) {
+      frame.contentWindow?.postMessage({
+        type: 'testagram:iptv-auth-state-change',
+        user: user ? { id: user.id, email: user.email, username: user.username } : null,
+      }, window.location.origin);
+    }
     return () => window.removeEventListener('message', onMessage);
-  }, [user?.id, user?.email, user?.username]);
+  }, [ready, user?.id, user?.email, user?.username]);
 
   return (
     <div className="fixed inset-0 z-[60] bg-black" data-testid="iptv-page">
