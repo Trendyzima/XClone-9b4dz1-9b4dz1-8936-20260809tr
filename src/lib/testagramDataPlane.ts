@@ -17,14 +17,36 @@ const ALLOWED_PREFIXES = ['/api/', '/v1/'];
 
 function normalizeResourcePath(path: string): string {
   const value = path.trim();
-  if (!value || value.includes('\\') || value.startsWith('//')) {
+  const rawPath = value.split('?', 1)[0];
+  if (
+    !value ||
+    value.includes('\\') ||
+    value.includes('#') ||
+    /[\\u0000-\\u001f\\u007f]/.test(value) ||
+    !ALLOWED_PREFIXES.some((prefix) => rawPath.startsWith(prefix))
+  ) {
     throw new TypeError('A valid relative Backend API resource path is required.');
   }
+
+  // Check the un-normalized path before URL parsing: URL() silently resolves
+  // dot segments, which would otherwise hide traversal attempts.
+  const segments = rawPath.split('/');
+  for (const segment of segments) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      throw new TypeError('Data-plane resource paths must use valid URL encoding.');
+    }
+    if (decoded === '.' || decoded === '..' || decoded.includes('/')) {
+      throw new TypeError('Data-plane resource paths must not contain traversal segments.');
+    }
+  }
+
   const url = new URL(value, 'https://testagram.invalid');
   if (
     url.origin !== 'https://testagram.invalid' ||
-    !ALLOWED_PREFIXES.some((prefix) => url.pathname.startsWith(prefix)) ||
-    url.pathname.split('/').some((segment) => segment === '.' || segment === '..')
+    !ALLOWED_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))
   ) {
     throw new TypeError('Data-plane requests must target a supported /api or /v1 resource.');
   }
