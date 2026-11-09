@@ -103,3 +103,24 @@ export async function deleteTestagramMedia(mediaId: string, accessTokenOverride?
   const token = accessTokenOverride ?? await requireAccessToken();
   await apiRequest('/delete', token, 'POST', { key, media_id: key });
 }
+
+export type TestagramMediaLibraryItem = {
+  id: string;
+  name: string;
+  path: string;
+  url: string;
+  type: 'image' | 'video' | 'file';
+  size: number;
+  updatedAt: string;
+  visibility?: 'public' | 'private';
+  content_type?: string;
+};
+
+export async function listTestagramMedia(): Promise<TestagramMediaLibraryItem[]> {
+  requireMediaApi();
+  const result = await testagramApiRequest<{ items?: TestagramMediaLibraryItem[] }>('/api/media/list', {
+    method: 'POST',
+    body: {},
+  });
+  return Array.isArray(result.items) ? result.items : [];
+}
