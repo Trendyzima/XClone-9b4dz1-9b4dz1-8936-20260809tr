@@ -5,6 +5,7 @@ const page = read('mobile/lib/features/ads/ad_review_page.dart');
 const session = read('mobile/lib/core/auth/appwrite_admin_session.dart');
 const config = read('mobile/lib/core/config/app_config.dart');
 const contract = read('docs/contracts/ad-review-v1.md');
+const backendRequest = session.match(/Future<Map<String, dynamic>> _backendRequest\\([\\s\\S]*?\\n  }/m)?.[0] ?? '';
 
 const required = [
   ['mobile review page uses the Appwrite admin session', /AppwriteAdminSession/.test(page)],
