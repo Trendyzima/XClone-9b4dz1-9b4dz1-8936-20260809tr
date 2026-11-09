@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { UserRound, LogIn, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePremium } from '@/hooks/usePremium';
+import { appwriteAuth } from '@/services/appwriteAuth';
+import { testagramApiRequest } from '@/services/apiClient';
 
 type IptvAdWindow = Window & {
   google?: any;
@@ -552,6 +554,58 @@ export default function TikVTVPage() {
     const removeAds = isPremium ? undefined : installIptvChannelAds(frame);
     return () => { removeAds?.(); removeRigidScroll(); };
   }, [ready, isPremium, handlePullRefresh]);
+
+  // The IPTV iframe is an untrusted UI boundary. It receives no Appwrite
+  // token or storage credentials; all private actions are brokered here.
+  useEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame) return;
+    const publicActions = new Set(['trending', 'comments_list', 'comments_count', 'reactions_state']);
+    const allowedActions = new Set([
+      'trending', 'comments_list', 'comments_count', 'reactions_state',
+      'reaction_toggle', 'comment_add', 'comment_delete', 'notifications',
+      'bookmark_list', 'bookmark_toggle', 'history_list', 'history_upsert',
+      'history_delete', 'history_clear', 'report',
+    ]);
+    const hostUser = user ? { id: user.id, email: user.email, username: user.username, avatar: user.avatar } : null;
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
+      const message = event.data as Record<string, unknown> | null;
+      if (!message || typeof message !== 'object') return;
+      if (message.type === 'testagram:iptv-auth-state-request' && typeof message.requestId === 'string') {
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-auth-state-response', requestId: message.requestId, user: hostUser }, window.location.origin);
+        return;
+      }
+      if (message.type === 'testagram:iptv-sign-out-request') {
+        void appwriteAuth.signOutAllSessions().catch((error: unknown) => console.error('[IPTV] Appwrite sign-out failed', error));
+        return;
+      }
+      if (message.type !== 'testagram:iptv-social-request' || typeof message.requestId !== 'string' || typeof message.action !== 'string') return;
+      const requestId = message.requestId;
+      if (!allowedActions.has(message.action)) {
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-social-response', requestId, ok: false, error: 'Unsupported IPTV action' }, window.location.origin);
+        return;
+      }
+      const payload = message.payload && typeof message.payload === 'object' && !Array.isArray(message.payload)
+        ? message.payload as Record<string, unknown> : {};
+      void testagramApiRequest<unknown>('/api/iptv/social', {
+        method: 'POST',
+        body: { action: message.action, payload },
+        anonymous: publicActions.has(message.action) && !user,
+      }).then((data) => {
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-social-response', requestId, ok: true, data }, window.location.origin);
+      }).catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : 'IPTV Backend request failed';
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-social-response', requestId, ok: false, error: reason }, window.location.origin);
+      });
+    };
+    window.addEventListener('message', onMessage);
+    if (ready) {
+      frame.contentWindow?.postMessage({ type: 'testagram:iptv-auth-state-change', user: hostUser }, window.location.origin);
+    }
+    return () => window.removeEventListener('message', onMessage);
+  }, [ready, user?.id, user?.email, user?.username, user?.avatar]);
+
 
   return (
     <div className="fixed inset-0 z-[60] bg-black" data-testid="iptv-page">
