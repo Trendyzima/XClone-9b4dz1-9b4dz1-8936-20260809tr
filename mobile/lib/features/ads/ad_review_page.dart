@@ -92,8 +92,10 @@ class _AdReviewPageState extends State<AdReviewPage> {
     } catch (error) {
       _error = error.toString();
     } finally {
-      _password.clear();
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        _password.clear();
+        setState(() => _busy = false);
+      }
     }
   }
 
