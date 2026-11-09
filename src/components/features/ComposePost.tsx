@@ -44,10 +44,12 @@ export function ComposePost({ communityId, onSuccess }: ComposePostProps) {
     <form onSubmit={submit} className="space-y-3 p-4" aria-label="Create a post">
       <Textarea
         value={body}
-        onChange={(event) => setBody(event.target.value.slice(0, MAX_POST_BODY_LENGTH))}
+        onChange={(event) => {
+          const next = Array.from(event.target.value).slice(0, MAX_POST_BODY_LENGTH).join('');
+          setBody(next);
+        }}
         placeholder={communityPostingUnavailable ? 'Community publishing is being migrated to the Backend API.' : 'What is happening?'}
         aria-label="Post text"
-        maxLength={MAX_POST_BODY_LENGTH}
         rows={3}
         disabled={submitting || communityPostingUnavailable}
         className="min-h-24 resize-y border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
@@ -59,7 +61,7 @@ export function ComposePost({ communityId, onSuccess }: ComposePostProps) {
       )}
       <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
         <span className="text-xs text-muted-foreground" aria-live="polite">
-          {body.length}/{MAX_POST_BODY_LENGTH}
+          {Array.from(body).length}/{MAX_POST_BODY_LENGTH}
         </span>
         <Button type="submit" size="sm" disabled={submitting || communityPostingUnavailable || !body.trim()}>
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
