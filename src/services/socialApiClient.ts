@@ -60,9 +60,10 @@ export type SocialLikeState = { liked: boolean; likes_count: number; removed?: b
 export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
 
 export const socialApi = {
-  getHomeFeed(limit = 20, before?: string) {
+  getHomeFeed(limit = 20, before?: string, followingOnly = false) {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
     if (before) query.set('before', before);
+    if (followingOnly) query.set('following_only', 'true');
     return requestAt<{ posts: any[]; next_cursor: string; has_more: boolean; ranking_mode: 'algorithm' | 'chronological' }>(
       `${freshApiFeedPath}?${query.toString()}`, 'GET', undefined, true,
     );
