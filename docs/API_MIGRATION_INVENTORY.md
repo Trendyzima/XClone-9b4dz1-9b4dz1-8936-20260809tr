@@ -91,14 +91,14 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/components/features/StoriesStrip.tsx` — pending audit/migration
 - [ ] `src/components/features/StoryAdSlide.tsx` — pending audit/migration
 - [ ] `src/components/features/StoryHighlights.tsx` — pending audit/migration
-- [ ] `src/components/features/SuggestedPolls.tsx` — pending audit/migration
+- [x] `src/components/features/SuggestedPolls.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/components/features/SyndicatedNewsRail.tsx` — pending audit/migration
 - [ ] `src/components/features/TestagramAdSlot.tsx` — pending audit/migration
 - [ ] `src/components/features/TestagramLiveChannelCard.tsx` — pending audit/migration
 - [ ] `src/components/features/ThreadCard.tsx` — pending audit/migration
 - [ ] `src/components/features/TransactionRemindersTab.tsx` — pending audit/migration
-- [ ] `src/components/features/TrendingVideoRow.tsx` — pending audit/migration
-- [ ] `src/components/features/TrendingVideosSection.tsx` — pending audit/migration
+- [x] `src/components/features/TrendingVideoRow.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
+- [x] `src/components/features/TrendingVideosSection.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/components/features/TvChannelPlayer.tsx` — pending audit/migration
 - [ ] `src/components/features/TvMeetupPanel.tsx` — pending audit/migration
 - [ ] `src/components/features/TvPageErrorBoundary.tsx` — pending audit/migration
@@ -190,7 +190,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/BoostAnalyticsPage.tsx` — pending audit/migration
 - [ ] `src/pages/BoostCreatePage.tsx` — pending audit/migration
 - [ ] `src/pages/CallPage.tsx` — pending audit/migration
-- [ ] `src/pages/ChallengeLeaderboardPage.tsx` — pending audit/migration
+- [x] `src/pages/ChallengeLeaderboardPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/ChannelProfilePage.tsx` — pending audit/migration
 - [x] `src/pages/CommunitiesPage.tsx` — migrated; verify backend contract and tests
 - [x] `src/pages/CommunityPage.tsx` — removed all direct Supabase access; community detail, posts, chat, events/RSVP, members, moderation, settings, shop, achievement badges, scheduling and reminders now call Backend APIs. Backend runtime/CI verification remains outstanding.
@@ -246,8 +246,8 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/ListDetailPage.tsx` — pending audit/migration
 - [ ] `src/pages/ListsPage.tsx` — pending audit/migration
 - [ ] `src/pages/LiveStreamPage.tsx` — pending audit/migration
-- [ ] `src/pages/MarketProductPage.tsx` — pending audit/migration
-- [ ] `src/pages/MarketplacePage.tsx` — pending audit/migration
+- [x] `src/pages/MarketProductPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
+- [x] `src/pages/MarketplacePage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/MessagesPage.tsx` — pending audit/migration
 - [ ] `src/pages/MonetizationDashboard.tsx` — pending audit/migration
 - [ ] `src/pages/MyAdsPage.tsx` — pending audit/migration
@@ -268,13 +268,13 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/PostAnalyticsDashboard.tsx` — pending audit/migration
 - [ ] `src/pages/PostInteractionPage.tsx` — pending audit/migration
 - [ ] `src/pages/PostLikesPage.tsx` — pending audit/migration
-- [ ] `src/pages/PostQuoteComposerPage.tsx` — pending audit/migration
+- [x] `src/pages/PostQuoteComposerPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/PostQuoteLikesPage.tsx` — pending audit/migration
 - [ ] `src/pages/PostQuotesPage.tsx` — pending audit/migration
 - [ ] `src/pages/PostRepliesPage.tsx` — pending audit/migration
-- [ ] `src/pages/PostReplyChainPage.tsx` — pending audit/migration
+- [x] `src/pages/PostReplyChainPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/PostRepostsPage.tsx` — pending audit/migration
-- [ ] `src/pages/PostThreadPage.tsx` — pending audit/migration
+- [x] `src/pages/PostThreadPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/PremiumPage.tsx` — pending audit/migration
 - [ ] `src/pages/PrivacyPolicyPage.tsx` — pending audit/migration
 - [ ] `src/pages/ProductsPage.tsx` — pending audit/migration
@@ -294,7 +294,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/SellerStorefrontPage.tsx` — pending audit/migration
 - [ ] `src/pages/SeriesPage.tsx` — pending audit/migration
 - [ ] `src/pages/SettingsPage.tsx` — pending audit/migration
-- [ ] `src/pages/ShoppingMallPage.tsx` — pending audit/migration
+- [x] `src/pages/ShoppingMallPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/SpaceDetailPage.tsx` — pending audit/migration
 - [ ] `src/pages/SpaceRecordingViewerPage.tsx` — pending audit/migration
 - [ ] `src/pages/SpacesPage.tsx` — pending audit/migration
@@ -320,8 +320,8 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/TvPublicLivePage.tsx` — pending audit/migration
 - [ ] `src/pages/TvStudioPage.tsx` — pending audit/migration
 - [ ] `src/pages/VerificationRequestPage.tsx` — pending audit/migration
-- [ ] `src/pages/VideoWatchLaterPage.tsx` — pending audit/migration
-- [ ] `src/pages/VideosPage.tsx` — pending audit/migration
+- [x] `src/pages/VideoWatchLaterPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
+- [x] `src/pages/VideosPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/WalletAnalyticsPage.tsx` — pending audit/migration
 - [ ] `src/pages/WalletConverterPage.tsx` — pending audit/migration
 - [ ] `src/pages/WalletHistoryPage.tsx` — pending audit/migration
@@ -335,7 +335,7 @@ Generated from the tracked Git tree. This is the pinned file-by-file worklist; s
 - [ ] `src/pages/WalletScheduledPage.tsx` — pending audit/migration
 - [ ] `src/pages/WalletSecurityPage.tsx` — pending audit/migration
 - [ ] `src/pages/WalletSendPage.tsx` — pending audit/migration
-- [ ] `src/pages/WishlistPage.tsx` — pending audit/migration
+- [x] `src/pages/WishlistPage.tsx` — migrated to the canonical Backend API; CI/runtime verification pending
 - [ ] `src/pages/admin/AdminAdsPage.tsx` — pending audit/migration
 - [ ] `src/pages/admin/AdminFraudPage.tsx` — pending audit/migration
 - [ ] `src/pages/admin/AdminOverviewPage.tsx` — pending audit/migration
@@ -449,14 +449,14 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/components/features/SpaceRecordingsPlaylist.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/StoriesStrip.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/StoryHighlights.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/components/features/SuggestedPolls.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/components/features/SuggestedPolls.tsx` — direct Supabase access removed; canonical Backend contract added
 - [ ] `src/components/features/SyndicatedNewsRail.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/TestagramAdSlot.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/TestagramLiveChannelCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/ThreadCard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/TransactionRemindersTab.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/components/features/TrendingVideoRow.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/components/features/TrendingVideosSection.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/components/features/TrendingVideoRow.tsx` — direct Supabase access removed; canonical Backend contract added
+- [x] `src/components/features/TrendingVideosSection.tsx` — direct Supabase access removed; canonical Backend contract added
 - [ ] `src/components/features/TvMeetupPanel.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/TvPostStream.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/components/features/UserSuggestions.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -486,7 +486,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/AppealsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/BoostAnalyticsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/BoostCreatePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/ChallengeLeaderboardPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/ChallengeLeaderboardPage.tsx` — direct Supabase access removed; canonical Backend contract added
 - [ ] `src/pages/ChannelProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [x] `src/pages/CommunityPage.tsx` — baseline violation resolved; current source has no Supabase imports or operations.
 - [ ] `src/pages/CompleteProfilePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -513,8 +513,8 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/LeaderboardPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/ListDetailPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/LiveStreamPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/MarketProductPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/MarketplacePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/MarketProductPage.tsx` — direct Supabase access removed; canonical Backend contract added
+- [x] `src/pages/MarketplacePage.tsx` — direct Supabase access removed; canonical Backend contract added
 - [ ] `src/pages/MonetizationDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/MyAdsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/NewsArticlePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -529,9 +529,9 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/PollsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/PostAnalyticsDashboard.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/PostInteractionPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/PostQuoteComposerPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/PostReplyChainPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/PostThreadPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/PostQuoteComposerPage.tsx` — direct Supabase access removed; canonical Backend contract added
+- [x] `src/pages/PostReplyChainPage.tsx` — direct Supabase access removed; canonical Backend contract added
+- [x] `src/pages/PostThreadPage.tsx` — direct Supabase access removed; canonical Backend contract added
 - [ ] `src/pages/PremiumPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/ProductsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/ProfileFeaturesPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -546,7 +546,7 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/SellerStorefrontPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/SeriesPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/SettingsPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/ShoppingMallPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/ShoppingMallPage.tsx` — direct Supabase access removed; canonical Backend contract added
 - [ ] `src/pages/SpaceRecordingViewerPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/SportsHubPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/StartStreamPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
@@ -560,9 +560,9 @@ The client-only boundary gate on 2026-11-08 reported 269 violations across 142 u
 - [ ] `src/pages/TvPublicLivePage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/TvStudioPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
 - [ ] `src/pages/VerificationRequestPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/VideoWatchLaterPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/VideosPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
-- [ ] `src/pages/WishlistPage.tsx` — legacy browser database/function/storage access detected; migrate the owning feature and its child components together
+- [x] `src/pages/VideoWatchLaterPage.tsx` — direct Supabase access removed; canonical Backend contract added
+- [x] `src/pages/VideosPage.tsx` — direct Supabase access removed; canonical Backend contract added
+- [x] `src/pages/WishlistPage.tsx` — direct Supabase access removed; canonical Backend contract added
 
 
 ## Community feature migration update — 2026-11-08
