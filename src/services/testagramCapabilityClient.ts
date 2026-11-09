@@ -478,6 +478,7 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
     if (cursor) query.set('cursor', cursor);
     return testagramApiRequest<{ items: any[]; next_cursor: string | null; has_more: boolean }>(
       '/api/threads?' + query.toString(),
+      { anonymous: tab === 'for-you' },
     );
   }
   getThreadBookmarkStates(threadIds: string[]) {
@@ -492,7 +493,7 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
     ).then(result => Boolean(result.bookmarked));
   }
   getThread(threadId: string) {
-    return testagramApiRequest<any>('/api/threads/' + encodeURIComponent(threadId));
+    return testagramApiRequest<any>('/api/threads/' + encodeURIComponent(threadId), { anonymous: true });
   }
   listThreadReposts(threadId: string, n = 50) {
     return testagramApiRequest<{ items: any[] }>(
