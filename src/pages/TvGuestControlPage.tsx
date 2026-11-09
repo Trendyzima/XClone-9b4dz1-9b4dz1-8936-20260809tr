@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Copy, ExternalLink, Link2, Mic, MicOff, Radio, RefreshCw, ShieldBan, ShieldCheck, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { appwriteAuth } from '@/services/appwriteAuth';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 
 type Guest={id:string;slot:number;label:string;status:string;expires_at:string;claimed_by:string|null;muted:boolean;blocked:boolean};
-const api=async(body:Record<string,unknown>)=>{const {data}=await supabase.auth.getSession();const r=await fetch('/api/live',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(data.session?.access_token?{Authorization:'Bearer '+data.session.access_token}:{})},body:JSON.stringify(body)});const p=await r.json().catch(()=>null);if(!r.ok)throw new Error(p?.error?.message||'Guest control request failed.');return p?.data;};
+const api=async(body:Record<string,unknown>)=>{const token=await appwriteAuth.createBackendJWT();const r=await fetch('/api/live',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(body)});const p=await r.json().catch(()=>null);if(!r.ok)throw new Error(p?.error?.message||'Guest control request failed.');return p?.data;};
 
 export default function TvGuestControlPage(){
  const {streamId}=useParams();const nav=useNavigate();const {user}=useAuth();const bridgeRef=useRef<TestagramTvMediaSession|null>(null);
