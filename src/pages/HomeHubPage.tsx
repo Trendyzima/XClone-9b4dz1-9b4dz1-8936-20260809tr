@@ -159,6 +159,7 @@ export default function HomeHubPage(){
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
   const tabCursorRef=useRef<string|null>(null);
+  const tabHasMoreRef=useRef(false);
 
   const mapBackendPosts=(posts:any[]):Item[]=>posts.map((post:any)=> {
     const author=post.author ?? post.user_profiles ?? {};
@@ -192,14 +193,16 @@ export default function HomeHubPage(){
   const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
     if(target==='polls'){
       const page=await socialApi.listPolls(12,pageNum*12);
-      setHasMore(Boolean(page.has_more));
+      tabHasMoreRef.current=Boolean(page.has_more);
+      setHasMore(tabHasMoreRef.current);
       return (Array.isArray(page.items)?page.items:[]).map((poll:any)=>({type:'poll' as const,data:poll}));
     }
     if(target==='following'){
       if(!user) throw new Error('Sign in to see posts from accounts you follow.');
       const page=await socialApi.getHomeFeed(24,cursorOverride ?? tabCursorRef.current ?? undefined,{followingOnly:true});
       tabCursorRef.current=page?.next_cursor || null;
-      setHasMore(Boolean(page?.has_more)&&Array.isArray(page?.posts)&&page.posts.length>0);
+      tabHasMoreRef.current=Boolean(page?.has_more)&&Array.isArray(page?.posts)&&page.posts.length>0;
+      setHasMore(tabHasMoreRef.current);
       return mapBackendPosts(Array.isArray(page?.posts)?page.posts:[]);
     }
     if(target!=='all'){
@@ -374,7 +377,7 @@ export default function HomeHubPage(){
         setItems(prev=>appendUniqueFeedItems(prev,next));
       }
       const pageSize=tab==='communities'||tab==='shopping'?12:10;
-      if(tab==='following'||tab==='polls') setHasMore(tab==='following'?Boolean(tabCursorRef.current):next.length===12);
+      if(tab==='following'||tab==='polls') setHasMore(tabHasMoreRef.current);
       else setHasMore(next.length>=pageSize);
       return next.length>0;
     }catch(error){
