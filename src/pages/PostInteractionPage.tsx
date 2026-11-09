@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Heart, MessageCircle, Repeat2, Quote, Loader2, Send, RefreshCw } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import { getInteractionCounts } from '@/services/postInteractionService';
 import { useAuth } from '@/hooks/useAuth';
 import { listLikes } from '@/features/likes/likesService';
@@ -51,17 +51,9 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
     }
     return;
    }
-   const postResult=await supabase.from('posts').select('id,content,created_at,user_id,author_id,likes_count,replies_count,reposts_count,quoted_post_id,deleted_at').eq('id',postId).maybeSingle();
-   if(postResult.error)throw postResult.error;
-   if(!postResult.data){throw new Error('Post not found');}
-   const p=postResult.data;
+   const p=await socialApi.getPost(postId);
    const authorId=p.author_id??p.user_id;
-   let profile:any=null;
-   if(authorId){
-    const profileResult=await supabase.from('profiles').select('id,username,display_name,full_name,avatar_url,verified').eq('id',authorId).maybeSingle();
-    if(profileResult.error)console.warn('[post-interaction] author enrichment failed',profileResult.error);
-    profile=profileResult.data??null;
-   }
+   const profile=p.profiles??p.user_profiles??p.author??null;
    const normalized={...p,author_id:authorId,profiles:profile,user_profiles:profile};
    const liveCounts=await getInteractionCounts(postId);
    setPost(normalized); setCounts(liveCounts);
@@ -81,15 +73,6 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
 
  useEffect(()=>{void load()},[load]);
 
- useEffect(()=>{
-  if(!postId)return;
-  const channel=supabase.channel('post-interactions-'+postId+'-'+kind)
-   .on('postgres_changes',{event:'*',schema:'public',table:'post_reactions',filter:'post_id=eq.'+postId},()=>void load())
-   .on('postgres_changes',{event:'*',schema:'public',table:'replies',filter:'post_id=eq.'+postId},()=>void load())
-   .on('postgres_changes',{event:'*',schema:'public',table:'reposts',filter:'post_id=eq.'+postId},()=>void load())
-   .subscribe();
-  return()=>{void supabase.removeChannel(channel)};
- },[postId,kind,load]);
 
  const sendReply=async()=>{
   if(!postId||!text.trim()||!user||sending)return;
