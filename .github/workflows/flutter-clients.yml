@@ -36,6 +36,7 @@ on:
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
       - 'scripts/validate-ad-review-contract.mjs'
+      - 'docs/contracts/ad-review-v1.md'
       - 'scripts/validate-sports-hub-contract.mjs'
       - 'scripts/validate-shopping-mall-contract.mjs'
       - 'supabase/migrations/20261014125029_marketplace_public_category_projection.sql'
