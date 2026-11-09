@@ -155,7 +155,7 @@ export default function MarketProductPage() {
           </div>
           <div className="mt-4 rounded-xl border border-border p-3 flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-primary mt-0.5" />
-            <div><p className="text-xs font-bold">Backend-verified listing</p><p className="text-[10px] text-muted-foreground">Product details and seller identity are supplied by Testagram Backend.</p></div>
+            <div><p className="text-xs font-bold">Backend-managed listing</p><p className="text-[10px] text-muted-foreground">Product details and seller identity are supplied by Testagram Backend.</p></div>
           </div>
           <div className="mt-auto pt-6 flex gap-2">
             <button onClick={() => void share()} className="px-4 py-3 rounded-xl border border-border bg-background font-bold flex items-center gap-2">{copied ? <Copy className="w-4 h-4" /> : <Share2 className="w-4 h-4" />} Share</button>
