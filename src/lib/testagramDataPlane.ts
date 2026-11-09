@@ -22,7 +22,7 @@ function normalizeResourcePath(path: string): string {
     !value ||
     value.includes('\\') ||
     value.includes('#') ||
-    /[\\u0000-\\u001f\\u007f]/.test(value) ||
+    /[\u0000-\u001f\u007f]/.test(value) ||
     !ALLOWED_PREFIXES.some((prefix) => rawPath.startsWith(prefix))
   ) {
     throw new TypeError('A valid relative Backend API resource path is required.');
