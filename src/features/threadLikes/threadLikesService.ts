@@ -1,5 +1,17 @@
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
-export async function listThreadLikes(threadId:string,limit=50){const result=await backendCapabilities.call<{items:any[]}>('testagram.threads.likes.list',{thread_id:threadId,limit:Math.min(100,Math.max(1,limit))});return result.items??[];}
-export async function getThreadLikeState(threadId:string,_userId?:string){const result=await backendCapabilities.call<{liked:boolean}>('testagram.threads.likes.state',{thread_id:threadId});return Boolean(result.liked);}
-export async function toggleThreadLike(threadId:string,_userId?:string){const result=await backendCapabilities.call<{liked:boolean}>('testagram.threads.likes.toggle',{thread_id:threadId});return Boolean(result.liked);}
-export async function getThreadLikeStates(threadIds:string[],_userId?:string){if(!threadIds.length)return new Set<string>();const result=await backendCapabilities.call<{thread_ids:string[]}>('testagram.threads.likes.states',{thread_ids:threadIds});return new Set(result.thread_ids??[]);}
+
+export async function listThreadLikes(threadId: string, limit = 50) {
+  return backendCapabilities.listThreadLikes(threadId, limit);
+}
+
+export async function getThreadLikeState(threadId: string, _userId?: string) {
+  return backendCapabilities.getThreadLikeState(threadId);
+}
+
+export async function toggleThreadLike(threadId: string, _userId?: string) {
+  return backendCapabilities.toggleThreadLike(threadId);
+}
+
+export async function getThreadLikeStates(threadIds: string[], _userId?: string) {
+  return backendCapabilities.getThreadLikeStates(threadIds);
+}
