@@ -60,6 +60,7 @@ export default function MarketplacePage() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -82,7 +83,7 @@ export default function MarketplacePage() {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [category, query]);
+  }, [category, query, reloadKey]);
 
   const featuredCount = useMemo(() => products.filter(product => product.is_featured).length, [products]);
 
@@ -138,7 +139,7 @@ export default function MarketplacePage() {
             <div>
               <h2 className="font-semibold">Marketplace is temporarily unavailable</h2>
               <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-              <button onClick={() => { setCategory(value => value); setQuery(value => value + ' '); setQuery(value => value.trim()); }} className="mt-3 text-sm font-semibold text-primary hover:underline">
+              <button onClick={() => setReloadKey(value => value + 1)} className="mt-3 text-sm font-semibold text-primary hover:underline">
                 Retry loading
               </button>
             </div>
@@ -157,8 +158,8 @@ export default function MarketplacePage() {
               return (
                 <article key={product.id} className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-0.5 hover:shadow-lg">
                   <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-                    {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+                    {safeExternalURL(product.image_url) ? (
+                      <img src={safeExternalURL(product.image_url)!} alt={product.name} loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
                     ) : (
                       <div className="flex h-full items-center justify-center"><ShoppingBag className="h-12 w-12 text-muted-foreground/40" /></div>
                     )}
