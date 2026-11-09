@@ -9,7 +9,7 @@ import { uploadTestagramMedia, deleteTestagramMedia } from '@/services/mediaClie
 import { requireAccessToken } from '@/services/backendClient';
 
 type PollOption={id:string;label:string;position:number;votes:number};
-type Poll={id:string;question:string;description?:string;status:string;ends_at?:string|null;media_url?:string;total_votes:number;options:PollOption[];has_voted?:boolean};
+type Poll={id:string;question:string;description?:string;status:string;ends_at?:string|null;media_url?:string;media_type?:string;total_votes:number;options:PollOption[];has_voted?:boolean};
 
 function PollCard({poll,onVoted}:{poll:Poll;onVoted:()=>void}){
  const {user}=useAuth(); const [selected,setSelected]=useState<string[]>([]); const [busy,setBusy]=useState(false);
@@ -17,7 +17,7 @@ function PollCard({poll,onVoted}:{poll:Poll;onVoted:()=>void}){
  const total=Math.max(1,poll.total_votes);
  return <article className="rounded-2xl border border-border bg-card p-4 space-y-4">
   <div className="flex items-start gap-3"><div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center"><BarChart3 className="w-4 h-4"/></div><div className="flex-1"><h2 className="font-bold leading-snug">{poll.question}</h2>{poll.description&&<p className="text-xs text-muted-foreground mt-1">{poll.description}</p>}</div></div>
-  {poll.media_url&&<img src={poll.media_url} alt="Poll attachment" className="max-h-72 w-full rounded-xl object-cover"/>}
+  {poll.media_url&&(poll.media_type?.startsWith("video/")?<video src={poll.media_url} controls playsInline className="max-h-72 w-full rounded-xl bg-black"/>:<img src={poll.media_url} alt="Poll attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}
   <div className="space-y-2">{poll.options.map(o=>{const pct=Math.round((o.votes/total)*100);const chosen=selected.includes(o.id);return <button key={o.id} disabled={busy||poll.status!=='open'||!!poll.has_voted} onClick={()=>setSelected(chosen?[]:[o.id])} className="w-full text-left rounded-xl border border-border p-3 relative overflow-hidden hover:border-primary/50 transition-colors"><div className="absolute inset-y-0 left-0 bg-primary/10" style={{width:`${pct}%`}}/><span className="relative flex items-center justify-between gap-3"><span className={chosen?'font-bold text-primary':'font-medium'}>{chosen?'✓ ':''}{o.label}</span><span className="text-xs text-muted-foreground">{pct}% · {o.votes}</span></span></button>})}</div>
   <div className="flex items-center justify-between text-xs text-muted-foreground"><span className="flex items-center gap-1"><Users className="w-3.5 h-3.5"/>{poll.total_votes} vote{poll.total_votes===1?'':'s'}</span>{poll.ends_at?<span className="flex items-center gap-1"><Clock3 className="w-3.5 h-3.5"/>{new Date(poll.ends_at).toLocaleString()}</span>:<span>{poll.status==='open'?'Open voting':'Closed'}</span>}</div>
   {poll.status==='open'&&!poll.has_voted&&<button disabled={busy||!selected.length} onClick={vote} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-bold disabled:opacity-40 flex items-center justify-center gap-2">{busy?<Loader2 className="w-4 h-4 animate-spin"/>:<CheckCircle2 className="w-4 h-4"/>}Cast vote</button>}
