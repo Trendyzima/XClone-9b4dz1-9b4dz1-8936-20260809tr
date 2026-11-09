@@ -54,7 +54,7 @@ export function installIptvSocialBridge() {
       let token = '';
       try {
         token = await appwriteAuth.createBackendJWT();
-      } catch (authError) {
+      } catch {
         if (!PUBLIC_ACTIONS.has(action)) throw new Error('Sign in to use IPTV social features.');
       }
       const response = await fetch(API_ORIGIN + '/api/iptv/social', {
