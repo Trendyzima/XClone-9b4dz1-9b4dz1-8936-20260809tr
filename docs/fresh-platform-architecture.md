@@ -5,7 +5,7 @@ New platform, not a migration. Existing Supabase is legacy-only and must remain 
 
 ## Primary application stack
 - Appwrite Auth is the sole identity/session authority for new accounts.
-- Appwrite Database is the canonical application data store.
+- Neon PostgreSQL is the canonical relational application data store; Appwrite is limited to identity, authentication and session lifecycle.
 - Go Backend is the trusted API/policy boundary; Appwrite server keys never reach browsers or phones.
 - XClone is the only first-party frontend.
 - Algorithm ranks only Backend-authorized candidate batches and never queries Appwrite.
@@ -21,8 +21,8 @@ Initial collections: profiles; account_settings; follows; blocks; posts; post_me
 1. Client creates an Appwrite session.
 2. Client creates a short-lived Appwrite JWT and sends it only to the configured HTTPS Backend.
 3. Backend validates the JWT by calling the configured Appwrite Account endpoint; never trust decoded claims alone.
-4. Backend uses Appwrite $id as the new Testagram identity. No Supabase lookup or legacy linking.
-5. Appwrite handles verification, recovery and session revocation; Backend authorizes every application action against Appwrite Database.
+4. Backend verifies the Appwrite session and resolves the canonical Testagram identity mapping in Neon. No runtime Supabase lookup or legacy account-linking route is permitted.
+5. Appwrite handles verification, recovery and session revocation; Backend authorizes every application action against canonical Neon records and the verified Appwrite identity.
 
 ## Storage target: 150 GB logical capacity
 Target is 150,000,000,000 bytes (150 GB decimal) of usable logical media capacity. This is a target, not a claim that free plans or enrolled devices already provide 150 GB. Each logical asset is counted once; every physical replica is tracked and budgeted separately. A two-copy 150 GB pool may require up to 300 GB of physical capacity when both copies cover the entire dataset.
@@ -34,9 +34,9 @@ Target is 150,000,000,000 bytes (150 GB decimal) of usable logical media capacit
 - Computer nodes: independently opt into compute, storage, or both. Compute-only nodes contribute CPU/RAM but no media capacity. Storage-enabled Linux computers require a dedicated mounted filesystem and explicit quota, separate from OS and compute paths. Windows/macOS adapters and remote media object transport are not complete.
 - Node capacity is counted only after authenticated enrollment, fresh heartbeats, quota reservation, successful object write/read-back, SHA-256 verification and a tested recovery path. The current node control plane reports capacity as reported-only, not verified usable capacity.
 
-The fresh Go media lifecycle now reserves platform and per-user quota transactionally in Appwrite (KiB units, rounded up), issues idempotent B2 upload reservations, validates B2 object size/MIME/SHA-256, streams a bounded copy to R2 and independently verifies the R2 read-back checksum. It records B2/R2 replica documents and marks an object protected only after both cloud replicas pass. Abandoned reservations have a lease-protected expiry sweeper; operator-triggered repair can restore one cloud replica from the other. ETag is not SHA-256. Never delete until ownership and required replicas are verified.
+The target media lifecycle reserves per-user quota transactionally in Neon, issues idempotent Backblaze B2 upload reservations, validates object size/MIME/SHA-256, and records lifecycle/integrity state. Cloudflare delivers authorized media at the edge; CDN cache is not durable storage. Do not claim a second durable replica until another provider is explicitly selected and independently verified. Abandoned reservations have a lease-protected expiry sweeper; operator-triggered repair can restore one cloud replica from the other. ETag is not SHA-256. Never delete until ownership and required replicas are verified.
 
-Safe initial rollout: B2 is the preferred cloud origin and R2 is the second cloud provider. Keep automatic failover disabled until restore/reconciliation tests pass. Android SD and computer nodes are future optional extra replicas; they must never become the only copy. Keep a durable cloud copy for every asset and require two independently verified cloud copies before marking it fully protected.
+Safe initial rollout: Backblaze B2 is the durable object origin; Cloudflare provides CDN, DNS, caching and edge security. Keep automatic failover disabled until restore/reconciliation tests pass. Android SD and computer nodes are future optional extra replicas; they must never become the only copy. Keep a durable cloud copy for every asset and require two independently verified cloud copies before marking it fully protected.
 
 Use opaque server-generated object keys. Keep buckets private and credentials server-side. Separate dev/staging/prod credentials. Public cache keys must be immutable/versioned; private media bypasses public shared cache and uses short-lived authorized access.
 
@@ -45,7 +45,7 @@ Use opaque server-generated object keys. Keep buckets private and credentials se
 - Auth signup/login/verification/recovery/logout and Backend JWT validation pass E2E.
 - Database CRUD, uniqueness, indexes, permissions and failure handling pass.
 - Fresh frontend mode selects Appwrite, removes legacy identity linking, disables Supabase clients to loopback and fails closed for unported social endpoints; no fresh request may reach the legacy Supabase/API host.
-- B2/R2 upload/read/head/delete/SHA-256 tests pass against isolated staging buckets (local mocked-provider tests alone are insufficient).
+- B2 upload/read/head/delete/SHA-256 and Cloudflare authorized-delivery tests pass against isolated staging resources (local mocked-provider tests alone are insufficient).
 - 150 GB quota reservations, races, cancellation, expiry, deletion and reconciliation pass.
 - Android Node B physical SD-card tests pass; internal storage rejected; card removal/replacement and authenticated remote transfer are safe. Computer-node compute-only, storage-only and dual-purpose enrollment tests pass; storage quotas and disjoint media/compute paths are enforced. These gates remain open.
 - Database and object backups restore successfully.
