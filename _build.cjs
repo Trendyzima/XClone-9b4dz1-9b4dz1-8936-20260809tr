@@ -677,7 +677,7 @@ export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) walkSource(fullPath);
-      else if (/.\.(?:ts|tsx|js|jsx)$/.test(entry.name) && fullPath !== supabasePath) sourceFiles.push(fullPath);
+      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name) && fullPath !== supabasePath) sourceFiles.push(fullPath);
     }
   };
   walkSource(path.join(vendorRoot, 'src'));
