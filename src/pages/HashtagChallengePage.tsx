@@ -114,7 +114,7 @@ export default function HashtagChallengePage() {
           const likeStates = await Promise.allSettled(data.map((post: any) => socialApi.getLikeState(post.id)));
           setLikedIds(new Set(data.filter((post: any, index: number) => {
             const state = likeStates[index];
-            return state.status === 'fulfilled' && state.value.is_liked;
+            return state.status === 'fulfilled' && state.value.liked;
           }).map((post: any) => post.id)));
         }
       } else {
