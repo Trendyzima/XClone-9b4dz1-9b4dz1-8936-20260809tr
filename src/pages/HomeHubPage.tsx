@@ -158,11 +158,52 @@ export default function HomeHubPage(){
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
-  const fetchTab=useCallback(async(target:Tab,_pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
-    // Only the Backend/Appwrite feed is a supported source of user posts.
-    // Never fall back to Vercel/Supabase endpoints or direct table queries.
-    if(target!=='all') {
-      throw new Error(`The ${target} feed is not yet connected to the new Testagram Backend.`);
+  const tabCursorRef=useRef<string|null>(null);
+
+  const mapBackendPosts=(posts:any[]):Item[]=>posts.map((post:any)=> {
+    const author=post.author ?? post.user_profiles ?? {};
+    const media=Array.isArray(post.media_urls)?post.media_urls:[];
+    const profile={
+      id:author.id ?? post.user_id ?? post.author_id,
+      username:author.handle ?? author.username ?? 'testagram-user',
+      display_name:author.display_name ?? author.handle ?? author.username ?? 'Testagram user',
+      avatar_url:author.avatar_url ?? author.avatarUrl ?? null,
+      bio:author.bio ?? '',
+      verified_tier:author.verified_tier ?? null,
+    };
+    return {
+      type:'post' as const,
+      data:{
+        ...post,
+        id:post.id,
+        author_id:post.user_id ?? post.author_id ?? profile.id,
+        content:post.content ?? post.body ?? '',
+        user_profiles:profile,
+        author:profile,
+        media_urls:media,
+        image_url:post.image_url ?? media[0] ?? null,
+        is_video:Boolean(post.is_video),
+        origin:'local',
+        feed_source:'backend-appwrite',
+      },
+    };
+  });
+
+  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
+    if(target==='polls'){
+      const page=await socialApi.listPolls(12,pageNum*12);
+      setHasMore(Boolean(page.has_more));
+      return (Array.isArray(page.items)?page.items:[]).map((poll:any)=>({type:'poll' as const,data:poll}));
+    }
+    if(target==='following'){
+      if(!user) throw new Error('Sign in to see posts from accounts you follow.');
+      const page=await socialApi.getHomeFeed(24,cursorOverride ?? tabCursorRef.current ?? undefined,{followingOnly:true});
+      tabCursorRef.current=page?.next_cursor || null;
+      setHasMore(Boolean(page?.has_more)&&Array.isArray(page?.posts)&&page.posts.length>0);
+      return mapBackendPosts(Array.isArray(page?.posts)?page.posts:[]);
+    }
+    if(target!=='all'){
+      throw new Error(`The ${target} feed is not yet connected to a verified native Backend contract.`);
     }
     const page = user
       ? await socialApi.getHomeFeed(24,cursorOverride ?? undefined)
@@ -172,34 +213,7 @@ export default function HomeHubPage(){
     setNextCursor(next);
     nextCursorRef.current=next;
     setHasMore(Boolean(page?.has_more) && posts.length>0);
-    return posts.map((post:any)=> {
-      const author=post.author ?? post.user_profiles ?? {};
-      const media=Array.isArray(post.media_urls)?post.media_urls:[];
-      const profile={
-        id:author.id ?? post.user_id ?? post.author_id,
-        username:author.handle ?? author.username ?? 'testagram-user',
-        display_name:author.display_name ?? author.handle ?? author.username ?? 'Testagram user',
-        avatar_url:author.avatar_url ?? author.avatarUrl ?? null,
-        bio:author.bio ?? '',
-        verified_tier:author.verified_tier ?? null,
-      };
-      return {
-        type:'post' as const,
-        data:{
-          ...post,
-          id:post.id,
-          author_id:post.user_id ?? post.author_id ?? profile.id,
-          content:post.content ?? post.body ?? '',
-          user_profiles:profile,
-          author:profile,
-          media_urls:media,
-          image_url:post.image_url ?? media[0] ?? null,
-          is_video:Boolean(post.is_video),
-          origin:'local',
-          feed_source:'backend-appwrite',
-        },
-      };
-    });
+    return mapBackendPosts(posts);
   },[user?.$id,user?.id]);
 
   const persistBuffer=useCallback(async()=>{
@@ -215,11 +229,11 @@ export default function HomeHubPage(){
 
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
-      if(!background){setLoading(true);tabPageRef.current=0;setLoadMoreError(null);}
+      if(!background){setLoading(true);tabPageRef.current=0;tabCursorRef.current=null;setLoadMoreError(null);}
       try{
         const next=await fetchTab(target,0);
         setItems(next);
-        if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='polls'||target==='shopping'?12:10));
+        if(target!=='federated'&&target!=='following'&&target!=='polls')setHasMore(next.length >= (target==='communities'||target==='shopping'?12:10));
       }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoadMoreError(e instanceof Error ? e.message : 'This section is temporarily unavailable.');}}
       finally{if(!background)setLoading(false);}
       return;
@@ -354,13 +368,14 @@ export default function HomeHubPage(){
         cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);return false;
       }
       const nextPage=tabPageRef.current+1;
-      const next=await fetchTab(tab,nextPage);
+      const next=await fetchTab(tab,nextPage,tab==='following'?tabCursorRef.current:null);
       if(next.length){
         tabPageRef.current=nextPage;
         setItems(prev=>appendUniqueFeedItems(prev,next));
       }
-      const pageSize=tab==='communities'||tab==='polls'||tab==='shopping'?12:10;
-      setHasMore(next.length>=pageSize);
+      const pageSize=tab==='communities'||tab==='shopping'?12:10;
+      if(tab==='following'||tab==='polls') setHasMore(tab==='following'?Boolean(tabCursorRef.current):next.length===12);
+      else setHasMore(next.length>=pageSize);
       return next.length>0;
     }catch(error){
       console.error('[home-hub] load more failed',error);
