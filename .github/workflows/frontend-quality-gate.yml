@@ -35,7 +35,7 @@ jobs:
           set -uo pipefail
           for attempt in 1 2 3; do
             echo "Dependency install attempt ${attempt}/3"
-            if npm ci --no-audit --no-fund > /tmp/npm-ci-attempt.log 2>&1; then
+            if npm ci --ignore-scripts --no-audit --no-fund > /tmp/npm-ci-attempt.log 2>&1; then
               cat /tmp/npm-ci-attempt.log
               exit 0
             else
