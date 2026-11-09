@@ -18,7 +18,7 @@ The Wrangler configuration is the source of truth for the Worker and declares:
 - Vite `dist/` static assets
 - SPA fallback
 - Testagram HTTP API routes
-- Supabase ActivityPub/OAuth rewrites
+- Backend API and Federated Content protocol routes
 - the existing story cleanup schedule
 
 ## Cloudflare setup
@@ -41,8 +41,6 @@ Do not commit production secrets.
 
 The Worker-compatible handlers may require Cloudflare Worker secrets for:
 
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_PUBLISHABLE_KEY`
 - `R2_ACCOUNT_ID`
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
@@ -55,7 +53,7 @@ The Worker-compatible handlers may require Cloudflare Worker secrets for:
 - `SMS_RATE_LIMIT_SECRET`
 - `CRON_SECRET`
 
-Only secrets actually required by a route need to be configured.
+Only secrets actually required by a route need to be configured. Supabase credentials are not part of the target deployment architecture.
 
 ## Cutover rule
 
