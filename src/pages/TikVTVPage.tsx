@@ -586,7 +586,9 @@ export default function TikVTVPage() {
         return;
       }
       if (message.type === 'testagram:iptv-signout-request') {
-        void appwriteAuth.signOut().then(() => sendAuthState()).catch(() => sendAuthState());
+        void appwriteAuth.signOut().then(() => {
+          frame.contentWindow?.postMessage({ type: 'testagram:iptv-auth-state', user: null }, window.location.origin);
+        }).catch(() => {});
         return;
       }
       if (message.type !== 'testagram:iptv-social-request' ||
