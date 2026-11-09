@@ -669,6 +669,23 @@ export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
   fs.writeFileSync(feedPath, feed, 'utf8');
   fs.writeFileSync(channelCardPath, channelCard, 'utf8');
 
+  // Fail closed if any active IPTV source file still tries to call the removed
+  // browser database client. The compatibility shim is not an implementation.
+  const forbiddenLegacyDataCall = /@supabase\\/supabase-js|\\bsupabase\\.(?:from|rpc|functions|storage|channel|auth)\\b/i;
+  const sourceFiles = [];
+  const walkSource = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) walkSource(fullPath);
+      else if (/\\.(?:ts|tsx|js|jsx)$/.test(entry.name) && fullPath !== supabasePath) sourceFiles.push(fullPath);
+    }
+  };
+  walkSource(path.join(vendorRoot, 'src'));
+  const remainingLegacyCalls = sourceFiles.filter(file => forbiddenLegacyDataCall.test(readNormalizedUtf8(file)));
+  if (remainingLegacyCalls.length) {
+    throw new Error('[TikVTV/Testagram API] Legacy browser data calls remain: ' + remainingLegacyCalls.map(file => path.relative(vendorRoot, file)).join(', '));
+  }
+
   return () => {
     for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
     fs.rmSync(socialServicePath, { force: true });
