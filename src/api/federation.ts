@@ -110,7 +110,7 @@ export async function getInstance(): Promise<any> { return api('/instance', 'GET
 export async function getHealth(): Promise<any> { return api('/health', 'GET', undefined, { domain: 'mastodon.social' }); }
 export async function pollFediverseInbox(_userId: string): Promise<any[]> { const result = await api<{items?:any[]}>('/inbox', 'GET', undefined, { limit: 50 }); return Array.isArray(result?.items) ? result.items : []; }
 /** @deprecated Use the named exports above. */
-export async function gwRelay<T = any>(path: string, method = 'GET', body?: any, params?: Record<string, any>): Promise<T> { return api<T>(path, method, body, params); }
+export async function gwRelay<T = any>(path: string, method: 'GET' | 'POST' | 'DELETE' = 'GET', body?: any, params?: Record<string, any>): Promise<T> { return api<T>(path, method, body, params); }
 
 export async function quoteStatus(postId: string, content: string): Promise<any> {
   if (!/^https:\/\//i.test(postId)) throw new Error('Quote target is not a remote ActivityPub object');

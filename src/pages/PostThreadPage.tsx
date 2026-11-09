@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
-import { supabase } from '@/lib/supabase';
-import { backendCapabilities } from '@/services/backendClient';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { Post } from '@/types/app-types';
 import { Loader2, Twitter, Facebook, Link2, MessageCircle, Send, Heart, Repeat2, Quote } from 'lucide-react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
@@ -97,26 +96,20 @@ export default function PostThreadPage() {
         return;
       }
 
-      const { data: postData, error: postError } = await supabase
-        .from('posts')
-        .select('*, profiles!posts_author_id_fkey(*)')
-        .eq('id', postId)
-        .single();
-      if (postError) throw postError;
-      const normalizedLocalPost = { ...postData, user_profiles: postData.profiles ?? postData.user_profiles ?? null };
+      const postData = await backendCapabilities.getPost(postId);
+      if (!postData?.id) throw new Error('Post not found or no longer visible.');
+      const normalizedLocalPost = { ...postData, user_profiles: postData.user_profiles ?? postData.profiles ?? null };
       setPost(normalizedLocalPost);
       if (user?.id) {
         void backendCapabilities.recordBrowsingHistory({
           entity_type: 'post',
           entity_id: postId,
           metadata: { surface: 'post-detail' },
-        }).catch((historyError) => console.warn('[history] Could not record post view', historyError));
+        }).catch((historyError) => console.warn('[history] Could not record post history', historyError));
+        void backendCapabilities.recordPostView(postId)
+          .then(({ views_count }) => setPost(current => current ? { ...current, views_count } : current))
+          .catch((viewError) => console.warn('[views] Could not record post view', viewError));
       }
-
-      void supabase
-        .from('posts')
-        .update({ views_count: (postData.views_count || 0) + 1 })
-        .eq('id', postId);
     } catch (err) {
       console.error('Error fetching post:', err);
       toast({ title: 'Error', description: 'Failed to load post', variant: 'destructive' });

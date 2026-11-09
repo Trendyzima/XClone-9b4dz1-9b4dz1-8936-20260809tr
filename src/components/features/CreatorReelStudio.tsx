@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 import { useAuth } from '@/hooks/useAuth';
 import type { CreatorMediaAsset } from './CreatorMediaStudio';
 import { Clapperboard, Download, Film, Layers3, Pause, Play, Plus, RotateCcw, Scissors, Sparkles, Trash2, Upload, Volume2 } from 'lucide-react';
@@ -91,11 +91,13 @@ export function CreatorReelStudio({ asset, onOpenMedia, onSendToComposer }: Prop
         }; requestAnimationFrame(frame);
       });
       const blob = await done;
-      const name = `reel-${Date.now()}.webm`, path = `${user.id}/${name}`;
-      const upload = await supabase.storage.from('posts').upload(path, blob, { contentType: 'video/webm', upsert: false });
-      if (upload.error) throw upload.error;
-      const { data } = supabase.storage.from('posts').getPublicUrl(path);
-      const result: CreatorMediaAsset = { id: `video:${path}`, name, path, url: data.publicUrl, type: 'video', size: blob.size, updatedAt: new Date().toISOString() };
+      const name = `reel-${Date.now()}.webm`;
+      const file = new File([blob], name, { type: 'video/webm', lastModified: Date.now() });
+      const uploaded = await uploadTestagramMedia(file);
+      const objectKey = uploaded.object_key || uploaded.key;
+      const mediaUrl = uploaded.media_url || uploaded.public_url;
+      if (!objectKey || !mediaUrl) throw new Error('Backend did not return a usable uploaded reel reference.');
+      const result: CreatorMediaAsset = { id: uploaded.media_id || objectKey, name, path: objectKey, url: mediaUrl, type: 'video', size: uploaded.size_bytes || blob.size, updatedAt: new Date().toISOString() };
       setExported(result); setExportProgress(100);
     } catch (err: any) { setError(err?.message ?? 'Could not export this reel.'); }
     finally { setExporting(false); }

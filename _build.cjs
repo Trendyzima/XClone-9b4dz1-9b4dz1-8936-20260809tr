@@ -105,7 +105,7 @@ function readNormalizedUtf8(filePath) {
 }
 
 function patchTikVTVForTestagramAuth(vendorRoot) {
-  const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
+  const legacyAdapterPath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
   const authServicePath = path.join(vendorRoot, 'src', 'lib', 'authService.ts');
   const authHookPath = path.join(vendorRoot, 'src', 'hooks', 'useAuth.ts');
   const notificationsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useNotifications.ts');
@@ -132,23 +132,17 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   const channelsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useChannels.ts');
   const prefetchPath = path.join(vendorRoot, 'src', 'lib', 'streamPrefetch.ts');
   let prefetchSource = "type WarmChannel = { id: string; streamUrl: string };\ntype WarmResult = { channelId: string; outcome: 'warmed' | 'skipped' | 'failed'; reason?: string };\nconst MAX_MANIFEST = 512 * 1024;\nconst TIMEOUT_MS = 2200;\nconst COOLDOWN_MS = 90_000;\nconst warmed = new Map<string, number>();\nconst inFlight = new Set<string>();\nconst signedKey = /token|signature|expires|authorization|hdnts|hdnea|jwt|credential|x-amz-/i;\nfunction signed(url: URL) { return Array.from(url.searchParams.keys()).some(key => signedKey.test(key)); }\nfunction resolveHttps(value: string, base: URL): URL | null {\n  try { const url = new URL(value, base); return url.protocol === 'https:' ? url : null; } catch { return null; }\n}\nasync function readBounded(response: Response): Promise<string> {\n  const reader = response.body?.getReader();\n  if (!reader) throw new Error('empty manifest');\n  const decoder = new TextDecoder();\n  let text = '';\n  try {\n    while (text.length <= MAX_MANIFEST) {\n      const { done, value } = await reader.read();\n      if (done) break;\n      text += decoder.decode(value, { stream: true });\n      if (text.length > MAX_MANIFEST) { await reader.cancel(); throw new Error('manifest too large'); }\n    }\n  } finally { try { reader.releaseLock(); } catch {} }\n  if (!/^\\s*#EXTM3U\\b/.test(text)) throw new Error('invalid HLS manifest');\n  return text;\n}\nasync function getManifest(url: URL, signal: AbortSignal): Promise<string> {\n  const response = await fetch(url.toString(), {\n    mode: 'cors', credentials: 'omit', cache: 'no-store', signal,\n    headers: { Accept: 'application/vnd.apple.mpegurl, text/plain;q=0.9, */*;q=0.5' },\n  });\n  if (!response.ok) throw new Error('manifest HTTP ' + response.status);\n  return readBounded(response);\n}\nfunction chooseVariant(text: string, base: URL): URL | null {\n  const lines = text.split(/\\r?\\n/).map(line => line.trim());\n  const variants: Array<{ url: URL; bandwidth: number }> = [];\n  for (let i = 0; i < lines.length; i++) {\n    if (!lines[i].startsWith('#EXT-X-STREAM-INF:')) continue;\n    const bandwidth = Number(lines[i].match(/BANDWIDTH=(\\d+)/i)?.[1] || 0);\n    const uri = lines.slice(i + 1).find(line => line && !line.startsWith('#'));\n    const url = uri ? resolveHttps(uri, base) : null;\n    if (url) variants.push({ url, bandwidth });\n  }\n  variants.sort((a, b) => a.bandwidth - b.bandwidth);\n  return variants[0]?.url || null;\n}\nfunction chooseSegment(text: string, base: URL): URL | null {\n  const lines = text.split(/\\r?\\n/).map(line => line.trim());\n  const segments = lines.filter(line => line && !line.startsWith('#'))\n    .map(line => resolveHttps(line, base)).filter((url): url is URL => Boolean(url));\n  if (!segments.length) {\n    const map = text.match(/#EXT-X-MAP:[^\\n]*URI=\"([^\"]+)\"/i)?.[1];\n    return map ? resolveHttps(map, base) : null;\n  }\n  return text.includes('#EXT-X-ENDLIST') ? segments[0] : segments[segments.length - 1];\n}\nasync function warmSegment(url: URL, signal: AbortSignal) {\n  if (signed(url)) return;\n  try {\n    const response = await fetch(url.toString(), {\n      mode: 'cors', credentials: 'omit', cache: 'no-store', signal, headers: { Accept: '*/*' },\n    });\n    if (!response.ok || response.status !== 200) return;\n    const length = Number(response.headers.get('content-length') || 0);\n    if (length > MAX_PREFETCH_SEGMENT_BYTES) { await response.body?.cancel(); return; }\n    const reader = response.body?.getReader();\n    if (!reader) return;\n    const chunks: Uint8Array[] = []; let total = 0;\n    try {\n      while (true) { const part = await reader.read(); if (part.done) break; total += part.value.byteLength; if (total > MAX_PREFETCH_SEGMENT_BYTES) { await reader.cancel(); return; } chunks.push(part.value); }\n    } finally { try { reader.releaseLock(); } catch {} }\n    const bytes = new Uint8Array(total); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }\n    await saveSegmentCache(url.toString(), bytes.buffer, response.headers.get('content-type') || 'application/octet-stream');\n  } catch {\n    // CORS-disabled broadcasters remain playable; warming is best-effort only.\n  }\n}\nasync function warmOne(channel: WarmChannel, parent: AbortSignal): Promise<WarmResult> {\n  let source: URL;\n  try { source = new URL(channel.streamUrl); } catch {\n    return { channelId: channel.id, outcome: 'skipped', reason: 'invalid-url' };\n  }\n  if (source.protocol !== 'https:' || !/\\.m3u8$/i.test(source.pathname)) {\n    return { channelId: channel.id, outcome: 'skipped', reason: 'not-HLS' };\n  }\n  if (signed(source)) return { channelId: channel.id, outcome: 'skipped', reason: 'signed-url' };\n  if (inFlight.has(channel.id) || Date.now() - (warmed.get(channel.id) || 0) < COOLDOWN_MS) {\n    return { channelId: channel.id, outcome: 'skipped', reason: 'recently-warmed' };\n  }\n  inFlight.add(channel.id);\n  const controller = new AbortController();\n  const abort = () => controller.abort();\n  if (parent.aborted) controller.abort(); else parent.addEventListener('abort', abort, { once: true });\n  const timer = setTimeout(abort, TIMEOUT_MS);\n  try {\n    let playlistUrl = source;\n    let text = await getManifest(source, controller.signal);\n    const variant = chooseVariant(text, source);\n    if (variant) { playlistUrl = variant; text = await getManifest(variant, controller.signal); }\n    const segment = chooseSegment(text, playlistUrl);\n    if (segment) await warmSegment(segment, controller.signal);\n    warmed.set(channel.id, Date.now());\n    return { channelId: channel.id, outcome: 'warmed' };\n  } catch (error) {\n    return { channelId: channel.id, outcome: 'failed', reason: error instanceof Error ? error.message : 'network-failure' };\n  } finally {\n    clearTimeout(timer);\n    parent.removeEventListener('abort', abort);\n    inFlight.delete(channel.id);\n  }\n}\nexport async function warmChannelBatch(channels: WarmChannel[], signal: AbortSignal) {\n  const results: WarmResult[] = [];\n  for (const channel of channels.slice(0, 4)) {\n    if (signal.aborted) break;\n    results.push(await warmOne(channel, signal));\n  }\n  if (results.length) window.dispatchEvent(new CustomEvent('testagram:iptv-prefetch', { detail: results }));\n  return results;\n}\n";
-  // The vendor's historical import path is retained only as a fail-closed
-  // compatibility shim. No SDK, URL, key, auth storage or realtime client is
-  // generated. All supported IPTV social operations use the host Appwrite bridge.
-  const supabaseSource = `const unavailable = new Proxy({}, {
-    get() { throw new Error('This legacy data adapter has been removed. Use the Testagram Backend API.'); },
-  });
-  export const supabase = unavailable as any;
-  export const supabaseUrl = '';
-  export const supabasePublishableKey = '';
-  `;
+  // The vendor's legacy data adapter is removed during the build. All supported
+  // IPTV social operations use the host Appwrite bridge and canonical Backend API.
+  // Remove the legacy vendor adapter from the actual build tree; no shim or client is generated.
 
-  if (!fs.existsSync(supabasePath) || !fs.existsSync(authServicePath) || !fs.existsSync(authHookPath) || !fs.existsSync(notificationsHookPath) || !fs.existsSync(clipsHookPath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
+
+  if (!fs.existsSync(legacyAdapterPath) || !fs.existsSync(authServicePath) || !fs.existsSync(authHookPath) || !fs.existsSync(notificationsHookPath) || !fs.existsSync(clipsHookPath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
     throw new Error('[TikVTV/Testagram Auth] Expected upstream auth/branding files are missing');
   }
 
   const original = new Map([
-    [supabasePath, readNormalizedUtf8(supabasePath)],
+    [legacyAdapterPath, readNormalizedUtf8(legacyAdapterPath)],
     [authServicePath, readNormalizedUtf8(authServicePath)],
     [authHookPath, readNormalizedUtf8(authHookPath)],
     [notificationsHookPath, readNormalizedUtf8(notificationsHookPath)],
@@ -262,11 +256,11 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     fs.writeFileSync(indexCssPath, repairedVendorCss, 'utf8');
   }
 
-  fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
+  fs.rmSync(legacyAdapterPath, { force: true });
   fs.writeFileSync(authServicePath, [
     "import type { AuthUser } from '@/types';",
     "import { iptvSocial } from '@/lib/testagramSocial';",
-    "export function mapSupabaseUser(user: any): AuthUser {",
+    "export function mapHostUser(user: any): AuthUser {",
     "  const id = String(user?.id || user?.$id || '');",
     "  const email = String(user?.email || '');",
     "  return { id, email, username: String(user?.username || user?.prefs?.username || user?.name || email.split('@')[0] || 'viewer'), avatar: user?.avatar || user?.prefs?.avatar_url };",
@@ -276,31 +270,33 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  async sendOtp(..._args: any[]) { goToHostAuth(); },",
     "  async verifyOtpAndRegister(..._args: any[]) { goToHostAuth(); throw new Error('Complete registration in Testagram.'); },",
     "  async signInWithPassword(..._args: any[]) { goToHostAuth(); throw new Error('Sign in through Testagram.'); },",
-    "  async signOut() { await iptvSocial('sign_out'); },",
+    "  async signOut() { window.parent.postMessage({ type: 'testagram:iptv-signout-request' }, window.location.origin); },",
     "};",
   ].join('\n'), 'utf8');
   fs.writeFileSync(authHookPath, [
     "import { useEffect } from 'react';",
-    "import { iptvSocial } from '@/lib/testagramSocial';",
     "import { useAuthStore } from '@/stores/authStore';",
     "import type { AuthUser } from '@/types';",
     "export function useAuth() {",
     "  const { user, loading, login, logout, setLoading } = useAuthStore();",
     "  useEffect(() => {",
     "    let mounted = true;",
-    "    const load = async () => {",
-    "      try { const result = await iptvSocial<{user:AuthUser|null}>('session_info'); if (!mounted) return; if (result.user) login(result.user); else logout(); }",
-    "      catch { if (mounted) logout(); }",
-    "      finally { if (mounted) setLoading(false); }",
+    "    const requestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());",
+    "    const onAuthState = (event: MessageEvent) => {",
+    "      if (event.source !== window.parent || event.origin !== window.location.origin || !mounted) return;",
+    "      const message = event.data as { type?: string; requestId?: string; user?: AuthUser | null } | null;",
+    "      if (!message || (message.type !== 'testagram:iptv-auth-state' && !(message.type === 'testagram:iptv-auth-state-response' && message.requestId === requestId))) return;",
+    "      if (message.user) login(message.user); else logout();",
+    "      setLoading(false);",
     "    };",
-    "    void load();",
-    "    const onAuthChanged = (event: MessageEvent) => { if (event.source === window.parent && event.origin === window.location.origin && event.data?.type === 'testagram:auth-changed') void load(); };",
-    "    window.addEventListener('message', onAuthChanged);",
-    "    return () => { mounted = false; window.removeEventListener('message', onAuthChanged); };",
+    "    window.addEventListener('message', onAuthState);",
+    "    if (window.parent === window) setLoading(false);",
+    "    else window.parent.postMessage({ type: 'testagram:iptv-auth-state-request', requestId }, window.location.origin);",
+    "    return () => { mounted = false; window.removeEventListener('message', onAuthState); };",
     "  }, []);",
     "  return { user, loading, login, logout };",
     "}",
-  ].join('\n'), 'utf8');
+  ].join('\\n'), 'utf8');
   fs.writeFileSync(notificationsHookPath, [
     "import { useState, useEffect, useCallback, useRef } from 'react';",
     "import { iptvSocial } from '@/lib/testagramSocial';",
@@ -670,15 +666,15 @@ export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
   fs.writeFileSync(feedPath, feed, 'utf8');
   fs.writeFileSync(channelCardPath, channelCard, 'utf8');
 
-  // Fail closed if any active IPTV source file still tries to call the removed
-  // browser database client. The compatibility shim is not an implementation.
-  const forbiddenLegacyDataCall = /@supabase\/supabase-js|\bsupabase\.(?:from|rpc|functions|storage|channel|auth)\b/i;
+  // Fail closed if any active IPTV source file imports or calls the removed
+  // browser database client. The adapter file itself has been removed.
+  const forbiddenLegacyDataCall = /@supabase\/supabase-js|from\s*['"][^'"]*\/supabase(?:\.ts)?['"]|\bsupabase\.(?:from|rpc|functions|storage|channel|auth)\b/i;
   const sourceFiles = [];
   const walkSource = (directory) => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) walkSource(fullPath);
-      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name) && fullPath !== supabasePath) sourceFiles.push(fullPath);
+      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name)) sourceFiles.push(fullPath);
     }
   };
   walkSource(path.join(vendorRoot, 'src'));

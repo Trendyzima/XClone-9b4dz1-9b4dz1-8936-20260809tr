@@ -47,12 +47,13 @@ export function installIptvSocialBridge() {
     if (action === 'session_info') {
       try {
         const user = await appwriteAuth.getCurrentUser();
+        const prefs = (user?.prefs ?? {}) as Record<string, unknown>;
         respond(target, event.origin, message.requestId, true, {
           user: user ? {
             id: user.$id,
             email: user.email,
-            username: user.prefs?.username || user.name || user.email.split('@')[0],
-            avatar: user.prefs?.avatar_url || undefined,
+            username: (typeof prefs.username === 'string' ? prefs.username : '') || user.name || user.email.split('@')[0],
+            avatar: typeof prefs.avatar_url === 'string' ? prefs.avatar_url : undefined,
           } : null,
         }, null);
       } catch (error) {

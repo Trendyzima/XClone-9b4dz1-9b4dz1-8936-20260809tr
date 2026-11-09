@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { Bookmark, Play, Heart, Eye, Loader2, X, Trash2 } from 'lucide-react';
 import { TopBar } from '@/components/layout/TopBar';
 import { formatNumber } from '@/lib/utils';
@@ -16,21 +16,54 @@ export default function VideoWatchLaterPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) { navigate('/auth'); return; }
-    const key = `ts-watchlater-${user.id}`;
-    const stored = localStorage.getItem(key);
-    const ids: string[] = stored ? JSON.parse(stored) : [];
-    setVideoIds(ids);
-    if (ids.length === 0) { setLoading(false); return; }
-    supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
-      .in('id', ids).eq('is_video', true)
-      .then(({ data }) => {
-        // Preserve localStorage order
-        const map = new Map((data ?? []).map((v: any) => [v.id, v]));
-        setVideos(ids.map(id => map.get(id)).filter(Boolean) as Post[]);
+    let active = true;
+    const load = async () => {
+      if (!user) {
+        navigate('/auth');
+        if (active) setLoading(false);
+        return;
+      }
+      const key = `ts-watchlater-${user.id}`;
+      let ids: string[] = [];
+      try {
+        const stored = localStorage.getItem(key);
+        const parsed = stored ? JSON.parse(stored) : [];
+        ids = Array.isArray(parsed)
+          ? parsed.filter((value): value is string => typeof value === 'string').slice(0, 50)
+          : [];
+      } catch {
+        localStorage.removeItem(key);
+      }
+      if (!active) return;
+      setVideoIds(ids);
+      if (ids.length === 0) {
+        setVideos([]);
         setLoading(false);
-      });
-  }, [user?.id]);
+        return;
+      }
+      try {
+        const results = await Promise.allSettled(ids.map(id => backendCapabilities.getPost(id)));
+        const loaded = results.flatMap(result => {
+          if (result.status !== 'fulfilled' || !result.value?.id || !result.value.is_video) return [];
+          return [{
+            ...result.value,
+            user_profiles: result.value.user_profiles ?? result.value.profiles ?? null,
+          }];
+        });
+        if (active) setVideos(loaded as Post[]);
+      } catch (error) {
+        console.error('[watch-later] Saved videos could not be loaded:', error);
+        if (active) {
+          setVideos([]);
+          toast.error('Saved videos could not be loaded.');
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
+    return () => { active = false; };
+  }, [user?.id, navigate]);
 
   const removeVideo = (id: string) => {
     if (!user) return;

@@ -78,15 +78,24 @@ jobs:
           TESTAGRAM_ANDROID_KEY_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEY_PASSWORD }}
           SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+          VITE_APPWRITE_ENDPOINT: ${{ vars.VITE_APPWRITE_ENDPOINT }}
+          VITE_APPWRITE_PROJECT_ID: ${{ vars.VITE_APPWRITE_PROJECT_ID }}
+          VITE_TESTAGRAM_API_URL: ${{ vars.VITE_TESTAGRAM_API_URL }}
         run: |
           set -euo pipefail
           flutter build apk --release \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=VITE_APPWRITE_ENDPOINT="$VITE_APPWRITE_ENDPOINT" \
+            --dart-define=VITE_APPWRITE_PROJECT_ID="$VITE_APPWRITE_PROJECT_ID" \
+            --dart-define=VITE_TESTAGRAM_API_URL="$VITE_TESTAGRAM_API_URL" \
             --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
           flutter build appbundle --release \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=VITE_APPWRITE_ENDPOINT="$VITE_APPWRITE_ENDPOINT" \
+            --dart-define=VITE_APPWRITE_PROJECT_ID="$VITE_APPWRITE_PROJECT_ID" \
+            --dart-define=VITE_TESTAGRAM_API_URL="$VITE_TESTAGRAM_API_URL" \
             --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
 
       - name: Verify signatures, package identity and pinned production certificate

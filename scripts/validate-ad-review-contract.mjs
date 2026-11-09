@@ -1,26 +1,33 @@
 import fs from 'node:fs';
 
-const migration = fs.readFileSync('supabase/migrations/20261014120000_testagram_admin_ad_review_v1.sql', 'utf8');
-const page = fs.readFileSync('mobile/lib/features/ads/ad_review_page.dart', 'utf8');
-const policy = fs.readFileSync('mobile/lib/features/ads/ad_review_policy.dart', 'utf8');
+const read = (path) => fs.readFileSync(path, 'utf8');
+const page = read('mobile/lib/features/ads/ad_review_page.dart');
+const session = read('mobile/lib/core/auth/appwrite_admin_session.dart');
+const config = read('mobile/lib/core/config/app_config.dart');
+const contract = read('docs/contracts/ad-review-v1.md');
+
 const required = [
-  ['campaign review is security definer', /function public\.testagram_admin_review_ad_campaign[\s\S]*?security definer/i],
-  ['queue is permission checked', /function public\.testagram_admin_list_ad_review_queue[\s\S]*?testagram_has_permission\('platform\.ads'\)/i],
-  ['review requires MFA privileged session', /function public\.testagram_admin_review_ad_campaign[\s\S]*?testagram_require_privileged_session\(\)/i],
-  ['reject reason is mandatory server-side', /p_decision = 'rejected' and v_note is null then raise exception/i],
-  ['paid-but-unreviewed campaigns stay pending review', /when moderation_status='pending' then 'pending_review'/i],
-  ['impression claims require explicit moderation approval', /moderation_status='approved' and status='active' and payment_status='funded'/i],
-  ['payment settlement returns actual activation state', /'activated',\(select status='active' from public\.testagram_ad_campaigns where id=p\.campaign_id\)/i],
-  ['campaign owner receives an inbox result', /insert into public\.platform_inbox\(user_id, type, subject, body, icon_emoji, cta_label, cta_url, metadata\)/i],
-  ['review is audited', /insert into public\.testagram_governance_audit_log\(actor_user_id, action, target_user_id, reason, metadata\)/i],
-  ['Flutter page calls the secure review RPC', /\.rpc\(\s*['"]testagram_admin_review_ad_campaign['"]/i],
-  ['Flutter UI does not allow repeat review', /status == 'pending'/i],
-  ['reject reason length is bounded', /length <= 500/i],
+  ['mobile review page uses the Appwrite admin session', /AppwriteAdminSession/.test(page)],
+  ['mobile review page contains no Supabase SDK or RPC calls', !/supabase_flutter|Supabase\.instance|\.rpc\(/i.test(page)],
+  ['admin session signs in through Appwrite email sessions', /\/account\/sessions\/email/.test(session)],
+  ['admin session sends the Appwrite project header', /X-Appwrite-Project/.test(session)],
+  ['admin session requests a short-lived Appwrite JWT', /\/account\/jwt/.test(session)],
+  ['admin session implements MFA challenge and completion', /\/account\/mfa\/challenges/.test(session) && /completeMfaChallenge/.test(session)],
+  ['Backend requests carry the Appwrite JWT', /Authorization.*Bearer/.test(session)],
+  ['client contains no Appwrite API key or service credential', !/X-Appwrite-Key|APPWRITE_API_KEY|service[_-]?role/i.test(session)],
+  ['Appwrite session cookies are not forwarded to the Backend API', !/_backendRequest[\s\S]*Cookie/.test(session)],
+  ['Backend queue, review and status routes are used', /\/api\/admin\/ads\/review-queue/.test(session) && /\/review/.test(session) && /\/status/.test(session)],
+  ['MFA-required responses are handled in the page', /ADMIN_MFA_REQUIRED/.test(page)],
+  ['rejection requires a reason and caps it at 500 characters', /decision == 'rejected' && note\.isEmpty/.test(page) && /maxLength: 500/.test(page)],
+  ['Appwrite and canonical API build defines are configured', /VITE_APPWRITE_ENDPOINT/.test(config) && /VITE_APPWRITE_PROJECT_ID/.test(config) && /VITE_TESTAGRAM_API_URL/.test(config)],
+  ['contract documents recent MFA and platform.ads authorization', /five minutes/.test(contract) && /platform\.ads/.test(contract)],
+  ['contract documents the native review endpoints', /GET \/api\/admin\/ads\/review-queue/.test(contract) && /POST \/api\/admin\/ads\/\\{campaign_id\\}\/review/.test(contract)],
 ];
-const failures = required.filter(([, pattern]) => !pattern.test(`${migration}\n${page}\n${policy}`)).map(([label]) => label);
+
+const failures = required.filter(([, passed]) => !passed).map(([label]) => label);
 if (failures.length) {
-  console.error(`Ad review contract failed: ${failures.join('; ')}`);
+  console.error(`Native ad-review contract failed: ${failures.join('; ')}`);
   process.exitCode = 1;
 } else {
-  console.log(`Ad review contract passed: ${required.length}/${required.length} checks.`);
+  console.log(`Native ad-review contract passed: ${required.length}/${required.length} checks.`);
 }

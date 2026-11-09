@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { UserRound, LogIn, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePremium } from '@/hooks/usePremium';
+import { testagramApiRequest } from '@/services/apiClient';
+import { appwriteAuth } from '@/services/appwriteAuth';
 
 type IptvAdWindow = Window & {
   google?: any;
@@ -552,6 +554,65 @@ export default function TikVTVPage() {
     const removeAds = isPremium ? undefined : installIptvChannelAds(frame);
     return () => { removeAds?.(); removeRigidScroll(); };
   }, [ready, isPremium, handlePullRefresh]);
+
+  // The IPTV iframe has no provider SDK or credentials. Its social requests
+  // are brokered through this same-origin host and the canonical Backend API.
+  useEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame) return;
+    const allowedActions = new Set([
+      'trending', 'comments_list', 'comments_count', 'reactions_state',
+      'reaction_toggle', 'comment_add', 'comment_delete', 'notifications',
+      'bookmark_list', 'bookmark_toggle', 'history_list', 'history_upsert',
+      'history_delete', 'history_clear',
+    ]);
+    const publicActions = new Set(['trending', 'comments_list', 'comments_count', 'reactions_state']);
+    const currentUser = () => user ? {
+      id: user.id, email: user.email, username: user.username, avatar: user.avatar ?? null,
+    } : null;
+    const sendAuthState = (requestId?: string) => {
+      frame.contentWindow?.postMessage({
+        type: requestId ? 'testagram:iptv-auth-state-response' : 'testagram:iptv-auth-state',
+        ...(requestId ? { requestId } : {}),
+        user: currentUser(),
+      }, window.location.origin);
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
+      const message = event.data as Record<string, unknown> | null;
+      if (!message || typeof message !== 'object') return;
+      if (message.type === 'testagram:iptv-auth-state-request' && typeof message.requestId === 'string') {
+        sendAuthState(message.requestId);
+        return;
+      }
+      if (message.type === 'testagram:iptv-signout-request') {
+        void appwriteAuth.signOut().then(() => {
+          frame.contentWindow?.postMessage({ type: 'testagram:iptv-auth-state', user: null }, window.location.origin);
+        }).catch(() => {});
+        return;
+      }
+      if (message.type !== 'testagram:iptv-social-request' ||
+          typeof message.requestId !== 'string' || typeof message.action !== 'string' ||
+          !allowedActions.has(message.action)) return;
+      const payload = message.payload && typeof message.payload === 'object' && !Array.isArray(message.payload)
+        ? message.payload as Record<string, unknown> : {};
+      const requestId = message.requestId;
+      void testagramApiRequest<unknown>('/api/iptv/social', {
+        method: 'POST',
+        body: { action: message.action, payload },
+        anonymous: publicActions.has(message.action) && !user,
+      }).then((data) => {
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-social-response', requestId, ok: true, data }, window.location.origin);
+      }).catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : 'IPTV request failed';
+        frame.contentWindow?.postMessage({ type: 'testagram:iptv-social-response', requestId, ok: false, error: reason }, window.location.origin);
+      });
+    };
+    window.addEventListener('message', onMessage);
+    if (ready) sendAuthState();
+    return () => window.removeEventListener('message', onMessage);
+  }, [ready, user?.id, user?.email, user?.username, user?.avatar]);
+
 
   return (
     <div className="fixed inset-0 z-[60] bg-black" data-testid="iptv-page">

@@ -1,14 +1,18 @@
 # Testagram Mobile Architecture Contract
 
 ## Product ownership
-Flutter owns the mobile presentation layer. It should not duplicate server-side business rules that already belong in Supabase Edge Functions/RPCs.
+Flutter owns the mobile presentation layer. It must not duplicate server-side business rules or access product databases and provider services directly.
 
 ## Boundary
 ```
 Flutter UI
-  -> feature/domain services
-  -> typed API/repository boundary
-  -> Supabase Auth / Postgres / Realtime / Storage / Edge Functions
+  -> Appwrite Account SDK for user authentication/session only
+  -> typed Testagram Backend API client (Appwrite JWT)
+  -> Backend authorization and business rules
+  -> Neon for canonical relational application data
+  -> Backblaze B2 for durable media objects
+  -> Cloudflare for CDN, DNS, caching and edge security
+  -> Data Centre for private storage lifecycle, replication, backup and realtime infrastructure
   -> native capability adapters only when Android/iOS requires platform APIs
 ```
 
@@ -27,8 +31,8 @@ Native code must expose small, typed interfaces to Flutter. Product screens must
 - The current WebView Android client remains a rollback path.
 - Each migrated feature must have a production contract test before the corresponding WebView feature is retired.
 - Auth, push, deep links, media upload, realtime subscriptions and offline recovery are release blockers.
-- No service-account keys or privileged Supabase credentials enter Flutter assets.
-- Public Supabase credentials may only be used with RLS/Edge Function enforcement.
+- No Appwrite server keys, Neon credentials, B2 application keys, Cloudflare tokens or internal service credentials enter Flutter assets.
+- No Supabase SDK, URL, key, REST/RPC call, Realtime client, Storage call or Edge Function call is permitted in the mobile runtime.
 
 ## 10/10 release gates
 1. `flutter analyze` clean.
@@ -36,7 +40,7 @@ Native code must expose small, typed interfaces to Flutter. Product screens must
 3. Android debug/release build green.
 4. Deep-link routing verified.
 5. FCM foreground/background/tap behavior verified.
-6. Auth refresh and sign-out verified.
+6. Appwrite session refresh and sign-out verified.
 7. Feed pagination/realtime recovery verified.
 8. Media upload/camera/microphone permission flows verified.
 9. Offline/poor-network recovery verified.

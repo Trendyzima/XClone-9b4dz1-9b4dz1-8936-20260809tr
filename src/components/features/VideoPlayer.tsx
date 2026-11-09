@@ -9,6 +9,7 @@ import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { backendCapabilities } from '@/services/backendClient';
+import { socialApi } from '@/services/socialApiClient';
 import { useToast } from '@/hooks/use-toast';
 import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
@@ -132,44 +133,36 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
 
   /* ── Load initial like / repost / follow state ──────────────────────── */
   useEffect(() => {
-    if (!user) return;
-    const uid = user.id;
-    // Check like
-    supabase.from('likes').select('id').eq('user_id', uid).eq('post_id', post.id).maybeSingle()
-      .then(({ data }) => { if (data) setIsLiked(true); });
-    // Check repost
-    supabase.from('reposts').select('id').eq('user_id', uid).eq('post_id', post.id).maybeSingle()
-      .then(({ data }) => { if (data) setIsReposted(true); });
-    // Check bookmark
-    supabase.from('bookmarks').select('id').eq('user_id', uid).eq('post_id', post.id).maybeSingle()
-      .then(({ data }) => { if (data) setIsBookmarked(true); });
-    // Check follow (skip own posts)
-    if (post.user_id !== uid) {
-      supabase.from('follows').select('id').eq('follower_id', uid).eq('following_id', post.user_id).maybeSingle()
-        .then(({ data }) => { if (data) setIsFollowing(true); });
+    if (!user) {
+      setIsLiked(false); setIsReposted(false); setIsBookmarked(false); setIsFollowing(false);
+      return;
     }
+    let active = true;
+    void Promise.all([
+      socialApi.getInteractionSummary(post.id),
+      post.user_id !== user.id ? socialApi.getFollowState(post.user_id) : Promise.resolve({ following: false, requested: false, status: 'self' }),
+    ]).then(([summary, follow]) => {
+      if (!active) return;
+      setIsLiked(Boolean(summary.is_liked));
+      setIsReposted(Boolean(summary.is_reposted));
+      setIsBookmarked(Boolean(summary.is_bookmarked));
+      setLikesCount(Number(summary.likes ?? post.likes_count ?? 0));
+      setRepostsCount(Number(summary.reposts ?? post.reposts_count ?? 0));
+      setRepliesCount(Number(summary.replies ?? post.replies_count ?? 0));
+      setIsFollowing(Boolean(follow.following));
+    }).catch(() => {
+      // Feed counts remain usable if the optional interaction-state request is unavailable.
+    });
+    return () => { active = false; };
   }, [user?.id, post.id, post.user_id]);
 
   /* ── Author premium cache ────────────────────────────────────────────── */
   useEffect(() => {
-    const uid = post.user_id;
-    if (authorPremiumCache.has(uid)) {
-      setIsAuthorPremium(authorPremiumCache.get(uid)!);
-      return;
-    }
-    supabase
-      .from('premium_subscriptions')
-      .select('id')
-      .eq('user_id', uid)
-      .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle()
-      .then(({ data }) => {
-        const has = !!data;
-        authorPremiumCache.set(uid, has);
-        setIsAuthorPremium(has);
-      });
-  }, [post.user_id]);
+    const profile = post.user_profiles as (typeof post.user_profiles & { is_premium?: boolean; premium_active?: boolean }) | null;
+    const has = Boolean(profile?.is_premium || profile?.premium_active);
+    authorPremiumCache.set(post.user_id, has);
+    setIsAuthorPremium(has);
+  }, [post.user_id, post.user_profiles]);
 
   useEffect(() => {
     if (!isActive || !shellRef.current) return;
@@ -294,12 +287,9 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     setIsLiked(true);
     setLikesCount(newCount);
     try {
-      await supabase.from('likes').insert({ user_id: user.id, post_id: post.id });
-      await supabase.from('posts').update({ likes_count: newCount }).eq('id', post.id);
-      if (post.user_id !== user.id) {
-        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'like', actor_id: user.id, post_id: post.id,
-         });
-      }
+      const result = await socialApi.setLike(post.id, true);
+      setLikesCount(result.likes_count);
+      setIsLiked(result.liked);
       onUpdate?.();
     } catch (_) {
       setIsLiked(false);
@@ -315,12 +305,7 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     const nowFollowing = !isFollowing;
     setIsFollowing(nowFollowing);
     try {
-      if (nowFollowing) {
-        await supabase.from('follows').insert({ follower_id: user.id, following_id: post.user_id });
-        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'follow', actor_id: user.id  });
-      } else {
-        await supabase.from('follows').delete().match({ follower_id: user.id, following_id: post.user_id });
-      }
+      await socialApi.setFollow(post.user_id, nowFollowing);
     } catch (_) {
       setIsFollowing(!nowFollowing);
     } finally {
@@ -337,17 +322,10 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     setIsReposted(nowReposted);
     setRepostsCount(newCount);
     try {
-      if (nowReposted) {
-        await supabase.from('reposts').insert({ user_id: user.id, post_id: post.id });
-        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', post.id);
-        if (post.user_id !== user.id)
-          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'repost', actor_id: user.id, post_id: post.id  });
-        toast({ title: 'Reposted' });
-      } else {
-        await supabase.from('reposts').delete().match({ user_id: user.id, post_id: post.id });
-        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', post.id);
-        toast({ title: 'Repost removed' });
-      }
+      const result = await socialApi.setRepost(post.id, nowReposted);
+      setIsReposted(result.reposted);
+      setRepostsCount(result.reposts_count);
+      toast({ title: nowReposted ? 'Reposted' : 'Repost removed' });
       onUpdate?.();
     } catch (_) {
       setIsReposted(!nowReposted);
@@ -448,13 +426,12 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     setShowComments(true);
     if (comments.length > 0) return;
     setCommentsLoading(true);
-    const { data } = await supabase
-      .from('replies')
-      .select('id, content, created_at, profiles(username, avatar_url)')
-      .eq('post_id', post.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    setComments(normalizeVideoReplies(data));
+    try {
+      const result = await socialApi.listReplies(post.id, 50);
+      setComments(normalizeVideoReplies(result.items));
+    } catch (error) {
+      toast({ title: 'Comments unavailable', description: error instanceof Error ? error.message : 'Please try again.' });
+    }
     setCommentsLoading(false);
   };
 
@@ -464,14 +441,19 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     setPosting(true);
     const text = newComment.trim();
     setNewComment('');
-    const { data: inserted } = await supabase
-      .from('replies')
-      .insert({ post_id: post.id, user_id: user.id, content: text })
-      .select('id, content, created_at, profiles(username, avatar_url)')
-      .single();
-    if (inserted) {
-      setComments(prev => [normalizeVideoReplies([inserted])[0], ...prev]);
+    try {
+      const inserted = await socialApi.createReply(post.id, text);
+      const reply: Reply = {
+        id: inserted.reply_id,
+        content: inserted.content,
+        created_at: new Date().toISOString(),
+        user_profiles: { username: user.email?.split('@')[0] || 'You', avatar_url: null },
+      };
+      setComments(prev => [reply, ...prev]);
       setRepliesCount(c => c + 1);
+    } catch (error) {
+      setNewComment(text);
+      toast({ title: 'Comment could not be posted', description: error instanceof Error ? error.message : 'Please try again.' });
     }
     setPosting(false);
   };
@@ -482,13 +464,9 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
     const nowBookmarked = !isBookmarked;
     setIsBookmarked(nowBookmarked);
     try {
-      if (nowBookmarked) {
-        await supabase.from('bookmarks').insert({ user_id: user.id, post_id: post.id });
-        toast({ title: 'Saved to bookmarks' });
-      } else {
-        await supabase.from('bookmarks').delete().match({ user_id: user.id, post_id: post.id });
-        toast({ title: 'Removed from bookmarks' });
-      }
+      const result = await socialApi.setBookmark(post.id, nowBookmarked);
+      setIsBookmarked(result.bookmarked);
+      toast({ title: nowBookmarked ? 'Saved to bookmarks' : 'Removed from bookmarks' });
     } catch (_) {
       setIsBookmarked(!nowBookmarked);
     }

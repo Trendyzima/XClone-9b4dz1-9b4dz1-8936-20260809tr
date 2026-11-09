@@ -17,7 +17,6 @@ import { Shield, Users, Unlock, Lock, Check, X, Loader2, Search,
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 
 // Module-level constants — esbuild guard
 const DEPT_OPTIONS = ['Engineering', 'Content', 'Marketing', 'Moderation', 'Finance', 'Design', 'Operations'] as const;
@@ -526,9 +525,7 @@ export default function RegulatorPanel() {
         body: { ad_id: ad.id, ad_title: ad.title, ad_description: ad.description, ad_image_url: ad.image_url },
       });
       if (error) {
-        let msg = error.message;
-        if (error instanceof FunctionsHttpError) { msg = await error.context?.text?.() ?? msg; }
-        toast.error(`AI check failed: ${msg}`);
+        toast.error(`AI check failed: ${error.message || 'Unknown error'}`);
       } else {
         toast.success(`AI verified: ${data.action} (score ${data.overall_score}/100)`);
         fetchAdQueue();
@@ -585,9 +582,7 @@ export default function RegulatorPanel() {
     try {
       const { data, error } = await supabase.functions.invoke('ai-moderation', { body: { scan_recent: true } });
       if (error) {
-        let msg = error.message;
-        if (error instanceof FunctionsHttpError) { msg = await error.context?.text?.() ?? msg; }
-        toast.error(`Scan failed: ${msg}`);
+        toast.error(`Scan failed: ${error.message || 'Unknown error'}`);
       } else {
         setScanResult({ scanned: data.scanned, flagged: data.flagged, banned: data.banned });
         toast.success(data.message);

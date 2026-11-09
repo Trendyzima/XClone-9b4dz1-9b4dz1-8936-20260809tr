@@ -3,13 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { ExternalLink, Loader2, CheckCircle2, AlertCircle, Smartphone } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useWallet } from '@/hooks/useWallet';
 
 function errorMessage(error: unknown): string {
-  if (error instanceof FunctionsHttpError) return error.message || 'PesaPal request failed';
   return error instanceof Error ? error.message : 'PesaPal request failed';
 }
 

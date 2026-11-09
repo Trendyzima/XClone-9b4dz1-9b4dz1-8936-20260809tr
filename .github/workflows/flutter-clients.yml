@@ -14,6 +14,7 @@ on:
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
       - 'scripts/validate-ad-review-contract.mjs'
+      - 'docs/contracts/ad-review-v1.md'
       - 'scripts/validate-sports-hub-contract.mjs'
       - 'scripts/validate-shopping-mall-contract.mjs'
       - 'supabase/migrations/20261014125029_marketplace_public_category_projection.sql'
@@ -35,6 +36,7 @@ on:
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
       - 'scripts/validate-ad-review-contract.mjs'
+      - 'docs/contracts/ad-review-v1.md'
       - 'scripts/validate-sports-hub-contract.mjs'
       - 'scripts/validate-shopping-mall-contract.mjs'
       - 'supabase/migrations/20261014125029_marketplace_public_category_projection.sql'
@@ -131,20 +133,32 @@ jobs:
         env:
           SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+          VITE_APPWRITE_ENDPOINT: ${{ vars.VITE_APPWRITE_ENDPOINT }}
+          VITE_APPWRITE_PROJECT_ID: ${{ vars.VITE_APPWRITE_PROJECT_ID }}
+          VITE_TESTAGRAM_API_URL: ${{ vars.VITE_TESTAGRAM_API_URL }}
         run: >-
           flutter build web --release
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          --dart-define=VITE_APPWRITE_ENDPOINT="$VITE_APPWRITE_ENDPOINT"
+          --dart-define=VITE_APPWRITE_PROJECT_ID="$VITE_APPWRITE_PROJECT_ID"
+          --dart-define=VITE_TESTAGRAM_API_URL="$VITE_TESTAGRAM_API_URL"
           --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
       - name: Build native Android debug APK
         working-directory: mobile
         env:
           SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+          VITE_APPWRITE_ENDPOINT: ${{ vars.VITE_APPWRITE_ENDPOINT }}
+          VITE_APPWRITE_PROJECT_ID: ${{ vars.VITE_APPWRITE_PROJECT_ID }}
+          VITE_TESTAGRAM_API_URL: ${{ vars.VITE_TESTAGRAM_API_URL }}
         run: >-
           flutter build apk --debug
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          --dart-define=VITE_APPWRITE_ENDPOINT="$VITE_APPWRITE_ENDPOINT"
+          --dart-define=VITE_APPWRITE_PROJECT_ID="$VITE_APPWRITE_PROJECT_ID"
+          --dart-define=VITE_TESTAGRAM_API_URL="$VITE_TESTAGRAM_API_URL"
           --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
       - name: Verify artifacts and package identity
         working-directory: mobile
