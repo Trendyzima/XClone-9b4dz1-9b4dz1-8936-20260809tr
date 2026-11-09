@@ -22,10 +22,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install actionlint
+      - name: Set up Go for the pinned actionlint release
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.3'
+          cache: false
+
+      - name: Install actionlint without archive extraction
         run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- latest /usr/local/bin
+          GOBIN=/usr/local/bin go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          actionlint -version
 
       - name: Validate workflow syntax
         run: |
