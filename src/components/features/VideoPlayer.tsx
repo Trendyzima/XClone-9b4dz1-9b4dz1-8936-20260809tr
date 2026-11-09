@@ -447,7 +447,7 @@ export function VideoPlayer({ post, isActive, onUpdate }: VideoPlayerProps) {
         id: inserted.reply_id,
         content: inserted.content,
         created_at: new Date().toISOString(),
-        user_profiles: { username: user.name || 'You', avatar_url: null },
+        user_profiles: { username: user.email?.split('@')[0] || 'You', avatar_url: null },
       };
       setComments(prev => [reply, ...prev]);
       setRepliesCount(c => c + 1);
