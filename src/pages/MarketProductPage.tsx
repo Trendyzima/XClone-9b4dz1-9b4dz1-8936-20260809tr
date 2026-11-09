@@ -121,12 +121,12 @@ export default function MarketProductPage() {
   const image = safeURL(product?.image_url ?? null);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  if (!product) return <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center"><ShoppingBag className="w-12 h-12 text-muted-foreground/40 mb-3" /><h1 className="text-xl font-black">Product unavailable</h1><p className="text-sm text-muted-foreground mt-1">This listing may have been removed or is no longer active.</p><button onClick={() => navigate('/shop')} className="mt-5 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold">Back to Market</button></div>;
+  if (!product) return <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center"><ShoppingBag className="w-12 h-12 text-muted-foreground/40 mb-3" /><h1 className="text-xl font-black">Product unavailable</h1><p className="text-sm text-muted-foreground mt-1">This listing may have been removed or is no longer active.</p><button onClick={() => navigate('/marketplace')} className="mt-5 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold">Back to Market</button></div>;
 
   return <main className="min-h-screen bg-muted/20 pb-10">
     <div className="sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-border">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/shop')} className="p-2 rounded-xl hover:bg-muted" aria-label="Back"><ArrowLeft className="w-5 h-5" /></button>
+        <button onClick={() => navigate('/marketplace')} className="p-2 rounded-xl hover:bg-muted" aria-label="Back"><ArrowLeft className="w-5 h-5" /></button>
         <div className="flex-1"><p className="text-xs text-muted-foreground">Testagram</p><p className="font-black">Market</p></div>
         <button onClick={() => void share()} className="p-2.5 rounded-xl border border-border bg-background" aria-label="Share product"><Share2 className="w-5 h-5" /></button>
       </div>
