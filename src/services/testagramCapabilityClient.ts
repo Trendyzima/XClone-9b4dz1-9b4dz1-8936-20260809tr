@@ -502,7 +502,7 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
       '/api/social/polls?limit=' + limit(n) + '&offset=' + Math.max(0, Math.trunc(offset)),
     );
   }
-  createPoll(input: { question: string; description?: string; options: string[]; ends_at?: string | null }) {
+  createPoll(input: { question: string; description?: string; options: string[]; ends_at?: string | null; media_object_key?: string }) {
     return testagramApiRequest<any>('/api/social/polls', { method: 'POST', body: input });
   }
   votePoll(pollId: string, optionId: string) {
