@@ -231,7 +231,7 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
   recordPostView(postId: string) {
     return testagramApiRequest<{ post_id: string; views_count: number }>(
       '/api/social/posts/' + encodeURIComponent(postId) + '/view',
-      { method: 'POST', body: {}, optionalAuth: true },
+      { method: 'POST', body: {} },
     );
   }
   getPost(postId: string) {
