@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import { Bookmark, Play, Heart, Eye, Loader2, X, Trash2 } from 'lucide-react';
 import { TopBar } from '@/components/layout/TopBar';
 import { formatNumber } from '@/lib/utils';
@@ -22,14 +22,27 @@ export default function VideoWatchLaterPage() {
     const ids: string[] = stored ? JSON.parse(stored) : [];
     setVideoIds(ids);
     if (ids.length === 0) { setLoading(false); return; }
-    supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
-      .in('id', ids).eq('is_video', true)
-      .then(({ data }) => {
-        // Preserve localStorage order
-        const map = new Map((data ?? []).map((v: any) => [v.id, v]));
-        setVideos(ids.map(id => map.get(id)).filter(Boolean) as Post[]);
-        setLoading(false);
-      });
+    let active = true;
+    void Promise.allSettled(ids.map(id => socialApi.getPost(id)))
+      .then(results => {
+        if (!active) return;
+        // Preserve the saved order while reading each item through the
+        // privacy-checked Backend post endpoint.
+        const loaded = results.flatMap(result => {
+          if (result.status !== 'fulfilled') return [];
+          const post = result.value as any;
+          if (!post?.is_video && !post?.video_url) return [];
+          return [{
+            ...post,
+            video_url: post.video_url ?? post.media_urls?.[0],
+            user_profiles: post.user_profiles ?? post.profiles ?? post.author,
+          }];
+        });
+        setVideos(loaded as Post[]);
+      })
+      .catch(error => console.warn('[VideoWatchLater] Backend lookup failed', error))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [user?.id]);
 
   const removeVideo = (id: string) => {
