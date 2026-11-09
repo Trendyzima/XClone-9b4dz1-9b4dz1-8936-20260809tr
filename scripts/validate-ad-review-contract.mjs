@@ -19,7 +19,7 @@ const required = [
   ['rejection requires a reason and caps it at 500 characters', /decision == 'rejected' && note\.isEmpty/.test(page) && /maxLength: 500/.test(page)],
   ['Appwrite and canonical API build defines are configured', /VITE_APPWRITE_ENDPOINT/.test(config) && /VITE_APPWRITE_PROJECT_ID/.test(config) && /VITE_TESTAGRAM_API_URL/.test(config)],
   ['contract documents recent MFA and platform.ads authorization', /five minutes/.test(contract) && /platform\.ads/.test(contract)],
-  ['contract documents the native review endpoints', /GET \/api\/admin\/ads\/review-queue/.test(contract) && /POST \/api\/admin\/ads\/{campaign_id}\/review/.test(contract)],
+  ['contract documents the native review endpoints', /GET \/api\/admin\/ads\/review-queue/.test(contract) && /POST \/api\/admin\/ads\/\\{campaign_id\\}\/review/.test(contract)],
 ];
 
 const failures = required.filter(([, passed]) => !passed).map(([label]) => label);
