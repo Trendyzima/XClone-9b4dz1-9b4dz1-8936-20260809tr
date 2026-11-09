@@ -1,5 +1,5 @@
 import { socialApi } from '@/services/socialApiClient';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Bookmark, Check, Heart, Loader2, Maximize2, MessageCircle, Pause, Play, Share2, Volume2, VolumeX } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Fragment } from 'react';
