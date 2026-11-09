@@ -106,6 +106,8 @@ function readNormalizedUtf8(filePath) {
 
 function patchTikVTVForTestagramAuth(vendorRoot) {
   const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
+  const vendorPackagePath = path.join(vendorRoot, 'package.json');
+  const vendorLockPath = path.join(vendorRoot, 'package-lock.json');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
   const headerPath = path.join(vendorRoot, 'src', 'components', 'layout', 'Header.tsx');
   const feedPath = path.join(vendorRoot, 'src', 'pages', 'Feed.tsx');
@@ -143,6 +145,8 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
 
   const original = new Map([
     [supabasePath, readNormalizedUtf8(supabasePath)],
+    [vendorPackagePath, readNormalizedUtf8(vendorPackagePath)],
+    ...(fs.existsSync(vendorLockPath) ? [[vendorLockPath, readNormalizedUtf8(vendorLockPath)]] : []),
     [profilePath, readNormalizedUtf8(profilePath)],
     [headerPath, readNormalizedUtf8(headerPath)],
     [feedPath, readNormalizedUtf8(feedPath)],
@@ -629,6 +633,22 @@ function runTikVTVBuild() {
       shell: process.platform === 'win32',
       env: { ...process.env },
     };
+    // Remove the unused upstream SDK from both the manifest and lockfile
+    // before installation. The original submodule files are restored below.
+    const vendorManifest = JSON.parse(fs.readFileSync(packageJson, 'utf8'));
+    if (vendorManifest.dependencies?.['@supabase/supabase-js'] || vendorManifest.devDependencies?.['@supabase/supabase-js']) {
+      const removeLegacySDK = spawnSync(npmBin, ['uninstall', '@supabase/supabase-js', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], npmOptions);
+      if (removeLegacySDK.error || removeLegacySDK.status !== 0) {
+        if (removeLegacySDK.error) process.stderr.write(`[_build] Could not remove unused IPTV SDK: ${removeLegacySDK.error.message}\\n`);
+        throw new Error('TikVTV legacy SDK removal failed');
+      }
+    }
+    const cleanManifest = JSON.parse(fs.readFileSync(packageJson, 'utf8'));
+    const cleanLock = fs.existsSync(vendorLockPath) ? fs.readFileSync(vendorLockPath, 'utf8') : '';
+    if (cleanManifest.dependencies?.['@supabase/supabase-js'] || cleanManifest.devDependencies?.['@supabase/supabase-js'] || cleanLock.includes('"node_modules/@supabase/supabase-js"')) {
+      throw new Error('TikVTV package graph still contains the removed hosted SDK');
+    }
+
     const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], npmOptions);
     if (install.error || install.status !== 0) {
       if (install.error) process.stderr.write(`[_build] TikVTV npm ci could not start: ${install.error.message}\\n`);
