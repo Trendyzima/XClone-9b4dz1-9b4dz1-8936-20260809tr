@@ -309,7 +309,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     '  }, []);',
     '  return { user, loading, login, logout };',
     '}',
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   const socialServiceSource = [
     "type IptvSocialResponse<T> = { type: 'testagram:iptv-social-response'; requestId: string; ok: boolean; data?: T; error?: string };",
     'export async function iptvSocial<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {',
@@ -329,7 +329,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "    window.parent.postMessage({ type: 'testagram:iptv-social-request', requestId, action, payload }, window.location.origin);",
     '  });',
     '}',
-  ].join('\\n');
+  ].join('\n');
   fs.writeFileSync(socialServicePath, socialServiceSource, 'utf8');
   fs.writeFileSync(notificationsHookPath, [
     "import { useState, useEffect, useCallback, useRef } from 'react';",
@@ -412,17 +412,17 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
     "  const target = user?.username ? '/profile/' + encodeURIComponent(user.username) : '/auth?returnTo=/iptv';",
     '  return <main className="min-h-screen bg-black text-white grid place-items-center p-6"><section className="text-center space-y-3"><h1 className="text-xl font-semibold">Manage your Testagram profile</h1><p className="text-sm text-white/65">Profile identity and media are managed by the main Testagram application.</p><button className="rounded-full bg-white/10 px-4 py-2 text-sm" onClick={() => { window.top?.location.assign(target); }}>Open profile</button></section></main>;',
     '}',
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   fs.writeFileSync(clipGalleryPath, [
     'export default function ClipGallery() {',
     '  return <main className="min-h-screen bg-black text-white grid place-items-center p-6"><section className="max-w-md text-center space-y-3"><h1 className="text-xl font-semibold">Clips are being migrated</h1><p className="text-sm text-white/65">Clip capture and playback will return after the Backend B2 media contract is deployed. No legacy storage service is contacted.</p></section></main>;',
     '}',
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   fs.writeFileSync(streamHealthPath, [
     'export default function StreamHealth() {',
     '  return <main className="min-h-screen bg-black text-white grid place-items-center p-6"><section className="max-w-md text-center space-y-3"><h1 className="text-xl font-semibold">Stream diagnostics unavailable</h1><p className="text-sm text-white/65">Stream health reporting is not yet exposed by the canonical Backend API.</p></section></main>;',
     '}',
-  ].join('\\n'), 'utf8');
+  ].join('\n'), 'utf8');
   fs.writeFileSync(headerPath, header, 'utf8');
   // Premium Testagram IPTV vertical-feed treatment: immersive viewport, overlay navigation,
   // stronger safe-area handling, and mobile-first interaction without changing channel data.
@@ -740,13 +740,19 @@ export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) collectVendorSources(fullPath);
-      else if (/\\.(?:ts|tsx|js|jsx)$/.test(entry.name)) vendorSourceFiles.push(fullPath);
+      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name)) vendorSourceFiles.push(fullPath);
     }
   };
   collectVendorSources(path.join(vendorRoot, 'src'));
-  const forbiddenVendorPatterns = [/from\\s*['"]@supabase\\//, /from\\s*['"][^'"]*\\/supabase(?:\\.ts)?['"]/i, /\\bsupabase\\s*\\.\\s*(?:auth|from|rpc|functions|storage|channel)\\b/i, /\\bSupabaseClient\\b/];
+  const forbiddenVendorPatterns = [
+    /from\s*['"]@supabase\//,
+    /from\s*['"][^'"]*\/supabase(?:\.ts)?['"]/i,
+    /\bsupabase\s*\.\s*(?:auth|from|rpc|functions|storage|channel)\b/i,
+    /\bSupabaseClient\b/,
+  ];
   const remainingVendorSupabase = vendorSourceFiles.filter(file => forbiddenVendorPatterns.some(pattern => pattern.test(readNormalizedUtf8(file))));
   if (remainingVendorSupabase.length) throw new Error('[TikVTV/Testagram API] Unmigrated provider source remains: ' + remainingVendorSupabase.map(file => path.relative(vendorRoot, file)).join(', '));
+
   return () => {
     for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
     fs.rmSync(socialServicePath, { force: true });
