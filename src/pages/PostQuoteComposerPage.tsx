@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Quote, Send } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { socialApi } from '@/services/socialApiClient';
 import * as federation from '@/api/federation';
 import { federatedObjectToPost } from '@/features/federation/federatedPostAdapter';
-import { quotePost } from '@/features/quotes/quotesService';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -33,9 +32,8 @@ export default function PostQuoteComposerPage() {
           const normalized = await federatedObjectToPost(object, federation.getFederatedObject);
           if (!cancelled) setPost(normalized);
         } else {
-          const { data, error: fetchError } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('id', postId).single();
-          if (fetchError) throw fetchError;
-          if (!cancelled) setPost({ ...data, user_profiles: data.profiles ?? data.user_profiles ?? null });
+          const data = await socialApi.getPost(postId);
+          if (!cancelled) setPost({ ...data, user_profiles: data.user_profiles ?? data.profiles ?? data.author ?? null });
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Unable to load post');
@@ -53,7 +51,7 @@ export default function PostQuoteComposerPage() {
     setSending(true); setError(null);
     try {
       if (isFederated) await federation.quoteStatus(postId, text.trim());
-      else await quotePost(postId, text.trim());
+      else await socialApi.setRepost(postId, true, text.trim());
       toast.success('Quote posted');
       navigate(isFederated ? '/post/' + encodeURIComponent(postId) : '/post/' + postId);
     } catch (e) {
