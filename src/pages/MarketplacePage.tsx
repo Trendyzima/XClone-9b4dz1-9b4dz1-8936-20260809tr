@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertCircle, ExternalLink, Loader2, Search, ShoppingBag, Star } from 'lucide-react';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
@@ -153,7 +154,6 @@ export default function MarketplacePage() {
         ) : (
           <section aria-label="Marketplace products" className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map(product => {
-              const externalURL = safeExternalURL(product.external_link);
               const seller = product.user_profiles?.display_name || product.user_profiles?.username || 'Testagram seller';
               return (
                 <article key={product.id} className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -181,13 +181,9 @@ export default function MarketplacePage() {
                         <p className="font-bold">{formatPrice(product.price, product.currency)}</p>
                         <p className="truncate text-xs text-muted-foreground">by {seller}</p>
                       </div>
-                      {externalURL ? (
-                        <a href={externalURL} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90">
-                          View listing <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      ) : (
-                        <span className="shrink-0 rounded-lg bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">Details soon</span>
-                      )}
+                      <Link to={`/p/${encodeURIComponent(product.id)}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90">
+                        View details <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
                     </div>
                   </div>
                 </article>
