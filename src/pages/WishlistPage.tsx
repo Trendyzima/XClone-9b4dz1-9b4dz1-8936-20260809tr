@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { Link, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
@@ -31,6 +31,16 @@ interface WishlistProduct {
 
 const WISHLIST_KEY = 'product_wishlist';
 
+function safeExternalURL(value?: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function WishlistPage() {
   const { user } = useAuth();
   useSEO({ noindex: true, title: 'Wishlist', url: '/wishlist' });
@@ -40,10 +50,16 @@ export default function WishlistPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const raw = localStorage.getItem(WISHLIST_KEY);
-    const ids: string[] = raw ? JSON.parse(raw) : [];
+    let ids: string[] = [];
+    try {
+      const raw = localStorage.getItem(WISHLIST_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      ids = Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string').slice(0, 100) : [];
+    } catch {
+      localStorage.removeItem(WISHLIST_KEY);
+    }
     setWishlistIds(ids);
-    if (ids.length > 0) fetchProducts(ids);
+    if (ids.length > 0) void fetchProducts(ids);
     else setLoading(false);
   }, []);
 
@@ -95,8 +111,9 @@ export default function WishlistPage() {
 
   const shopAll = () => {
     products
-      .filter(p => p.external_link)
-      .forEach(p => window.open(p.external_link!, '_blank', 'noopener'));
+      .map(p => safeExternalURL(p.external_link))
+      .filter((url): url is string => Boolean(url))
+      .forEach(url => window.open(url, '_blank', 'noopener,noreferrer'));
   };
 
   if (!user) {
@@ -240,9 +257,9 @@ export default function WishlistPage() {
                   )}
 
                   {/* CTA */}
-                  {product.external_link ? (
+                  {safeExternalURL(product.external_link) ? (
                     <a
-                      href={product.external_link}
+                      href={safeExternalURL(product.external_link)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={e => e.stopPropagation()}
