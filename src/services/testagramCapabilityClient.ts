@@ -232,10 +232,10 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
     return testagramApiRequest<any>('/api/social/posts/' + encodeURIComponent(postId));
   }
   getPoll(pollId: string) {
-    return testagramApiRequest<any>('/api/social/polls/' + encodeURIComponent(pollId));
+    return testagramApiRequest<any>('/api/social/polls/' + encodeURIComponent(pollId), { anonymous: true });
   }
   getPollByPost(postId: string) {
-    return testagramApiRequest<any>('/api/social/posts/' + encodeURIComponent(postId) + '/poll');
+    return testagramApiRequest<any>('/api/social/posts/' + encodeURIComponent(postId) + '/poll', { anonymous: true });
   }
   listCommunityPosts(communityId: string, n = 30, page = 0) {
     const query = new URLSearchParams({ limit: String(limit(n)), page: String(Math.max(0, Math.floor(page))) });
@@ -543,6 +543,7 @@ schedulePost(body:string,scheduledFor:string,communityId?:string){return testagr
   listPolls(n = 20, offset = 0) {
     return testagramApiRequest<{ items: any[]; next_offset: number; has_more: boolean }>(
       '/api/social/polls?limit=' + limit(n) + '&offset=' + Math.max(0, Math.trunc(offset)),
+      { anonymous: true },
     );
   }
   createPoll(input: { question: string; description?: string; options: string[]; ends_at?: string | null; media_object_key?: string }) {
