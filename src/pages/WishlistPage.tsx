@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSEO } from '@/hooks/useSEO';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { ShoppingBag, Trash2, ExternalLink, Package, ArrowRight, BadgeCheck, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -15,7 +15,8 @@ interface WishlistProduct {
   id: string;
   name: string;
   description?: string;
-  price: number;
+  price: string | number;
+  currency: string;
   image_url?: string;
   external_link?: string;
   is_featured?: boolean;
@@ -48,21 +49,30 @@ export default function WishlistPage() {
 
   const fetchProducts = async (ids: string[]) => {
     setLoading(true);
-    const { data } = await supabase
-      .from('products')
-      .select('*, profiles!products_user_id_fkey(id, username, avatar_url, verified)')
-      .in('id', ids)
-      .eq('is_active', true);
-    const enriched = (data ?? []).map((p: any) => ({
-      ...p,
-      seller: p.profiles,
-    }));
+    try {
+      const result = await backendCapabilities.listMarketplaceProducts(100);
+      const enriched = (result.items ?? []).map((p: any) => ({
+        ...p,
+        user_id: p.owner_id ?? p.user_id,
+        seller: p.user_profiles ? {
+          id: p.user_profiles.id,
+          username: p.user_profiles.username ?? '',
+          avatar_url: p.user_profiles.avatar_url,
+          verified: Boolean(p.user_profiles.verified_tier && p.user_profiles.verified_tier !== 'none'),
+        } : undefined,
+      }));
     // Preserve wishlist order
     const ordered = ids
       .map(id => enriched.find((p: any) => p.id === id))
       .filter(Boolean) as WishlistProduct[];
-    setProducts(ordered);
-    setLoading(false);
+      setProducts(ordered);
+    } catch (error) {
+      console.error('[wishlist] Marketplace catalog load failed:', error);
+      setProducts([]);
+      toast.error('Saved products could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const removeFromWishlist = (id: string) => {
@@ -81,7 +91,6 @@ export default function WishlistPage() {
     toast.success('Wishlist cleared');
   };
 
-  const total = products.reduce((s, p) => s + Number(p.price), 0);
   const hasExternal = products.some(p => p.external_link);
 
   const shopAll = () => {
@@ -108,10 +117,7 @@ export default function WishlistPage() {
               <p className="text-sm text-muted-foreground">
                 {products.length} item{products.length !== 1 ? 's' : ''} saved
               </p>
-              <p className="text-2xl font-black text-primary">
-                ${total.toFixed(2)}
-                <span className="text-sm font-normal text-muted-foreground ml-1">total</span>
-              </p>
+              <p className="text-sm text-muted-foreground">Saved on this device</p>
             </div>
             <div className="flex gap-2">
               {hasExternal && (
@@ -157,7 +163,7 @@ export default function WishlistPage() {
             Browse the marketplace and tap the heart icon to save products you love.
           </p>
           <button
-            onClick={() => navigate('/products')}
+            onClick={() => navigate('/marketplace')}
             className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full font-bold text-sm hover:opacity-90 transition-opacity"
           >
             <Package className="w-4 h-4" />
@@ -209,7 +215,7 @@ export default function WishlistPage() {
                 {/* Info */}
                 <div className="p-3 space-y-2">
                   <p className="font-semibold text-sm leading-tight line-clamp-2">{product.name}</p>
-                  <p className="text-xl font-black text-primary">${Number(product.price).toFixed(2)}</p>
+                  <p className="text-xl font-black text-primary">{new Intl.NumberFormat(undefined, { style: 'currency', currency: product.currency || 'USD' }).format(Number(product.price))}</p>
 
                   {/* Seller */}
                   {product.seller && (
@@ -246,9 +252,9 @@ export default function WishlistPage() {
                       Buy Now
                     </a>
                   ) : (
-                    <div className="w-full py-2 bg-muted text-muted-foreground text-xs font-medium rounded-xl text-center">
-                      View in Marketplace
-                    </div>
+                    <Link to={`/p/${encodeURIComponent(product.id)}`} className="flex items-center justify-center gap-1.5 w-full py-2 bg-muted text-foreground text-xs font-bold rounded-xl hover:bg-muted/80 transition-colors">
+                      View details
+                    </Link>
                   )}
                 </div>
               </div>
