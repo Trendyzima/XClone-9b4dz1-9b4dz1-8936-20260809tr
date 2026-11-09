@@ -2840,6 +2840,11 @@
       "source_type": "client_source",
       "status": "not_started",
       "note": "Legacy route redirects to the canonical hashtag page; verify Flutter deep-link parity and route acceptance before retiring the web implementation."
+    },
+    "src/components/features/ComposePost.tsx": {
+      "source_type": "client_source",
+      "status": "in_progress",
+      "note": "Web post composer uses the canonical Backend post and media APIs; verify text, media attachment, community publishing, failure recovery and Flutter parity before marking complete."
     }
   }
 }
