@@ -99,6 +99,26 @@ export const appwriteAuth = {
     return appwriteAccount.listSessions();
   },
 
+  async listMfaFactors() {
+    assertAppwriteAuthConfigured();
+    return appwriteAccount.listMfaFactors();
+  },
+
+  async createMfaChallenge(factorId: string) {
+    assertAppwriteAuthConfigured();
+    return appwriteAccount.createMfaChallenge({ factorId });
+  },
+
+  async completeMfaChallenge(challengeId: string, otp: string): Promise<void> {
+    assertAppwriteAuthConfigured();
+    if (!challengeId.trim() || !/^\\d{6,10}$/.test(otp.trim())) {
+      throw new Error('Enter the verification code from your authenticator or recovery method.');
+    }
+    await appwriteAccount.updateMfaChallenge({ challengeId, otp: otp.trim() });
+    clearBackendJWT();
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(APPWRITE_AUTH_CHANGED_EVENT));
+  },
+
   async signOutAllSessions(): Promise<void> {
     assertAppwriteAuthConfigured();
     try {
