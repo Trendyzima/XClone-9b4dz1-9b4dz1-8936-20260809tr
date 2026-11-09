@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { Post } from '@/types/app-types';
 import { Loader2, Twitter, Facebook, Link2, MessageCircle, Send, Heart, Repeat2, Quote } from 'lucide-react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
@@ -104,6 +105,13 @@ export default function PostThreadPage() {
       if (postError) throw postError;
       const normalizedLocalPost = { ...postData, user_profiles: postData.profiles ?? postData.user_profiles ?? null };
       setPost(normalizedLocalPost);
+      if (user?.id) {
+        void backendCapabilities.recordBrowsingHistory({
+          entity_type: 'post',
+          entity_id: postId,
+          metadata: { surface: 'post-detail' },
+        }).catch((historyError) => console.warn('[history] Could not record post view', historyError));
+      }
 
       void supabase
         .from('posts')
