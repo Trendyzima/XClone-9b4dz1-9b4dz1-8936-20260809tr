@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-09T06:20:00.000Z",
+  "generated_at": "2026-11-09T09:49:13.669Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -2835,6 +2835,11 @@
       "source_type": "client_source",
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation and canonical Backend API before retiring any legacy feature path."
+    },
+    "src/pages/TrendingTopicFeedPage.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Legacy route redirects to the canonical hashtag page; verify Flutter deep-link parity and route acceptance before retiring the web implementation."
     }
   }
 }
