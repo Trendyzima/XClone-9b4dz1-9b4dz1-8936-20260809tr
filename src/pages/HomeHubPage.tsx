@@ -162,6 +162,7 @@ export default function HomeHubPage(){
   const cacheKey = `home:${user?.id ?? 'signed-out'}`;
 
   const tabCursorRef=useRef<string|null>(null);
+  const tabPollOffsetRef=useRef(0);
   const tabHasMoreRef=useRef(false);
 
   const mapBackendPosts=(posts:any[]):Item[]=>posts.map((post:any)=> {
@@ -198,7 +199,9 @@ export default function HomeHubPage(){
   // intentionally not reachable from this component.
   const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
     if(target==='polls'){
-      const page=await socialApi.listPolls(12,pageNum*12);
+      const offset=pageNum===0?0:tabPollOffsetRef.current;
+      const page=await socialApi.listPolls(12,offset);
+      tabPollOffsetRef.current=Number.isFinite(page.next_offset)?Math.max(offset,Math.trunc(page.next_offset)):offset+(Array.isArray(page.items)?page.items.length:0);
       tabHasMoreRef.current=Boolean(page.has_more);
       setHasMore(tabHasMoreRef.current);
       return (Array.isArray(page.items)?page.items:[]).map((poll:any)=>({type:'poll' as const,data:poll}));
@@ -236,7 +239,7 @@ export default function HomeHubPage(){
 
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
-      if(!background){setLoading(true);tabPageRef.current=0;tabCursorRef.current=null;tabHasMoreRef.current=false;setLoadMoreError(null);setFeedLoadError(null);}
+      if(!background){setLoading(true);tabPageRef.current=0;tabCursorRef.current=null;tabPollOffsetRef.current=0;tabHasMoreRef.current=false;setLoadMoreError(null);setFeedLoadError(null);}
       try{
         const next=await fetchTab(target,0);
         setItems(next);
