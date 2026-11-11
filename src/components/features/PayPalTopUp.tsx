@@ -5,16 +5,13 @@ import {
   Send, ArrowDownLeft, ArrowUpRight, Users, Smartphone, WalletCards,
   LockKeyhole,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { useWallet } from '@/hooks/useWallet';
 import { toast } from 'sonner';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PesaPalTopUp } from '@/components/features/PesaPalTopUp';
 
 function errorMessage(error: unknown): string {
-  if (error instanceof FunctionsHttpError) return error.message || 'PayPal request failed';
   return error instanceof Error ? error.message : 'PayPal request failed';
 }
 
@@ -58,11 +55,7 @@ export function PayPalTopUp() {
 
     void (async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('paypal-capture-order', {
-          body: { orderId },
-        });
-        if (error) throw error;
-        if (!data?.ok) throw new Error('PayPal payment could not be completed');
+        throw new Error('PayPal wallet settlement is not yet exposed by the native Backend API. No wallet credit was attempted.');
         await fetchWallet();
         toast.success('PayPal payment confirmed and your wallet has been credited.');
       } catch (error) {
@@ -86,16 +79,7 @@ export function PayPalTopUp() {
 
     setCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('paypal-create-order', {
-        body: {
-          amount: Number(value.toFixed(2)),
-          currency: 'USD',
-          paypal_email: paypalEmail.trim() || undefined,
-        },
-      });
-      if (error) throw error;
-      if (!data?.approvalUrl) throw new Error('PayPal did not return an approval link');
-      window.location.assign(data.approvalUrl);
+      throw new Error('PayPal wallet funding is paused until the native Backend payment-intent and verified provider callback routes are deployed.');
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {

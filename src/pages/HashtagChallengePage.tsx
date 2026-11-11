@@ -148,7 +148,7 @@ export default function HashtagChallengePage() {
       const result = await socialApi.setLike(postId, !isLiked);
       setLikedIds(prev => {
         const next = new Set(prev);
-        if (result.is_liked) next.add(postId); else next.delete(postId);
+        if (result.liked) next.add(postId); else next.delete(postId);
         return next;
       });
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: result.likes_count } : p));
