@@ -60,6 +60,13 @@ export type SocialLikeState = { liked: boolean; likes_count: number; removed?: b
 export type SocialRepostState = { reposted: boolean; reposts_count: number; removed?: boolean };
 
 export const socialApi = {
+  listPolls(limit = 12, offset = 0) {
+    const query = new URLSearchParams({
+      limit: String(Math.min(50, Math.max(1, Math.floor(limit)))),
+      offset: String(Math.min(10000, Math.max(0, Math.floor(offset)))),
+    });
+    return request<{ items: any[]; next_offset: number; has_more: boolean }>(`/polls?${query.toString()}`, 'GET');
+  },
   getHomeFeed(limit = 20, before?: string, followingOnly = false) {
     const query = new URLSearchParams({ limit: String(Math.min(50, Math.max(1, Math.floor(limit)))) });
     if (before) query.set('before', before);

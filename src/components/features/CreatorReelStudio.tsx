@@ -92,19 +92,12 @@ export function CreatorReelStudio({ asset, onOpenMedia, onSendToComposer }: Prop
       });
       const blob = await done;
       const name = `reel-${Date.now()}.webm`;
-      const file = new File([blob], name, { type: 'video/webm' });
+      const file = new File([blob], name, { type: 'video/webm', lastModified: Date.now() });
       const uploaded = await uploadTestagramMedia(file);
-      const mediaURL = uploaded.media_url ?? uploaded.public_url;
-      if (!mediaURL) throw new Error('Backend completed the reel upload but did not return a public media URL.');
-      const result: CreatorMediaAsset = {
-        id: uploaded.media_id ?? uploaded.key,
-        name,
-        path: uploaded.object_key ?? uploaded.key,
-        url: mediaURL,
-        type: 'video',
-        size: uploaded.size_bytes ?? blob.size,
-        updatedAt: new Date().toISOString(),
-      };
+      const objectKey = uploaded.object_key || uploaded.key;
+      const mediaUrl = uploaded.media_url || uploaded.public_url;
+      if (!objectKey || !mediaUrl) throw new Error('Backend did not return a usable uploaded reel reference.');
+      const result: CreatorMediaAsset = { id: uploaded.media_id || objectKey, name, path: objectKey, url: mediaUrl, type: 'video', size: uploaded.size_bytes || blob.size, updatedAt: new Date().toISOString() };
       setExported(result); setExportProgress(100);
     } catch (err: any) { setError(err?.message ?? 'Could not export this reel.'); }
     finally { setExporting(false); }

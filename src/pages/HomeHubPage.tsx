@@ -161,14 +161,63 @@ export default function HomeHubPage(){
 
   const cacheKey = `home:${user?.id ?? 'signed-out'}`;
 
+  const tabCursorRef=useRef<string|null>(null);
+  const tabPollOffsetRef=useRef(0);
+  const tabHasMoreRef=useRef(false);
+
+  const mapBackendPosts=(posts:any[]):Item[]=>posts.map((post:any)=> {
+    const author=post.author ?? post.user_profiles ?? {};
+    const media=Array.isArray(post.media_urls)?post.media_urls:[];
+    const profile={
+      id:author.id ?? post.user_id ?? post.author_id,
+      username:author.handle ?? author.username ?? 'testagram-user',
+      display_name:author.display_name ?? author.handle ?? author.username ?? 'Testagram user',
+      avatar_url:author.avatar_url ?? author.avatarUrl ?? null,
+      bio:author.bio ?? '',
+      verified_tier:author.verified_tier ?? null,
+    };
+    return {
+      type:'post' as const,
+      data:{
+        ...post,
+        id:post.id,
+        author_id:post.user_id ?? post.author_id ?? profile.id,
+        content:post.content ?? post.body ?? '',
+        user_profiles:profile,
+        author:profile,
+        media_urls:media,
+        media_count:Number(post.media_count ?? media.length),
+        image_url:post.image_url ?? (!post.is_video ? media[0] : undefined),
+        video_url:post.video_url ?? (post.is_video ? media[0] : undefined),
+        is_video:Boolean(post.is_video),
+        origin:post.origin ?? 'local',
+        feed_source:'backend-appwrite',
+      },
+    };
+  });
+
   // The home timeline is sourced exclusively from the authenticated Testagram
   // Backend. The retired aggregator and direct-table fallback are
   // intentionally not reachable from this component.
-  const fetchTab=useCallback(async(target:Tab,_pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
-    if (target !== 'all') {
-      // These secondary discovery tabs are being moved to Backend endpoints.
-      // Returning no legacy rows is safer than silently restoring direct data access.
-      return [];
+  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,_includeFederated=true):Promise<Item[]>=>{
+    if(target==='polls'){
+      const offset=pageNum===0?0:tabPollOffsetRef.current;
+      const page=await socialApi.listPolls(12,offset);
+      tabPollOffsetRef.current=Number.isFinite(page.next_offset)?Math.max(offset,Math.trunc(page.next_offset)):offset+(Array.isArray(page.items)?page.items.length:0);
+      tabHasMoreRef.current=Boolean(page.has_more);
+      setHasMore(tabHasMoreRef.current);
+      return (Array.isArray(page.items)?page.items:[]).map((poll:any)=>({type:'poll' as const,data:poll}));
+    }
+    if(target==='following'){
+      if(!user?.id) throw new Error('Sign in to see posts from accounts you follow.');
+      const page=await socialApi.getHomeFeed(24,cursorOverride ?? tabCursorRef.current ?? undefined,true);
+      tabCursorRef.current=page?.next_cursor || null;
+      tabHasMoreRef.current=Boolean(page?.has_more)&&Array.isArray(page?.posts)&&page.posts.length>0;
+      setHasMore(tabHasMoreRef.current);
+      return mapBackendPosts(Array.isArray(page?.posts)?page.posts:[]);
+    }
+    if(target!=='all'){
+      throw new Error(`The ${target} feed is not yet connected to a verified native Backend contract.`);
     }
     const page = user?.id
       ? await socialApi.getHomeFeed(24, cursorOverride ?? undefined)
@@ -178,16 +227,7 @@ export default function HomeHubPage(){
     setNextCursor(cursor);
     nextCursorRef.current = cursor;
     setHasMore(Boolean(page?.has_more && cursor));
-    return posts.map((post:any)=>({
-      type: 'post' as const,
-      data: {
-        ...post,
-        author: post.author ?? post.user_profiles ?? {},
-        user_profiles: post.user_profiles ?? post.author ?? {},
-        profile: post.profile ?? post.author ?? post.user_profiles ?? {},
-        origin: post.origin ?? 'local',
-      },
-    }));
+    return mapBackendPosts(posts);
   },[user?.id]);
 
   const persistBuffer=useCallback(async()=>{
@@ -201,12 +241,13 @@ export default function HomeHubPage(){
 
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
-      if(!background){setLoading(true);tabPageRef.current=0;setLoadMoreError(null);}
+      if(!background){setLoading(true);tabPageRef.current=0;tabCursorRef.current=null;tabPollOffsetRef.current=0;tabHasMoreRef.current=false;setLoadMoreError(null);setFeedLoadError(null);}
       try{
         const next=await fetchTab(target,0);
         setItems(next);
-        if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='polls'||target==='shopping'?12:10));
-      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}
+        if(target==='following'||target==='polls')setHasMore(tabHasMoreRef.current);else if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='shopping'?12:10));
+        setFeedLoadError(null);
+      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setFeedLoadError(e instanceof Error?e.message:'This section is temporarily unavailable.');}}
       finally{if(!background)setLoading(false);}
       return;
     }
@@ -347,13 +388,14 @@ export default function HomeHubPage(){
         return next.length>0;
       }
       const nextPage=tabPageRef.current+1;
-      const next=await fetchTab(tab,nextPage);
+      const next=await fetchTab(tab,nextPage,tab==='following'?tabCursorRef.current:null);
       if(next.length){
         tabPageRef.current=nextPage;
         setItems(prev=>appendUniqueFeedItems(prev,next));
       }
-      const pageSize=tab==='communities'||tab==='polls'||tab==='shopping'?12:10;
-      setHasMore(next.length>=pageSize);
+      const pageSize=tab==='communities'||tab==='shopping'?12:10;
+      if(tab==='following'||tab==='polls') setHasMore(tabHasMoreRef.current);
+      else setHasMore(next.length>=pageSize);
       return next.length>0;
     }catch(error){
       console.error('[home-hub] load more failed',error);

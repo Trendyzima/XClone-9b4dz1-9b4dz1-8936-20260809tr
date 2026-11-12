@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { Play, Eye, Flame, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '@/lib/utils';
@@ -10,30 +10,26 @@ export function TrendingVideoRow() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    (async () => {
-      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-      const { data: recent } = await supabase
-        .from('posts')
-        .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
-        .eq('is_video', true)
-        .gte('created_at', since)
-        .order('views_count', { ascending: false })
-        .limit(8);
-
-      if (recent && recent.length >= 3) {
-        setVideos(recent);
-      } else {
-        // Fallback: all-time top videos
-        const { data: allTime } = await supabase
-          .from('posts')
-          .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
-          .eq('is_video', true)
-          .order('views_count', { ascending: false })
-          .limit(8);
-        setVideos(allTime || []);
+    let active = true;
+    const load = async () => {
+      try {
+        const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        const recent = await backendCapabilities.listDiscoveryVideos(8, 'public', 0, '', 'views', since);
+        let items = recent.items ?? [];
+        if (items.length < 3) {
+          const allTime = await backendCapabilities.listDiscoveryVideos(8, 'public', 0, '', 'views');
+          items = allTime.items ?? [];
+        }
+        if (active) setVideos(items);
+      } catch (error) {
+        console.error('[trending-videos] Could not load trending videos:', error);
+        if (active) setVideos([]);
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
-    })();
+    };
+    void load();
+    return () => { active = false; };
   }, []);
 
   if (loading) {

@@ -1,10 +1,8 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { Globe, UserPlus, Sparkles } from 'lucide-react';
 import * as federation from '@/api/federation';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
 
 function stripHtml(value: unknown) { return String(value ?? '').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); }
 function actorFrom(item:any) {
@@ -51,71 +49,63 @@ export function FederatedOrganicInjection({ surface = 'home' }: { surface?: stri
 export function FederatedHashtagDiscovery({ limit = 8, surface = 'discovery' }: { limit?: number; surface?: string }) {
   const navigate = useNavigate();
   const [tags, setTags] = useState<Array<{ tag: string; count: number }>>([]);
-  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       try {
-        const { data } = await supabase
-          .from('federated_objects')
-          .select('tags,published_at')
-          .order('published_at', { ascending: false })
-          .limit(150);
-        if (!active) return;
-
+        const page = await federation.getFederatedDiscoveryFeed({ limit: 12, surface });
         const counts = new Map<string, number>();
-        for (const row of data ?? []) {
-          for (const raw of Array.isArray(row?.tags) ? row.tags : []) {
+        for (const item of Array.isArray(page?.items) ? page.items : []) {
+          const inItem = new Set<string>();
+          const rawTags = [
+            ...(Array.isArray(item?.tags) ? item.tags : []),
+            ...(Array.isArray(item?.raw_object?.tag) ? item.raw_object.tag : []),
+          ];
+          for (const raw of rawTags) {
             const value = typeof raw === 'string' ? raw : raw?.name ?? raw?.tag;
             const normalized = String(value ?? '').replace(/^#/, '').trim().toLowerCase();
-            if (!normalized || !/^[\p{L}\p{N}_-]+$/u.test(normalized)) continue;
-            counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+            if (/^[\\p{L}\\p{N}_-]{1,64}$/u.test(normalized)) inItem.add(normalized);
           }
+          const text = stripHtml(item?.content ?? item?.summary ?? '');
+          for (const match of text.matchAll(/#([\\p{L}\\p{N}_-]{1,64})/gu)) inItem.add(match[1].toLowerCase());
+          for (const tag of inItem) counts.set(tag, (counts.get(tag) ?? 0) + 1);
         }
-
         const next = [...counts.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, Math.max(1, limit))
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, Math.max(1, Math.min(24, limit)))
           .map(([tag, count]) => ({ tag, count }));
-        setTags(next);
-      } catch {
-        if (active) setTags([]);
+        if (active) { setTags(next); setLoadError(null); }
+      } catch (error) {
+        if (active) {
+          setTags([]);
+          setLoadError(error instanceof Error ? error.message : 'Federated discovery is temporarily unavailable.');
+        }
+      } finally {
+        if (active) setLoading(false);
       }
     };
-    const loadSyncStatus = async () => {
-      try {
-        const { data, error } = await supabase.rpc('get_fediverse_ingestion_status');
-        if (!active || error) return;
-        setSyncStatus(data ?? null);
-      } catch {
-        if (active) setSyncStatus(null);
-      }
-    };
+    setLoading(true);
     void load();
-    void loadSyncStatus();
-    const timer = window.setInterval(() => { void load(); void loadSyncStatus(); }, 120000);
+    const timer = window.setInterval(() => { void load(); }, 120000);
     return () => { active = false; window.clearInterval(timer); };
   }, [limit, surface]);
 
-  if (!tags.length) return null;
+  if (loading && !tags.length) return <section className="border-y border-border px-4 py-3 text-xs text-muted-foreground" aria-live="polite">Loading federated hashtags…</section>;
+  if (!tags.length) return loadError
+    ? <section className="border-y border-border px-4 py-3 text-xs text-muted-foreground" role="status">Federated hashtags are temporarily unavailable.</section>
+    : null;
 
   return (
     <section className="border-y border-border bg-muted/10 px-4 py-3" aria-label="Fediverse hashtags">
       <div className="flex items-center justify-between gap-3 mb-2">
         <div>
           <p className="text-xs font-bold">Fediverse hashtags</p>
-          <p className="text-[10px] text-muted-foreground">Topics discovered from ingested federated posts</p>
+          <p className="text-[10px] text-muted-foreground">Topics extracted from recent federated discovery posts</p>
         </div>
-        <span className="text-[10px] text-muted-foreground text-right">
-          {syncStatus?.last_run?.completed_at
-            ? syncStatus.last_run.status === 'succeeded'
-              ? `Synced ${formatDistanceToNow(new Date(syncStatus.last_run.completed_at), { addSuffix: true })} · ${Number(syncStatus.last_run.objects_upserted ?? 0)} posts`
-              : syncStatus.last_run.status === 'partial'
-                ? `Partial sync ${formatDistanceToNow(new Date(syncStatus.last_run.completed_at), { addSuffix: true })} · ${Number(syncStatus.last_run.objects_upserted ?? 0)} posts`
-                : `Last sync failed ${formatDistanceToNow(new Date(syncStatus.last_run.completed_at), { addSuffix: true })}`
-            : 'Waiting for first sync'}
-        </span>
+        <span className="text-[10px] text-muted-foreground">Live discovery</span>
       </div>
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         {tags.map(({ tag, count }) => (
